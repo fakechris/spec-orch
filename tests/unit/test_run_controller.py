@@ -81,9 +81,21 @@ def test_run_controller_keeps_codex_harness_failure_when_app_server_is_unavailab
     assert result.builder.adapter == "codex_harness"
     assert result.builder.agent == "codex"
     assert "missing-codex" in result.builder.stderr
+    assert result.builder.metadata["turn_contract_compliance"] == {
+        "compliant": True,
+        "first_action_seen": False,
+        "first_action_method": None,
+        "first_action_excerpt": None,
+        "violations": [],
+    }
     telemetry_dir = result.workspace / "telemetry"
     assert telemetry_dir.exists()
     assert (telemetry_dir / "events.jsonl").exists()
+    report_data = json.loads(result.report.read_text())
+    assert (
+        report_data["builder"]["metadata"]["turn_contract_compliance"]
+        == result.builder.metadata["turn_contract_compliance"]
+    )
     events = _read_events(telemetry_dir / "events.jsonl")
     assert not any(event["event_type"] == "builder_fallback" for event in events)
     assert any(

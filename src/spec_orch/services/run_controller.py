@@ -16,6 +16,7 @@ from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.codex_harness_builder_adapter import (
     CodexHarnessBuilderAdapter,
     CodexHarnessTransportError,
+    evaluate_pre_action_narration_compliance,
 )
 from spec_orch.services.gate_service import GateService
 from spec_orch.services.review_adapter import LocalReviewAdapter
@@ -366,6 +367,9 @@ class RunController:
                 ),
             )
         except CodexHarnessTransportError as exc:
+            compliance = evaluate_pre_action_narration_compliance(
+                workspace / "telemetry" / "incoming_events.jsonl"
+            )
             builder = BuilderResult(
                 succeeded=False,
                 command=self.harness_builder_adapter.command,
@@ -378,6 +382,7 @@ class RunController:
                     "transport": "app_server_stdio",
                     "run_id": run_id,
                     "failure_reason": str(exc),
+                    "turn_contract_compliance": compliance,
                 },
             )
         builder.metadata["run_id"] = run_id
