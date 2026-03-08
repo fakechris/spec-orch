@@ -157,6 +157,8 @@ For builder dogfooding, point SpecOrch at a local Codex CLI installation:
 
 - [System Design v0](docs/architecture/spec-orch-system-design-v0.md)
 - [v1 Implementation Plan](docs/plans/2026-03-07-spec-orch-v1-implementation.md)
+- [P0-Alpha Dogfood Plan](docs/plans/2026-03-08-p0-alpha-dogfood-plan.md)
+- [P0-Alpha Issue Backlog](docs/plans/2026-03-08-p0-alpha-issue-backlog.md)
 - [Orchestration Options and MVP Dogfooding](docs/architecture/orchestration-plane-options-and-mvp.md)
 - [Observability v1 Design](docs/architecture/observability-v1-design.md)
 
