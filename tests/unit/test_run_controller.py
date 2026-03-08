@@ -22,6 +22,12 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     assert "human_acceptance" in result.explain.read_text()
     assert '"adapter": "codex_harness"' in result.report.read_text()
     assert '"agent": "codex"' in result.report.read_text()
+    telemetry_dir = result.workspace / "telemetry"
+    assert telemetry_dir.exists()
+    assert (telemetry_dir / "events.jsonl").exists()
+    report_data = json.loads(result.report.read_text())
+    assert report_data["run_id"]
+    assert report_data["builder"]["metadata"]["run_id"] == report_data["run_id"]
 
 
 def test_run_controller_falls_back_to_pi_when_codex_harness_is_unavailable(tmp_path: Path) -> None:
@@ -71,6 +77,11 @@ def test_run_controller_falls_back_to_pi_when_codex_harness_is_unavailable(tmp_p
     assert result.builder.metadata["fallback_from"] == "codex_harness"
     assert "missing-codex" in result.builder.metadata["fallback_reason"]
     assert "Implement with fallback." in (result.workspace / "builder-args.txt").read_text()
+    telemetry_dir = result.workspace / "telemetry"
+    assert telemetry_dir.exists()
+    assert (telemetry_dir / "events.jsonl").exists()
+    event_lines = (telemetry_dir / "events.jsonl").read_text().splitlines()
+    assert any('"event_type": "builder_fallback"' in line for line in event_lines)
 
 def test_review_and_accept_issue_recompute_gate_and_update_artifacts(tmp_path: Path) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
@@ -111,3 +122,8 @@ def test_review_and_accept_issue_recompute_gate_and_update_artifacts(tmp_path: P
     assert (accepted.workspace / "acceptance.json").exists()
     assert '"accepted_by": "chris"' in (accepted.workspace / "report.json").read_text()
     assert "acceptance_status=accepted" in accepted.explain.read_text()
+    telemetry_dir = accepted.workspace / "telemetry"
+    assert telemetry_dir.exists()
+    event_lines = (telemetry_dir / "events.jsonl").read_text().splitlines()
+    assert any('"event_type": "review_completed"' in line for line in event_lines)
+    assert any('"event_type": "acceptance_recorded"' in line for line in event_lines)

@@ -37,6 +37,8 @@ class CodexHarnessBuilderAdapter:
 
     def run(self, *, issue: Issue, workspace: Path) -> BuilderResult:
         report_path = workspace / "builder_report.json"
+        telemetry_dir = workspace / "telemetry"
+        telemetry_dir.mkdir(parents=True, exist_ok=True)
         if not issue.builder_prompt:
             result = BuilderResult(
                 succeeded=True,
@@ -58,6 +60,9 @@ class CodexHarnessBuilderAdapter:
                 cwd=workspace,
                 env=self._build_env(issue),
                 timeout_seconds=self.timeout_seconds,
+                raw_in_path=telemetry_dir / "raw_harness_in.jsonl",
+                raw_out_path=telemetry_dir / "raw_harness_out.jsonl",
+                raw_err_path=telemetry_dir / "raw_harness_err.log",
             ) as session:
                 session.initialize()
                 thread_id = session.start_thread(cwd=workspace)
@@ -131,17 +136,27 @@ class _CodexHarnessSession:
         cwd: Path,
         env: dict[str, str],
         timeout_seconds: float,
+        raw_in_path: Path | None = None,
+        raw_out_path: Path | None = None,
+        raw_err_path: Path | None = None,
     ) -> None:
         self.command = command
         self.cwd = cwd
         self.env = env
         self.timeout_seconds = timeout_seconds
+        self.raw_in_path = raw_in_path
+        self.raw_out_path = raw_out_path
+        self.raw_err_path = raw_err_path
         self._next_id = 1
         self.process: subprocess.Popen[str] | None = None
         self._stderr_file: tempfile.TemporaryFile[str] | None = None
 
     def __enter__(self) -> "_CodexHarnessSession":
-        self._stderr_file = tempfile.TemporaryFile(mode="w+")
+        if self.raw_err_path is not None:
+            self.raw_err_path.parent.mkdir(parents=True, exist_ok=True)
+            self._stderr_file = self.raw_err_path.open(mode="w+", encoding="utf-8")
+        else:
+            self._stderr_file = tempfile.TemporaryFile(mode="w+")
         self.process = subprocess.Popen(
             self.command,
             cwd=self.cwd,
@@ -265,7 +280,11 @@ class _CodexHarnessSession:
     def _write_message(self, payload: dict[str, Any]) -> None:
         if self.process is None or self.process.stdin is None:
             raise CodexHarnessTransportError("Codex app-server stdin is not available")
-        self.process.stdin.write(json.dumps(payload) + "\n")
+        serialized = json.dumps(payload)
+        if self.raw_in_path is not None:
+            with self.raw_in_path.open("a", encoding="utf-8") as handle:
+                handle.write(serialized + "\n")
+        self.process.stdin.write(serialized + "\n")
         self.process.stdin.flush()
 
     def _read_message(self, deadline: float) -> dict[str, Any]:
@@ -280,6 +299,9 @@ class _CodexHarnessSession:
             raise CodexHarnessTransportError(
                 f"Codex app-server closed the stdio stream unexpectedly. stderr={stderr}"
             )
+        if self.raw_out_path is not None:
+            with self.raw_out_path.open("a", encoding="utf-8") as handle:
+                handle.write(line)
         return json.loads(line)
 
     def _drain_stderr(self) -> str:

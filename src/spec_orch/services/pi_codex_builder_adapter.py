@@ -15,7 +15,13 @@ class PiCodexBuilderAdapter:
     def __init__(self, *, executable: str = "pi") -> None:
         self.executable = executable
 
-    def run(self, *, issue: Issue, workspace: Path) -> BuilderResult:
+    def run(
+        self,
+        *,
+        issue: Issue,
+        workspace: Path,
+        run_id: str | None = None,
+    ) -> BuilderResult:
         report_path = workspace / "builder_report.json"
         if not issue.builder_prompt:
             result = BuilderResult(
@@ -27,6 +33,7 @@ class PiCodexBuilderAdapter:
                 skipped=True,
                 adapter=self.ADAPTER_NAME,
                 agent=self.AGENT_NAME,
+                metadata=self._metadata(run_id),
             )
             self._write_report(result)
             return result
@@ -48,9 +55,15 @@ class PiCodexBuilderAdapter:
             report_path=report_path,
             adapter=self.ADAPTER_NAME,
             agent=self.AGENT_NAME,
+            metadata=self._metadata(run_id),
         )
         self._write_report(result)
         return result
+
+    def _metadata(self, run_id: str | None) -> dict[str, str]:
+        if run_id is None:
+            return {}
+        return {"run_id": run_id}
 
     def _build_env(self, issue: Issue) -> dict[str, str]:
         env = dict(os.environ)

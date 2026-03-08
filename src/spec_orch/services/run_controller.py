@@ -20,6 +20,7 @@ from spec_orch.services.codex_harness_builder_adapter import (
 from spec_orch.services.gate_service import GateService
 from spec_orch.services.pi_codex_builder_adapter import PiCodexBuilderAdapter
 from spec_orch.services.review_adapter import LocalReviewAdapter
+from spec_orch.services.telemetry_service import TelemetryService
 from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.workspace_service import WorkspaceService
 
@@ -40,12 +41,22 @@ class RunController:
         self.pi_builder_adapter = PiCodexBuilderAdapter(executable=pi_executable)
         self.gate_service = GateService()
         self.review_adapter = LocalReviewAdapter()
+        self.telemetry_service = TelemetryService()
         self.verification_service = VerificationService()
         self.workspace_service = WorkspaceService(repo_root=self.repo_root)
 
     def run_issue(self, issue_id: str) -> RunResult:
         issue = self._load_fixture(issue_id)
         workspace = self.workspace_service.prepare_issue_workspace(issue.issue_id)
+        run_id = self.telemetry_service.new_run_id(issue.issue_id)
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="run_controller",
+            event_type="run_started",
+            message="Started issue run.",
+        )
 
         task_spec, progress = self.artifact_service.write_initial_artifacts(
             workspace=workspace,
@@ -53,7 +64,7 @@ class RunController:
             issue_title=issue.title,
         )
 
-        builder = self._run_builder(issue=issue, workspace=workspace)
+        builder = self._run_builder(issue=issue, workspace=workspace, run_id=run_id)
         verification = self.verification_service.run(issue=issue, workspace=workspace)
         review = self.review_adapter.initialize(issue_id=issue.issue_id, workspace=workspace)
 
@@ -83,6 +94,7 @@ class RunController:
         report = self._write_report(
             workspace=workspace,
             issue=issue,
+            run_id=run_id,
             gate=gate,
             builder=builder,
             review=review,
@@ -119,6 +131,7 @@ class RunController:
             raise FileNotFoundError(f"report not found for issue {issue.issue_id}")
 
         report_data = json.loads(report.read_text())
+        run_id = report_data["run_id"]
         builder = self._builder_from_report(report_data, workspace)
         verification = self._verification_from_report(report_data)
         review = self.review_adapter.review(
@@ -155,11 +168,21 @@ class RunController:
         updated_report = self._write_report(
             workspace=workspace,
             issue=issue,
+            run_id=run_id,
             gate=gate,
             builder=builder,
             review=review,
             verification=verification,
             accepted_by=accepted_by,
+        )
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="review",
+            event_type="review_completed",
+            message="Recorded review verdict.",
+            data={"verdict": verdict, "reviewed_by": reviewed_by},
         )
 
         return RunResult(
@@ -185,6 +208,7 @@ class RunController:
             raise FileNotFoundError(f"report not found for issue {issue.issue_id}")
 
         report_data = json.loads(report.read_text())
+        run_id = report_data["run_id"]
         self.artifact_service.write_acceptance_artifact(
             workspace=workspace,
             issue_id=issue.issue_id,
@@ -219,11 +243,21 @@ class RunController:
         updated_report = self._write_report(
             workspace=workspace,
             issue=issue,
+            run_id=run_id,
             gate=gate,
             builder=builder,
             review=review,
             verification=verification,
             accepted_by=accepted_by,
+        )
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="acceptance",
+            event_type="acceptance_recorded",
+            message="Recorded human acceptance.",
+            data={"accepted_by": accepted_by},
         )
 
         return RunResult(
@@ -263,15 +297,58 @@ class RunController:
             return "passed"
         return "failed"
 
-    def _run_builder(self, *, issue: Issue, workspace: Path) -> BuilderResult:
+    def _run_builder(self, *, issue: Issue, workspace: Path, run_id: str) -> BuilderResult:
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="builder",
+            event_type="builder_started",
+            message="Started builder adapter.",
+            adapter=self.harness_builder_adapter.ADAPTER_NAME,
+            agent=self.harness_builder_adapter.AGENT_NAME,
+        )
         try:
-            return self.harness_builder_adapter.run(issue=issue, workspace=workspace)
+            builder = self.harness_builder_adapter.run(issue=issue, workspace=workspace)
         except CodexHarnessTransportError as exc:
-            builder = self.pi_builder_adapter.run(issue=issue, workspace=workspace)
+            self.telemetry_service.log_event(
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue.issue_id,
+                component="builder",
+                event_type="builder_fallback",
+                severity="warning",
+                message="Falling back from codex harness to pi.",
+                adapter=self.pi_builder_adapter.ADAPTER_NAME,
+                agent=self.pi_builder_adapter.AGENT_NAME,
+                data={"reason": str(exc)},
+            )
+            builder = self.pi_builder_adapter.run(
+                issue=issue,
+                workspace=workspace,
+                run_id=run_id,
+            )
             builder.metadata["fallback_from"] = CodexHarnessBuilderAdapter.ADAPTER_NAME
             builder.metadata["fallback_reason"] = str(exc)
             self.pi_builder_adapter._write_report(builder)
-            return builder
+        builder.metadata["run_id"] = run_id
+        if builder.adapter == self.harness_builder_adapter.ADAPTER_NAME:
+            self.harness_builder_adapter._write_report(builder)
+        if builder.adapter == self.pi_builder_adapter.ADAPTER_NAME:
+            self.pi_builder_adapter._write_report(builder)
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="builder",
+            event_type="builder_completed",
+            severity="info" if builder.succeeded else "error",
+            message="Builder adapter completed.",
+            adapter=builder.adapter,
+            agent=builder.agent,
+            data={"succeeded": builder.succeeded, "skipped": builder.skipped},
+        )
+        return builder
 
     def _builder_from_report(self, report_data: dict, workspace: Path) -> BuilderResult:
         builder_data = report_data["builder"]
@@ -318,6 +395,7 @@ class RunController:
         *,
         workspace: Path,
         issue: Issue,
+        run_id: str,
         gate,
         builder: BuilderResult,
         review: ReviewSummary,
@@ -328,6 +406,7 @@ class RunController:
         report.write_text(
             json.dumps(
                 {
+                    "run_id": run_id,
                     "issue_id": issue.issue_id,
                     "title": issue.title,
                     "mergeable": gate.mergeable,

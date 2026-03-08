@@ -128,6 +128,20 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
     assert '"adapter": "codex_harness"' in result.report.read_text()
     assert '"agent": "codex"' in result.report.read_text()
     assert "Modify this workspace." in (result.workspace / "builder-args.txt").read_text()
+    telemetry_dir = result.workspace / "telemetry"
+    assert telemetry_dir.exists()
+    assert (telemetry_dir / "events.jsonl").exists()
+    assert (telemetry_dir / "raw_harness_in.jsonl").exists()
+    assert (telemetry_dir / "raw_harness_out.jsonl").exists()
+    event_lines = (telemetry_dir / "events.jsonl").read_text().splitlines()
+    assert any('"event_type": "builder_started"' in line for line in event_lines)
+    assert any('"event_type": "builder_completed"' in line for line in event_lines)
+    report_data = json.loads(result.report.read_text())
+    builder_data = json.loads(result.builder.report_path.read_text())
+    assert report_data["run_id"]
+    assert builder_data["metadata"]["run_id"] == report_data["run_id"]
+    assert builder_data["metadata"]["thread_id"] == "thread-it"
+    assert builder_data["metadata"]["turn_id"] == "turn-it"
 
 
 def _init_git_repo(repo_root: Path) -> None:
