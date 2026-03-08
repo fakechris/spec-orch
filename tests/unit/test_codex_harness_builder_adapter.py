@@ -84,6 +84,20 @@ def test_codex_harness_builder_adapter_runs_builder_turn_over_stdio(tmp_path: Pa
         "thread/start",
         "turn/start",
     ]
+    turn_start = requests[2]
+    assert turn_start["params"]["input"] == [
+        {
+            "type": "text",
+            "text": (
+                "You are the SpecOrch builder for this issue workspace. "
+                "Minimize workflow narration, tool-loading commentary, and process summaries. "
+                "Move directly into implementation and verification. "
+                "Only stop to explain when blocked, when requesting approval, or when reporting the final outcome.\n\n"
+                "Issue builder prompt:\n"
+                "Implement the issue in this workspace."
+            ),
+        }
+    ]
     assert [event["event_type"] for event in events] == [
         "thread_started",
         "turn_started",

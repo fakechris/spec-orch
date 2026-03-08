@@ -25,6 +25,12 @@ class CodexHarnessTransportError(RuntimeError):
 class CodexHarnessBuilderAdapter:
     ADAPTER_NAME = "codex_harness"
     AGENT_NAME = "codex"
+    PREAMBLE = (
+        "You are the SpecOrch builder for this issue workspace. "
+        "Minimize workflow narration, tool-loading commentary, and process summaries. "
+        "Move directly into implementation and verification. "
+        "Only stop to explain when blocked, when requesting approval, or when reporting the final outcome."
+    )
 
     def __init__(
         self,
@@ -95,7 +101,7 @@ class CodexHarnessBuilderAdapter:
                 thread_id = session.start_thread(cwd=workspace)
                 turn_id = session.start_turn(
                     thread_id=thread_id,
-                    prompt=issue.builder_prompt,
+                    turn_input=self._build_turn_input(issue.builder_prompt),
                 )
                 completed = session.wait_for_turn_completion(
                     thread_id=thread_id,
@@ -155,6 +161,14 @@ class CodexHarnessBuilderAdapter:
             )
             + "\n"
         )
+
+    def _build_turn_input(self, prompt: str) -> list[dict[str, str]]:
+        return [
+            {
+                "type": "text",
+                "text": f"{self.PREAMBLE}\n\nIssue builder prompt:\n{prompt}",
+            }
+        ]
 
 
 class _CodexHarnessSession:
@@ -274,12 +288,12 @@ class _CodexHarnessSession:
         )
         return thread_id
 
-    def start_turn(self, *, thread_id: str, prompt: str) -> str:
+    def start_turn(self, *, thread_id: str, turn_input: list[dict[str, str]]) -> str:
         response = self._request(
             "turn/start",
             {
                 "threadId": thread_id,
-                "input": [{"type": "text", "text": prompt}],
+                "input": turn_input,
             },
         )
         turn_id = response["turn"]["id"]
