@@ -350,7 +350,23 @@ class RunController:
             agent=self.harness_builder_adapter.AGENT_NAME,
         )
         try:
-            builder = self.harness_builder_adapter.run(issue=issue, workspace=workspace)
+            builder = self.harness_builder_adapter.run(
+                issue=issue,
+                workspace=workspace,
+                run_id=run_id,
+                event_logger=lambda event: self.telemetry_service.log_event(
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=issue.issue_id,
+                    component=event.get("component", "builder"),
+                    event_type=event["event_type"],
+                    severity=event.get("severity", "info"),
+                    message=event["message"],
+                    adapter=event.get("adapter"),
+                    agent=event.get("agent"),
+                    data=event.get("data"),
+                ),
+            )
         except CodexHarnessTransportError as exc:
             self.telemetry_service.log_event(
                 workspace=workspace,

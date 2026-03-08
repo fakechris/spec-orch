@@ -5,6 +5,7 @@ import os
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -35,7 +36,14 @@ class CodexHarnessBuilderAdapter:
         ]
         self.timeout_seconds = timeout_seconds
 
-    def run(self, *, issue: Issue, workspace: Path) -> BuilderResult:
+    def run(
+        self,
+        *,
+        issue: Issue,
+        workspace: Path,
+        run_id: str | None = None,
+        event_logger: Callable[[dict[str, Any]], None] | None = None,
+    ) -> BuilderResult:
         report_path = workspace / "builder_report.json"
         telemetry_dir = workspace / "telemetry"
         telemetry_dir.mkdir(parents=True, exist_ok=True)
@@ -63,6 +71,8 @@ class CodexHarnessBuilderAdapter:
                 raw_in_path=telemetry_dir / "raw_harness_in.jsonl",
                 raw_out_path=telemetry_dir / "raw_harness_out.jsonl",
                 raw_err_path=telemetry_dir / "raw_harness_err.log",
+                run_id=run_id,
+                event_logger=event_logger,
             ) as session:
                 session.initialize()
                 thread_id = session.start_thread(cwd=workspace)
@@ -89,6 +99,7 @@ class CodexHarnessBuilderAdapter:
             agent=self.AGENT_NAME,
             metadata={
                 "transport": "app_server_stdio",
+                "run_id": run_id,
                 "thread_id": thread_id,
                 "turn_id": turn_id,
                 "plan": completed["plan"],
@@ -139,6 +150,8 @@ class _CodexHarnessSession:
         raw_in_path: Path | None = None,
         raw_out_path: Path | None = None,
         raw_err_path: Path | None = None,
+        run_id: str | None = None,
+        event_logger: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self.command = command
         self.cwd = cwd
@@ -147,6 +160,8 @@ class _CodexHarnessSession:
         self.raw_in_path = raw_in_path
         self.raw_out_path = raw_out_path
         self.raw_err_path = raw_err_path
+        self.run_id = run_id
+        self.event_logger = event_logger
         self._next_id = 1
         self.process: subprocess.Popen[str] | None = None
         self._stderr_file: tempfile.TemporaryFile[str] | None = None
@@ -195,14 +210,19 @@ class _CodexHarnessSession:
             "thread/start",
             {
                 "cwd": str(cwd),
-                "approvalPolicy": "never",
+                "approvalPolicy": "on-request",
                 "sandbox": "workspace-write",
-                "model": "codex",
                 "personality": "pragmatic",
                 "serviceName": "spec-orch-builder",
             },
         )
-        return response["thread"]["id"]
+        thread_id = response["thread"]["id"]
+        self._emit_event(
+            event_type="thread_started",
+            message="Started Codex thread.",
+            data={"thread_id": thread_id},
+        )
+        return thread_id
 
     def start_turn(self, *, thread_id: str, prompt: str) -> str:
         response = self._request(
@@ -212,7 +232,13 @@ class _CodexHarnessSession:
                 "input": [{"type": "text", "text": prompt}],
             },
         )
-        return response["turn"]["id"]
+        turn_id = response["turn"]["id"]
+        self._emit_event(
+            event_type="turn_started",
+            message="Started Codex turn.",
+            data={"thread_id": thread_id, "turn_id": turn_id},
+        )
+        return turn_id
 
     def wait_for_turn_completion(self, *, thread_id: str, turn_id: str) -> dict[str, Any]:
         deadline = time.monotonic() + self.timeout_seconds
@@ -222,6 +248,9 @@ class _CodexHarnessSession:
 
         while time.monotonic() < deadline:
             message = self._read_message(deadline)
+            if "method" in message and "id" in message:
+                self._handle_server_request(message)
+                continue
             if "method" not in message:
                 continue
             event_count += 1
@@ -240,6 +269,21 @@ class _CodexHarnessSession:
             elif message["method"] == "turn/completed":
                 params = message["params"]
                 if params["threadId"] == thread_id and params["turn"]["id"] == turn_id:
+                    event_type = (
+                        "turn_completed"
+                        if params["turn"]["status"] == "completed"
+                        else "turn_failed"
+                    )
+                    self._emit_event(
+                        event_type=event_type,
+                        severity="info" if event_type == "turn_completed" else "error",
+                        message="Codex turn finished.",
+                        data={
+                            "thread_id": thread_id,
+                            "turn_id": turn_id,
+                            "status": params["turn"]["status"],
+                        },
+                    )
                     return {
                         "status": params["turn"]["status"],
                         "final_message": "".join(final_message_parts),
@@ -266,9 +310,8 @@ class _CodexHarnessSession:
         while time.monotonic() < deadline:
             message = self._read_message(deadline)
             if "method" in message and "id" in message:
-                raise CodexHarnessTransportError(
-                    f"unexpected server request during {method}: {message['method']}"
-                )
+                self._handle_server_request(message)
+                continue
             if message.get("id") != request_id:
                 continue
             if "error" in message:
@@ -303,6 +346,89 @@ class _CodexHarnessSession:
             with self.raw_out_path.open("a", encoding="utf-8") as handle:
                 handle.write(line)
         return json.loads(line)
+
+    def _handle_server_request(self, message: dict[str, Any]) -> None:
+        method = message["method"]
+        request_id = message["id"]
+        params = message.get("params", {})
+
+        if method == "item/commandExecution/requestApproval":
+            self._emit_event(
+                event_type="approval_requested",
+                message="Command execution requested approval.",
+                data={
+                    "thread_id": params.get("threadId"),
+                    "turn_id": params.get("turnId"),
+                    "item_id": params.get("itemId"),
+                    "approval_type": "command",
+                },
+            )
+            self._write_message(
+                {"jsonrpc": "2.0", "id": request_id, "result": {"decision": "accept"}}
+            )
+            self._emit_event(
+                event_type="approval_resolved",
+                message="Command execution approval accepted.",
+                data={
+                    "thread_id": params.get("threadId"),
+                    "turn_id": params.get("turnId"),
+                    "item_id": params.get("itemId"),
+                    "approval_type": "command",
+                    "decision": "accept",
+                },
+            )
+            return
+
+        if method == "item/fileChange/requestApproval":
+            self._emit_event(
+                event_type="approval_requested",
+                message="File change requested approval.",
+                data={
+                    "thread_id": params.get("threadId"),
+                    "turn_id": params.get("turnId"),
+                    "item_id": params.get("itemId"),
+                    "approval_type": "file_change",
+                },
+            )
+            self._write_message(
+                {"jsonrpc": "2.0", "id": request_id, "result": {"decision": "accept"}}
+            )
+            self._emit_event(
+                event_type="approval_resolved",
+                message="File change approval accepted.",
+                data={
+                    "thread_id": params.get("threadId"),
+                    "turn_id": params.get("turnId"),
+                    "item_id": params.get("itemId"),
+                    "approval_type": "file_change",
+                    "decision": "accept",
+                },
+            )
+            return
+
+        raise CodexHarnessTransportError(f"unexpected server request: {method}")
+
+    def _emit_event(
+        self,
+        *,
+        event_type: str,
+        message: str,
+        data: dict[str, Any],
+        severity: str = "info",
+    ) -> None:
+        if self.event_logger is None:
+            return
+        payload = {
+            "event_type": event_type,
+            "message": message,
+            "severity": severity,
+            "run_id": self.run_id,
+            "component": "builder",
+            "adapter": CodexHarnessBuilderAdapter.ADAPTER_NAME,
+            "agent": CodexHarnessBuilderAdapter.AGENT_NAME,
+            "data": data,
+        }
+        self.event_logger(payload)
 
     def _drain_stderr(self) -> str:
         if self.process is None or self.process.stderr is None:

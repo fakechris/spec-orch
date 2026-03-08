@@ -137,6 +137,22 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
     assert any(event["event_type"] == "builder_started" for event in events)
     assert any(event["event_type"] == "builder_completed" for event in events)
     assert any(
+        event["event_type"] == "thread_started"
+        and event["data"]["thread_id"] == "thread-it"
+        for event in events
+    )
+    assert any(
+        event["event_type"] == "turn_started"
+        and event["data"]["turn_id"] == "turn-it"
+        for event in events
+    )
+    assert any(
+        event["event_type"] == "turn_completed"
+        and event["data"]["turn_id"] == "turn-it"
+        and event["data"]["status"] == "completed"
+        for event in events
+    )
+    assert any(
         event["event_type"] == "verification_step_completed"
         and event["data"]["step"] == "build"
         and event["data"]["exit_code"] == 0
