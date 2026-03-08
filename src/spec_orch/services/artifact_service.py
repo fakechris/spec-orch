@@ -52,6 +52,7 @@ class ArtifactService:
         issue_title: str,
         mergeable: bool,
         failed_conditions: list[str],
+        builder_status: str,
     ) -> Path:
         explain = workspace / "explain.md"
         blocked = ", ".join(failed_conditions) if failed_conditions else "none"
@@ -61,6 +62,7 @@ class ArtifactService:
                     f"# Explain Report for {issue_id}",
                     "",
                     f"- Title: {issue_title}",
+                    f"- builder_status={builder_status}",
                     f"- mergeable={mergeable}",
                     f"- blocked_by={blocked}",
                 ]

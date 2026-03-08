@@ -34,4 +34,6 @@ def test_pi_builder_adapter_runs_cli_in_workspace(tmp_path: Path) -> None:
     assert result.command[0] == str(fake_pi)
     assert "-p" in result.command
     assert "builder ok" in result.stdout
+    assert result.report_path.exists()
+    assert '"succeeded": true' in result.report_path.read_text()
     assert "Implement the issue in this workspace." in (tmp_path / "builder-args.txt").read_text()

@@ -84,9 +84,11 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
     result = controller.run_issue("SPC-2")
 
     assert result.workspace.exists()
+    assert result.builder.report_path.exists()
     assert result.gate.mergeable is False
     assert "human_acceptance" in result.gate.failed_conditions
     assert "builder" not in result.gate.failed_conditions
+    assert "builder_status=passed" in result.explain.read_text()
     assert "Modify this workspace." in (result.workspace / "builder-args.txt").read_text()
 
 

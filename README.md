@@ -31,6 +31,7 @@ The command creates a local run workspace under `.spec_orch_runs/SPC-1/` and wri
 When `--repo-root` points at a git repository, the runner now prefers a real issue worktree under `.worktrees/<issue-id>/` and also writes:
 
 - `explain.md`
+- `builder_report.json` when the builder adapter runs
 
 Issue fixtures can also define real verification commands:
 

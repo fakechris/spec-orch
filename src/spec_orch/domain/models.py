@@ -45,6 +45,7 @@ class BuilderResult:
     command: list[str]
     stdout: str
     stderr: str
+    report_path: Path
     skipped: bool = False
 
 

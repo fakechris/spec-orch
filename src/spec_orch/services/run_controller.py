@@ -56,6 +56,7 @@ class RunController:
             issue_title=issue.title,
             mergeable=gate.mergeable,
             failed_conditions=gate.failed_conditions,
+            builder_status=self._builder_status(builder),
         )
         report = workspace / "report.json"
         report.write_text(
@@ -69,6 +70,7 @@ class RunController:
                         "succeeded": builder.succeeded,
                         "skipped": builder.skipped,
                         "command": builder.command,
+                        "report_path": str(builder.report_path),
                     },
                     "verification": {
                         name: {
@@ -111,3 +113,10 @@ class RunController:
             title="Build MVP runner",
             summary="Local happy-path issue fixture for the first prototype.",
         )
+
+    def _builder_status(self, builder) -> str:
+        if builder.skipped:
+            return "skipped"
+        if builder.succeeded:
+            return "passed"
+        return "failed"
