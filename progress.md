@@ -48,10 +48,14 @@
 - **Status:** in_progress
 - Actions taken:
   - Prepared the repository for the initial documentation commit.
+  - Evaluated orchestration-layer options for the next design slice.
+  - Added an architecture note for orchestration choices and MVP dogfooding.
 - Files created/modified:
   - `task_plan.md`
   - `findings.md`
   - `progress.md`
+  - `README.md`
+  - `docs/architecture/orchestration-plane-options-and-mvp.md`
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |

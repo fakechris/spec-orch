@@ -16,6 +16,7 @@ This repository currently contains the initial architecture document and a v1 im
 
 - [System Design v0](docs/architecture/spec-orch-system-design-v0.md)
 - [v1 Implementation Plan](docs/plans/2026-03-07-spec-orch-v1-implementation.md)
+- [Orchestration Options and MVP Dogfooding](docs/architecture/orchestration-plane-options-and-mvp.md)
 
 ## Current Scope
 
