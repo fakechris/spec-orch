@@ -20,9 +20,57 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     assert "verification" in result.gate.failed_conditions
     assert "review" in result.gate.failed_conditions
     assert "human_acceptance" in result.explain.read_text()
-    assert '"adapter": "pi_codex"' in result.report.read_text()
+    assert '"adapter": "codex_harness"' in result.report.read_text()
     assert '"agent": "codex"' in result.report.read_text()
 
+
+def test_run_controller_falls_back_to_pi_when_codex_harness_is_unavailable(tmp_path: Path) -> None:
+    fake_pi = tmp_path / "fake-pi"
+    fake_pi.write_text(
+        "\n".join(
+            [
+                "#!/bin/sh",
+                "printf '%s\\n' \"$@\" > builder-args.txt",
+                "echo 'pi fallback ok'",
+            ]
+        )
+        + "\n"
+    )
+    fake_pi.chmod(0o755)
+
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-21.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-21",
+                "title": "Fallback builder",
+                "summary": "Use pi when codex app-server is unavailable.",
+                "builder_prompt": "Implement with fallback.",
+                "verification_commands": {
+                    "lint": ["{python}", "-c", "print('lint ok')"],
+                    "typecheck": ["{python}", "-c", "print('type ok')"],
+                    "test": ["{python}", "-c", "print('test ok')"],
+                    "build": ["{python}", "-c", "print('build ok')"],
+                },
+            }
+        )
+    )
+
+    controller = RunController(
+        repo_root=tmp_path,
+        codex_executable=str(tmp_path / "missing-codex"),
+        pi_executable=str(fake_pi),
+    )
+
+    result = controller.run_issue("SPC-21")
+
+    assert result.builder.succeeded is True
+    assert result.builder.adapter == "pi_codex"
+    assert result.builder.agent == "codex"
+    assert result.builder.metadata["fallback_from"] == "codex_harness"
+    assert "missing-codex" in result.builder.metadata["fallback_reason"]
+    assert "Implement with fallback." in (result.workspace / "builder-args.txt").read_text()
 
 def test_review_and_accept_issue_recompute_gate_and_update_artifacts(tmp_path: Path) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"

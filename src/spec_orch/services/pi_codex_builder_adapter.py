@@ -74,6 +74,7 @@ class PiCodexBuilderAdapter:
                     "stderr": result.stderr,
                     "adapter": result.adapter,
                     "agent": result.agent,
+                    "metadata": result.metadata,
                 },
                 indent=2,
             )

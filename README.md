@@ -48,7 +48,7 @@ Issue fixtures can also define real verification commands:
 
 `{python}` resolves to the current virtual environment interpreter, so verification runs inside the same project environment as the CLI.
 
-Issue fixtures can also define a `builder_prompt` for the `pi_codex` builder adapter:
+Issue fixtures can also define a `builder_prompt` for the builder adapter:
 
 ```json
 {
@@ -56,12 +56,21 @@ Issue fixtures can also define a `builder_prompt` for the `pi_codex` builder ada
 }
 ```
 
-The CLI uses `pi` by default, or you can point it at an explicit executable. SpecOrch treats that executable as the `pi_codex` builder adapter and injects `SPEC_ORCH_BUILDER_ADAPTER=pi_codex` plus `SPEC_ORCH_BUILDER_AGENT=codex` into the subprocess environment:
+SpecOrch now routes builder work to Codex through the local `codex app-server` harness by default. The orchestrator starts a Codex thread over stdio, sends a builder turn, captures agent message deltas plus plan updates, and writes them into `builder_report.json`.
+
+You can point SpecOrch at an explicit Codex executable:
 
 ```bash
-.venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root .
-.venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root . --pi-executable /path/to/pi
+.venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root . --codex-executable /path/to/codex
 ```
+
+If the Codex harness transport cannot be started, SpecOrch falls back to the existing `pi_codex` adapter for compatibility:
+
+```bash
+.venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root . --codex-executable /missing/codex --pi-executable /path/to/pi
+```
+
+Both builder paths inject `SPEC_ORCH_BUILDER_AGENT=codex`. The active adapter is recorded in `builder_report.json` and the top-level `report.json`.
 
 Once a run has passed builder and verification, human acceptance can be recorded explicitly:
 

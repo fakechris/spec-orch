@@ -13,6 +13,10 @@ from spec_orch.domain.models import (
     VerificationSummary,
 )
 from spec_orch.services.artifact_service import ArtifactService
+from spec_orch.services.codex_harness_builder_adapter import (
+    CodexHarnessBuilderAdapter,
+    CodexHarnessTransportError,
+)
 from spec_orch.services.gate_service import GateService
 from spec_orch.services.pi_codex_builder_adapter import PiCodexBuilderAdapter
 from spec_orch.services.review_adapter import LocalReviewAdapter
@@ -21,10 +25,19 @@ from spec_orch.services.workspace_service import WorkspaceService
 
 
 class RunController:
-    def __init__(self, *, repo_root: Path, pi_executable: str = "pi") -> None:
+    def __init__(
+        self,
+        *,
+        repo_root: Path,
+        codex_executable: str = "codex",
+        pi_executable: str = "pi",
+    ) -> None:
         self.repo_root = Path(repo_root)
         self.artifact_service = ArtifactService()
-        self.builder_adapter = PiCodexBuilderAdapter(executable=pi_executable)
+        self.harness_builder_adapter = CodexHarnessBuilderAdapter(
+            executable=codex_executable
+        )
+        self.pi_builder_adapter = PiCodexBuilderAdapter(executable=pi_executable)
         self.gate_service = GateService()
         self.review_adapter = LocalReviewAdapter()
         self.verification_service = VerificationService()
@@ -40,7 +53,7 @@ class RunController:
             issue_title=issue.title,
         )
 
-        builder = self.builder_adapter.run(issue=issue, workspace=workspace)
+        builder = self._run_builder(issue=issue, workspace=workspace)
         verification = self.verification_service.run(issue=issue, workspace=workspace)
         review = self.review_adapter.initialize(issue_id=issue.issue_id, workspace=workspace)
 
@@ -250,6 +263,16 @@ class RunController:
             return "passed"
         return "failed"
 
+    def _run_builder(self, *, issue: Issue, workspace: Path) -> BuilderResult:
+        try:
+            return self.harness_builder_adapter.run(issue=issue, workspace=workspace)
+        except CodexHarnessTransportError as exc:
+            builder = self.pi_builder_adapter.run(issue=issue, workspace=workspace)
+            builder.metadata["fallback_from"] = CodexHarnessBuilderAdapter.ADAPTER_NAME
+            builder.metadata["fallback_reason"] = str(exc)
+            self.pi_builder_adapter._write_report(builder)
+            return builder
+
     def _builder_from_report(self, report_data: dict, workspace: Path) -> BuilderResult:
         builder_data = report_data["builder"]
         return BuilderResult(
@@ -261,6 +284,7 @@ class RunController:
             adapter=builder_data["adapter"],
             agent=builder_data["agent"],
             skipped=builder_data.get("skipped", False),
+            metadata=builder_data.get("metadata", {}),
         )
 
     def _verification_from_report(self, report_data: dict) -> VerificationSummary:
@@ -315,6 +339,7 @@ class RunController:
                         "report_path": str(builder.report_path),
                         "adapter": builder.adapter,
                         "agent": builder.agent,
+                        "metadata": builder.metadata,
                     },
                     "review": {
                         "verdict": review.verdict,

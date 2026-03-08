@@ -18,10 +18,15 @@ def cli() -> None:
 def run_issue(
     issue_id: str,
     repo_root: Path = typer.Option(Path("."), "--repo-root"),
+    codex_executable: str = typer.Option("codex", "--codex-executable"),
     pi_executable: str = typer.Option("pi", "--pi-executable"),
 ) -> None:
     """Run one local issue fixture through the MVP pipeline."""
-    controller = RunController(repo_root=repo_root, pi_executable=pi_executable)
+    controller = RunController(
+        repo_root=repo_root,
+        codex_executable=codex_executable,
+        pi_executable=pi_executable,
+    )
     result = controller.run_issue(issue_id)
     typer.echo(
         " ".join(
@@ -40,10 +45,15 @@ def accept_issue(
     issue_id: str,
     repo_root: Path = typer.Option(Path("."), "--repo-root"),
     accepted_by: str = typer.Option(..., "--accepted-by"),
+    codex_executable: str = typer.Option("codex", "--codex-executable"),
     pi_executable: str = typer.Option("pi", "--pi-executable"),
 ) -> None:
     """Record human acceptance for an existing issue run."""
-    controller = RunController(repo_root=repo_root, pi_executable=pi_executable)
+    controller = RunController(
+        repo_root=repo_root,
+        codex_executable=codex_executable,
+        pi_executable=pi_executable,
+    )
     result = controller.accept_issue(issue_id, accepted_by=accepted_by)
     typer.echo(
         " ".join(
@@ -64,10 +74,15 @@ def review_issue(
     repo_root: Path = typer.Option(Path("."), "--repo-root"),
     verdict: str = typer.Option(..., "--verdict"),
     reviewed_by: str = typer.Option(..., "--reviewed-by"),
+    codex_executable: str = typer.Option("codex", "--codex-executable"),
     pi_executable: str = typer.Option("pi", "--pi-executable"),
 ) -> None:
     """Record review verdict for an existing issue run."""
-    controller = RunController(repo_root=repo_root, pi_executable=pi_executable)
+    controller = RunController(
+        repo_root=repo_root,
+        codex_executable=codex_executable,
+        pi_executable=pi_executable,
+    )
     result = controller.review_issue(
         issue_id,
         verdict=verdict,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 from spec_orch.services.run_controller import RunController
@@ -45,18 +46,52 @@ def test_run_controller_creates_git_worktree_for_issue(tmp_path: Path) -> None:
 def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> None:
     _init_git_repo(tmp_path)
 
-    fake_pi = tmp_path / "fake-pi"
-    fake_pi.write_text(
+    fake_server = tmp_path / "fake_codex_app_server.py"
+    fake_server.write_text(
         "\n".join(
             [
-                "#!/bin/sh",
-                "printf '%s\n' \"$@\" > builder-args.txt",
-                "echo 'builder ok'",
+                "import json",
+                "import sys",
+                "for line in sys.stdin:",
+                "    message = json.loads(line)",
+                "    method = message.get('method')",
+                "    if method == 'initialize':",
+                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'id': message['id'], 'result': {'serverInfo': {'name': 'fake-codex', 'version': '0.1'}}}) + '\\n')",
+                "        sys.stdout.flush()",
+                "    elif method == 'thread/start':",
+                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'id': message['id'], 'result': {'thread': {'id': 'thread-it'}, 'cwd': '.', 'approvalPolicy': 'never', 'sandbox': {'mode': 'workspace-write'}, 'model': 'codex-mini', 'modelProvider': 'openai'}}) + '\\n')",
+                "        sys.stdout.flush()",
+                "    elif method == 'turn/start':",
+                "        prompt = message['params']['input'][0]['text']",
+                "        with open('builder-args.txt', 'w', encoding='utf-8') as handle:",
+                "            handle.write(prompt + '\\n')",
+                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'id': message['id'], 'result': {'turn': {'id': 'turn-it', 'status': 'in_progress'}}}) + '\\n')",
+                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'method': 'item/agentMessage/delta', 'params': {'threadId': 'thread-it', 'turnId': 'turn-it', 'itemId': 'msg-1', 'delta': 'builder ok'}}) + '\\n')",
+                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'method': 'turn/plan/updated', 'params': {'threadId': 'thread-it', 'turnId': 'turn-it', 'items': [{'id': 'plan-1', 'text': 'Modify this workspace.'}]}}) + '\\n')",
+                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'method': 'turn/completed', 'params': {'threadId': 'thread-it', 'turn': {'id': 'turn-it', 'status': 'completed'}}}) + '\\n')",
+                "        sys.stdout.flush()",
+                "        break",
             ]
         )
         + "\n"
     )
-    fake_pi.chmod(0o755)
+
+    fake_codex = tmp_path / "fake-codex"
+    fake_codex.write_text(
+        "\n".join(
+            [
+                "#!/bin/sh",
+                "if [ \"$1\" = \"app-server\" ]; then",
+                "  shift",
+                f"  exec {sys.executable} {fake_server}",
+                "fi",
+                "echo 'unexpected invocation' >&2",
+                "exit 1",
+            ]
+        )
+        + "\n"
+    )
+    fake_codex.chmod(0o755)
 
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
@@ -65,7 +100,7 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
             {
                 "issue_id": "SPC-2",
                 "title": "Run builder adapter",
-                "summary": "Use pi builder before verification.",
+                "summary": "Use codex harness builder before verification.",
                 "builder_prompt": "Modify this workspace.",
                 "verification_commands": {
                     "lint": ["{python}", "-c", "print('lint ok')"],
@@ -79,7 +114,7 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
     _git(tmp_path, "add", ".")
     _git_commit(tmp_path, "add builder fixture")
 
-    controller = RunController(repo_root=tmp_path, pi_executable=str(fake_pi))
+    controller = RunController(repo_root=tmp_path, codex_executable=str(fake_codex))
 
     result = controller.run_issue("SPC-2")
 
@@ -90,7 +125,7 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
     assert "review" in result.gate.failed_conditions
     assert "builder" not in result.gate.failed_conditions
     assert "builder_status=passed" in result.explain.read_text()
-    assert '"adapter": "pi_codex"' in result.report.read_text()
+    assert '"adapter": "codex_harness"' in result.report.read_text()
     assert '"agent": "codex"' in result.report.read_text()
     assert "Modify this workspace." in (result.workspace / "builder-args.txt").read_text()
 

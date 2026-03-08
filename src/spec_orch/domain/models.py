@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -49,6 +50,7 @@ class BuilderResult:
     adapter: str
     agent: str
     skipped: bool = False
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
