@@ -16,6 +16,7 @@ from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.codex_harness_builder_adapter import (
     CodexHarnessBuilderAdapter,
     CodexHarnessTransportError,
+    default_turn_contract_compliance,
     evaluate_pre_action_narration_compliance,
 )
 from spec_orch.services.gate_service import GateService
@@ -79,7 +80,13 @@ class RunController:
             run_id=run_id,
             verification=verification,
         )
-        review = self.review_adapter.initialize(issue_id=issue.issue_id, workspace=workspace)
+        review = self.review_adapter.initialize(
+            issue_id=issue.issue_id,
+            workspace=workspace,
+            builder_turn_contract_compliance=builder.metadata.get(
+                "turn_contract_compliance"
+            ),
+        )
         self.telemetry_service.log_event(
             workspace=workspace,
             run_id=run_id,
@@ -168,6 +175,9 @@ class RunController:
             workspace=workspace,
             verdict=verdict,
             reviewed_by=reviewed_by,
+            builder_turn_contract_compliance=builder.metadata.get(
+                "turn_contract_compliance"
+            ),
         )
         human_acceptance = report_data["human_acceptance"]["accepted"]
         accepted_by = report_data["human_acceptance"]["accepted_by"]
@@ -388,6 +398,9 @@ class RunController:
                     "turn_contract_compliance": compliance,
                 },
             )
+        builder.metadata.setdefault(
+            "turn_contract_compliance", default_turn_contract_compliance()
+        )
         builder.metadata["run_id"] = run_id
         if builder.adapter == self.harness_builder_adapter.ADAPTER_NAME:
             self.harness_builder_adapter._write_report(builder)
@@ -466,7 +479,12 @@ class RunController:
             adapter=builder_data["adapter"],
             agent=builder_data["agent"],
             skipped=builder_data.get("skipped", False),
-            metadata=builder_data.get("metadata", {}),
+            metadata={
+                **builder_data.get("metadata", {}),
+                "turn_contract_compliance": builder_data.get("metadata", {}).get(
+                    "turn_contract_compliance", default_turn_contract_compliance()
+                ),
+            },
         )
 
     def _verification_from_report(self, report_data: dict) -> VerificationSummary:

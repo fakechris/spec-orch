@@ -147,6 +147,11 @@ def test_review_and_accept_issue_recompute_gate_and_update_artifacts(tmp_path: P
     assert reviewed.gate.mergeable is False
     assert reviewed.gate.failed_conditions == ["human_acceptance"]
     assert (reviewed.workspace / "review_report.json").exists()
+    review_report = json.loads((reviewed.workspace / "review_report.json").read_text())
+    assert (
+        review_report["builder_turn_contract_compliance"]
+        == initial.builder.metadata["turn_contract_compliance"]
+    )
     assert '"reviewed_by": "claude"' in (reviewed.workspace / "report.json").read_text()
     assert "review_status=pass" in reviewed.explain.read_text()
     assert accepted.gate.mergeable is True
