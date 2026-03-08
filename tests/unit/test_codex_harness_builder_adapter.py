@@ -561,7 +561,7 @@ def test_codex_harness_builder_adapter_times_out_when_turn_has_no_progress(
     adapter = CodexHarnessBuilderAdapter(
         command=[sys.executable, str(fake_server)],
         request_timeout_seconds=0.2,
-        idle_timeout_seconds=0.2,
+        idle_timeout_seconds=0.4,
         stalled_timeout_seconds=0.12,
         absolute_timeout_seconds=1.0,
     )
