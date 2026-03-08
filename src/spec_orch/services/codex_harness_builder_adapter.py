@@ -26,6 +26,13 @@ class CodexHarnessBuilderAdapter:
     ADAPTER_NAME = "codex_harness"
     AGENT_NAME = "codex"
     PREAMBLE = (
+        "CRITICAL INSTRUCTIONS - FOLLOW EXACTLY:\n"
+        "- DO NOT describe what you are about to do\n"
+        "- DO NOT explain your plan or approach before acting\n"
+        "- DO NOT narrate steps like \"First I will read the repo, then I will...\"\n"
+        "- DO NOT reference skill docs or planning process\n"
+        "- START with the first concrete action: a command, a code edit, or a test run\n"
+        "- If you must explain, do it AFTER the action, in one sentence max\n\n"
         "You are the SpecOrch builder for this issue workspace. "
         "Minimize workflow narration, tool-loading commentary, and process summaries. "
         "Move directly into implementation and verification. "
