@@ -59,11 +59,16 @@ class ArtifactService:
         reviewed_by: str | None,
         acceptance_status: str,
         accepted_by: str | None,
+        builder_contract_compliance: dict | None,
     ) -> Path:
         explain = workspace / "explain.md"
         blocked = ", ".join(failed_conditions) if failed_conditions else "none"
         reviewed_by_value = reviewed_by or "pending"
         accepted_by_value = accepted_by or "pending"
+        compliance = builder_contract_compliance or {}
+        compliant = "yes" if compliance.get("compliant") else "no"
+        first_action_seen = "yes" if compliance.get("first_action_seen") else "no"
+        violation_count = len(compliance.get("violations", []))
         explain.write_text(
             "\n".join(
                 [
@@ -77,6 +82,9 @@ class ArtifactService:
                     f"- accepted_by={accepted_by_value}",
                     f"- mergeable={mergeable}",
                     f"- blocked_by={blocked}",
+                    f"- builder_contract_compliant={compliant}",
+                    f"- builder_first_action_seen={first_action_seen}",
+                    f"- builder_contract_violations={violation_count}",
                 ]
             )
             + "\n"

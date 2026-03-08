@@ -118,6 +118,7 @@ class RunController:
             reviewed_by=review.reviewed_by,
             acceptance_status="pending",
             accepted_by=None,
+            builder_contract_compliance=builder.metadata.get("turn_contract_compliance"),
         )
         report = self._write_report(
             workspace=workspace,
@@ -198,6 +199,7 @@ class RunController:
             reviewed_by=review.reviewed_by,
             acceptance_status="accepted" if human_acceptance else "pending",
             accepted_by=accepted_by,
+            builder_contract_compliance=builder.metadata.get("turn_contract_compliance"),
         )
         updated_report = self._write_report(
             workspace=workspace,
@@ -279,6 +281,7 @@ class RunController:
             reviewed_by=review.reviewed_by,
             acceptance_status="accepted",
             accepted_by=accepted_by,
+            builder_contract_compliance=builder.metadata.get("turn_contract_compliance"),
         )
         updated_report = self._write_report(
             workspace=workspace,

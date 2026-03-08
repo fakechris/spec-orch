@@ -96,6 +96,10 @@ def test_run_controller_keeps_codex_harness_failure_when_app_server_is_unavailab
         report_data["builder"]["metadata"]["turn_contract_compliance"]
         == result.builder.metadata["turn_contract_compliance"]
     )
+    explain_text = result.explain.read_text()
+    assert "builder_contract_compliant=yes" in explain_text
+    assert "builder_first_action_seen=no" in explain_text
+    assert "builder_contract_violations=0" in explain_text
     events = _read_events(telemetry_dir / "events.jsonl")
     assert not any(event["event_type"] == "builder_fallback" for event in events)
     assert any(
