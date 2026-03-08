@@ -35,6 +35,29 @@ def run_issue(
     )
 
 
+@app.command("accept-issue")
+def accept_issue(
+    issue_id: str,
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+    accepted_by: str = typer.Option(..., "--accepted-by"),
+    pi_executable: str = typer.Option("pi", "--pi-executable"),
+) -> None:
+    """Record human acceptance for an existing issue run."""
+    controller = RunController(repo_root=repo_root, pi_executable=pi_executable)
+    result = controller.accept_issue(issue_id, accepted_by=accepted_by)
+    typer.echo(
+        " ".join(
+            [
+                f"issue={result.issue.issue_id}",
+                f"workspace={result.workspace}",
+                f"mergeable={result.gate.mergeable}",
+                f"blocked={','.join(result.gate.failed_conditions) or 'none'}",
+                f"accepted_by={accepted_by}",
+            ]
+        )
+    )
+
+
 def main() -> None:
     app()
 

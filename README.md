@@ -17,7 +17,7 @@ This repository currently contains the initial architecture document and a v1 im
 The current feature branch contains a runnable local prototype in Python.
 
 ```bash
-python3 -m venv .venv
+python3.13 -m venv .venv
 .venv/bin/pip install -e .[dev]
 .venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root .
 ```
@@ -62,6 +62,14 @@ The CLI uses `pi` by default, or you can point it at an explicit executable:
 .venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root .
 .venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root . --pi-executable /path/to/pi
 ```
+
+Once a run has passed builder and verification, human acceptance can be recorded explicitly:
+
+```bash
+.venv/bin/python -m spec_orch.cli accept-issue SPC-1 --repo-root . --accepted-by chris
+```
+
+That command writes `acceptance.json`, rewrites `report.json`, updates `explain.md`, and can flip the issue to `mergeable=True` when acceptance is the only remaining blocker.
 
 ## Documents
 

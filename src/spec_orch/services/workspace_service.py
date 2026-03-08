@@ -9,12 +9,11 @@ class WorkspaceService:
         self.repo_root = Path(repo_root)
 
     def prepare_issue_workspace(self, issue_id: str) -> Path:
+        workspace = self.issue_workspace_path(issue_id)
         if not self._is_git_repository():
-            workspace = self.repo_root / ".spec_orch_runs" / issue_id
             workspace.mkdir(parents=True, exist_ok=True)
             return workspace
 
-        workspace = self.repo_root / ".worktrees" / issue_id
         if workspace.exists() and (workspace / ".git").exists():
             return workspace
 
@@ -26,6 +25,11 @@ class WorkspaceService:
             self._run_git("worktree", "add", str(workspace), "-b", branch_name, "HEAD")
 
         return workspace
+
+    def issue_workspace_path(self, issue_id: str) -> Path:
+        if self._is_git_repository():
+            return self.repo_root / ".worktrees" / issue_id
+        return self.repo_root / ".spec_orch_runs" / issue_id
 
     def _is_git_repository(self) -> bool:
         result = subprocess.run(
