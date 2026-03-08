@@ -57,5 +57,6 @@ class RunResult:
     workspace: Path
     task_spec: Path
     progress: Path
+    explain: Path
     report: Path
     gate: GateVerdict

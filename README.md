@@ -28,6 +28,10 @@ The command creates a local run workspace under `.spec_orch_runs/SPC-1/` and wri
 - `progress.md`
 - `report.json`
 
+When `--repo-root` points at a git repository, the runner now prefers a real issue worktree under `.worktrees/<issue-id>/` and also writes:
+
+- `explain.md`
+
 ## Documents
 
 - [System Design v0](docs/architecture/spec-orch-system-design-v0.md)

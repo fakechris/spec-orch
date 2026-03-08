@@ -28,6 +28,7 @@ def run_issue(
                 f"issue={result.issue.issue_id}",
                 f"workspace={result.workspace}",
                 f"mergeable={result.gate.mergeable}",
+                f"blocked={','.join(result.gate.failed_conditions) or 'none'}",
             ]
         )
     )

@@ -12,6 +12,7 @@ from spec_orch.domain.models import (
 )
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.gate_service import GateService
+from spec_orch.services.workspace_service import WorkspaceService
 
 
 class RunController:
@@ -19,11 +20,11 @@ class RunController:
         self.repo_root = Path(repo_root)
         self.artifact_service = ArtifactService()
         self.gate_service = GateService()
+        self.workspace_service = WorkspaceService(repo_root=self.repo_root)
 
     def run_issue(self, issue_id: str) -> RunResult:
         issue = self._load_fixture(issue_id)
-        workspace = self.repo_root / ".spec_orch_runs" / issue.issue_id
-        workspace.mkdir(parents=True, exist_ok=True)
+        workspace = self.workspace_service.prepare_issue_workspace(issue.issue_id)
 
         task_spec, progress = self.artifact_service.write_initial_artifacts(
             workspace=workspace,
@@ -46,6 +47,13 @@ class RunController:
                 human_acceptance=False,
             )
         )
+        explain = self.artifact_service.write_explain_report(
+            workspace=workspace,
+            issue_id=issue.issue_id,
+            issue_title=issue.title,
+            mergeable=gate.mergeable,
+            failed_conditions=gate.failed_conditions,
+        )
         report = workspace / "report.json"
         report.write_text(
             json.dumps(
@@ -65,6 +73,7 @@ class RunController:
             workspace=workspace,
             task_spec=task_spec,
             progress=progress,
+            explain=explain,
             report=report,
             gate=gate,
         )

@@ -28,3 +28,4 @@ def test_run_issue_uses_fixture_and_reports_gate_result(tmp_path) -> None:
     assert result.exit_code == 0
     assert "SPC-1" in result.stdout
     assert "mergeable=False" in result.stdout
+    assert "blocked=human_acceptance" in result.stdout

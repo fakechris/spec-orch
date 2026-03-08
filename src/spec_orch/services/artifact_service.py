@@ -43,3 +43,28 @@ class ArtifactService:
         )
 
         return task_spec, progress
+
+    def write_explain_report(
+        self,
+        *,
+        workspace: Path,
+        issue_id: str,
+        issue_title: str,
+        mergeable: bool,
+        failed_conditions: list[str],
+    ) -> Path:
+        explain = workspace / "explain.md"
+        blocked = ", ".join(failed_conditions) if failed_conditions else "none"
+        explain.write_text(
+            "\n".join(
+                [
+                    f"# Explain Report for {issue_id}",
+                    "",
+                    f"- Title: {issue_title}",
+                    f"- mergeable={mergeable}",
+                    f"- blocked_by={blocked}",
+                ]
+            )
+            + "\n"
+        )
+        return explain
