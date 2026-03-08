@@ -48,29 +48,18 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     )
 
 
-def test_run_controller_falls_back_to_pi_when_codex_harness_is_unavailable(tmp_path: Path) -> None:
-    fake_pi = tmp_path / "fake-pi"
-    fake_pi.write_text(
-        "\n".join(
-            [
-                "#!/bin/sh",
-                "printf '%s\\n' \"$@\" > builder-args.txt",
-                "echo 'pi fallback ok'",
-            ]
-        )
-        + "\n"
-    )
-    fake_pi.chmod(0o755)
-
+def test_run_controller_keeps_codex_harness_failure_when_app_server_is_unavailable(
+    tmp_path: Path,
+) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-21.json").write_text(
         json.dumps(
             {
                 "issue_id": "SPC-21",
-                "title": "Fallback builder",
-                "summary": "Use pi when codex app-server is unavailable.",
-                "builder_prompt": "Implement with fallback.",
+                "title": "Unavailable harness",
+                "summary": "Keep the codex harness failure when the app-server is unavailable.",
+                "builder_prompt": "Implement without fallback.",
                 "verification_commands": {
                     "lint": ["{python}", "-c", "print('lint ok')"],
                     "typecheck": ["{python}", "-c", "print('type ok')"],
@@ -84,26 +73,29 @@ def test_run_controller_falls_back_to_pi_when_codex_harness_is_unavailable(tmp_p
     controller = RunController(
         repo_root=tmp_path,
         codex_executable=str(tmp_path / "missing-codex"),
-        pi_executable=str(fake_pi),
     )
 
     result = controller.run_issue("SPC-21")
 
-    assert result.builder.succeeded is True
-    assert result.builder.adapter == "pi_codex"
+    assert result.builder.succeeded is False
+    assert result.builder.adapter == "codex_harness"
     assert result.builder.agent == "codex"
-    assert result.builder.metadata["fallback_from"] == "codex_harness"
-    assert "missing-codex" in result.builder.metadata["fallback_reason"]
-    assert "Implement with fallback." in (result.workspace / "builder-args.txt").read_text()
+    assert "missing-codex" in result.builder.stderr
     telemetry_dir = result.workspace / "telemetry"
     assert telemetry_dir.exists()
     assert (telemetry_dir / "events.jsonl").exists()
     events = _read_events(telemetry_dir / "events.jsonl")
-    assert any(event["event_type"] == "builder_fallback" for event in events)
+    assert not any(event["event_type"] == "builder_fallback" for event in events)
+    assert any(
+        event["event_type"] == "builder_completed"
+        and event["adapter"] == "codex_harness"
+        and event["data"]["succeeded"] is False
+        for event in events
+    )
     assert any(
         event["event_type"] == "gate_evaluated"
         and event["data"]["mergeable"] is False
-        and "human_acceptance" in event["data"]["failed_conditions"]
+        and "builder" in event["data"]["failed_conditions"]
         for event in events
     )
 

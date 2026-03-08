@@ -18,7 +18,6 @@ from spec_orch.services.codex_harness_builder_adapter import (
     CodexHarnessTransportError,
 )
 from spec_orch.services.gate_service import GateService
-from spec_orch.services.pi_codex_builder_adapter import PiCodexBuilderAdapter
 from spec_orch.services.review_adapter import LocalReviewAdapter
 from spec_orch.services.telemetry_service import TelemetryService
 from spec_orch.services.verification_service import VerificationService
@@ -38,7 +37,6 @@ class RunController:
         self.harness_builder_adapter = CodexHarnessBuilderAdapter(
             executable=codex_executable
         )
-        self.pi_builder_adapter = PiCodexBuilderAdapter(executable=pi_executable)
         self.gate_service = GateService()
         self.review_adapter = LocalReviewAdapter()
         self.telemetry_service = TelemetryService()
@@ -368,31 +366,23 @@ class RunController:
                 ),
             )
         except CodexHarnessTransportError as exc:
-            self.telemetry_service.log_event(
-                workspace=workspace,
-                run_id=run_id,
-                issue_id=issue.issue_id,
-                component="builder",
-                event_type="builder_fallback",
-                severity="warning",
-                message="Falling back from codex harness to pi.",
-                adapter=self.pi_builder_adapter.ADAPTER_NAME,
-                agent=self.pi_builder_adapter.AGENT_NAME,
-                data={"reason": str(exc)},
+            builder = BuilderResult(
+                succeeded=False,
+                command=self.harness_builder_adapter.command,
+                stdout="",
+                stderr=str(exc),
+                report_path=workspace / "builder_report.json",
+                adapter=self.harness_builder_adapter.ADAPTER_NAME,
+                agent=self.harness_builder_adapter.AGENT_NAME,
+                metadata={
+                    "transport": "app_server_stdio",
+                    "run_id": run_id,
+                    "failure_reason": str(exc),
+                },
             )
-            builder = self.pi_builder_adapter.run(
-                issue=issue,
-                workspace=workspace,
-                run_id=run_id,
-            )
-            builder.metadata["fallback_from"] = CodexHarnessBuilderAdapter.ADAPTER_NAME
-            builder.metadata["fallback_reason"] = str(exc)
-            self.pi_builder_adapter._write_report(builder)
         builder.metadata["run_id"] = run_id
         if builder.adapter == self.harness_builder_adapter.ADAPTER_NAME:
             self.harness_builder_adapter._write_report(builder)
-        if builder.adapter == self.pi_builder_adapter.ADAPTER_NAME:
-            self.pi_builder_adapter._write_report(builder)
         self.telemetry_service.log_event(
             workspace=workspace,
             run_id=run_id,
