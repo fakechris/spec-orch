@@ -214,6 +214,7 @@ class _CodexHarnessSession:
         self._last_protocol_excerpt: str | None = None
         self._timeout_reason: str | None = None
         self._stdout_buffer = b""
+        self._agent_message_fragments: dict[str, str] = {}
 
     def __enter__(self) -> "_CodexHarnessSession":
         if self.raw_err_path is not None:
@@ -551,7 +552,7 @@ class _CodexHarnessSession:
 
     def _record_activity(self, message: dict[str, Any]) -> None:
         method = message["method"]
-        excerpt = self._message_excerpt(message)
+        excerpt = self._activity_excerpt(message)
         self._mark_protocol(method, excerpt=excerpt)
         output_kind = self._output_kind(method)
         if output_kind is not None:
@@ -774,6 +775,22 @@ class _CodexHarnessSession:
         if method is None and "error" in message:
             return self._trim_excerpt(json.dumps(message["error"]))
         return self._trim_excerpt(method)
+
+    def _activity_excerpt(self, message: dict[str, Any]) -> str | None:
+        method = message.get("method")
+        if method == "item/agentMessage/delta":
+            return self._aggregated_agent_message_excerpt(message)
+        return self._message_excerpt(message)
+
+    def _aggregated_agent_message_excerpt(self, message: dict[str, Any]) -> str | None:
+        params = message.get("params", {})
+        item_id = params.get("itemId")
+        delta = params.get("delta")
+        if item_id is None:
+            return self._trim_excerpt(delta)
+        previous = self._agent_message_fragments.get(item_id, "")
+        self._agent_message_fragments[item_id] = previous + str(delta or "")
+        return self._trim_excerpt(self._agent_message_fragments[item_id])
 
     def _trim_excerpt(self, value: Any, *, limit: int = 200) -> str | None:
         if value is None:

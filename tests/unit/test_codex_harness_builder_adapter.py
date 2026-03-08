@@ -302,6 +302,60 @@ def test_codex_harness_builder_adapter_writes_parsed_incoming_events_and_output_
     assert state_data["last_command_output_excerpt"] == "pytest output line"
 
 
+def test_codex_harness_builder_adapter_aggregates_agent_message_deltas_into_excerpt(
+    tmp_path: Path,
+) -> None:
+    fake_server = tmp_path / "fake_codex_agent_message_server.py"
+    fake_server.write_text(
+        "\n".join(
+            [
+                "import json",
+                "import sys",
+                "for line in sys.stdin:",
+                "    message = json.loads(line)",
+                "    method = message.get('method')",
+                "    if method == 'initialize':",
+                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'id': message['id'], 'result': {'serverInfo': {'name': 'fake-codex', 'version': '0.1'}}}) + '\\n')",
+                "        sys.stdout.flush()",
+                "    elif method == 'thread/start':",
+                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'id': message['id'], 'result': {'thread': {'id': 'thread-agent'}}}) + '\\n')",
+                "        sys.stdout.flush()",
+                "    elif method == 'turn/start':",
+                "        thread_id = message['params']['threadId']",
+                "        turn_id = 'turn-agent'",
+                "        item_id = 'msg-aggregate'",
+                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'id': message['id'], 'result': {'turn': {'id': turn_id, 'status': 'in_progress'}}}) + '\\n')",
+                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'method': 'item/agentMessage/delta', 'params': {'threadId': thread_id, 'turnId': turn_id, 'itemId': item_id, 'delta': 'Investigating'}}) + '\\n')",
+                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'method': 'item/agentMessage/delta', 'params': {'threadId': thread_id, 'turnId': turn_id, 'itemId': item_id, 'delta': ' the failing'}}) + '\\n')",
+                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'method': 'item/agentMessage/delta', 'params': {'threadId': thread_id, 'turnId': turn_id, 'itemId': item_id, 'delta': ' CLI command.'}}) + '\\n')",
+                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'method': 'turn/completed', 'params': {'threadId': thread_id, 'turn': {'id': turn_id, 'status': 'completed'}}}) + '\\n')",
+                "        sys.stdout.flush()",
+                "        break",
+            ]
+        )
+        + "\n"
+    )
+
+    adapter = CodexHarnessBuilderAdapter(command=[sys.executable, str(fake_server)])
+    issue = Issue(
+        issue_id="SPC-27",
+        title="Aggregate agent message",
+        summary="Capture a readable last agent excerpt instead of only the last delta token.",
+        builder_prompt="Aggregate agent deltas into a readable excerpt.",
+    )
+
+    result = adapter.run(
+        issue=issue,
+        workspace=tmp_path,
+        run_id="run-spc-27",
+    )
+
+    assert result.succeeded is True
+    state_data = json.loads((tmp_path / "telemetry" / "harness_state.json").read_text())
+    assert state_data["last_agent_excerpt"] == "Investigating the failing CLI command."
+    assert state_data["last_output_excerpt"] == "Investigating the failing CLI command."
+
+
 def test_codex_harness_builder_adapter_times_out_when_turn_goes_idle(tmp_path: Path) -> None:
     fake_server = tmp_path / "fake_codex_idle_server.py"
     fake_server.write_text(
@@ -390,6 +444,7 @@ def test_codex_harness_builder_adapter_times_out_when_turn_has_no_progress(
                 "            time.sleep(0.04)",
                 "            sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'method': 'thread/tokenUsage/updated', 'params': {'threadId': thread_id, 'turnId': turn_id, 'tokenUsage': {'total': {'totalTokens': 1}}}}) + '\\n')",
                 "            sys.stdout.flush()",
+                "        time.sleep(0.2)",
                 "        break",
             ]
         )
