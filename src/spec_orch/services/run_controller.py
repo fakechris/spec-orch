@@ -12,14 +12,16 @@ from spec_orch.domain.models import (
 )
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.gate_service import GateService
+from spec_orch.services.pi_builder_adapter import PiBuilderAdapter
 from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.workspace_service import WorkspaceService
 
 
 class RunController:
-    def __init__(self, *, repo_root: Path) -> None:
+    def __init__(self, *, repo_root: Path, pi_executable: str = "pi") -> None:
         self.repo_root = Path(repo_root)
         self.artifact_service = ArtifactService()
+        self.builder_adapter = PiBuilderAdapter(executable=pi_executable)
         self.gate_service = GateService()
         self.verification_service = VerificationService()
         self.workspace_service = WorkspaceService(repo_root=self.repo_root)
@@ -34,6 +36,7 @@ class RunController:
             issue_title=issue.title,
         )
 
+        builder = self.builder_adapter.run(issue=issue, workspace=workspace)
         verification = self.verification_service.run(issue=issue, workspace=workspace)
 
         gate = self.gate_service.evaluate(
@@ -41,6 +44,7 @@ class RunController:
                 spec_exists=True,
                 spec_approved=True,
                 within_boundaries=True,
+                builder_succeeded=builder.succeeded,
                 verification=verification,
                 review=ReviewSummary(verdict="pass"),
                 human_acceptance=False,
@@ -61,6 +65,11 @@ class RunController:
                     "title": issue.title,
                     "mergeable": gate.mergeable,
                     "failed_conditions": gate.failed_conditions,
+                    "builder": {
+                        "succeeded": builder.succeeded,
+                        "skipped": builder.skipped,
+                        "command": builder.command,
+                    },
                     "verification": {
                         name: {
                             "exit_code": detail.exit_code,
@@ -81,6 +90,7 @@ class RunController:
             progress=progress,
             explain=explain,
             report=report,
+            builder=builder,
             gate=gate,
         )
 
@@ -92,6 +102,7 @@ class RunController:
                 issue_id=data["issue_id"],
                 title=data["title"],
                 summary=data["summary"],
+                builder_prompt=data.get("builder_prompt"),
                 verification_commands=data.get("verification_commands", {}),
             )
 

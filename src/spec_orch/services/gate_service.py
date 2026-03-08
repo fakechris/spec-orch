@@ -13,6 +13,8 @@ class GateService:
             failed_conditions.append("spec_approved")
         if not gate_input.within_boundaries:
             failed_conditions.append("within_boundaries")
+        if not gate_input.builder_succeeded:
+            failed_conditions.append("builder")
         if not gate_input.verification.all_passed:
             failed_conditions.append("verification")
         if gate_input.review.verdict != "pass":

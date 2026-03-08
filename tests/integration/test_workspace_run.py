@@ -42,6 +42,54 @@ def test_run_controller_creates_git_worktree_for_issue(tmp_path: Path) -> None:
     assert "blocked_by=human_acceptance" in result.explain.read_text()
 
 
+def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> None:
+    _init_git_repo(tmp_path)
+
+    fake_pi = tmp_path / "fake-pi"
+    fake_pi.write_text(
+        "\n".join(
+            [
+                "#!/bin/sh",
+                "printf '%s\n' \"$@\" > builder-args.txt",
+                "echo 'builder ok'",
+            ]
+        )
+        + "\n"
+    )
+    fake_pi.chmod(0o755)
+
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-2.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-2",
+                "title": "Run builder adapter",
+                "summary": "Use pi builder before verification.",
+                "builder_prompt": "Modify this workspace.",
+                "verification_commands": {
+                    "lint": ["{python}", "-c", "print('lint ok')"],
+                    "typecheck": ["{python}", "-c", "print('type ok')"],
+                    "test": ["{python}", "-c", "print('test ok')"],
+                    "build": ["{python}", "-c", "print('build ok')"]
+                }
+            }
+        )
+    )
+    _git(tmp_path, "add", ".")
+    _git_commit(tmp_path, "add builder fixture")
+
+    controller = RunController(repo_root=tmp_path, pi_executable=str(fake_pi))
+
+    result = controller.run_issue("SPC-2")
+
+    assert result.workspace.exists()
+    assert result.gate.mergeable is False
+    assert "human_acceptance" in result.gate.failed_conditions
+    assert "builder" not in result.gate.failed_conditions
+    assert "Modify this workspace." in (result.workspace / "builder-args.txt").read_text()
+
+
 def _init_git_repo(repo_root: Path) -> None:
     _git(repo_root, "init", "-b", "main")
     (repo_root / "README.md").write_text("# Temp Repo\n")

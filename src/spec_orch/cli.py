@@ -18,9 +18,10 @@ def cli() -> None:
 def run_issue(
     issue_id: str,
     repo_root: Path = typer.Option(Path("."), "--repo-root"),
+    pi_executable: str = typer.Option("pi", "--pi-executable"),
 ) -> None:
     """Run one local issue fixture through the MVP pipeline."""
-    controller = RunController(repo_root=repo_root)
+    controller = RunController(repo_root=repo_root, pi_executable=pi_executable)
     result = controller.run_issue(issue_id)
     typer.echo(
         " ".join(

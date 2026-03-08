@@ -9,6 +9,7 @@ class Issue:
     issue_id: str
     title: str
     summary: str
+    builder_prompt: str | None = None
     verification_commands: dict[str, list[str]] = field(default_factory=dict)
 
 
@@ -39,6 +40,15 @@ class VerificationSummary:
 
 
 @dataclass(slots=True)
+class BuilderResult:
+    succeeded: bool
+    command: list[str]
+    stdout: str
+    stderr: str
+    skipped: bool = False
+
+
+@dataclass(slots=True)
 class ReviewSummary:
     verdict: str = "changes_requested"
 
@@ -48,6 +58,7 @@ class GateInput:
     spec_exists: bool = False
     spec_approved: bool = False
     within_boundaries: bool = False
+    builder_succeeded: bool = True
     verification: VerificationSummary = field(default_factory=VerificationSummary)
     review: ReviewSummary = field(default_factory=ReviewSummary)
     human_acceptance: bool = False
@@ -69,4 +80,5 @@ class RunResult:
     progress: Path
     explain: Path
     report: Path
+    builder: BuilderResult
     gate: GateVerdict

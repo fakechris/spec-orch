@@ -47,6 +47,21 @@ Issue fixtures can also define real verification commands:
 
 `{python}` resolves to the current virtual environment interpreter, so verification runs inside the same project environment as the CLI.
 
+Issue fixtures can also define a `builder_prompt` for the `pi` builder adapter:
+
+```json
+{
+  "builder_prompt": "Implement the issue in this workspace."
+}
+```
+
+The CLI uses `pi` by default, or you can point it at an explicit executable:
+
+```bash
+.venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root .
+.venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root . --pi-executable /path/to/pi
+```
+
 ## Documents
 
 - [System Design v0](docs/architecture/spec-orch-system-design-v0.md)

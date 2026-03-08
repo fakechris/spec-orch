@@ -15,5 +15,6 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     assert result.explain.exists()
     assert result.report.exists()
     assert result.gate.mergeable is False
+    assert "builder" not in result.gate.failed_conditions
     assert "verification" in result.gate.failed_conditions
     assert "human_acceptance" in result.explain.read_text()
