@@ -12,26 +12,67 @@ It treats:
 
 This repository currently contains the initial architecture document and a v1 implementation plan.
 
+## Status
+
+SpecOrch is currently in `prototype-first` mode.
+
+What already works on `main`:
+
+- local fixture-driven issue runs
+- per-issue git worktrees
+- `task.spec.md`, `progress.md`, `report.json`, `explain.md`
+- Codex builder routing through `codex app-server`
+- local review and acceptance state transitions
+- real verification command execution
+- structured telemetry for builder, verification, review, and gate
+
+What is still intentionally incomplete:
+
+- real Linear sync
+- real Obsidian sync
+- Claude review adapter
+- preview deployment and browser verification
+- production policy/config management
+
 ## MVP Prototype
 
-The current feature branch contains a runnable local prototype in Python.
+The repository contains a runnable local Python prototype.
 
 ```bash
 python3.13 -m venv .venv
 .venv/bin/pip install -e .[dev]
+.venv/bin/python -m pytest -q
 .venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root .
 ```
 
-The command creates a local run workspace under `.spec_orch_runs/SPC-1/` and writes:
+When `--repo-root` is not a git repository, the command creates a local run workspace under `.spec_orch_runs/SPC-1/` and writes:
 
 - `task.spec.md`
 - `progress.md`
 - `report.json`
 
-When `--repo-root` points at a git repository, the runner now prefers a real issue worktree under `.worktrees/<issue-id>/` and also writes:
+When `--repo-root` points at a git repository, the runner prefers a real issue worktree under `.worktrees/<issue-id>/` and also writes:
 
 - `explain.md`
 - `builder_report.json` when the builder adapter runs
+- `review_report.json` after a review step
+- `acceptance.json` after human acceptance
+
+## CLI Commands
+
+The current prototype exposes these commands:
+
+```bash
+.venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root .
+.venv/bin/python -m spec_orch.cli review-issue SPC-1 --repo-root . --verdict pass --reviewed-by claude
+.venv/bin/python -m spec_orch.cli accept-issue SPC-1 --repo-root . --accepted-by chris
+```
+
+`run-issue` creates or reuses the issue workspace, runs the builder, executes verification, initializes review state, and evaluates the gate.
+
+`review-issue` records the review verdict and recalculates the gate.
+
+`accept-issue` records human acceptance and can move the issue to `mergeable=True` once the other requirements pass.
 
 Issue fixtures can also define real verification commands:
 
@@ -72,14 +113,45 @@ If the Codex harness transport cannot be started, SpecOrch falls back to the exi
 
 Both builder paths inject `SPEC_ORCH_BUILDER_AGENT=codex`. The active adapter is recorded in `builder_report.json` and the top-level `report.json`.
 
-Once a run has passed builder and verification, human acceptance can be recorded explicitly:
+## Telemetry
+
+Each issue workspace contains a `telemetry/` directory. Current artifacts include:
+
+- `events.jsonl`: high-level lifecycle events from run controller, builder, verification, review, and gate
+- `raw_harness_in.jsonl`: raw JSON-RPC messages sent to Codex
+- `raw_harness_out.jsonl`: raw JSON-RPC messages received from Codex
+- `raw_harness_err.log`: Codex stderr
+- `incoming_events.jsonl`: parsed incoming harness messages with `observed_at`, `kind`, and short excerpts
+- `harness_state.json`: current liveness snapshot with `run_id`, `thread_id`, `turn_id`, timeout policy, and last protocol/output/progress excerpts
+
+This is the current debugging surface for long-running Codex turns.
+
+## Development Workflow
+
+Recommended local workflow:
 
 ```bash
-.venv/bin/python -m spec_orch.cli review-issue SPC-1 --repo-root . --verdict pass --reviewed-by claude
-.venv/bin/python -m spec_orch.cli accept-issue SPC-1 --repo-root . --accepted-by chris
+python3.13 -m venv .venv
+.venv/bin/pip install -e .[dev]
+.venv/bin/python -m pytest -q
 ```
 
-Those commands write `review_report.json` and `acceptance.json`, rewrite `report.json`, update `explain.md`, and can flip the issue to `mergeable=True` when review and acceptance have both passed.
+For isolated feature work, use git worktrees under `.worktrees/`.
+
+For builder dogfooding, point SpecOrch at a local Codex CLI installation:
+
+```bash
+.venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root . --codex-executable /path/to/codex
+```
+
+## Repository Layout
+
+- `src/spec_orch/`: CLI, orchestration services, domain models
+- `tests/`: unit and integration tests
+- `fixtures/issues/`: local issue fixtures used by the prototype
+- `docs/architecture/`: system design and architecture notes
+- `docs/plans/`: implementation plans
+- `.worktrees/`: local isolated workspaces, intentionally ignored by git
 
 ## Documents
 
@@ -100,3 +172,7 @@ The initial goal is to prove a reliable, auditable, agent-native delivery loop:
 6. Run verification and optional preview checks.
 7. Write structured results back to Linear, PRs, and local audit storage.
 8. Compute `Mergeable` through a Gate layer instead of trusting any single agent.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
