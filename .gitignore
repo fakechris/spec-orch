@@ -4,6 +4,7 @@
 # Editor
 .idea/
 .vscode/
+.worktrees/
 
 # Python
 __pycache__/
