@@ -27,18 +27,22 @@ PRE_ACTION_NARRATION_PATTERNS: tuple[re.Pattern[str], ...] = (
 )
 
 
+def default_turn_contract_compliance() -> dict[str, Any]:
+    return {
+        "compliant": True,
+        "first_action_seen": False,
+        "first_action_method": None,
+        "first_action_excerpt": None,
+        "violations": [],
+    }
+
+
 def evaluate_pre_action_narration_compliance(
     incoming_events: Path | Sequence[dict[str, Any]],
 ) -> dict[str, Any]:
     if isinstance(incoming_events, Path):
         if not incoming_events.exists():
-            return {
-                "compliant": True,
-                "first_action_seen": False,
-                "first_action_method": None,
-                "first_action_excerpt": None,
-                "violations": [],
-            }
+            return default_turn_contract_compliance()
         events = [
             json.loads(line)
             for line in incoming_events.read_text(encoding="utf-8").splitlines()
@@ -176,7 +180,10 @@ class CodexHarnessBuilderAdapter:
                 skipped=True,
                 adapter=self.ADAPTER_NAME,
                 agent=self.AGENT_NAME,
-                metadata={"transport": "app_server_stdio"},
+                metadata={
+                    "transport": "app_server_stdio",
+                    "turn_contract_compliance": default_turn_contract_compliance(),
+                },
             )
             self._write_report(result)
             return result
