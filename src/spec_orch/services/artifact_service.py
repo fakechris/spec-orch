@@ -55,11 +55,14 @@ class ArtifactService:
         mergeable: bool,
         failed_conditions: list[str],
         builder_status: str,
+        review_status: str,
+        reviewed_by: str | None,
         acceptance_status: str,
         accepted_by: str | None,
     ) -> Path:
         explain = workspace / "explain.md"
         blocked = ", ".join(failed_conditions) if failed_conditions else "none"
+        reviewed_by_value = reviewed_by or "pending"
         accepted_by_value = accepted_by or "pending"
         explain.write_text(
             "\n".join(
@@ -68,6 +71,8 @@ class ArtifactService:
                     "",
                     f"- Title: {issue_title}",
                     f"- builder_status={builder_status}",
+                    f"- review_status={review_status}",
+                    f"- reviewed_by={reviewed_by_value}",
                     f"- acceptance_status={acceptance_status}",
                     f"- accepted_by={accepted_by_value}",
                     f"- mergeable={mergeable}",

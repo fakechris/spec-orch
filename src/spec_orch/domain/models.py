@@ -51,7 +51,9 @@ class BuilderResult:
 
 @dataclass(slots=True)
 class ReviewSummary:
-    verdict: str = "changes_requested"
+    verdict: str = "pending"
+    reviewed_by: str | None = None
+    report_path: Path | None = None
 
 
 @dataclass(slots=True)
@@ -82,4 +84,5 @@ class RunResult:
     explain: Path
     report: Path
     builder: BuilderResult
+    review: ReviewSummary
     gate: GateVerdict

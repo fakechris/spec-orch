@@ -39,7 +39,7 @@ def test_run_controller_creates_git_worktree_for_issue(tmp_path: Path) -> None:
     assert (result.workspace / ".git").exists()
     assert result.explain.exists()
     assert "mergeable=False" in result.explain.read_text()
-    assert "blocked_by=human_acceptance" in result.explain.read_text()
+    assert "blocked_by=review, human_acceptance" in result.explain.read_text()
 
 
 def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> None:
@@ -87,6 +87,7 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
     assert result.builder.report_path.exists()
     assert result.gate.mergeable is False
     assert "human_acceptance" in result.gate.failed_conditions
+    assert "review" in result.gate.failed_conditions
     assert "builder" not in result.gate.failed_conditions
     assert "builder_status=passed" in result.explain.read_text()
     assert "Modify this workspace." in (result.workspace / "builder-args.txt").read_text()

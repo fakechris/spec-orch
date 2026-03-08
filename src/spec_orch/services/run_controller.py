@@ -15,6 +15,7 @@ from spec_orch.domain.models import (
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.gate_service import GateService
 from spec_orch.services.pi_builder_adapter import PiBuilderAdapter
+from spec_orch.services.review_adapter import LocalReviewAdapter
 from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.workspace_service import WorkspaceService
 
@@ -25,6 +26,7 @@ class RunController:
         self.artifact_service = ArtifactService()
         self.builder_adapter = PiBuilderAdapter(executable=pi_executable)
         self.gate_service = GateService()
+        self.review_adapter = LocalReviewAdapter()
         self.verification_service = VerificationService()
         self.workspace_service = WorkspaceService(repo_root=self.repo_root)
 
@@ -40,6 +42,7 @@ class RunController:
 
         builder = self.builder_adapter.run(issue=issue, workspace=workspace)
         verification = self.verification_service.run(issue=issue, workspace=workspace)
+        review = self.review_adapter.initialize(issue_id=issue.issue_id, workspace=workspace)
 
         gate = self.gate_service.evaluate(
             GateInput(
@@ -48,7 +51,7 @@ class RunController:
                 within_boundaries=True,
                 builder_succeeded=builder.succeeded,
                 verification=verification,
-                review=ReviewSummary(verdict="pass"),
+                review=review,
                 human_acceptance=False,
             )
         )
@@ -59,6 +62,8 @@ class RunController:
             mergeable=gate.mergeable,
             failed_conditions=gate.failed_conditions,
             builder_status=self._builder_status(builder),
+            review_status=review.verdict,
+            reviewed_by=review.reviewed_by,
             acceptance_status="pending",
             accepted_by=None,
         )
@@ -67,6 +72,7 @@ class RunController:
             issue=issue,
             gate=gate,
             builder=builder,
+            review=review,
             verification=verification,
             accepted_by=None,
         )
@@ -79,6 +85,79 @@ class RunController:
             explain=explain,
             report=report,
             builder=builder,
+            review=review,
+            gate=gate,
+        )
+
+    def review_issue(
+        self,
+        issue_id: str,
+        *,
+        verdict: str,
+        reviewed_by: str,
+    ) -> RunResult:
+        issue = self._load_fixture(issue_id)
+        workspace = self.workspace_service.issue_workspace_path(issue.issue_id)
+        if not workspace.exists():
+            raise FileNotFoundError(f"workspace not found for issue {issue.issue_id}")
+
+        report = workspace / "report.json"
+        if not report.exists():
+            raise FileNotFoundError(f"report not found for issue {issue.issue_id}")
+
+        report_data = json.loads(report.read_text())
+        builder = self._builder_from_report(report_data, workspace)
+        verification = self._verification_from_report(report_data)
+        review = self.review_adapter.review(
+            issue_id=issue.issue_id,
+            workspace=workspace,
+            verdict=verdict,
+            reviewed_by=reviewed_by,
+        )
+        human_acceptance = report_data["human_acceptance"]["accepted"]
+        accepted_by = report_data["human_acceptance"]["accepted_by"]
+        gate = self.gate_service.evaluate(
+            GateInput(
+                spec_exists=True,
+                spec_approved=True,
+                within_boundaries=True,
+                builder_succeeded=builder.succeeded,
+                verification=verification,
+                review=review,
+                human_acceptance=human_acceptance,
+            )
+        )
+        explain = self.artifact_service.write_explain_report(
+            workspace=workspace,
+            issue_id=issue.issue_id,
+            issue_title=issue.title,
+            mergeable=gate.mergeable,
+            failed_conditions=gate.failed_conditions,
+            builder_status=self._builder_status(builder),
+            review_status=review.verdict,
+            reviewed_by=review.reviewed_by,
+            acceptance_status="accepted" if human_acceptance else "pending",
+            accepted_by=accepted_by,
+        )
+        updated_report = self._write_report(
+            workspace=workspace,
+            issue=issue,
+            gate=gate,
+            builder=builder,
+            review=review,
+            verification=verification,
+            accepted_by=accepted_by,
+        )
+
+        return RunResult(
+            issue=issue,
+            workspace=workspace,
+            task_spec=workspace / "task.spec.md",
+            progress=workspace / "progress.md",
+            explain=explain,
+            report=updated_report,
+            builder=builder,
+            review=review,
             gate=gate,
         )
 
@@ -100,6 +179,7 @@ class RunController:
         )
         builder = self._builder_from_report(report_data, workspace)
         verification = self._verification_from_report(report_data)
+        review = self._review_from_report(report_data, workspace)
         gate = self.gate_service.evaluate(
             GateInput(
                 spec_exists=True,
@@ -107,7 +187,7 @@ class RunController:
                 within_boundaries=True,
                 builder_succeeded=builder.succeeded,
                 verification=verification,
-                review=ReviewSummary(verdict="pass"),
+                review=review,
                 human_acceptance=True,
             )
         )
@@ -118,6 +198,8 @@ class RunController:
             mergeable=gate.mergeable,
             failed_conditions=gate.failed_conditions,
             builder_status=self._builder_status(builder),
+            review_status=review.verdict,
+            reviewed_by=review.reviewed_by,
             acceptance_status="accepted",
             accepted_by=accepted_by,
         )
@@ -126,6 +208,7 @@ class RunController:
             issue=issue,
             gate=gate,
             builder=builder,
+            review=review,
             verification=verification,
             accepted_by=accepted_by,
         )
@@ -138,6 +221,7 @@ class RunController:
             explain=explain,
             report=updated_report,
             builder=builder,
+            review=review,
             gate=gate,
         )
 
@@ -195,6 +279,14 @@ class RunController:
             details=details,
         )
 
+    def _review_from_report(self, report_data: dict, workspace: Path) -> ReviewSummary:
+        review_data = report_data["review"]
+        return ReviewSummary(
+            verdict=review_data["verdict"],
+            reviewed_by=review_data.get("reviewed_by"),
+            report_path=workspace / "review_report.json",
+        )
+
     def _write_report(
         self,
         *,
@@ -202,6 +294,7 @@ class RunController:
         issue: Issue,
         gate,
         builder: BuilderResult,
+        review: ReviewSummary,
         verification: VerificationSummary,
         accepted_by: str | None,
     ) -> Path:
@@ -218,6 +311,11 @@ class RunController:
                         "skipped": builder.skipped,
                         "command": builder.command,
                         "report_path": str(builder.report_path),
+                    },
+                    "review": {
+                        "verdict": review.verdict,
+                        "reviewed_by": review.reviewed_by,
+                        "report_path": str(review.report_path) if review.report_path else None,
                     },
                     "verification": {
                         name: {

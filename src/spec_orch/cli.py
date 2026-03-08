@@ -58,6 +58,35 @@ def accept_issue(
     )
 
 
+@app.command("review-issue")
+def review_issue(
+    issue_id: str,
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+    verdict: str = typer.Option(..., "--verdict"),
+    reviewed_by: str = typer.Option(..., "--reviewed-by"),
+    pi_executable: str = typer.Option("pi", "--pi-executable"),
+) -> None:
+    """Record review verdict for an existing issue run."""
+    controller = RunController(repo_root=repo_root, pi_executable=pi_executable)
+    result = controller.review_issue(
+        issue_id,
+        verdict=verdict,
+        reviewed_by=reviewed_by,
+    )
+    typer.echo(
+        " ".join(
+            [
+                f"issue={result.issue.issue_id}",
+                f"workspace={result.workspace}",
+                f"mergeable={result.gate.mergeable}",
+                f"blocked={','.join(result.gate.failed_conditions) or 'none'}",
+                f"review_verdict={verdict}",
+                f"reviewed_by={reviewed_by}",
+            ]
+        )
+    )
+
+
 def main() -> None:
     app()
 

@@ -66,10 +66,11 @@ The CLI uses `pi` by default, or you can point it at an explicit executable:
 Once a run has passed builder and verification, human acceptance can be recorded explicitly:
 
 ```bash
+.venv/bin/python -m spec_orch.cli review-issue SPC-1 --repo-root . --verdict pass --reviewed-by claude
 .venv/bin/python -m spec_orch.cli accept-issue SPC-1 --repo-root . --accepted-by chris
 ```
 
-That command writes `acceptance.json`, rewrites `report.json`, updates `explain.md`, and can flip the issue to `mergeable=True` when acceptance is the only remaining blocker.
+Those commands write `review_report.json` and `acceptance.json`, rewrite `report.json`, update `explain.md`, and can flip the issue to `mergeable=True` when review and acceptance have both passed.
 
 ## Documents
 

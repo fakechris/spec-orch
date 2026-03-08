@@ -18,10 +18,11 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     assert result.gate.mergeable is False
     assert "builder" not in result.gate.failed_conditions
     assert "verification" in result.gate.failed_conditions
+    assert "review" in result.gate.failed_conditions
     assert "human_acceptance" in result.explain.read_text()
 
 
-def test_accept_issue_recomputes_gate_and_updates_artifacts(tmp_path: Path) -> None:
+def test_review_and_accept_issue_recompute_gate_and_update_artifacts(tmp_path: Path) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-5.json").write_text(
@@ -42,9 +43,19 @@ def test_accept_issue_recomputes_gate_and_updates_artifacts(tmp_path: Path) -> N
     controller = RunController(repo_root=tmp_path)
 
     initial = controller.run_issue("SPC-5")
+    reviewed = controller.review_issue(
+        "SPC-5",
+        verdict="pass",
+        reviewed_by="claude",
+    )
     accepted = controller.accept_issue("SPC-5", accepted_by="chris")
 
     assert initial.gate.mergeable is False
+    assert reviewed.gate.mergeable is False
+    assert reviewed.gate.failed_conditions == ["human_acceptance"]
+    assert (reviewed.workspace / "review_report.json").exists()
+    assert '"reviewed_by": "claude"' in (reviewed.workspace / "report.json").read_text()
+    assert "review_status=pass" in reviewed.explain.read_text()
     assert accepted.gate.mergeable is True
     assert accepted.gate.failed_conditions == []
     assert (accepted.workspace / "acceptance.json").exists()

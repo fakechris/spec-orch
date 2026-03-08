@@ -10,6 +10,7 @@ def test_cli_help_shows_run_issue_command() -> None:
 
     assert result.exit_code == 0
     assert "run-issue" in result.stdout
+    assert "review-issue" in result.stdout
     assert "accept-issue" in result.stdout
 
 
@@ -29,10 +30,10 @@ def test_run_issue_uses_fixture_and_reports_gate_result(tmp_path) -> None:
     assert result.exit_code == 0
     assert "SPC-1" in result.stdout
     assert "mergeable=False" in result.stdout
-    assert "blocked=verification,human_acceptance" in result.stdout
+    assert "blocked=verification,review,human_acceptance" in result.stdout
 
 
-def test_accept_issue_marks_existing_run_mergeable(tmp_path) -> None:
+def test_review_and_accept_issue_mark_existing_run_mergeable(tmp_path) -> None:
     runner = CliRunner()
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
@@ -63,6 +64,20 @@ def test_accept_issue_marks_existing_run_mergeable(tmp_path) -> None:
         ],
     )
 
+    review_result = runner.invoke(
+        app,
+        [
+            "review-issue",
+            "SPC-9",
+            "--repo-root",
+            str(tmp_path),
+            "--verdict",
+            "pass",
+            "--reviewed-by",
+            "claude",
+        ],
+    )
+
     accept_result = runner.invoke(
         app,
         [
@@ -77,6 +92,9 @@ def test_accept_issue_marks_existing_run_mergeable(tmp_path) -> None:
 
     assert run_result.exit_code == 0
     assert "mergeable=False" in run_result.stdout
+    assert review_result.exit_code == 0
+    assert "mergeable=False" in review_result.stdout
+    assert "review_verdict=pass" in review_result.stdout
     assert accept_result.exit_code == 0
     assert "mergeable=True" in accept_result.stdout
     assert "accepted_by=chris" in accept_result.stdout
