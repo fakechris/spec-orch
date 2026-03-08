@@ -12,6 +12,22 @@ It treats:
 
 This repository currently contains the initial architecture document and a v1 implementation plan.
 
+## MVP Prototype
+
+The current feature branch contains a runnable local prototype in Python.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e .[dev]
+.venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root .
+```
+
+The command creates a local run workspace under `.spec_orch_runs/SPC-1/` and writes:
+
+- `task.spec.md`
+- `progress.md`
+- `report.json`
+
 ## Documents
 
 - [System Design v0](docs/architecture/spec-orch-system-design-v0.md)

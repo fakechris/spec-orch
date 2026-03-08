@@ -1,0 +1,5 @@
+{
+  "issue_id": "SPC-1",
+  "title": "Build MVP runner",
+  "summary": "Run one local fixture issue through the prototype pipeline."
+}

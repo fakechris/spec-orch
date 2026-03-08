@@ -5,6 +5,10 @@
 .idea/
 .vscode/
 .worktrees/
+.venv/
+.spec_orch_runs/
+.pytest_cache/
+*.egg-info/
 
 # Python
 __pycache__/
