@@ -14,7 +14,7 @@ from spec_orch.domain.models import (
 )
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.gate_service import GateService
-from spec_orch.services.pi_builder_adapter import PiBuilderAdapter
+from spec_orch.services.pi_codex_builder_adapter import PiCodexBuilderAdapter
 from spec_orch.services.review_adapter import LocalReviewAdapter
 from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.workspace_service import WorkspaceService
@@ -24,7 +24,7 @@ class RunController:
     def __init__(self, *, repo_root: Path, pi_executable: str = "pi") -> None:
         self.repo_root = Path(repo_root)
         self.artifact_service = ArtifactService()
-        self.builder_adapter = PiBuilderAdapter(executable=pi_executable)
+        self.builder_adapter = PiCodexBuilderAdapter(executable=pi_executable)
         self.gate_service = GateService()
         self.review_adapter = LocalReviewAdapter()
         self.verification_service = VerificationService()
@@ -258,6 +258,8 @@ class RunController:
             stdout="",
             stderr="",
             report_path=workspace / "builder_report.json",
+            adapter=builder_data["adapter"],
+            agent=builder_data["agent"],
             skipped=builder_data.get("skipped", False),
         )
 
@@ -311,6 +313,8 @@ class RunController:
                         "skipped": builder.skipped,
                         "command": builder.command,
                         "report_path": str(builder.report_path),
+                        "adapter": builder.adapter,
+                        "agent": builder.agent,
                     },
                     "review": {
                         "verdict": review.verdict,

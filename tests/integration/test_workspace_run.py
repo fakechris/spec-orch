@@ -90,6 +90,8 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
     assert "review" in result.gate.failed_conditions
     assert "builder" not in result.gate.failed_conditions
     assert "builder_status=passed" in result.explain.read_text()
+    assert '"adapter": "pi_codex"' in result.report.read_text()
+    assert '"agent": "codex"' in result.report.read_text()
     assert "Modify this workspace." in (result.workspace / "builder-args.txt").read_text()
 
 

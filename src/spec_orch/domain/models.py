@@ -46,6 +46,8 @@ class BuilderResult:
     stdout: str
     stderr: str
     report_path: Path
+    adapter: str
+    agent: str
     skipped: bool = False
 
 

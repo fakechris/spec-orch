@@ -20,6 +20,8 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     assert "verification" in result.gate.failed_conditions
     assert "review" in result.gate.failed_conditions
     assert "human_acceptance" in result.explain.read_text()
+    assert '"adapter": "pi_codex"' in result.report.read_text()
+    assert '"agent": "codex"' in result.report.read_text()
 
 
 def test_review_and_accept_issue_recompute_gate_and_update_artifacts(tmp_path: Path) -> None:

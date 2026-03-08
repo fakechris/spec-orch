@@ -48,7 +48,7 @@ Issue fixtures can also define real verification commands:
 
 `{python}` resolves to the current virtual environment interpreter, so verification runs inside the same project environment as the CLI.
 
-Issue fixtures can also define a `builder_prompt` for the `pi` builder adapter:
+Issue fixtures can also define a `builder_prompt` for the `pi_codex` builder adapter:
 
 ```json
 {
@@ -56,7 +56,7 @@ Issue fixtures can also define a `builder_prompt` for the `pi` builder adapter:
 }
 ```
 
-The CLI uses `pi` by default, or you can point it at an explicit executable:
+The CLI uses `pi` by default, or you can point it at an explicit executable. SpecOrch treats that executable as the `pi_codex` builder adapter and injects `SPEC_ORCH_BUILDER_ADAPTER=pi_codex` plus `SPEC_ORCH_BUILDER_AGENT=codex` into the subprocess environment:
 
 ```bash
 .venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root .
