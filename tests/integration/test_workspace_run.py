@@ -133,9 +133,21 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
     assert (telemetry_dir / "events.jsonl").exists()
     assert (telemetry_dir / "raw_harness_in.jsonl").exists()
     assert (telemetry_dir / "raw_harness_out.jsonl").exists()
-    event_lines = (telemetry_dir / "events.jsonl").read_text().splitlines()
-    assert any('"event_type": "builder_started"' in line for line in event_lines)
-    assert any('"event_type": "builder_completed"' in line for line in event_lines)
+    events = [json.loads(line) for line in (telemetry_dir / "events.jsonl").read_text().splitlines()]
+    assert any(event["event_type"] == "builder_started" for event in events)
+    assert any(event["event_type"] == "builder_completed" for event in events)
+    assert any(
+        event["event_type"] == "verification_step_completed"
+        and event["data"]["step"] == "build"
+        and event["data"]["exit_code"] == 0
+        for event in events
+    )
+    assert any(
+        event["event_type"] == "gate_evaluated"
+        and event["data"]["mergeable"] is False
+        and "review" in event["data"]["failed_conditions"]
+        for event in events
+    )
     report_data = json.loads(result.report.read_text())
     builder_data = json.loads(result.builder.report_path.read_text())
     assert report_data["run_id"]

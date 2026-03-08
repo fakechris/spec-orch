@@ -65,8 +65,31 @@ class RunController:
         )
 
         builder = self._run_builder(issue=issue, workspace=workspace, run_id=run_id)
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="verification",
+            event_type="verification_started",
+            message="Started verification steps.",
+        )
         verification = self.verification_service.run(issue=issue, workspace=workspace)
+        self._log_verification_events(
+            workspace=workspace,
+            issue_id=issue.issue_id,
+            run_id=run_id,
+            verification=verification,
+        )
         review = self.review_adapter.initialize(issue_id=issue.issue_id, workspace=workspace)
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="review",
+            event_type="review_initialized",
+            message="Initialized local review state.",
+            data={"verdict": review.verdict},
+        )
 
         gate = self.gate_service.evaluate(
             GateInput(
@@ -78,6 +101,12 @@ class RunController:
                 review=review,
                 human_acceptance=False,
             )
+        )
+        self._log_gate_event(
+            workspace=workspace,
+            issue_id=issue.issue_id,
+            run_id=run_id,
+            gate=gate,
         )
         explain = self.artifact_service.write_explain_report(
             workspace=workspace,
@@ -153,6 +182,12 @@ class RunController:
                 human_acceptance=human_acceptance,
             )
         )
+        self._log_gate_event(
+            workspace=workspace,
+            issue_id=issue.issue_id,
+            run_id=run_id,
+            gate=gate,
+        )
         explain = self.artifact_service.write_explain_report(
             workspace=workspace,
             issue_id=issue.issue_id,
@@ -227,6 +262,12 @@ class RunController:
                 review=review,
                 human_acceptance=True,
             )
+        )
+        self._log_gate_event(
+            workspace=workspace,
+            issue_id=issue.issue_id,
+            run_id=run_id,
+            gate=gate,
         )
         explain = self.artifact_service.write_explain_report(
             workspace=workspace,
@@ -349,6 +390,56 @@ class RunController:
             data={"succeeded": builder.succeeded, "skipped": builder.skipped},
         )
         return builder
+
+    def _log_verification_events(
+        self,
+        *,
+        workspace: Path,
+        issue_id: str,
+        run_id: str,
+        verification: VerificationSummary,
+    ) -> None:
+        for step_name, detail in verification.details.items():
+            self.telemetry_service.log_event(
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue_id,
+                component="verification",
+                event_type="verification_step_completed",
+                severity="info" if detail.exit_code == 0 else "error",
+                message=f"Verification step completed: {step_name}",
+                data={
+                    "step": step_name,
+                    "exit_code": detail.exit_code,
+                    "command": detail.command,
+                },
+            )
+
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue_id,
+            component="verification",
+            event_type="verification_completed",
+            severity="info" if verification.all_passed else "warning",
+            message="Completed verification steps.",
+            data={"all_passed": verification.all_passed},
+        )
+
+    def _log_gate_event(self, *, workspace: Path, issue_id: str, run_id: str, gate) -> None:
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue_id,
+            component="gate",
+            event_type="gate_evaluated",
+            severity="info" if gate.mergeable else "warning",
+            message="Evaluated gate verdict.",
+            data={
+                "mergeable": gate.mergeable,
+                "failed_conditions": gate.failed_conditions,
+            },
+        )
 
     def _builder_from_report(self, report_data: dict, workspace: Path) -> BuilderResult:
         builder_data = report_data["builder"]

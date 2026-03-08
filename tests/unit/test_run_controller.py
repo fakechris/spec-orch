@@ -28,6 +28,24 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     report_data = json.loads(result.report.read_text())
     assert report_data["run_id"]
     assert report_data["builder"]["metadata"]["run_id"] == report_data["run_id"]
+    events = _read_events(telemetry_dir / "events.jsonl")
+    assert any(event["event_type"] == "verification_started" for event in events)
+    assert any(
+        event["event_type"] == "verification_step_completed"
+        and event["data"]["step"] == "lint"
+        for event in events
+    )
+    assert any(
+        event["event_type"] == "review_initialized"
+        and event["data"]["verdict"] == "pending"
+        for event in events
+    )
+    assert any(
+        event["event_type"] == "gate_evaluated"
+        and event["data"]["mergeable"] is False
+        and "verification" in event["data"]["failed_conditions"]
+        for event in events
+    )
 
 
 def test_run_controller_falls_back_to_pi_when_codex_harness_is_unavailable(tmp_path: Path) -> None:
@@ -80,8 +98,14 @@ def test_run_controller_falls_back_to_pi_when_codex_harness_is_unavailable(tmp_p
     telemetry_dir = result.workspace / "telemetry"
     assert telemetry_dir.exists()
     assert (telemetry_dir / "events.jsonl").exists()
-    event_lines = (telemetry_dir / "events.jsonl").read_text().splitlines()
-    assert any('"event_type": "builder_fallback"' in line for line in event_lines)
+    events = _read_events(telemetry_dir / "events.jsonl")
+    assert any(event["event_type"] == "builder_fallback" for event in events)
+    assert any(
+        event["event_type"] == "gate_evaluated"
+        and event["data"]["mergeable"] is False
+        and "human_acceptance" in event["data"]["failed_conditions"]
+        for event in events
+    )
 
 def test_review_and_accept_issue_recompute_gate_and_update_artifacts(tmp_path: Path) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
@@ -124,6 +148,16 @@ def test_review_and_accept_issue_recompute_gate_and_update_artifacts(tmp_path: P
     assert "acceptance_status=accepted" in accepted.explain.read_text()
     telemetry_dir = accepted.workspace / "telemetry"
     assert telemetry_dir.exists()
-    event_lines = (telemetry_dir / "events.jsonl").read_text().splitlines()
-    assert any('"event_type": "review_completed"' in line for line in event_lines)
-    assert any('"event_type": "acceptance_recorded"' in line for line in event_lines)
+    events = _read_events(telemetry_dir / "events.jsonl")
+    assert any(event["event_type"] == "review_completed" for event in events)
+    assert any(event["event_type"] == "acceptance_recorded" for event in events)
+    assert any(
+        event["event_type"] == "gate_evaluated"
+        and event["data"]["mergeable"] is True
+        and event["data"]["failed_conditions"] == []
+        for event in events
+    )
+
+
+def _read_events(events_path: Path) -> list[dict]:
+    return [json.loads(line) for line in events_path.read_text().splitlines()]
