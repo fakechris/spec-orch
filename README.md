@@ -32,6 +32,21 @@ When `--repo-root` points at a git repository, the runner now prefers a real iss
 
 - `explain.md`
 
+Issue fixtures can also define real verification commands:
+
+```json
+{
+  "verification_commands": {
+    "lint": ["{python}", "-c", "print('lint ok')"],
+    "typecheck": ["{python}", "-c", "print('type ok')"],
+    "test": ["{python}", "-m", "pytest", "-q"],
+    "build": ["{python}", "-c", "print('build ok')"]
+  }
+}
+```
+
+`{python}` resolves to the current virtual environment interpreter, so verification runs inside the same project environment as the CLI.
+
 ## Documents
 
 - [System Design v0](docs/architecture/spec-orch-system-design-v0.md)

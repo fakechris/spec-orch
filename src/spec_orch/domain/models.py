@@ -9,6 +9,15 @@ class Issue:
     issue_id: str
     title: str
     summary: str
+    verification_commands: dict[str, list[str]] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class VerificationDetail:
+    command: list[str]
+    exit_code: int
+    stdout: str
+    stderr: str
 
 
 @dataclass(slots=True)
@@ -17,6 +26,7 @@ class VerificationSummary:
     typecheck_passed: bool = False
     test_passed: bool = False
     build_passed: bool = False
+    details: dict[str, VerificationDetail] = field(default_factory=dict)
 
     @property
     def all_passed(self) -> bool:

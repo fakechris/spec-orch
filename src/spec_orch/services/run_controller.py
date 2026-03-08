@@ -12,6 +12,7 @@ from spec_orch.domain.models import (
 )
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.gate_service import GateService
+from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.workspace_service import WorkspaceService
 
 
@@ -20,6 +21,7 @@ class RunController:
         self.repo_root = Path(repo_root)
         self.artifact_service = ArtifactService()
         self.gate_service = GateService()
+        self.verification_service = VerificationService()
         self.workspace_service = WorkspaceService(repo_root=self.repo_root)
 
     def run_issue(self, issue_id: str) -> RunResult:
@@ -32,17 +34,14 @@ class RunController:
             issue_title=issue.title,
         )
 
+        verification = self.verification_service.run(issue=issue, workspace=workspace)
+
         gate = self.gate_service.evaluate(
             GateInput(
                 spec_exists=True,
                 spec_approved=True,
                 within_boundaries=True,
-                verification=VerificationSummary(
-                    lint_passed=True,
-                    typecheck_passed=True,
-                    test_passed=True,
-                    build_passed=True,
-                ),
+                verification=verification,
                 review=ReviewSummary(verdict="pass"),
                 human_acceptance=False,
             )
@@ -62,6 +61,13 @@ class RunController:
                     "title": issue.title,
                     "mergeable": gate.mergeable,
                     "failed_conditions": gate.failed_conditions,
+                    "verification": {
+                        name: {
+                            "exit_code": detail.exit_code,
+                            "command": detail.command,
+                        }
+                        for name, detail in verification.details.items()
+                    },
                 },
                 indent=2,
             )
@@ -86,6 +92,7 @@ class RunController:
                 issue_id=data["issue_id"],
                 title=data["title"],
                 summary=data["summary"],
+                verification_commands=data.get("verification_commands", {}),
             )
 
         return Issue(

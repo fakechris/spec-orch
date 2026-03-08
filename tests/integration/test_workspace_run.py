@@ -18,6 +18,12 @@ def test_run_controller_creates_git_worktree_for_issue(tmp_path: Path) -> None:
                 "issue_id": "SPC-1",
                 "title": "Build workspace-aware runner",
                 "summary": "Use a real git worktree for issue execution.",
+                "verification_commands": {
+                    "lint": ["{python}", "-c", "print('lint ok')"],
+                    "typecheck": ["{python}", "-c", "print('type ok')"],
+                    "test": ["{python}", "-c", "print('test ok')"],
+                    "build": ["{python}", "-c", "print('build ok')"]
+                }
             }
         )
     )
@@ -33,6 +39,7 @@ def test_run_controller_creates_git_worktree_for_issue(tmp_path: Path) -> None:
     assert (result.workspace / ".git").exists()
     assert result.explain.exists()
     assert "mergeable=False" in result.explain.read_text()
+    assert "blocked_by=human_acceptance" in result.explain.read_text()
 
 
 def _init_git_repo(repo_root: Path) -> None:
