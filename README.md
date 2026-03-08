@@ -86,6 +86,7 @@ Those commands write `review_report.json` and `acceptance.json`, rewrite `report
 - [System Design v0](docs/architecture/spec-orch-system-design-v0.md)
 - [v1 Implementation Plan](docs/plans/2026-03-07-spec-orch-v1-implementation.md)
 - [Orchestration Options and MVP Dogfooding](docs/architecture/orchestration-plane-options-and-mvp.md)
+- [Observability v1 Design](docs/architecture/observability-v1-design.md)
 
 ## Current Scope
 
