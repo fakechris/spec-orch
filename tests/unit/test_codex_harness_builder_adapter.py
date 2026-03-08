@@ -10,6 +10,7 @@ from spec_orch.domain.models import Issue
 from spec_orch.services.codex_harness_builder_adapter import (
     CodexHarnessBuilderAdapter,
     CodexHarnessTransportError,
+    evaluate_pre_action_narration_compliance,
 )
 
 
@@ -78,6 +79,13 @@ def test_codex_harness_builder_adapter_runs_builder_turn_over_stdio(tmp_path: Pa
     assert report_data["metadata"]["thread_id"] == "thread-123"
     assert report_data["metadata"]["turn_id"] == "turn-456"
     assert report_data["metadata"]["plan"] == ["Edit files", "Run tests"]
+    assert report_data["metadata"]["turn_contract_compliance"] == {
+        "compliant": True,
+        "first_action_seen": False,
+        "first_action_method": None,
+        "first_action_excerpt": None,
+        "violations": [],
+    }
     requests = [json.loads(line) for line in request_log.read_text().splitlines()]
     assert [request["method"] for request in requests] == [
         "initialize",
@@ -89,6 +97,16 @@ def test_codex_harness_builder_adapter_runs_builder_turn_over_stdio(tmp_path: Pa
         {
             "type": "text",
             "text": (
+                "## FORBIDDEN BEFORE FIRST ACTION\n"
+                "- No plan narration\n"
+                "- No skill/process references\n"
+                "- No \"I will now...\" sentences\n"
+                "Any output before exec_command_begin is non-compliant.\n\n"
+                "## FIRST ACTION REQUIREMENT\n"
+                "Your first output token must begin a concrete action:\n"
+                "a shell command, a file edit, or a test run.\n\n"
+                "## ALLOWED NARRATION (only after first action)\n"
+                "One sentence max. Impact-focused. No headings.\n\n"
                 "CRITICAL INSTRUCTIONS - FOLLOW EXACTLY:\n"
                 "- DO NOT describe what you are about to do\n"
                 "- DO NOT explain your plan or approach before acting\n"
@@ -375,6 +393,73 @@ def test_codex_harness_builder_adapter_aggregates_agent_message_deltas_into_exce
     state_data = json.loads((tmp_path / "telemetry" / "harness_state.json").read_text())
     assert state_data["last_agent_excerpt"] == "Investigating the failing CLI command."
     assert state_data["last_output_excerpt"] == "Investigating the failing CLI command."
+
+
+def test_pre_action_narration_compliance_flags_skill_or_plan_text_before_first_action(
+    tmp_path: Path,
+) -> None:
+    incoming_path = tmp_path / "incoming_events.jsonl"
+    incoming_path.write_text(
+        "\n".join(
+            json.dumps(event)
+            for event in [
+                {
+                    "observed_at": "2026-03-08T08:30:25.000000+00:00",
+                    "method": "item/agentMessage/delta",
+                    "excerpt": "I've read the brainstorming skill and I'm planning the change.",
+                },
+                {
+                    "observed_at": "2026-03-08T08:30:26.000000+00:00",
+                    "method": "codex/event/exec_command_begin",
+                    "excerpt": "codex/event/exec_command_begin",
+                },
+            ]
+        )
+        + "\n"
+    )
+    compliance = evaluate_pre_action_narration_compliance(incoming_path)
+
+    assert compliance["compliant"] is False
+    assert compliance["first_action_seen"] is True
+    assert compliance["first_action_method"] == "codex/event/exec_command_begin"
+    assert compliance["violations"] == [
+        {
+            "observed_at": "2026-03-08T08:30:25.000000+00:00",
+            "method": "item/agentMessage/delta",
+            "excerpt": "I've read the brainstorming skill and I'm planning the change.",
+            "pattern": r"\bskill\b",
+        }
+    ]
+
+
+def test_pre_action_narration_compliance_allows_output_after_first_action() -> None:
+    compliance = evaluate_pre_action_narration_compliance(
+        [
+            {
+                "observed_at": "2026-03-08T08:30:25.000000+00:00",
+                "method": "codex/event/exec_command_begin",
+                "excerpt": "codex/event/exec_command_begin",
+            },
+            {
+                "observed_at": "2026-03-08T08:30:26.000000+00:00",
+                "method": "item/started",
+                "excerpt": "commandExecution:call_123",
+            },
+            {
+                "observed_at": "2026-03-08T08:30:27.000000+00:00",
+                "method": "item/agentMessage/delta",
+                "excerpt": "Impact: added the status line after the first test run.",
+            },
+        ]
+    )
+
+    assert compliance == {
+        "compliant": True,
+        "first_action_seen": True,
+        "first_action_method": "codex/event/exec_command_begin",
+        "first_action_excerpt": "codex/event/exec_command_begin",
+        "violations": [],
+    }
 
 
 def test_codex_harness_builder_adapter_times_out_when_turn_goes_idle(tmp_path: Path) -> None:
