@@ -1,0 +1,38 @@
+{
+  "issue_id": "SPC-P1-1",
+  "title": "Replace app-server builder with codex exec adapter",
+  "summary": "Replace the 941-line codex_harness_builder_adapter.py (which manually implements JSON-RPC over app-server stdio) with a ~150-line CodexExecBuilderAdapter that uses 'codex exec --experimental-json'. This aligns with how Cyrus and cc-connect integrate Codex.",
+  "builder_prompt": "## Goal\nReplace the Codex app-server JSON-RPC builder with a simpler codex exec builder.\n\n## Steps\n1. Create src/spec_orch/services/codex_exec_builder_adapter.py:\n   - Class CodexExecBuilderAdapter implementing BuilderAdapter Protocol\n   - ADAPTER_NAME = 'codex_exec', AGENT_NAME = 'codex'\n   - run() method spawns: codex exec --experimental-json --sandbox workspace-write --skip-git-repo-check <prompt>\n   - Read JSONL events from stdout line by line\n   - Write events to telemetry/incoming_events.jsonl\n   - Track final message from item.completed events where item.type == 'agent_message'\n   - Track plan from turn.plan.updated events\n   - Detect turn.completed and turn.failed events\n   - Run compliance check from domain.compliance on the events\n   - Handle process timeout (absolute_timeout_seconds)\n   - Write builder_report.json in same format as existing adapter\n   - If builder_prompt is None, return skipped result\n2. Move codex_harness_builder_adapter.py to src/spec_orch/services/_archived/\n3. Update RunController (or cli.py injection) to use CodexExecBuilderAdapter as default\n4. Update tests:\n   - Create new fake codex exec scripts that output JSONL to stdout\n   - Update test_codex_harness_builder_adapter.py -> test_codex_exec_builder_adapter.py\n   - Update integration tests\n   - Keep compliance tests working (they should use domain.compliance directly)\n5. Delete pi_builder_adapter.py (dead code, single-line alias)\n6. Run full test suite\n\n## codex exec JSONL event format reference\nEach line is a JSON object with a 'type' field:\n- {\"type\": \"item.started\", \"item\": {\"id\": \"...\", \"type\": \"command_execution\"}}\n- {\"type\": \"item.completed\", \"item\": {\"id\": \"...\", \"type\": \"agent_message\", \"text\": \"...\"}}\n- {\"type\": \"item.completed\", \"item\": {\"id\": \"...\", \"type\": \"command_execution\", \"exit_code\": 0}}\n- {\"type\": \"turn.completed\", \"usage\": {...}}\n- {\"type\": \"turn.failed\", \"error\": \"...\"}\n\n## Verification\npython -m pytest -q && python -m ruff check src/ && python -m mypy src/",
+  "context": {
+    "files_to_read": [
+      "src/spec_orch/services/codex_harness_builder_adapter.py",
+      "src/spec_orch/domain/protocols.py",
+      "src/spec_orch/domain/compliance.py",
+      "src/spec_orch/services/run_controller.py",
+      "src/spec_orch/cli.py",
+      "tests/unit/test_codex_harness_builder_adapter.py",
+      "tests/integration/test_workspace_run.py"
+    ],
+    "architecture_notes": "After SPC-P0-3, RunController accepts BuilderAdapter via constructor injection. domain/compliance.py has the compliance functions. The new adapter must satisfy the BuilderAdapter Protocol from domain/protocols.py.",
+    "constraints": [
+      "builder_report.json format must not change",
+      "telemetry/incoming_events.jsonl must still be written",
+      "Compliance detection must still work on the new event format",
+      "All tests must pass after migration"
+    ]
+  },
+  "acceptance_criteria": [
+    "codex_exec_builder_adapter.py exists and is under 200 lines",
+    "codex_harness_builder_adapter.py is in _archived/ directory",
+    "pi_builder_adapter.py is deleted",
+    "builder_report.json format is unchanged",
+    "Compliance detection works on codex exec JSONL events",
+    "All tests pass"
+  ],
+  "verification_commands": {
+    "lint": ["{python}", "-m", "ruff", "check", "src/"],
+    "typecheck": ["{python}", "-m", "mypy", "src/"],
+    "test": ["{python}", "-m", "pytest", "-q"],
+    "build": ["{python}", "-c", "print('build ok')"]
+  }
+}

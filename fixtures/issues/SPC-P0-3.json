@@ -1,0 +1,36 @@
+{
+  "issue_id": "SPC-P0-3",
+  "title": "Define BuilderAdapter and IssueSource Protocols, refactor RunController",
+  "summary": "RunController directly instantiates CodexHarnessBuilderAdapter and embeds fixture loading logic. Extract Protocol abstractions for both, inject via constructor, and make missing fixtures raise errors instead of silently returning defaults.",
+  "builder_prompt": "## Goal\nIntroduce Protocol abstractions for builder and issue source, making RunController testable and extensible.\n\n## Steps\n1. Create src/spec_orch/domain/protocols.py with:\n   - BuilderAdapter(Protocol): run(*, issue, workspace, run_id, event_logger) -> BuilderResult\n     Must also declare ADAPTER_NAME: str and AGENT_NAME: str\n   - IssueSource(Protocol): load(issue_id: str) -> Issue\n2. Create src/spec_orch/services/fixture_issue_source.py:\n   - Extract _load_fixture logic from RunController\n   - When fixture file doesn't exist, raise FileNotFoundError with a clear message\n   - Remove the silent fallback to hardcoded 'Build MVP runner' Issue\n3. Refactor RunController.__init__ to accept:\n   - builder_adapter: BuilderAdapter (instead of creating CodexHarnessBuilderAdapter internally)\n   - issue_source: IssueSource (instead of having _load_fixture)\n4. Update cli.py to construct the dependencies and inject them into RunController\n5. Update all tests to pass the new constructor arguments\n6. Ensure codex_harness_builder_adapter.py and pi_codex_builder_adapter.py satisfy BuilderAdapter Protocol\n7. Run the full test suite\n\n## Verification\npython -m pytest -q && python -m ruff check src/ && python -m mypy src/",
+  "context": {
+    "files_to_read": [
+      "src/spec_orch/services/run_controller.py",
+      "src/spec_orch/services/codex_harness_builder_adapter.py",
+      "src/spec_orch/services/pi_codex_builder_adapter.py",
+      "src/spec_orch/cli.py",
+      "tests/unit/test_run_controller.py",
+      "tests/unit/test_cli_smoke.py"
+    ],
+    "architecture_notes": "After SPC-P0-2, compliance functions are in domain/compliance.py. The _finalize_run method is already extracted. This task further decouples RunController from concrete implementations.",
+    "constraints": [
+      "All existing tests must pass (update test setup as needed)",
+      "CLI behavior must not change",
+      "FileNotFoundError for missing fixtures must include the expected path"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/spec_orch/domain/protocols.py defines BuilderAdapter and IssueSource Protocols",
+    "src/spec_orch/services/fixture_issue_source.py implements IssueSource",
+    "RunController.__init__ accepts builder_adapter and issue_source parameters",
+    "Missing fixture raises FileNotFoundError, not silent default",
+    "cli.py constructs and injects dependencies",
+    "All tests pass"
+  ],
+  "verification_commands": {
+    "lint": ["{python}", "-m", "ruff", "check", "src/"],
+    "typecheck": ["{python}", "-m", "mypy", "src/"],
+    "test": ["{python}", "-m", "pytest", "-q"],
+    "build": ["{python}", "-c", "print('build ok')"]
+  }
+}

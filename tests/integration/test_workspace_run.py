@@ -46,31 +46,22 @@ def test_run_controller_creates_git_worktree_for_issue(tmp_path: Path) -> None:
 def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> None:
     _init_git_repo(tmp_path)
 
-    fake_server = tmp_path / "fake_codex_app_server.py"
-    fake_server.write_text(
+    fake_exec_script = tmp_path / "fake_codex_exec.py"
+    fake_exec_script.write_text(
         "\n".join(
             [
-                "import json",
-                "import sys",
-                "for line in sys.stdin:",
-                "    message = json.loads(line)",
-                "    method = message.get('method')",
-                "    if method == 'initialize':",
-                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'id': message['id'], 'result': {'serverInfo': {'name': 'fake-codex', 'version': '0.1'}}}) + '\\n')",
-                "        sys.stdout.flush()",
-                "    elif method == 'thread/start':",
-                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'id': message['id'], 'result': {'thread': {'id': 'thread-it'}, 'cwd': '.', 'approvalPolicy': 'never', 'sandbox': {'mode': 'workspace-write'}, 'model': 'codex-mini', 'modelProvider': 'openai'}}) + '\\n')",
-                "        sys.stdout.flush()",
-                "    elif method == 'turn/start':",
-                "        prompt = message['params']['input'][0]['text']",
-                "        with open('builder-args.txt', 'w', encoding='utf-8') as handle:",
-                "            handle.write(prompt + '\\n')",
-                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'id': message['id'], 'result': {'turn': {'id': 'turn-it', 'status': 'in_progress'}}}) + '\\n')",
-                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'method': 'item/agentMessage/delta', 'params': {'threadId': 'thread-it', 'turnId': 'turn-it', 'itemId': 'msg-1', 'delta': 'builder ok'}}) + '\\n')",
-                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'method': 'turn/plan/updated', 'params': {'threadId': 'thread-it', 'turnId': 'turn-it', 'items': [{'id': 'plan-1', 'text': 'Modify this workspace.'}]}}) + '\\n')",
-                "        sys.stdout.write(json.dumps({'jsonrpc': '2.0', 'method': 'turn/completed', 'params': {'threadId': 'thread-it', 'turn': {'id': 'turn-it', 'status': 'completed'}}}) + '\\n')",
-                "        sys.stdout.flush()",
-                "        break",
+                "import json, sys, os",
+                "prompt = sys.argv[-1]",
+                "with open(os.path.join(os.getcwd(), 'builder-args.txt'), 'w') as f:",
+                "    f.write(prompt + '\\n')",
+                "events = [",
+                "    {'type': 'item.completed', 'item': {'id': 'msg-1', 'type': 'agent_message', 'text': 'builder ok'}},",
+                "    {'type': 'turn.plan.updated', 'items': [{'id': 'plan-1', 'text': 'Modify this workspace.'}]},",
+                "    {'type': 'turn.completed', 'usage': {}},",
+                "]",
+                "for e in events:",
+                "    sys.stdout.write(json.dumps(e) + '\\n')",
+                "    sys.stdout.flush()",
             ]
         )
         + "\n"
@@ -81,12 +72,7 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
         "\n".join(
             [
                 "#!/bin/sh",
-                "if [ \"$1\" = \"app-server\" ]; then",
-                "  shift",
-                f"  exec {sys.executable} {fake_server}",
-                "fi",
-                "echo 'unexpected invocation' >&2",
-                "exit 1",
+                f'exec {sys.executable} {fake_exec_script} "$@"',
             ]
         )
         + "\n"
@@ -100,7 +86,7 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
             {
                 "issue_id": "SPC-2",
                 "title": "Run builder adapter",
-                "summary": "Use codex harness builder before verification.",
+                "summary": "Use codex exec builder before verification.",
                 "builder_prompt": "Modify this workspace.",
                 "verification_commands": {
                     "lint": ["{python}", "-c", "print('lint ok')"],
@@ -125,33 +111,16 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
     assert "review" in result.gate.failed_conditions
     assert "builder" not in result.gate.failed_conditions
     assert "builder_status=passed" in result.explain.read_text()
-    assert '"adapter": "codex_harness"' in result.report.read_text()
+    assert '"adapter": "codex_exec"' in result.report.read_text()
     assert '"agent": "codex"' in result.report.read_text()
     assert "Modify this workspace." in (result.workspace / "builder-args.txt").read_text()
     telemetry_dir = result.workspace / "telemetry"
     assert telemetry_dir.exists()
     assert (telemetry_dir / "events.jsonl").exists()
-    assert (telemetry_dir / "raw_harness_in.jsonl").exists()
-    assert (telemetry_dir / "raw_harness_out.jsonl").exists()
+    assert (telemetry_dir / "incoming_events.jsonl").exists()
     events = [json.loads(line) for line in (telemetry_dir / "events.jsonl").read_text().splitlines()]
     assert any(event["event_type"] == "builder_started" for event in events)
     assert any(event["event_type"] == "builder_completed" for event in events)
-    assert any(
-        event["event_type"] == "thread_started"
-        and event["data"]["thread_id"] == "thread-it"
-        for event in events
-    )
-    assert any(
-        event["event_type"] == "turn_started"
-        and event["data"]["turn_id"] == "turn-it"
-        for event in events
-    )
-    assert any(
-        event["event_type"] == "turn_completed"
-        and event["data"]["turn_id"] == "turn-it"
-        and event["data"]["status"] == "completed"
-        for event in events
-    )
     assert any(
         event["event_type"] == "verification_step_completed"
         and event["data"]["step"] == "build"
@@ -168,8 +137,6 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
     builder_data = json.loads(result.builder.report_path.read_text())
     assert report_data["run_id"]
     assert builder_data["metadata"]["run_id"] == report_data["run_id"]
-    assert builder_data["metadata"]["thread_id"] == "thread-it"
-    assert builder_data["metadata"]["turn_id"] == "turn-it"
 
 
 def _init_git_repo(repo_root: Path) -> None:

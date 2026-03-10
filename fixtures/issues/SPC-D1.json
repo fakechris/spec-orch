@@ -1,0 +1,32 @@
+{
+  "issue_id": "SPC-D1",
+  "title": "spec-orch daemon 主循环 + spec-orch.toml 配置",
+  "summary": "实现 daemon 主循环，从 spec-orch.toml 读取配置，poll Linear 并自动处理 issue",
+  "builder_prompt": "实现 SpecOrchDaemon 类，读取 spec-orch.toml 配置，主循环 poll Linear API 获取新 issue，调用 RunController 处理。支持 SIGINT/SIGTERM 优雅退出，lockfile 防止重复处理。",
+  "context": {
+    "files_to_read": [
+      "src/spec_orch/services/daemon.py",
+      "src/spec_orch/services/linear_client.py",
+      "src/spec_orch/cli.py",
+      "spec-orch.toml"
+    ],
+    "architecture_notes": "daemon 通过 DaemonConfig 读 TOML 配置，内部创建 LinearClient + RunController，主循环 poll & run",
+    "constraints": [
+      "必须支持 SIGINT/SIGTERM 优雅退出",
+      "lockfile 机制防止同一 issue 重复处理",
+      "配置文件使用 TOML 格式"
+    ]
+  },
+  "acceptance_criteria": [
+    "DaemonConfig.from_toml 能正确解析 spec-orch.toml",
+    "daemon 主循环能 poll Linear 并处理 issue",
+    "SIGINT/SIGTERM 能触发优雅退出",
+    "lockfile 阻止 issue 重复处理",
+    "CLI 有 daemon 命令"
+  ],
+  "verification_commands": [
+    "cd /Users/chris/workspace/spec-orch && .venv/bin/ruff check src/",
+    "cd /Users/chris/workspace/spec-orch && .venv/bin/mypy src/spec_orch/services/daemon.py",
+    "cd /Users/chris/workspace/spec-orch && .venv/bin/pytest tests/ -x"
+  ]
+}

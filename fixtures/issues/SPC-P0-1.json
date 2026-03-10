@@ -1,0 +1,29 @@
+{
+  "issue_id": "SPC-P0-1",
+  "title": "Fix README fallback description inconsistency",
+  "summary": "README claims builder falls back to pi_codex adapter on failure, but code disabled this in commit 39ebdc5. Update README to match actual behavior.",
+  "builder_prompt": "## Goal\nFix the README.md so it accurately describes what happens when the Codex harness transport fails.\n\n## Steps\n1. Read README.md and find the section about fallback behavior (around line 134-138)\n2. Remove the paragraph that says 'If the Codex harness transport cannot be started, SpecOrch falls back to the existing pi_codex adapter for compatibility'\n3. Remove the associated bash example showing --pi-executable usage\n4. Replace with: 'If the Codex harness transport cannot be started (e.g. the executable is missing), the builder step is recorded as failed and the gate will block mergeability on the builder condition.'\n5. Keep the line: 'The active adapter is recorded in builder_report.json and the top-level report.json.'\n6. Review the rest of README for any other references to pi_codex fallback and remove them\n7. Run the test suite to confirm nothing breaks\n\n## Verification\npython -m pytest -q",
+  "context": {
+    "files_to_read": [
+      "README.md",
+      "src/spec_orch/services/run_controller.py"
+    ],
+    "architecture_notes": "The pi_codex fallback was disabled in commit 39ebdc5. The _run_builder method now catches CodexHarnessTransportError and creates a failed BuilderResult instead of falling back.",
+    "constraints": [
+      "Do not change any Python source code",
+      "All 23 existing tests must still pass"
+    ]
+  },
+  "acceptance_criteria": [
+    "README no longer mentions pi_codex fallback behavior",
+    "README accurately describes that builder failure blocks the gate",
+    "No Python source files are modified",
+    "All tests pass"
+  ],
+  "verification_commands": {
+    "lint": ["{python}", "-m", "ruff", "check", "src/"],
+    "typecheck": ["{python}", "-c", "print('typecheck ok')"],
+    "test": ["{python}", "-m", "pytest", "-q"],
+    "build": ["{python}", "-c", "print('build ok')"]
+  }
+}

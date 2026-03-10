@@ -1,0 +1,33 @@
+{
+  "issue_id": "SPC-UX-2",
+  "title": "Rich explain.md format with gate detail table and acceptance checklist",
+  "summary": "Rewrite explain.md generation to produce a rich decision document including gate condition detail table, builder execution summary, acceptance criteria checklist, suggested review focus, and file change summary.",
+  "builder_prompt": "## Goal\nMake explain.md a comprehensive decision surface for the dogfood workflow.\n\n## Steps\n1. Update src/spec_orch/services/artifact_service.py write_explain_report method:\n   - Accept additional parameters: verification details, builder metadata, acceptance_criteria list, workspace path\n   - Generate markdown with these sections:\n     a. '# Explain Report for <issue_id>' header with title\n     b. '## Verdict' section with mergeable status and blocked_by\n     c. '## Gate Conditions' table with one row per condition (condition | status | notes)\n        - spec_exists, spec_approved, within_boundaries: pass/fail\n        - builder: pass/fail/skipped\n        - verification.lint, verification.typecheck, verification.test, verification.build: pass/fail with exit code\n        - review: pass/pending/changes_requested\n        - human_acceptance: accepted/pending\n     d. '## Builder Summary' section: adapter, compliance status, final message excerpt (first 200 chars)\n     e. '## Acceptance Criteria' section: render each criterion as a markdown checkbox\n        - Auto-check items that can be verified (e.g., 'All tests pass' checked if verification.test passed)\n     f. '## Suggested Review Focus' section: list items based on failed/warning conditions\n     g. '## File Changes' section: if workspace is a git repo, include git diff --stat output\n2. Update the method signature in artifact_service.py\n3. Update all callers in run_controller.py to pass the new parameters\n4. Update tests that assert on explain.md content\n5. Run the full test suite\n\n## Verification\npython -m pytest -q && python -m ruff check src/",
+  "context": {
+    "files_to_read": [
+      "src/spec_orch/services/artifact_service.py",
+      "src/spec_orch/services/run_controller.py",
+      "tests/unit/test_run_controller.py"
+    ],
+    "architecture_notes": "After SPC-P0-2, _finalize_run handles all explain report writing. The Issue model now has acceptance_criteria field. The explain.md is the primary review surface in the dogfood workflow.",
+    "constraints": [
+      "All existing tests must pass (update assertions as needed)",
+      "explain.md must be valid markdown",
+      "File changes section must gracefully handle non-git workspaces"
+    ]
+  },
+  "acceptance_criteria": [
+    "explain.md contains a Gate Conditions detail table",
+    "explain.md contains a Builder Summary section",
+    "explain.md contains an Acceptance Criteria checklist with auto-checked items",
+    "explain.md contains a Suggested Review Focus section",
+    "explain.md contains a File Changes summary",
+    "All tests pass"
+  ],
+  "verification_commands": {
+    "lint": ["{python}", "-m", "ruff", "check", "src/"],
+    "typecheck": ["{python}", "-m", "mypy", "src/"],
+    "test": ["{python}", "-m", "pytest", "-q"],
+    "build": ["{python}", "-c", "print('build ok')"]
+  }
+}

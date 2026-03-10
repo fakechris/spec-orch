@@ -1,24 +1,28 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
+from spec_orch.domain.compliance import (
+    default_turn_contract_compliance,
+    evaluate_pre_action_narration_compliance,
+)
 from spec_orch.domain.models import (
     BuilderResult,
     GateInput,
+    GateVerdict,
     Issue,
     ReviewSummary,
     RunResult,
     VerificationDetail,
     VerificationSummary,
 )
+from spec_orch.domain.protocols import BuilderAdapter, IssueSource
 from spec_orch.services.artifact_service import ArtifactService
-from spec_orch.services.codex_harness_builder_adapter import (
-    CodexHarnessBuilderAdapter,
-    CodexHarnessTransportError,
-    default_turn_contract_compliance,
-    evaluate_pre_action_narration_compliance,
-)
+from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
+from spec_orch.services.fixture_issue_source import FixtureIssueSource
 from spec_orch.services.gate_service import GateService
 from spec_orch.services.review_adapter import LocalReviewAdapter
 from spec_orch.services.telemetry_service import TelemetryService
@@ -33,10 +37,12 @@ class RunController:
         repo_root: Path,
         codex_executable: str = "codex",
         pi_executable: str = "pi",
+        builder_adapter: BuilderAdapter | None = None,
+        issue_source: IssueSource | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
         self.artifact_service = ArtifactService()
-        self.harness_builder_adapter = CodexHarnessBuilderAdapter(
+        self.builder_adapter: BuilderAdapter = builder_adapter or CodexExecBuilderAdapter(
             executable=codex_executable
         )
         self.gate_service = GateService()
@@ -44,9 +50,12 @@ class RunController:
         self.telemetry_service = TelemetryService()
         self.verification_service = VerificationService()
         self.workspace_service = WorkspaceService(repo_root=self.repo_root)
+        self.issue_source: IssueSource = issue_source or FixtureIssueSource(
+            repo_root=self.repo_root
+        )
 
     def run_issue(self, issue_id: str) -> RunResult:
-        issue = self._load_fixture(issue_id)
+        issue = self.issue_source.load(issue_id)
         workspace = self.workspace_service.prepare_issue_workspace(issue.issue_id)
         run_id = self.telemetry_service.new_run_id(issue.issue_id)
         self.telemetry_service.log_event(
@@ -97,44 +106,14 @@ class RunController:
             data={"verdict": review.verdict},
         )
 
-        gate = self.gate_service.evaluate(
-            GateInput(
-                spec_exists=True,
-                spec_approved=True,
-                within_boundaries=True,
-                builder_succeeded=builder.succeeded,
-                verification=verification,
-                review=review,
-                human_acceptance=False,
-            )
-        )
-        self._log_gate_event(
-            workspace=workspace,
-            issue_id=issue.issue_id,
-            run_id=run_id,
-            gate=gate,
-        )
-        explain = self.artifact_service.write_explain_report(
-            workspace=workspace,
-            issue_id=issue.issue_id,
-            issue_title=issue.title,
-            mergeable=gate.mergeable,
-            failed_conditions=gate.failed_conditions,
-            builder_status=self._builder_status(builder),
-            review_status=review.verdict,
-            reviewed_by=review.reviewed_by,
-            acceptance_status="pending",
-            accepted_by=None,
-            builder_contract_compliance=builder.metadata.get("turn_contract_compliance"),
-        )
-        report = self._write_report(
-            workspace=workspace,
+        gate, explain, report = self._finalize_run(
             issue=issue,
+            workspace=workspace,
             run_id=run_id,
-            gate=gate,
             builder=builder,
-            review=review,
             verification=verification,
+            review=review,
+            human_acceptance=False,
             accepted_by=None,
         )
 
@@ -157,7 +136,7 @@ class RunController:
         verdict: str,
         reviewed_by: str,
     ) -> RunResult:
-        issue = self._load_fixture(issue_id)
+        issue = self.issue_source.load(issue_id)
         workspace = self.workspace_service.issue_workspace_path(issue.issue_id)
         if not workspace.exists():
             raise FileNotFoundError(f"workspace not found for issue {issue.issue_id}")
@@ -181,6 +160,120 @@ class RunController:
         )
         human_acceptance = report_data["human_acceptance"]["accepted"]
         accepted_by = report_data["human_acceptance"]["accepted_by"]
+        gate, explain, updated_report = self._finalize_run(
+            issue=issue,
+            workspace=workspace,
+            run_id=run_id,
+            builder=builder,
+            verification=verification,
+            review=review,
+            human_acceptance=human_acceptance,
+            accepted_by=accepted_by,
+        )
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="review",
+            event_type="review_completed",
+            message="Recorded review verdict.",
+            data={"verdict": verdict, "reviewed_by": reviewed_by},
+        )
+
+        return RunResult(
+            issue=issue,
+            workspace=workspace,
+            task_spec=workspace / "task.spec.md",
+            progress=workspace / "progress.md",
+            explain=explain,
+            report=updated_report,
+            builder=builder,
+            review=review,
+            gate=gate,
+        )
+
+    def accept_issue(self, issue_id: str, *, accepted_by: str) -> RunResult:
+        issue = self.issue_source.load(issue_id)
+        workspace = self.workspace_service.issue_workspace_path(issue.issue_id)
+        if not workspace.exists():
+            raise FileNotFoundError(f"workspace not found for issue {issue.issue_id}")
+
+        report = workspace / "report.json"
+        if not report.exists():
+            raise FileNotFoundError(f"report not found for issue {issue.issue_id}")
+
+        report_data = json.loads(report.read_text())
+        run_id = report_data["run_id"]
+        self.artifact_service.write_acceptance_artifact(
+            workspace=workspace,
+            issue_id=issue.issue_id,
+            accepted_by=accepted_by,
+        )
+        builder = self._builder_from_report(report_data, workspace)
+        verification = self._verification_from_report(report_data)
+        review = self._review_from_report(report_data, workspace)
+        gate, explain, updated_report = self._finalize_run(
+            issue=issue,
+            workspace=workspace,
+            run_id=run_id,
+            builder=builder,
+            verification=verification,
+            review=review,
+            human_acceptance=True,
+            accepted_by=accepted_by,
+        )
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="acceptance",
+            event_type="acceptance_recorded",
+            message="Recorded human acceptance.",
+            data={"accepted_by": accepted_by},
+        )
+
+        return RunResult(
+            issue=issue,
+            workspace=workspace,
+            task_spec=workspace / "task.spec.md",
+            progress=workspace / "progress.md",
+            explain=explain,
+            report=updated_report,
+            builder=builder,
+            review=review,
+            gate=gate,
+        )
+
+    def _make_event_logger(
+        self, *, workspace: Path, run_id: str, issue_id: str
+    ) -> Callable[[dict[str, Any]], None]:
+        def _log(event: dict[str, Any]) -> None:
+            self.telemetry_service.log_event(
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue_id,
+                component=event.get("component", "builder"),
+                event_type=event["event_type"],
+                severity=event.get("severity", "info"),
+                message=event["message"],
+                adapter=event.get("adapter"),
+                agent=event.get("agent"),
+                data=event.get("data"),
+            )
+        return _log
+
+    def _finalize_run(
+        self,
+        *,
+        issue: Issue,
+        workspace: Path,
+        run_id: str,
+        builder: BuilderResult,
+        verification: VerificationSummary,
+        review: ReviewSummary,
+        human_acceptance: bool,
+        accepted_by: str | None,
+    ) -> tuple[GateVerdict, Path, Path]:
         gate = self.gate_service.evaluate(
             GateInput(
                 spec_exists=True,
@@ -210,8 +303,11 @@ class RunController:
             acceptance_status="accepted" if human_acceptance else "pending",
             accepted_by=accepted_by,
             builder_contract_compliance=builder.metadata.get("turn_contract_compliance"),
+            builder_adapter=builder.adapter,
+            verification=verification,
+            acceptance_criteria=issue.acceptance_criteria,
         )
-        updated_report = self._write_report(
+        report = self._write_report(
             workspace=workspace,
             issue=issue,
             run_id=run_id,
@@ -221,127 +317,7 @@ class RunController:
             verification=verification,
             accepted_by=accepted_by,
         )
-        self.telemetry_service.log_event(
-            workspace=workspace,
-            run_id=run_id,
-            issue_id=issue.issue_id,
-            component="review",
-            event_type="review_completed",
-            message="Recorded review verdict.",
-            data={"verdict": verdict, "reviewed_by": reviewed_by},
-        )
-
-        return RunResult(
-            issue=issue,
-            workspace=workspace,
-            task_spec=workspace / "task.spec.md",
-            progress=workspace / "progress.md",
-            explain=explain,
-            report=updated_report,
-            builder=builder,
-            review=review,
-            gate=gate,
-        )
-
-    def accept_issue(self, issue_id: str, *, accepted_by: str) -> RunResult:
-        issue = self._load_fixture(issue_id)
-        workspace = self.workspace_service.issue_workspace_path(issue.issue_id)
-        if not workspace.exists():
-            raise FileNotFoundError(f"workspace not found for issue {issue.issue_id}")
-
-        report = workspace / "report.json"
-        if not report.exists():
-            raise FileNotFoundError(f"report not found for issue {issue.issue_id}")
-
-        report_data = json.loads(report.read_text())
-        run_id = report_data["run_id"]
-        self.artifact_service.write_acceptance_artifact(
-            workspace=workspace,
-            issue_id=issue.issue_id,
-            accepted_by=accepted_by,
-        )
-        builder = self._builder_from_report(report_data, workspace)
-        verification = self._verification_from_report(report_data)
-        review = self._review_from_report(report_data, workspace)
-        gate = self.gate_service.evaluate(
-            GateInput(
-                spec_exists=True,
-                spec_approved=True,
-                within_boundaries=True,
-                builder_succeeded=builder.succeeded,
-                verification=verification,
-                review=review,
-                human_acceptance=True,
-            )
-        )
-        self._log_gate_event(
-            workspace=workspace,
-            issue_id=issue.issue_id,
-            run_id=run_id,
-            gate=gate,
-        )
-        explain = self.artifact_service.write_explain_report(
-            workspace=workspace,
-            issue_id=issue.issue_id,
-            issue_title=issue.title,
-            mergeable=gate.mergeable,
-            failed_conditions=gate.failed_conditions,
-            builder_status=self._builder_status(builder),
-            review_status=review.verdict,
-            reviewed_by=review.reviewed_by,
-            acceptance_status="accepted",
-            accepted_by=accepted_by,
-            builder_contract_compliance=builder.metadata.get("turn_contract_compliance"),
-        )
-        updated_report = self._write_report(
-            workspace=workspace,
-            issue=issue,
-            run_id=run_id,
-            gate=gate,
-            builder=builder,
-            review=review,
-            verification=verification,
-            accepted_by=accepted_by,
-        )
-        self.telemetry_service.log_event(
-            workspace=workspace,
-            run_id=run_id,
-            issue_id=issue.issue_id,
-            component="acceptance",
-            event_type="acceptance_recorded",
-            message="Recorded human acceptance.",
-            data={"accepted_by": accepted_by},
-        )
-
-        return RunResult(
-            issue=issue,
-            workspace=workspace,
-            task_spec=workspace / "task.spec.md",
-            progress=workspace / "progress.md",
-            explain=explain,
-            report=updated_report,
-            builder=builder,
-            review=review,
-            gate=gate,
-        )
-
-    def _load_fixture(self, issue_id: str) -> Issue:
-        fixture_path = self.repo_root / "fixtures" / "issues" / f"{issue_id}.json"
-        if fixture_path.exists():
-            data = json.loads(fixture_path.read_text())
-            return Issue(
-                issue_id=data["issue_id"],
-                title=data["title"],
-                summary=data["summary"],
-                builder_prompt=data.get("builder_prompt"),
-                verification_commands=data.get("verification_commands", {}),
-            )
-
-        return Issue(
-            issue_id=issue_id,
-            title="Build MVP runner",
-            summary="Local happy-path issue fixture for the first prototype.",
-        )
+        return gate, explain, report
 
     def _builder_status(self, builder) -> str:
         if builder.skipped:
@@ -351,6 +327,8 @@ class RunController:
         return "failed"
 
     def _run_builder(self, *, issue: Issue, workspace: Path, run_id: str) -> BuilderResult:
+        adapter_name = self.builder_adapter.ADAPTER_NAME
+        agent_name = self.builder_adapter.AGENT_NAME
         self.telemetry_service.log_event(
             workspace=workspace,
             run_id=run_id,
@@ -358,41 +336,32 @@ class RunController:
             component="builder",
             event_type="builder_started",
             message="Started builder adapter.",
-            adapter=self.harness_builder_adapter.ADAPTER_NAME,
-            agent=self.harness_builder_adapter.AGENT_NAME,
+            adapter=adapter_name,
+            agent=agent_name,
         )
         try:
-            builder = self.harness_builder_adapter.run(
+            builder = self.builder_adapter.run(
                 issue=issue,
                 workspace=workspace,
                 run_id=run_id,
-                event_logger=lambda event: self.telemetry_service.log_event(
-                    workspace=workspace,
-                    run_id=run_id,
-                    issue_id=issue.issue_id,
-                    component=event.get("component", "builder"),
-                    event_type=event["event_type"],
-                    severity=event.get("severity", "info"),
-                    message=event["message"],
-                    adapter=event.get("adapter"),
-                    agent=event.get("agent"),
-                    data=event.get("data"),
+                event_logger=self._make_event_logger(
+                    workspace=workspace, run_id=run_id, issue_id=issue.issue_id
                 ),
             )
-        except CodexHarnessTransportError as exc:
+        except Exception as exc:
             compliance = evaluate_pre_action_narration_compliance(
                 workspace / "telemetry" / "incoming_events.jsonl"
             )
+            command = getattr(self.builder_adapter, "command", [])
             builder = BuilderResult(
                 succeeded=False,
-                command=self.harness_builder_adapter.command,
+                command=command,
                 stdout="",
                 stderr=str(exc),
                 report_path=workspace / "builder_report.json",
-                adapter=self.harness_builder_adapter.ADAPTER_NAME,
-                agent=self.harness_builder_adapter.AGENT_NAME,
+                adapter=adapter_name,
+                agent=agent_name,
                 metadata={
-                    "transport": "app_server_stdio",
                     "run_id": run_id,
                     "failure_reason": str(exc),
                     "turn_contract_compliance": compliance,
@@ -402,8 +371,9 @@ class RunController:
             "turn_contract_compliance", default_turn_contract_compliance()
         )
         builder.metadata["run_id"] = run_id
-        if builder.adapter == self.harness_builder_adapter.ADAPTER_NAME:
-            self.harness_builder_adapter._write_report(builder)
+        write_report = getattr(self.builder_adapter, "_write_report", None)
+        if write_report and builder.adapter == adapter_name:
+            write_report(builder)
         self.telemetry_service.log_event(
             workspace=workspace,
             run_id=run_id,

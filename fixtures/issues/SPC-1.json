@@ -1,5 +1,11 @@
 {
   "issue_id": "SPC-1",
   "title": "Build MVP runner",
-  "summary": "Run one local fixture issue through the prototype pipeline."
+  "summary": "Run one local fixture issue through the prototype pipeline.",
+  "verification_commands": {
+    "lint": ["{python}", "-m", "ruff", "check", "src/"],
+    "typecheck": ["{python}", "-m", "mypy", "src/"],
+    "test": ["{python}", "-m", "pytest", "-q"],
+    "build": ["{python}", "-c", "print('build ok')"]
+  }
 }

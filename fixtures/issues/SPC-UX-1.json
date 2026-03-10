@@ -1,0 +1,33 @@
+{
+  "issue_id": "SPC-UX-1",
+  "title": "Add dogfood workflow CLI commands: status, explain, diff, cherry-pick",
+  "summary": "Add four new CLI commands to support the daily dogfood workflow: status (check issue state), explain (print explain.md), diff (show worktree changes), cherry-pick (apply changes to current branch).",
+  "builder_prompt": "## Goal\nAdd four CLI commands that complete the dogfood developer workflow.\n\n## Steps\n1. Add to src/spec_orch/cli.py:\n\n   spec-orch status <issue_id> --repo-root .\n   - Find the issue workspace (.worktrees/<id> or .spec_orch_runs/<id>)\n   - If workspace doesn't exist, print 'no run found for <id>'\n   - If report.json exists, print: issue=<id> workspace=<path> mergeable=<bool> blocked=<conditions>\n   - If report.json doesn't exist but workspace exists, print: issue=<id> workspace=<path> status=in_progress\n\n   spec-orch explain <issue_id> --repo-root .\n   - Find explain.md in the issue workspace\n   - Print its contents to stdout\n   - If not found, print 'no explain report found for <id>'\n\n   spec-orch diff <issue_id> --repo-root .\n   - Run 'git diff --stat main' in the issue worktree\n   - Print the output\n   - If workspace is not a git worktree, print 'workspace is not a git worktree'\n\n   spec-orch cherry-pick <issue_id> --repo-root .\n   - Get the list of commits in the worktree branch that are not in main\n   - Run 'git cherry-pick <commits>' in the repo root\n   - Print the cherry-picked commits\n   - On failure, print error and suggest 'git cherry-pick --abort'\n\n2. Add tests in tests/unit/test_cli_smoke.py for status and explain commands\n3. Run the full test suite\n\n## Verification\npython -m pytest -q && python -m ruff check src/",
+  "context": {
+    "files_to_read": [
+      "src/spec_orch/cli.py",
+      "src/spec_orch/services/workspace_service.py",
+      "tests/unit/test_cli_smoke.py"
+    ],
+    "architecture_notes": "WorkspaceService.issue_workspace_path() returns the workspace path. The CLI uses typer. The workspace may be a git worktree (.worktrees/) or a plain directory (.spec_orch_runs/).",
+    "constraints": [
+      "All existing tests must pass",
+      "cherry-pick command must not force-push or modify remote",
+      "Commands must work with both worktree and non-worktree workspaces where applicable"
+    ]
+  },
+  "acceptance_criteria": [
+    "spec-orch status command prints issue state and gate summary",
+    "spec-orch explain command prints explain.md contents",
+    "spec-orch diff command shows worktree diff stat",
+    "spec-orch cherry-pick command applies worktree commits to current branch",
+    "New CLI smoke tests exist for status and explain",
+    "All tests pass"
+  ],
+  "verification_commands": {
+    "lint": ["{python}", "-m", "ruff", "check", "src/"],
+    "typecheck": ["{python}", "-m", "mypy", "src/"],
+    "test": ["{python}", "-m", "pytest", "-q"],
+    "build": ["{python}", "-c", "print('build ok')"]
+  }
+}

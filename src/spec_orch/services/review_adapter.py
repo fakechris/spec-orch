@@ -4,10 +4,8 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from spec_orch.domain.compliance import default_turn_contract_compliance
 from spec_orch.domain.models import ReviewSummary
-from spec_orch.services.codex_harness_builder_adapter import (
-    default_turn_contract_compliance,
-)
 
 
 class LocalReviewAdapter:
