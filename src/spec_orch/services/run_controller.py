@@ -20,7 +20,7 @@ from spec_orch.domain.models import (
     VerificationDetail,
     VerificationSummary,
 )
-from spec_orch.domain.protocols import BuilderAdapter, IssueSource
+from spec_orch.domain.protocols import BuilderAdapter, IssueSource, PlannerAdapter
 from spec_orch.services.activity_logger import ActivityLogger
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
@@ -46,6 +46,7 @@ class RunController:
         pi_executable: str = "pi",
         builder_adapter: BuilderAdapter | None = None,
         issue_source: IssueSource | None = None,
+        planner_adapter: PlannerAdapter | None = None,
         live_stream: IO[str] | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
@@ -53,6 +54,7 @@ class RunController:
         self.builder_adapter: BuilderAdapter = builder_adapter or CodexExecBuilderAdapter(
             executable=codex_executable
         )
+        self.planner_adapter: PlannerAdapter | None = planner_adapter
         self.gate_service = GateService()
         self.review_adapter = LocalReviewAdapter()
         self.telemetry_service = TelemetryService()
@@ -406,16 +408,151 @@ class RunController:
     def advance(self, issue_id: str) -> RunResult:
         """Execute the next legal transition for *issue_id*.
 
-        Currently supports advancing from GATE_EVALUATED states only (via
-        the existing ``rerun_issue`` path).  Future phases will add handlers
-        for DRAFT → BUILDING, SPEC_DRAFTING → SPEC_APPROVED, etc.
+        Supports:
+          DRAFT             → SPEC_DRAFTING (requires planner_adapter)
+          SPEC_DRAFTING     → SPEC_APPROVED (if no unresolved blocking questions)
+          SPEC_APPROVED     → BUILDING      (delegates to run_issue)
+          GATE_EVALUATED / REVIEW_PENDING / FAILED → rerun
         """
         state = self.get_state(issue_id)
+
+        if state == RunState.DRAFT:
+            return self._advance_draft(issue_id)
+
+        if state == RunState.SPEC_DRAFTING:
+            return self._advance_spec_drafting(issue_id)
+
+        if state == RunState.SPEC_APPROVED:
+            return self.run_issue(issue_id)
+
         if state in {RunState.GATE_EVALUATED, RunState.REVIEW_PENDING, RunState.FAILED}:
             return self.rerun_issue(issue_id)
+
         raise ValueError(
             f"Cannot auto-advance from state {state.value!r}. "
             "Use run_issue(), review_issue(), or accept_issue() explicitly."
+        )
+
+    def _advance_draft(self, issue_id: str) -> RunResult:
+        """DRAFT → SPEC_DRAFTING: invoke planner to generate questions."""
+        issue = self.issue_source.load(issue_id)
+        workspace = self.workspace_service.prepare_issue_workspace(issue.issue_id)
+        run_id = self.telemetry_service.new_run_id(issue.issue_id)
+
+        if self.planner_adapter is None:
+            self._persist_state(workspace, issue, run_id, RunState.SPEC_DRAFTING)
+            return self._stub_result(
+                issue, workspace, RunState.SPEC_DRAFTING,
+                message="Awaiting manual spec drafting (no planner configured).",
+            )
+
+        existing_snapshot = read_spec_snapshot(workspace)
+        planner_result = self.planner_adapter.plan(
+            issue=issue,
+            workspace=workspace,
+            existing_snapshot=existing_snapshot,
+        )
+
+        snapshot = planner_result.spec_draft or create_initial_snapshot(issue)
+        for q in planner_result.questions:
+            snapshot.questions.append(q)
+        write_spec_snapshot(workspace, snapshot)
+
+        self._persist_state(workspace, issue, run_id, RunState.SPEC_DRAFTING)
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="planner",
+            event_type="spec_drafting_started",
+            message=f"Planner generated {len(planner_result.questions)} question(s).",
+            data={"questions": len(planner_result.questions)},
+        )
+        return self._stub_result(issue, workspace, RunState.SPEC_DRAFTING)
+
+    def _advance_spec_drafting(self, issue_id: str) -> RunResult:
+        """SPEC_DRAFTING → SPEC_APPROVED: approve if no blocking questions remain."""
+        issue = self.issue_source.load(issue_id)
+        workspace = self.workspace_service.issue_workspace_path(issue.issue_id)
+        snapshot = read_spec_snapshot(workspace)
+
+        if snapshot is None:
+            snapshot = create_initial_snapshot(issue)
+
+        if snapshot.has_unresolved_blocking_questions():
+            raise ValueError(
+                "Cannot approve spec: unresolved blocking questions remain. "
+                "Use `spec-orch questions list` and `spec-orch questions answer` first."
+            )
+
+        snapshot.approved = True
+        snapshot.version += 1
+        write_spec_snapshot(workspace, snapshot)
+
+        run_id = self.telemetry_service.new_run_id(issue.issue_id)
+        self._persist_state(workspace, issue, run_id, RunState.SPEC_APPROVED)
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="spec",
+            event_type="spec_approved",
+            message="Spec snapshot approved; ready for building.",
+        )
+        return self._stub_result(issue, workspace, RunState.SPEC_APPROVED)
+
+    def _persist_state(
+        self,
+        workspace: Path,
+        issue: Issue,
+        run_id: str,
+        state: RunState,
+    ) -> None:
+        """Write a minimal report.json to persist the current state."""
+        report_path = workspace / "report.json"
+        existing: dict[str, Any] = {}
+        if report_path.exists():
+            existing = json.loads(report_path.read_text())
+        existing.update({
+            "state": state.value,
+            "run_id": run_id,
+            "issue_id": issue.issue_id,
+            "title": issue.title,
+        })
+        report_path.write_text(json.dumps(existing, indent=2) + "\n")
+
+    def _stub_result(
+        self,
+        issue: Issue,
+        workspace: Path,
+        state: RunState,
+        *,
+        message: str = "",
+    ) -> RunResult:
+        """Return a RunResult for pre-build states (no builder/gate yet)."""
+        dummy_builder = BuilderResult(
+            succeeded=False,
+            command=[],
+            stdout=message,
+            stderr="",
+            report_path=workspace / "builder_report.json",
+            adapter="none",
+            agent="none",
+            skipped=True,
+        )
+        return RunResult(
+            issue=issue,
+            workspace=workspace,
+            task_spec=workspace / "task.spec.md",
+            progress=workspace / "progress.md",
+            explain=workspace / "explain.md",
+            report=workspace / "report.json",
+            builder=dummy_builder,
+            review=ReviewSummary(),
+            gate=GateVerdict(
+                mergeable=False, failed_conditions=["pre_build"],
+            ),
+            state=state,
         )
 
     def _log_and_emit(

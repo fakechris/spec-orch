@@ -8,13 +8,14 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO
 from uuid import uuid4
 
 import typer
 
-from spec_orch.domain.models import Finding
+from spec_orch.domain.models import Decision, Finding, Question
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
 from spec_orch.services.finding_store import (
     append_finding,
@@ -24,11 +25,20 @@ from spec_orch.services.finding_store import (
 )
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
 from spec_orch.services.run_controller import RunController
+from spec_orch.services.spec_snapshot_service import (
+    create_initial_snapshot,
+    read_spec_snapshot,
+    write_spec_snapshot,
+)
 from spec_orch.services.workspace_service import WorkspaceService
 
 app = typer.Typer(help="SpecOrch MVP prototype CLI.")
 findings_app = typer.Typer()
 app.add_typer(findings_app, name="findings")
+questions_app = typer.Typer()
+app.add_typer(questions_app, name="questions")
+spec_app = typer.Typer()
+app.add_typer(spec_app, name="spec")
 
 
 def _resolve_version() -> str:
@@ -331,6 +341,184 @@ def add_finding(
     )
     append_finding(workspace, finding)
     typer.echo(f"added finding {finding.id}")
+
+
+@questions_app.command("list")
+def list_questions(
+    issue_id: str,
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+) -> None:
+    """List questions in the spec snapshot for an issue."""
+    workspace = WorkspaceService(repo_root=Path(repo_root)).issue_workspace_path(issue_id)
+    snapshot = read_spec_snapshot(workspace)
+    if snapshot is None:
+        typer.echo("no spec snapshot found")
+        raise typer.Exit(1)
+    if not snapshot.questions:
+        typer.echo("no questions")
+        return
+    answered_ids = {d.question_id for d in snapshot.decisions}
+    for q in snapshot.questions:
+        status = "answered" if q.id in answered_ids else "open"
+        blocking = " [blocking]" if q.blocking else ""
+        typer.echo(f"{q.id} [{q.category}]{blocking} ({status}) {q.text}")
+
+
+@questions_app.command("add")
+def add_question(
+    issue_id: str,
+    text: str = typer.Option(..., "--text", "-t"),
+    category: str = typer.Option("requirement", "--category", "-c"),
+    blocking: bool = typer.Option(True, "--blocking/--no-blocking"),
+    asked_by: str = typer.Option("user", "--asked-by"),
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+) -> None:
+    """Add a question to the spec snapshot."""
+    workspace = WorkspaceService(repo_root=Path(repo_root)).issue_workspace_path(issue_id)
+    snapshot = read_spec_snapshot(workspace)
+    if snapshot is None:
+        issue_source = FixtureIssueSource(repo_root=Path(repo_root))
+        issue = issue_source.load(issue_id)
+        snapshot = create_initial_snapshot(issue)
+    qid = f"q-{uuid4().hex[:8]}"
+    snapshot.questions.append(
+        Question(
+            id=qid,
+            asked_by=asked_by,
+            target="user",
+            category=category,
+            blocking=blocking,
+            text=text,
+        )
+    )
+    write_spec_snapshot(workspace, snapshot)
+    typer.echo(f"added question {qid}")
+
+
+@questions_app.command("answer")
+def answer_question(
+    issue_id: str,
+    question_id: str,
+    answer: str = typer.Option(..., "--answer", "-a"),
+    decided_by: str = typer.Option("user", "--decided-by"),
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+) -> None:
+    """Answer a question by recording a Decision."""
+    workspace = WorkspaceService(repo_root=Path(repo_root)).issue_workspace_path(issue_id)
+    snapshot = read_spec_snapshot(workspace)
+    if snapshot is None:
+        typer.echo("no spec snapshot found")
+        raise typer.Exit(1)
+    matching = [q for q in snapshot.questions if q.id == question_id]
+    if not matching:
+        typer.echo(f"question not found: {question_id}")
+        raise typer.Exit(1)
+    matching[0].answer = answer
+    matching[0].answered_by = decided_by
+    snapshot.decisions.append(
+        Decision(
+            question_id=question_id,
+            answer=answer,
+            decided_by=decided_by,
+            timestamp=datetime.now(UTC).isoformat(),
+        )
+    )
+    write_spec_snapshot(workspace, snapshot)
+    typer.echo(f"answered {question_id}")
+
+
+@spec_app.command("show")
+def spec_show(
+    issue_id: str,
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+) -> None:
+    """Show the current spec snapshot for an issue."""
+    workspace = WorkspaceService(repo_root=Path(repo_root)).issue_workspace_path(issue_id)
+    snapshot = read_spec_snapshot(workspace)
+    if snapshot is None:
+        typer.echo("no spec snapshot found")
+        raise typer.Exit(1)
+    typer.echo(f"version={snapshot.version} approved={snapshot.approved}")
+    typer.echo(f"  title: {snapshot.issue.title}")
+    typer.echo(f"  questions: {len(snapshot.questions)}")
+    typer.echo(f"  decisions: {len(snapshot.decisions)}")
+    if snapshot.has_unresolved_blocking_questions():
+        typer.echo("  status: has unresolved blocking questions")
+    elif snapshot.approved:
+        typer.echo("  status: approved")
+    else:
+        typer.echo("  status: draft")
+
+
+@spec_app.command("approve")
+def spec_approve(
+    issue_id: str,
+    approved_by: str = typer.Option("user", "--approved-by"),
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+) -> None:
+    """Approve the spec snapshot, enabling the build stage."""
+    workspace = WorkspaceService(repo_root=Path(repo_root)).issue_workspace_path(issue_id)
+    snapshot = read_spec_snapshot(workspace)
+    if snapshot is None:
+        typer.echo("no spec snapshot found")
+        raise typer.Exit(1)
+    if snapshot.has_unresolved_blocking_questions():
+        typer.echo("cannot approve: unresolved blocking questions remain")
+        raise typer.Exit(1)
+    snapshot.approved = True
+    snapshot.approved_by = approved_by
+    snapshot.version += 1
+    write_spec_snapshot(workspace, snapshot)
+    typer.echo(f"spec approved (v{snapshot.version}) by {approved_by}")
+
+
+@spec_app.command("draft")
+def spec_draft(
+    issue_id: str,
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+) -> None:
+    """Create an initial draft spec snapshot from the issue fixture."""
+    workspace = WorkspaceService(repo_root=Path(repo_root)).issue_workspace_path(issue_id)
+    existing = read_spec_snapshot(workspace)
+    if existing is not None:
+        typer.echo(
+            f"spec snapshot already exists (v{existing.version}, "
+            f"approved={existing.approved})"
+        )
+        raise typer.Exit(1)
+    issue_source = FixtureIssueSource(repo_root=Path(repo_root))
+    issue = issue_source.load(issue_id)
+    workspace.mkdir(parents=True, exist_ok=True)
+    snapshot = create_initial_snapshot(issue)
+    write_spec_snapshot(workspace, snapshot)
+    typer.echo(f"created draft spec v1 for {issue_id}")
+
+
+@app.command("advance")
+def advance_issue(
+    issue_id: str,
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+    codex_executable: str = typer.Option("codex", "--codex-executable"),
+    live: bool = typer.Option(False, "--live"),
+) -> None:
+    """Advance an issue to the next state in the lifecycle."""
+    live_stream: IO[str] | None = sys.stderr if live else None
+    controller = _make_controller(
+        repo_root=repo_root,
+        codex_executable=codex_executable,
+        live_stream=live_stream,
+    )
+    result = controller.advance(issue_id)
+    typer.echo(
+        " ".join(
+            [
+                f"issue={result.issue.issue_id}",
+                f"state={result.state.value}",
+                f"mergeable={result.gate.mergeable}",
+                f"blocked={','.join(result.gate.failed_conditions) or 'none'}",
+            ]
+        )
+    )
 
 
 @app.command("diff")

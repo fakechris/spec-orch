@@ -249,6 +249,15 @@ class SpecSnapshot:
 
 
 @dataclass(slots=True)
+class PlannerResult:
+    """Output of a PlannerAdapter.plan() call."""
+
+    questions: list[Question]
+    spec_draft: SpecSnapshot | None = None
+    raw_response: str = ""
+
+
+@dataclass(slots=True)
 class RunResult:
     issue: Issue
     workspace: Path
