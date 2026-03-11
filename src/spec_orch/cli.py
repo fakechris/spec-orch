@@ -944,12 +944,59 @@ def _make_controller(
         issue_source = LinearIssueSource(client=client)
     else:
         issue_source = FixtureIssueSource(repo_root=Path(repo_root))
+
+    planner = _build_planner_from_toml(repo_root)
+
     return RunController(
         repo_root=repo_root,
         builder_adapter=CodexExecBuilderAdapter(executable=codex_executable),
         issue_source=issue_source,
+        planner_adapter=planner,
         live_stream=live_stream,
     )
+
+
+def _build_planner_from_toml(repo_root: Path) -> Any:
+    """Build a PlannerAdapter from spec-orch.toml if planner section exists."""
+    config_path = repo_root / "spec-orch.toml"
+    if not config_path.exists():
+        return None
+    try:
+        import tomllib
+
+        with config_path.open("rb") as f:
+            raw = tomllib.load(f)
+    except Exception:
+        return None
+
+    planner_cfg = raw.get("planner", {})
+    model = planner_cfg.get("model")
+    if not model:
+        return None
+
+    api_key: str | None = None
+    api_key_env = planner_cfg.get("api_key_env")
+    if api_key_env:
+        api_key = os.environ.get(api_key_env)
+
+    api_base: str | None = None
+    api_base_env = planner_cfg.get("api_base_env")
+    if api_base_env:
+        api_base = os.environ.get(api_base_env)
+
+    token_command = planner_cfg.get("token_command")
+
+    try:
+        from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
+
+        return LiteLLMPlannerAdapter(
+            model=model,
+            api_key=api_key,
+            api_base=api_base,
+            token_command=token_command,
+        )
+    except ImportError:
+        return None
 
 
 def _edit_fixture_json(fixture: dict[str, object]) -> dict[str, object]:
