@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import os
 import re
 import signal
+import subprocess as _subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
-from spec_orch.domain.models import TERMINAL_STATES, RunState
+from spec_orch.domain.models import TERMINAL_STATES, RunResult, RunState
 from spec_orch.domain.protocols import PlannerAdapter
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
+from spec_orch.services.linear_write_back import LinearWriteBackService
 from spec_orch.services.run_controller import RunController
 
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -31,6 +34,9 @@ class DaemonConfig:
 
         planner = raw.get("planner", {})
         self.planner_model: str | None = planner.get("model")
+        self.planner_api_key_env: str | None = planner.get("api_key_env")
+        self.planner_api_base_env: str | None = planner.get("api_base_env")
+        self.planner_token_command: str | None = planner.get("token_command")
 
         daemon = raw.get("daemon", {})
         self.max_concurrent: int = daemon.get("max_concurrent", 1)
@@ -61,6 +67,7 @@ class SpecOrchDaemon:
         client = LinearClient(token_env=self.config.linear_token_env)
         issue_source = LinearIssueSource(client=client)
         builder = CodexExecBuilderAdapter(executable=self.config.codex_executable)
+        self._write_back = LinearWriteBackService(client=client)
 
         planner = self._build_planner()
 
@@ -83,16 +90,36 @@ class SpecOrchDaemon:
             print("[daemon] stopped")
 
     def _build_planner(self) -> PlannerAdapter | None:
-        """Build a PlannerAdapter if planner config is present, else None."""
-        planner_cfg = getattr(self.config, "planner_model", None)
-        if not planner_cfg:
+        """Build a PlannerAdapter from config, resolving API key dynamically."""
+        if not self.config.planner_model:
             return None
+
+        api_key: str | None = None
+        if self.config.planner_token_command:
+            try:
+                api_key = _subprocess.check_output(
+                    self.config.planner_token_command, shell=True, text=True,
+                ).strip()
+            except _subprocess.CalledProcessError as exc:
+                print(f"[daemon] token_command failed: {exc}")
+                return None
+        elif self.config.planner_api_key_env:
+            api_key = os.environ.get(self.config.planner_api_key_env)
+
+        api_base: str | None = None
+        if self.config.planner_api_base_env:
+            api_base = os.environ.get(self.config.planner_api_base_env)
+
         try:
             from spec_orch.services.litellm_planner_adapter import (
                 LiteLLMPlannerAdapter,
             )
 
-            return LiteLLMPlannerAdapter(model=planner_cfg)
+            return LiteLLMPlannerAdapter(
+                model=self.config.planner_model,
+                api_key=api_key,
+                api_base=api_base,
+            )
         except ImportError:
             print("[daemon] litellm not installed, planner disabled")
             return None
@@ -128,6 +155,7 @@ class SpecOrchDaemon:
                 )
                 if state in TERMINAL_STATES or state == RunState.GATE_EVALUATED:
                     self._notify(issue_id, mergeable)
+                    self._write_back_result(raw_issue, result)
                     self._processed.add(issue_id)
                 else:
                     self._release(issue_id)
@@ -156,6 +184,19 @@ class SpecOrchDaemon:
         print(f"\n[daemon] received signal {signum}, shutting down gracefully...")
         self._running = False
 
+    def _write_back_result(
+        self, raw_issue: dict[str, Any], result: RunResult,
+    ) -> None:
+        """Post a run summary back to Linear as a comment."""
+        linear_id = raw_issue.get("id", "")
+        if not linear_id or not hasattr(self, "_write_back"):
+            return
+        try:
+            self._write_back.post_run_summary(linear_id=linear_id, result=result)
+            print(f"[daemon] wrote summary to Linear for {result.issue.issue_id}")
+        except Exception as exc:
+            print(f"[daemon] write-back failed: {exc}")
+
     def _notify(self, issue_id: str, mergeable: bool) -> None:
         status = "mergeable=true" if mergeable else "mergeable=false"
         sys.stdout.write("\a")
@@ -164,10 +205,10 @@ class SpecOrchDaemon:
         if not _SAFE_ID_RE.match(issue_id):
             return
 
-        try:
-            import subprocess
+        import contextlib
 
-            subprocess.run(
+        with contextlib.suppress(FileNotFoundError):
+            _subprocess.run(
                 [
                     "osascript",
                     "-e",
@@ -176,5 +217,3 @@ class SpecOrchDaemon:
                 check=False,
                 capture_output=True,
             )
-        except FileNotFoundError:
-            pass

@@ -161,6 +161,87 @@ def test_advance_spec_drafting_approves_when_all_answered(tmp_path):
     assert updated_snapshot.approved is True
 
 
+# ──────────────── run_issue preserves existing snapshot ────────────────
+
+
+def test_run_issue_preserves_approved_snapshot(tmp_path):
+    """run_issue() must NOT overwrite an existing approved snapshot."""
+    from spec_orch.domain.models import BuilderResult
+
+    repo = _make_fixture(tmp_path)
+    issue = _make_issue()
+    workspace = tmp_path / ".spec_orch_runs" / "SPC-TEST-1"
+    workspace.mkdir(parents=True)
+
+    snapshot = create_initial_snapshot(issue)
+    snapshot.approved = True
+    snapshot.version = 3
+    snapshot.questions.append(
+        Question(
+            id="q-kept", asked_by="planner", target="user",
+            category="requirement", blocking=False, text="Preserved?",
+            answer="yes", answered_by="user",
+        )
+    )
+    write_spec_snapshot(workspace, snapshot)
+
+    fake_builder = MagicMock()
+    fake_builder.ADAPTER_NAME = "fake"
+    fake_builder.AGENT_NAME = "fake"
+    fake_builder.run.return_value = BuilderResult(
+        succeeded=True, command=[], stdout="", stderr="",
+        report_path=workspace / "builder_report.json",
+        adapter="fake", agent="fake",
+    )
+
+    controller = RunController(repo_root=repo, builder_adapter=fake_builder)
+    result = controller.run_issue("SPC-TEST-1")
+
+    preserved = read_spec_snapshot(result.workspace)
+    assert preserved is not None
+    assert preserved.version == 3
+    assert len(preserved.questions) == 1
+    assert preserved.questions[0].id == "q-kept"
+    assert preserved.approved is True
+
+
+def test_run_issue_creates_snapshot_when_none_exists(tmp_path):
+    from spec_orch.domain.models import BuilderResult
+
+    repo = _make_fixture(tmp_path)
+
+    fake_builder = MagicMock()
+    fake_builder.ADAPTER_NAME = "fake"
+    fake_builder.AGENT_NAME = "fake"
+    fake_builder.run.return_value = BuilderResult(
+        succeeded=True, command=[], stdout="", stderr="",
+        report_path=tmp_path / "builder_report.json",
+        adapter="fake", agent="fake",
+    )
+
+    controller = RunController(repo_root=repo, builder_adapter=fake_builder)
+    result = controller.run_issue("SPC-TEST-1")
+
+    snapshot = read_spec_snapshot(result.workspace)
+    assert snapshot is not None
+    assert snapshot.version == 1
+    assert snapshot.approved is True
+
+
+# ──────────── write_spec_snapshot creates directories ────────────
+
+
+def test_write_spec_snapshot_creates_missing_directory(tmp_path):
+    issue = _make_issue()
+    snapshot = create_initial_snapshot(issue)
+    deep_dir = tmp_path / "a" / "b" / "c"
+    path = write_spec_snapshot(deep_dir, snapshot)
+    assert path.exists()
+    loaded = read_spec_snapshot(deep_dir)
+    assert loaded is not None
+    assert loaded.issue.issue_id == "SPC-TEST-1"
+
+
 # ───────────────────── questions CLI ─────────────────────
 
 

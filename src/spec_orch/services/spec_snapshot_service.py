@@ -16,6 +16,7 @@ from spec_orch.domain.models import (
 def write_spec_snapshot(workspace: Path, snapshot: SpecSnapshot) -> Path:
     """Persist a SpecSnapshot to workspace/spec_snapshot.json."""
     path = workspace / "spec_snapshot.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
     data = asdict(snapshot)
     data["issue"]["context"] = asdict(snapshot.issue.context)
     path.write_text(json.dumps(data, indent=2, default=str) + "\n")

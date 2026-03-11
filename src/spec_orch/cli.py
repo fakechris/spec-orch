@@ -10,7 +10,7 @@ import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import IO
+from typing import IO, Any
 from uuid import uuid4
 
 import typer
@@ -130,13 +130,17 @@ def run_issue(
     live: bool = typer.Option(
         False, "--live", help="Stream builder events to stderr in real-time."
     ),
+    source: str = typer.Option(
+        "fixture", "--source", "-s", help="Issue source: fixture or linear."
+    ),
 ) -> None:
-    """Run one local issue fixture through the MVP pipeline."""
+    """Run one issue through the MVP pipeline."""
     live_stream: IO[str] | None = sys.stderr if live else None
     controller = _make_controller(
         repo_root=repo_root,
         codex_executable=codex_executable,
         live_stream=live_stream,
+        source=source,
     )
     result = controller.run_issue(issue_id)
     typer.echo(
@@ -500,6 +504,9 @@ def advance_issue(
     repo_root: Path = typer.Option(Path("."), "--repo-root"),
     codex_executable: str = typer.Option("codex", "--codex-executable"),
     live: bool = typer.Option(False, "--live"),
+    source: str = typer.Option(
+        "fixture", "--source", "-s", help="Issue source: fixture or linear."
+    ),
 ) -> None:
     """Advance an issue to the next state in the lifecycle."""
     live_stream: IO[str] | None = sys.stderr if live else None
@@ -507,6 +514,7 @@ def advance_issue(
         repo_root=repo_root,
         codex_executable=codex_executable,
         live_stream=live_stream,
+        source=source,
     )
     result = controller.advance(issue_id)
     typer.echo(
@@ -870,11 +878,21 @@ def _make_controller(
     repo_root: Path,
     codex_executable: str = "codex",
     live_stream: IO[str] | None = None,
+    source: str = "fixture",
 ) -> RunController:
+    issue_source: Any
+    if source == "linear":
+        from spec_orch.services.linear_client import LinearClient
+        from spec_orch.services.linear_issue_source import LinearIssueSource
+
+        client = LinearClient()
+        issue_source = LinearIssueSource(client=client)
+    else:
+        issue_source = FixtureIssueSource(repo_root=Path(repo_root))
     return RunController(
         repo_root=repo_root,
         builder_adapter=CodexExecBuilderAdapter(executable=codex_executable),
-        issue_source=FixtureIssueSource(repo_root=Path(repo_root)),
+        issue_source=issue_source,
         live_stream=live_stream,
     )
 
