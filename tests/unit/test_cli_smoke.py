@@ -708,17 +708,15 @@ def test_create_pr_triggers_linear_writeback(tmp_path: Path) -> None:
 
     with (
         patch.dict("os.environ", {"TEST_LINEAR_TOKEN": "fake-token"}),
-        patch("os.getcwd", return_value=str(tmp_path)),
-        patch(
-            "spec_orch.cli.Path",
-            side_effect=lambda p="spec-orch.toml": config if p == "spec-orch.toml" else Path(p),
-        ),
         patch("spec_orch.services.linear_client.LinearClient", return_value=fake_client),
     ):
-        _linear_writeback_on_pr("SON-99", report, "https://github.com/pr/1", gate)
+        _linear_writeback_on_pr(
+            "SON-99", report, "https://github.com/pr/1", gate, tmp_path,
+        )
 
     fake_client.add_comment.assert_called_once()
     comment = fake_client.add_comment.call_args[0][1]
     assert "SON-99" in comment
     assert "gate_evaluated" in comment
     fake_client.update_issue_state.assert_called_once_with("uuid-123", "In Progress")
+    fake_client.close.assert_called_once()
