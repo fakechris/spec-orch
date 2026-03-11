@@ -1,10 +1,97 @@
+"""Compliance checking for builder agents.
+
+This module has two layers:
+
+1. **ComplianceEngine** (vendor-neutral): evaluates a sequence of
+   ``BuilderEvent`` objects against configurable rules.  The orchestrator
+   and gate use this exclusively.
+
+2. **Codex-specific helpers** (``evaluate_pre_action_narration_compliance``
+   etc.): operate on raw Codex JSONL events.  These are retained for
+   backward compatibility and are called inside
+   ``CodexExecBuilderAdapter`` which maps Codex events into
+   ``BuilderEvent`` before forwarding to the engine.
+"""
 from __future__ import annotations
 
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
+
+from spec_orch.domain.models import BuilderEvent
+
+# ---------------------------------------------------------------------------
+# ComplianceEngine: vendor-neutral
+# ---------------------------------------------------------------------------
+
+ComplianceRule = Callable[[Sequence[BuilderEvent]], list[dict[str, Any]]]
+
+
+class ComplianceEngine:
+    """Evaluate builder events against a set of compliance rules.
+
+    Rules are callables that receive a sequence of ``BuilderEvent`` and
+    return a (possibly empty) list of violation dicts.
+    """
+
+    def __init__(self, rules: list[ComplianceRule] | None = None) -> None:
+        self._rules: list[ComplianceRule] = rules or [
+            pre_action_narration_rule,
+        ]
+
+    def register(self, rule: ComplianceRule) -> None:
+        self._rules.append(rule)
+
+    def evaluate(
+        self, events: Sequence[BuilderEvent],
+    ) -> dict[str, Any]:
+        all_violations: list[dict[str, Any]] = []
+        first_action = _find_first_action(events)
+        for rule in self._rules:
+            all_violations.extend(rule(events))
+        return {
+            "compliant": not all_violations,
+            "first_action_seen": first_action is not None,
+            "first_action_kind": first_action.kind if first_action else None,
+            "first_action_text": first_action.text if first_action else None,
+            "violations": all_violations,
+        }
+
+
+def _find_first_action(events: Sequence[BuilderEvent]) -> BuilderEvent | None:
+    for evt in events:
+        if evt.kind in ("command_start", "file_change"):
+            return evt
+    return None
+
+
+def pre_action_narration_rule(
+    events: Sequence[BuilderEvent],
+) -> list[dict[str, Any]]:
+    """Flag message events before the first concrete action that contain
+    planning/narration language."""
+    violations: list[dict[str, Any]] = []
+    for evt in events:
+        if evt.kind in ("command_start", "file_change"):
+            break
+        if evt.kind != "message" or not evt.text.strip():
+            continue
+        pattern = _matching_pre_action_pattern(evt.text)
+        if pattern:
+            violations.append({
+                "timestamp": evt.timestamp,
+                "kind": evt.kind,
+                "text": evt.text,
+                "pattern": pattern.pattern,
+            })
+    return violations
+
+
+# ---------------------------------------------------------------------------
+# Legacy Codex-specific helpers (kept for backward compatibility)
+# ---------------------------------------------------------------------------
 
 PRE_ACTION_NARRATION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bskill\b", re.IGNORECASE),

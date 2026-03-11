@@ -177,9 +177,30 @@ class GateInput:
 
 
 @dataclass(slots=True)
+class BuilderEvent:
+    """Vendor-neutral event produced by a builder adapter.
+
+    Each adapter maps its raw events (Codex JSONL, Cursor WebSocket, etc.)
+    to this common model.  The ComplianceEngine and EventFormatter operate
+    exclusively on BuilderEvent, never on raw vendor payloads.
+    """
+
+    timestamp: str
+    # "message" | "command_start" | "command_end" | "file_change"
+    # | "plan" | "reasoning" | "turn_end" | "error"
+    kind: str
+    text: str = ""
+    exit_code: int | None = None
+    file_path: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class GateVerdict:
     mergeable: bool
     failed_conditions: list[str]
+    mergeable_internal: bool = True
+    mergeable_external: bool = True
 
 
 @dataclass(slots=True)
