@@ -75,6 +75,8 @@ class GateService:
             failed_conditions.append("preview")
         if "human_acceptance" in required and not gate_input.human_acceptance:
             failed_conditions.append("human_acceptance")
+        if "findings" in required and gate_input.review_meta.blocking_unresolved:
+            failed_conditions.append("findings")
 
         return GateVerdict(
             mergeable=not failed_conditions,

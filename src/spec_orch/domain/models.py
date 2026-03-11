@@ -114,6 +114,55 @@ class ReviewSummary:
 
 
 @dataclass(slots=True)
+class Finding:
+    """A structured review observation — unified across all review sources."""
+
+    id: str
+    source: str
+    severity: str  # "blocking" | "advisory"
+    confidence: float
+    scope: str  # "in_spec" | "out_of_spec"
+    fingerprint: str
+    description: str
+    file_path: str | None = None
+    line: int | None = None
+    suggested_action: str | None = None
+    resolved: bool = False
+
+
+@dataclass(slots=True)
+class ReviewMeta:
+    """Convergence metadata for review loops."""
+
+    review_epoch: int = 0
+    autofix_budget: int = 3
+    findings: list[Finding] = field(default_factory=list)
+
+    @property
+    def blocking_unresolved(self) -> list[Finding]:
+        return [
+            f for f in self.findings
+            if f.severity == "blocking"
+            and not f.resolved
+            and f.scope == "in_spec"
+        ]
+
+    @property
+    def budget_exhausted(self) -> bool:
+        return self.review_epoch >= self.autofix_budget
+
+    def deduplicated_findings(self) -> list[Finding]:
+        """Return findings de-duplicated by fingerprint (keep first)."""
+        seen: set[str] = set()
+        result: list[Finding] = []
+        for f in self.findings:
+            if f.fingerprint not in seen:
+                seen.add(f.fingerprint)
+                result.append(f)
+        return result
+
+
+@dataclass(slots=True)
 class GateInput:
     spec_exists: bool = False
     spec_approved: bool = False
@@ -124,6 +173,7 @@ class GateInput:
     human_acceptance: bool = False
     preview_required: bool = False
     preview_passed: bool = False
+    review_meta: ReviewMeta = field(default_factory=ReviewMeta)
 
 
 @dataclass(slots=True)
