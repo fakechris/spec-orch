@@ -3,7 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from spec_orch.domain.models import BuilderResult
+from spec_orch.domain.models import (
+    BuilderResult,
+    RunState,
+    validate_transition,
+)
 from spec_orch.services.run_controller import RunController
 
 
@@ -242,6 +246,90 @@ def test_rerun_issue_closes_activity_logger_on_exception(tmp_path: Path) -> None
     assert logger.entered is True
     assert logger.exited is True
     assert logger.closed is True
+
+
+def test_run_issue_persists_state_in_report(tmp_path: Path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-S1.json").write_text(
+        json.dumps({
+            "issue_id": "SPC-S1",
+            "title": "State tracking",
+            "summary": "Verify state is persisted.",
+        })
+    )
+    controller = RunController(repo_root=tmp_path)
+    result = controller.run_issue("SPC-S1")
+
+    report_data = json.loads(result.report.read_text())
+    assert report_data["state"] == "gate_evaluated"
+    assert result.state == RunState.GATE_EVALUATED
+
+
+def test_accept_issue_sets_accepted_state(tmp_path: Path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-S2.json").write_text(
+        json.dumps({
+            "issue_id": "SPC-S2",
+            "title": "Acceptance state",
+            "summary": "Verify accept sets ACCEPTED state.",
+            "verification_commands": {
+                "lint": ["{python}", "-c", "print('ok')"],
+                "typecheck": ["{python}", "-c", "print('ok')"],
+                "test": ["{python}", "-c", "print('ok')"],
+                "build": ["{python}", "-c", "print('ok')"],
+            },
+        })
+    )
+    controller = RunController(repo_root=tmp_path)
+    controller.run_issue("SPC-S2")
+    controller.review_issue("SPC-S2", verdict="pass", reviewed_by="bot")
+    accepted = controller.accept_issue("SPC-S2", accepted_by="chris")
+
+    report_data = json.loads(accepted.report.read_text())
+    assert report_data["state"] == "accepted"
+    assert accepted.state == RunState.ACCEPTED
+
+
+def test_get_state_returns_draft_for_unknown_issue(tmp_path: Path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-GHOST.json").write_text(
+        json.dumps({
+            "issue_id": "SPC-GHOST",
+            "title": "Ghost",
+            "summary": "No run yet.",
+        })
+    )
+    controller = RunController(repo_root=tmp_path)
+    assert controller.get_state("SPC-GHOST") == RunState.DRAFT
+
+
+def test_get_state_returns_persisted_state(tmp_path: Path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-GS.json").write_text(
+        json.dumps({
+            "issue_id": "SPC-GS",
+            "title": "State read",
+            "summary": "Check get_state after run.",
+        })
+    )
+    controller = RunController(repo_root=tmp_path)
+    controller.run_issue("SPC-GS")
+    assert controller.get_state("SPC-GS") == RunState.GATE_EVALUATED
+
+
+def test_validate_transition_rejects_illegal_move() -> None:
+    with pytest.raises(ValueError, match="Invalid state transition"):
+        validate_transition(RunState.DRAFT, RunState.ACCEPTED)
+
+
+def test_validate_transition_accepts_legal_move() -> None:
+    validate_transition(RunState.DRAFT, RunState.BUILDING)
+    validate_transition(RunState.GATE_EVALUATED, RunState.ACCEPTED)
+    validate_transition(RunState.BUILDING, RunState.VERIFYING)
 
 
 def _read_events(events_path: Path) -> list[dict]:

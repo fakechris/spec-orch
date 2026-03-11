@@ -16,6 +16,7 @@ from spec_orch.domain.models import (
     Issue,
     ReviewSummary,
     RunResult,
+    RunState,
     VerificationDetail,
     VerificationSummary,
 )
@@ -130,6 +131,7 @@ class RunController:
                 human_acceptance=False,
                 accepted_by=None,
                 activity_logger=activity_logger,
+                state=RunState.GATE_EVALUATED,
             )
 
         return RunResult(
@@ -142,14 +144,15 @@ class RunController:
             builder=builder,
             review=review,
             gate=gate,
+            state=RunState.GATE_EVALUATED,
         )
 
     def _load_existing_run(
         self, issue_id: str,
-    ) -> tuple[Issue, Path, dict, str, BuilderResult]:
-        """Load issue, workspace, report data, run_id, and builder for an
-        existing run.  Validates the issue_id and falls back to report.json
-        when the issue source is unavailable."""
+    ) -> tuple[Issue, Path, dict, str, BuilderResult, RunState]:
+        """Load issue, workspace, report data, run_id, builder, and current
+        state for an existing run.  Validates the issue_id and falls back to
+        report.json when the issue source is unavailable."""
         if Path(issue_id).name != issue_id:
             raise ValueError(f"Invalid issue_id: {issue_id}")
 
@@ -165,12 +168,18 @@ class RunController:
         run_id: str = report_data["run_id"]
         builder = self._builder_from_report(report_data, workspace)
 
+        raw_state = report_data.get("state")
+        try:
+            current_state = RunState(raw_state) if raw_state else RunState.GATE_EVALUATED
+        except ValueError:
+            current_state = RunState.GATE_EVALUATED
+
         try:
             issue = self.issue_source.load(issue_id)
         except Exception:
             issue = self._issue_from_report(report_data)
 
-        return issue, workspace, report_data, run_id, builder
+        return issue, workspace, report_data, run_id, builder, current_state
 
     def _issue_from_report(self, report_data: dict) -> Issue:
         """Reconstruct a minimal Issue from persisted report.json."""
@@ -193,7 +202,7 @@ class RunController:
         verdict: str,
         reviewed_by: str,
     ) -> RunResult:
-        issue, workspace, report_data, run_id, builder = (
+        issue, workspace, report_data, run_id, builder, _prev_state = (
             self._load_existing_run(issue_id)
         )
         verification = self._verification_from_report(report_data)
@@ -217,6 +226,7 @@ class RunController:
             review=review,
             human_acceptance=human_acceptance,
             accepted_by=accepted_by,
+            state=RunState.GATE_EVALUATED,
         )
         self.telemetry_service.log_event(
             workspace=workspace,
@@ -238,10 +248,11 @@ class RunController:
             builder=builder,
             review=review,
             gate=gate,
+            state=RunState.GATE_EVALUATED,
         )
 
     def accept_issue(self, issue_id: str, *, accepted_by: str) -> RunResult:
-        issue, workspace, report_data, run_id, builder = (
+        issue, workspace, report_data, run_id, builder, _prev_state = (
             self._load_existing_run(issue_id)
         )
         self.artifact_service.write_acceptance_artifact(
@@ -260,6 +271,7 @@ class RunController:
             review=review,
             human_acceptance=True,
             accepted_by=accepted_by,
+            state=RunState.ACCEPTED,
         )
         self.telemetry_service.log_event(
             workspace=workspace,
@@ -281,6 +293,7 @@ class RunController:
             builder=builder,
             review=review,
             gate=gate,
+            state=RunState.ACCEPTED,
         )
 
     def rerun_issue(self, issue_id: str) -> RunResult:
@@ -289,7 +302,7 @@ class RunController:
         Resets review to pending since code may have changed.
         Falls back to report.json if issue source is unavailable.
         """
-        issue, workspace, report_data, run_id, builder = (
+        issue, workspace, report_data, run_id, builder, _prev_state = (
             self._load_existing_run(issue_id)
         )
 
@@ -335,6 +348,7 @@ class RunController:
                 human_acceptance=human_acceptance,
                 accepted_by=accepted_by,
                 activity_logger=activity_logger,
+                state=RunState.GATE_EVALUATED,
             )
             self._log_and_emit(
                 activity_logger=activity_logger,
@@ -360,6 +374,30 @@ class RunController:
             builder=builder,
             review=review,
             gate=gate,
+            state=RunState.GATE_EVALUATED,
+        )
+
+    def get_state(self, issue_id: str) -> RunState:
+        """Return the current persisted state for *issue_id*."""
+        workspace = self.workspace_service.issue_workspace_path(issue_id)
+        state = self._read_state(workspace)
+        if state is None:
+            return RunState.DRAFT
+        return state
+
+    def advance(self, issue_id: str) -> RunResult:
+        """Execute the next legal transition for *issue_id*.
+
+        Currently supports advancing from GATE_EVALUATED states only (via
+        the existing ``rerun_issue`` path).  Future phases will add handlers
+        for DRAFT → BUILDING, SPEC_DRAFTING → SPEC_APPROVED, etc.
+        """
+        state = self.get_state(issue_id)
+        if state in {RunState.GATE_EVALUATED, RunState.REVIEW_PENDING, RunState.FAILED}:
+            return self.rerun_issue(issue_id)
+        raise ValueError(
+            f"Cannot auto-advance from state {state.value!r}. "
+            "Use run_issue(), review_issue(), or accept_issue() explicitly."
         )
 
     def _log_and_emit(
@@ -441,6 +479,7 @@ class RunController:
         human_acceptance: bool,
         accepted_by: str | None,
         activity_logger: ActivityLogger | None = None,
+        state: RunState = RunState.GATE_EVALUATED,
     ) -> tuple[GateVerdict, Path, Path]:
         gate = self.gate_service.evaluate(
             GateInput(
@@ -485,6 +524,7 @@ class RunController:
             review=review,
             verification=verification,
             accepted_by=accepted_by,
+            state=state,
         )
         return gate, explain, report
 
@@ -679,6 +719,21 @@ class RunController:
             report_path=workspace / "review_report.json",
         )
 
+    @staticmethod
+    def _read_state(workspace: Path) -> RunState | None:
+        """Read persisted run state from report.json, or None if absent."""
+        report_path = workspace / "report.json"
+        if not report_path.exists():
+            return None
+        data = json.loads(report_path.read_text())
+        raw = data.get("state")
+        if raw is None:
+            return RunState.GATE_EVALUATED
+        try:
+            return RunState(raw)
+        except ValueError:
+            return RunState.GATE_EVALUATED
+
     def _write_report(
         self,
         *,
@@ -690,11 +745,13 @@ class RunController:
         review: ReviewSummary,
         verification: VerificationSummary,
         accepted_by: str | None,
+        state: RunState = RunState.GATE_EVALUATED,
     ) -> Path:
         report = workspace / "report.json"
         report.write_text(
             json.dumps(
                 {
+                    "state": state.value,
                     "run_id": run_id,
                     "issue_id": issue.issue_id,
                     "title": issue.title,

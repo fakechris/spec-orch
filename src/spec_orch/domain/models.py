@@ -1,8 +1,52 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+
+class RunState(StrEnum):
+    """Explicit lifecycle states for an issue run."""
+
+    DRAFT = "draft"
+    SPEC_DRAFTING = "spec_drafting"
+    SPEC_APPROVED = "spec_approved"
+    BUILDING = "building"
+    VERIFYING = "verifying"
+    REVIEW_PENDING = "review_pending"
+    GATE_EVALUATED = "gate_evaluated"
+    ACCEPTED = "accepted"
+    MERGED = "merged"
+    FAILED = "failed"
+
+
+TERMINAL_STATES = frozenset({RunState.ACCEPTED, RunState.MERGED, RunState.FAILED})
+
+_VALID_TRANSITIONS: dict[RunState, frozenset[RunState]] = {
+    RunState.DRAFT: frozenset({RunState.SPEC_DRAFTING, RunState.SPEC_APPROVED, RunState.BUILDING}),
+    RunState.SPEC_DRAFTING: frozenset({RunState.SPEC_APPROVED, RunState.FAILED}),
+    RunState.SPEC_APPROVED: frozenset({RunState.BUILDING, RunState.FAILED}),
+    RunState.BUILDING: frozenset({RunState.VERIFYING, RunState.FAILED}),
+    RunState.VERIFYING: frozenset({RunState.REVIEW_PENDING, RunState.FAILED}),
+    RunState.REVIEW_PENDING: frozenset({RunState.GATE_EVALUATED, RunState.VERIFYING}),
+    RunState.GATE_EVALUATED: frozenset({
+        RunState.ACCEPTED, RunState.REVIEW_PENDING, RunState.VERIFYING,
+    }),
+    RunState.ACCEPTED: frozenset({RunState.MERGED}),
+    RunState.MERGED: frozenset(),
+    RunState.FAILED: frozenset({RunState.BUILDING, RunState.VERIFYING}),
+}
+
+
+def validate_transition(current: RunState, target: RunState) -> None:
+    """Raise ValueError if *current* → *target* is not a legal transition."""
+    allowed = _VALID_TRANSITIONS.get(current, frozenset())
+    if target not in allowed:
+        raise ValueError(
+            f"Invalid state transition: {current.value} → {target.value}. "
+            f"Allowed: {', '.join(s.value for s in sorted(allowed, key=lambda s: s.value))}"
+        )
 
 
 @dataclass(slots=True)
@@ -99,3 +143,4 @@ class RunResult:
     builder: BuilderResult
     review: ReviewSummary
     gate: GateVerdict
+    state: RunState = RunState.GATE_EVALUATED
