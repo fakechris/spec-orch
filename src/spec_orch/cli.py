@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import IO
@@ -43,6 +45,59 @@ def cli(
     ),
 ) -> None:
     """SpecOrch MVP prototype CLI."""
+
+
+@app.command("plan-to-spec")
+def plan_to_spec(
+    plan_path: Path = typer.Argument(..., help="Path to the plan markdown file."),
+    issue_id: str = typer.Option(..., "--issue-id", "-i", help="Issue ID for the fixture."),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output path (default: fixtures/issues/{issue-id}.json).",
+    ),
+    edit: bool = typer.Option(False, "--edit", help="Open in $EDITOR before saving."),
+    builder_prompt_from: Path | None = typer.Option(
+        None,
+        "--builder-prompt-from",
+        "-p",
+        help="Override builder_prompt from file.",
+    ),
+    no_builder: bool = typer.Option(
+        False, "--no-builder", help="Set builder_prompt to null."
+    ),
+) -> None:
+    """Convert a plan markdown file into an issue fixture JSON file."""
+    from spec_orch.services.fixture_issue_source import _VALID_ISSUE_ID_RE
+    from spec_orch.services.plan_parser import parse_plan
+    from spec_orch.services.spec_generator import generate_fixture
+
+    if not plan_path.exists():
+        typer.echo(f"plan not found: {plan_path}")
+        raise typer.Exit(1)
+    if not _VALID_ISSUE_ID_RE.match(issue_id):
+        typer.echo(f"Invalid issue_id: {issue_id!r}")
+        raise typer.Exit(1)
+
+    fixture = generate_fixture(parse_plan(plan_path), issue_id)
+
+    if builder_prompt_from is not None:
+        if not builder_prompt_from.exists():
+            typer.echo(f"builder prompt file not found: {builder_prompt_from}")
+            raise typer.Exit(1)
+        fixture["builder_prompt"] = builder_prompt_from.read_text(encoding="utf-8")
+    if no_builder:
+        fixture["builder_prompt"] = None
+
+    if edit:
+        fixture = _edit_fixture_json(fixture)
+
+    output_path = output or Path("fixtures") / "issues" / f"{issue_id}.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    rendered = json.dumps(fixture, indent=2) + "\n"
+    output_path.write_text(rendered, encoding="utf-8")
+    typer.echo(rendered)
 
 
 @app.command("run-issue")
@@ -552,6 +607,37 @@ def _make_controller(
         issue_source=FixtureIssueSource(repo_root=Path(repo_root)),
         live_stream=live_stream,
     )
+
+
+def _edit_fixture_json(fixture: dict[str, object]) -> dict[str, object]:
+    editor = os.environ.get("EDITOR")
+    if not editor:
+        typer.echo("$EDITOR is not set")
+        raise typer.Exit(1)
+
+    with tempfile.NamedTemporaryFile(
+        mode="w+",
+        suffix=".json",
+        encoding="utf-8",
+        delete=False,
+    ) as temp_file:
+        temp_path = Path(temp_file.name)
+        temp_file.write(json.dumps(fixture, indent=2) + "\n")
+
+    try:
+        result = subprocess.run(editor.split() + [str(temp_path)], check=False)
+        if result.returncode != 0:
+            typer.echo(f"editor exited with code {result.returncode}")
+            raise typer.Exit(1)
+        result_data: dict[str, object] = json.loads(
+            temp_path.read_text(encoding="utf-8"),
+        )
+        return result_data
+    except json.JSONDecodeError as exc:
+        typer.echo(f"edited fixture is not valid JSON: {exc}")
+        raise typer.Exit(1) from exc
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 def main() -> None:
