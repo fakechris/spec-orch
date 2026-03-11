@@ -174,7 +174,19 @@
 - README updated to reflect EODF status and current architecture
 - EODF bootstrap fixtures: SPC-BOOT-1, SPC-BOOT-2
 
+### Full-Auto EODF Milestone
+- **SPC-BOOT-3**: Codex (`codex exec --json`) 自动实现了 `--version` CLI flag
+- Codex 生成了正确的实现代码（importlib.metadata + Typer callback）
+- Codex 生成的测试有 mock 路径错误（monkeypatch 模块属性 vs 局部别名），手动修复
+- 修复 `--experimental-json` → `--json` flag（codex 0.114.0 稳定 API）
+
+| EODF Issue | 模式 | Builder | Verification | Gate |
+|------------|------|---------|--------------|------|
+| SPC-BOOT-1 | 半自动 | skipped | all pass | mergeable=True |
+| SPC-BOOT-2 | 半自动 | skipped | all pass | mergeable=True |
+| SPC-BOOT-3 | **全自动** | **codex exec** | test fix needed | mergeable after fix |
+
 ### Verification
 - **ruff**: All checks passed
 - **mypy**: No issues found
-- **pytest**: 45/45 tests passed
+- **pytest**: 47/47 tests passed

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.metadata
 import json
 import subprocess
 from pathlib import Path
@@ -14,8 +15,30 @@ from spec_orch.services.workspace_service import WorkspaceService
 app = typer.Typer(help="SpecOrch MVP prototype CLI.")
 
 
+def _resolve_version() -> str:
+    try:
+        return importlib.metadata.version("spec-orch")
+    except importlib.metadata.PackageNotFoundError:
+        return "dev"
+
+
+def _version_callback(value: bool) -> None:
+    if not value:
+        return
+    typer.echo(_resolve_version())
+    raise typer.Exit()
+
+
 @app.callback()
-def cli() -> None:
+def cli(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show the spec-orch version and exit.",
+    ),
+) -> None:
     """SpecOrch MVP prototype CLI."""
 
 

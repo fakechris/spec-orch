@@ -1,6 +1,27 @@
+from unittest.mock import patch
+
 from typer.testing import CliRunner
 
 from spec_orch.cli import app
+
+
+def test_cli_version_flag_prints_version() -> None:
+    runner = CliRunner()
+    with patch("spec_orch.cli._resolve_version", return_value="1.2.3"):
+        result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert "1.2.3" in result.stdout
+
+
+def test_cli_version_flag_falls_back_to_dev() -> None:
+    runner = CliRunner()
+    with patch(
+        "importlib.metadata.version",
+        side_effect=__import__("importlib.metadata").metadata.PackageNotFoundError,
+    ):
+        result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert "dev" in result.stdout
 
 
 def test_cli_help_shows_run_issue_command() -> None:
