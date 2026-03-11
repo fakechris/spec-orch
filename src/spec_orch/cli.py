@@ -905,6 +905,8 @@ def create_pr(
             text = text[:3000] + "\n\n*(truncated)*"
         body_lines.extend(["", "### Explain", "", text])
 
+    body_lines.extend(["", f"Closes {issue_id}"])
+
     try:
         pr_url = gh_svc.create_pr(
             workspace=workspace,

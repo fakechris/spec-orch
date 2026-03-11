@@ -51,6 +51,7 @@ def test_build_pr_body_includes_key_sections(tmp_path: Path) -> None:
     assert "Acceptance Criteria" in body
     assert "Must pass lint" in body
     assert "# Explain" in body
+    assert "Closes SPC-50" in body
 
 
 def test_set_gate_status_calls_gh_api(tmp_path: Path) -> None:
