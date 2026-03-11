@@ -70,7 +70,7 @@ def test_daemon_notify_sends_bell(tmp_path: Path, capsys: pytest.CaptureFixture[
     cfg = DaemonConfig({})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
 
-    with patch("subprocess.run") as mock_run:
+    with patch("spec_orch.services.daemon._subprocess.run") as mock_run:
         daemon._notify("SPC-5", True)
 
     captured = capsys.readouterr()
@@ -78,6 +78,32 @@ def test_daemon_notify_sends_bell(tmp_path: Path, capsys: pytest.CaptureFixture[
     mock_run.assert_called_once()
     args = mock_run.call_args
     assert "osascript" in args[0][0]
+
+
+def test_daemon_config_planner_fields(tmp_path: Path) -> None:
+    toml_file = tmp_path / "spec-orch.toml"
+    toml_file.write_text(
+        """\
+[planner]
+model = "openai/gpt-4o"
+api_key_env = "MY_KEY"
+api_base_env = "MY_BASE"
+token_command = "echo test-token"
+"""
+    )
+    cfg = DaemonConfig.from_toml(toml_file)
+    assert cfg.planner_model == "openai/gpt-4o"
+    assert cfg.planner_api_key_env == "MY_KEY"
+    assert cfg.planner_api_base_env == "MY_BASE"
+    assert cfg.planner_token_command == "echo test-token"
+
+
+def test_daemon_config_planner_defaults() -> None:
+    cfg = DaemonConfig({})
+    assert cfg.planner_model is None
+    assert cfg.planner_api_key_env is None
+    assert cfg.planner_api_base_env is None
+    assert cfg.planner_token_command is None
 
 
 def test_daemon_poll_and_run_skips_locked(tmp_path: Path) -> None:
@@ -97,9 +123,10 @@ def test_daemon_poll_and_run_skips_locked(tmp_path: Path) -> None:
 def test_daemon_poll_and_run_processes_new_issue(tmp_path: Path) -> None:
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon._write_back = MagicMock()
 
     mock_client = MagicMock()
-    mock_client.list_issues.return_value = [{"identifier": "SPC-11"}]
+    mock_client.list_issues.return_value = [{"id": "uuid-11", "identifier": "SPC-11"}]
 
     mock_gate = MagicMock()
     mock_gate.mergeable = True
@@ -115,15 +142,17 @@ def test_daemon_poll_and_run_processes_new_issue(tmp_path: Path) -> None:
 
     mock_controller.advance.assert_called_once_with("SPC-11")
     assert "SPC-11" in daemon._processed
+    daemon._write_back.post_run_summary.assert_called_once()
 
 
 def test_daemon_poll_and_run_releases_non_terminal(tmp_path: Path) -> None:
     """Non-terminal states should release the lock so the next poll re-advances."""
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon._write_back = MagicMock()
 
     mock_client = MagicMock()
-    mock_client.list_issues.return_value = [{"identifier": "SPC-12"}]
+    mock_client.list_issues.return_value = [{"id": "uuid-12", "identifier": "SPC-12"}]
 
     mock_gate = MagicMock()
     mock_gate.mergeable = False
@@ -145,9 +174,10 @@ def test_daemon_poll_and_run_releases_non_terminal(tmp_path: Path) -> None:
 def test_daemon_poll_and_run_marks_gate_evaluated_as_processed(tmp_path: Path) -> None:
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon._write_back = MagicMock()
 
     mock_client = MagicMock()
-    mock_client.list_issues.return_value = [{"identifier": "SPC-13"}]
+    mock_client.list_issues.return_value = [{"id": "uuid-13", "identifier": "SPC-13"}]
 
     mock_gate = MagicMock()
     mock_gate.mergeable = False

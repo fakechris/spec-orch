@@ -87,18 +87,31 @@ class RunController:
                 issue_title=issue.title,
             )
 
-            snapshot = create_initial_snapshot(issue, approved=True)
-            write_spec_snapshot(workspace, snapshot)
-            self._log_and_emit(
-                activity_logger=activity_logger,
-                workspace=workspace,
-                run_id=run_id,
-                issue_id=issue.issue_id,
-                component="spec",
-                event_type="spec_snapshot_created",
-                message="Created and auto-approved spec snapshot v1.",
-                data={"version": 1, "approved": True},
-            )
+            existing_snapshot = read_spec_snapshot(workspace)
+            if existing_snapshot is not None and existing_snapshot.approved:
+                self._log_and_emit(
+                    activity_logger=activity_logger,
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=issue.issue_id,
+                    component="spec",
+                    event_type="spec_snapshot_preserved",
+                    message=f"Preserved existing spec snapshot v{existing_snapshot.version}.",
+                    data={"version": existing_snapshot.version, "approved": True},
+                )
+            else:
+                snapshot = create_initial_snapshot(issue, approved=True)
+                write_spec_snapshot(workspace, snapshot)
+                self._log_and_emit(
+                    activity_logger=activity_logger,
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=issue.issue_id,
+                    component="spec",
+                    event_type="spec_snapshot_created",
+                    message="Created and auto-approved spec snapshot v1.",
+                    data={"version": 1, "approved": True},
+                )
 
             builder = self._run_builder(
                 issue=issue,

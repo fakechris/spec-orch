@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
+import subprocess
 import uuid
 from pathlib import Path
 from typing import Any
@@ -93,11 +95,22 @@ class LiteLLMPlannerAdapter:
         api_key: str | None = None,
         api_base: str | None = None,
         temperature: float = 0.3,
+        token_command: str | None = None,
     ) -> None:
         self.model = model
-        self.api_key = api_key or os.environ.get("SPEC_ORCH_LLM_API_KEY")
+        self._static_api_key = api_key or os.environ.get("SPEC_ORCH_LLM_API_KEY")
         self.api_base = api_base or os.environ.get("SPEC_ORCH_LLM_API_BASE")
         self.temperature = temperature
+        self._token_command = token_command
+
+    @property
+    def api_key(self) -> str | None:
+        """Resolve API key dynamically when token_command is configured."""
+        if self._token_command:
+            return subprocess.check_output(
+                shlex.split(self._token_command), text=True,
+            ).strip()
+        return self._static_api_key
 
     def plan(
         self,
