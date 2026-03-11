@@ -1,0 +1,68 @@
+from __future__ import annotations
+
+import re
+
+from spec_orch.services.plan_parser import PlanData
+
+_PATH_IN_BACKTICKS_RE = re.compile(r"`([^`\n]+)`")
+
+
+def generate_fixture(plan: PlanData, issue_id: str) -> dict:
+    return {
+        "issue_id": issue_id,
+        "title": plan.title,
+        "summary": plan.summary,
+        "builder_prompt": generate_builder_prompt(plan),
+        "verification_commands": {
+            "lint": ["{python}", "-m", "ruff", "check", "src/"],
+            "typecheck": ["{python}", "-m", "mypy", "src/"],
+            "test": ["{python}", "-m", "pytest", "tests/", "-q"],
+            "build": ["{python}", "-c", "print('build ok')"],
+        },
+        "acceptance_criteria": plan.acceptance_criteria,
+        "context": {
+            "files_to_read": plan.files_to_read,
+            "architecture_notes": plan.architecture_notes,
+            "constraints": plan.constraints,
+        },
+    }
+
+
+def generate_builder_prompt(plan: PlanData) -> str:
+    instructions = [_instruction_from_change(change) for change in plan.file_changes]
+    numbered = [
+        f"{index}. {instruction}"
+        for index, instruction in enumerate(instructions, start=1)
+    ]
+    numbered.append("Run ruff check src/ and fix any lint errors.")
+    numbered.append("Run pytest tests/ -q to make sure nothing is broken.")
+    return "\n".join(numbered)
+
+
+def _instruction_from_change(change: str) -> str:
+    path = _extract_path(change)
+    if path is None:
+        return change
+
+    if re.search(r"\b(new|create)\b", change, re.IGNORECASE):
+        remainder = _remainder_after_path(change, path)
+        return f"Create `{path}`{f' {remainder}' if remainder else ''}"
+
+    if re.search(r"\b(modify|update|in)\b", change, re.IGNORECASE):
+        remainder = _remainder_after_path(change, path)
+        remainder = re.sub(r"^(to)\s+", "", remainder, flags=re.IGNORECASE)
+        return f"In `{path}`, {remainder}".rstrip()
+
+    return change
+
+
+def _extract_path(change: str) -> str | None:
+    match = _PATH_IN_BACKTICKS_RE.search(change)
+    if match is None:
+        return None
+    return match.group(1)
+
+
+def _remainder_after_path(change: str, path: str) -> str:
+    _, _, remainder = change.partition(f"`{path}`")
+    return remainder.lstrip(" ,:;-").strip()

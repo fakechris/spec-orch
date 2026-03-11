@@ -44,6 +44,7 @@ def test_cli_help_shows_run_issue_command() -> None:
     assert "create-pr" in result.stdout
     assert "watch" in result.stdout
     assert "logs" in result.stdout
+    assert "plan-to-spec" in result.stdout
 
 
 def test_run_issue_uses_fixture_and_reports_gate_result(tmp_path) -> None:
@@ -411,3 +412,79 @@ def test_run_issue_with_live_flag(tmp_path) -> None:
     )
     assert result.exit_code == 0
     assert "SPC-LV" in result.stdout
+
+
+def test_plan_to_spec_command_generates_fixture(tmp_path) -> None:
+    runner = CliRunner()
+    plan_path = tmp_path / "plan.md"
+    output_path = tmp_path / "fixtures" / "issues" / "SPC-PLAN.json"
+    plan_path.write_text(
+        """
+# Build plan-to-spec
+
+## Background
+
+Turn a markdown plan into a fixture.
+
+## File Changes
+- Create `src/spec_orch/services/plan_parser.py` with parsing logic.
+
+## Acceptance Criteria
+- Fixture JSON is written.
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "plan-to-spec",
+            str(plan_path),
+            "--issue-id",
+            "SPC-PLAN",
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert output_path.exists()
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["issue_id"] == "SPC-PLAN"
+    assert payload["title"] == "Build plan-to-spec"
+    assert payload["summary"] == "Turn a markdown plan into a fixture."
+    assert payload["acceptance_criteria"] == ["Fixture JSON is written."]
+
+
+def test_plan_to_spec_no_builder_flag(tmp_path) -> None:
+    runner = CliRunner()
+    plan_path = tmp_path / "plan.md"
+    output_path = tmp_path / "fixtures" / "issues" / "SPC-NB.json"
+    plan_path.write_text("# Empty\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "plan-to-spec",
+            str(plan_path),
+            "--issue-id",
+            "SPC-NB",
+            "--output",
+            str(output_path),
+            "--no-builder",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["builder_prompt"] is None
+
+
+def test_plan_to_spec_appears_in_help() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0
+    assert "plan-to-spec" in result.stdout
