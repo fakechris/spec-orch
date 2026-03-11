@@ -101,6 +101,29 @@ def review_issue(
     )
 
 
+@app.command("rerun")
+def rerun_issue(
+    issue_id: str,
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+    codex_executable: str = typer.Option("codex", "--codex-executable"),
+) -> None:
+    """Re-run verification and gate on an existing issue workspace."""
+    controller = _make_controller(
+        repo_root=repo_root, codex_executable=codex_executable
+    )
+    result = controller.rerun_issue(issue_id)
+    typer.echo(
+        " ".join(
+            [
+                f"issue={result.issue.issue_id}",
+                f"workspace={result.workspace}",
+                f"mergeable={result.gate.mergeable}",
+                f"blocked={','.join(result.gate.failed_conditions) or 'none'}",
+            ]
+        )
+    )
+
+
 @app.command("status")
 def status_issue(
     issue_id: str,

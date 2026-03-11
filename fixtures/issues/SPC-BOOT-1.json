@@ -1,0 +1,24 @@
+{
+  "issue_id": "SPC-BOOT-1",
+  "title": "EODF Bootstrap: update README and docs for post-PR#1 architecture",
+  "summary": "Update README.md to reflect the dogfood-first architecture after PR #1 merge. Replace outdated prototype-first language, document new CLI commands (status, explain, diff, gate, daemon, create-pr), update architecture diagram to show Protocol-based DI, and remove references to the deprecated codex app-server adapter.",
+  "builder_prompt": null,
+  "verification_commands": {
+    "lint": ["{python}", "-m", "ruff", "check", "src/"],
+    "typecheck": ["{python}", "-m", "mypy", "src/"],
+    "test": ["{python}", "-m", "pytest", "tests/", "-q"],
+    "build": ["{python}", "-c", "print('build ok')"]
+  },
+  "acceptance_criteria": [
+    "README reflects EODF status instead of prototype-first",
+    "All current CLI commands are documented",
+    "Architecture diagram shows Protocol-based DI",
+    "No references to deprecated codex app-server adapter",
+    "ruff, mypy, pytest all pass"
+  ],
+  "context": {
+    "files_to_read": ["README.md", "src/spec_orch/cli.py"],
+    "architecture_notes": "PR #1 introduced BuilderAdapter/IssueSource protocols, codex exec adapter, Linear client, daemon, GitHub PR service, and configurable gate policy.",
+    "constraints": ["Do not break existing tests", "Keep documentation concise"]
+  }
+}

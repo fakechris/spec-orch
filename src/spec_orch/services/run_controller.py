@@ -244,6 +244,82 @@ class RunController:
             gate=gate,
         )
 
+    def rerun_issue(self, issue_id: str) -> RunResult:
+        """Re-run verification and gate on an existing workspace."""
+        issue = self.issue_source.load(issue_id)
+        workspace = self.workspace_service.issue_workspace_path(issue.issue_id)
+        if not workspace.exists():
+            raise FileNotFoundError(
+                f"workspace not found for issue {issue.issue_id}"
+            )
+
+        report = workspace / "report.json"
+        if not report.exists():
+            raise FileNotFoundError(
+                f"report not found for issue {issue.issue_id}"
+            )
+
+        report_data = json.loads(report.read_text())
+        run_id = report_data["run_id"]
+        builder = self._builder_from_report(report_data, workspace)
+        review = self._review_from_report(report_data, workspace)
+        acceptance_data = report_data.get("human_acceptance", {})
+        human_acceptance = acceptance_data.get("accepted", False)
+        accepted_by = acceptance_data.get("accepted_by")
+
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="verification",
+            event_type="rerun_verification_started",
+            message="Re-running verification steps.",
+        )
+        verification = self.verification_service.run(
+            issue=issue, workspace=workspace,
+        )
+        self._log_verification_events(
+            workspace=workspace,
+            issue_id=issue.issue_id,
+            run_id=run_id,
+            verification=verification,
+        )
+
+        gate, explain, updated_report = self._finalize_run(
+            issue=issue,
+            workspace=workspace,
+            run_id=run_id,
+            builder=builder,
+            verification=verification,
+            review=review,
+            human_acceptance=human_acceptance,
+            accepted_by=accepted_by,
+        )
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="run_controller",
+            event_type="rerun_completed",
+            message="Completed re-run with fresh verification.",
+            data={
+                "mergeable": gate.mergeable,
+                "failed_conditions": gate.failed_conditions,
+            },
+        )
+
+        return RunResult(
+            issue=issue,
+            workspace=workspace,
+            task_spec=workspace / "task.spec.md",
+            progress=workspace / "progress.md",
+            explain=explain,
+            report=updated_report,
+            builder=builder,
+            review=review,
+            gate=gate,
+        )
+
     def _make_event_logger(
         self, *, workspace: Path, run_id: str, issue_id: str
     ) -> Callable[[dict[str, Any]], None]:

@@ -1,0 +1,24 @@
+{
+  "issue_id": "SPC-BOOT-2",
+  "title": "Add rerun command for EODF workflow",
+  "summary": "Add a 'rerun' CLI command that re-runs verification and gate evaluation on an existing issue workspace without re-creating the worktree or re-running the builder. This is essential for the semi-auto EODF workflow where manual code changes need re-verification.",
+  "builder_prompt": null,
+  "verification_commands": {
+    "lint": ["{python}", "-m", "ruff", "check", "src/"],
+    "typecheck": ["{python}", "-m", "mypy", "src/"],
+    "test": ["{python}", "-m", "pytest", "tests/", "-q"],
+    "build": ["{python}", "-c", "print('build ok')"]
+  },
+  "acceptance_criteria": [
+    "spec-orch rerun SPC-XXX re-runs verification in existing workspace",
+    "rerun preserves existing builder results",
+    "rerun updates gate verdict and explain.md",
+    "CLI help shows the new rerun command",
+    "Unit test covers the rerun command"
+  ],
+  "context": {
+    "files_to_read": ["src/spec_orch/cli.py", "src/spec_orch/services/run_controller.py"],
+    "architecture_notes": "RunController already has review_issue and accept_issue which reuse existing workspaces. rerun follows the same pattern but re-runs verification.",
+    "constraints": ["Do not break existing tests", "Reuse RunController patterns"]
+  }
+}

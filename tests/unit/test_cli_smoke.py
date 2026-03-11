@@ -12,6 +12,7 @@ def test_cli_help_shows_run_issue_command() -> None:
     assert "run-issue" in result.stdout
     assert "review-issue" in result.stdout
     assert "accept-issue" in result.stdout
+    assert "rerun" in result.stdout
     assert "status" in result.stdout
     assert "explain" in result.stdout
     assert "diff" in result.stdout
@@ -199,6 +200,40 @@ def test_gate_command_shows_issue_verdict(tmp_path) -> None:
 
     assert result.exit_code == 0
     assert "SPC-G" in result.stdout
+    assert "mergeable=" in result.stdout
+
+
+def test_rerun_command_re_runs_verification(tmp_path) -> None:
+    import json
+
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-RR.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-RR",
+                "title": "Rerun test",
+                "summary": "Test rerun command.",
+                "verification_commands": {
+                    "lint": ["{python}", "-c", "print('lint ok')"],
+                    "typecheck": ["{python}", "-c", "print('type ok')"],
+                    "test": ["{python}", "-c", "print('test ok')"],
+                    "build": ["{python}", "-c", "print('build ok')"],
+                },
+            }
+        )
+    )
+    runner = CliRunner()
+    runner.invoke(
+        app, ["run-issue", "SPC-RR", "--repo-root", str(tmp_path)]
+    )
+
+    result = runner.invoke(
+        app, ["rerun", "SPC-RR", "--repo-root", str(tmp_path)]
+    )
+
+    assert result.exit_code == 0
+    assert "SPC-RR" in result.stdout
     assert "mergeable=" in result.stdout
 
 
