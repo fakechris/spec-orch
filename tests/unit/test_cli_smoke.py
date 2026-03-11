@@ -1,9 +1,12 @@
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 from typer.testing import CliRunner
 
 from spec_orch.cli import app
+from spec_orch.domain.models import Finding
+from spec_orch.services.finding_store import append_finding, fingerprint_from, load_findings
 
 
 def test_cli_version_flag_prints_version() -> None:
@@ -257,6 +260,88 @@ def test_gate_show_policy() -> None:
     result = runner.invoke(app, ["gate", "--show-policy"])
     assert result.exit_code == 0
     assert "Gate Policy" in result.stdout
+
+
+def _make_finding(fid: str, description: str) -> Finding:
+    return Finding(
+        id=fid,
+        source="review",
+        severity="blocking",
+        confidence=0.9,
+        scope="in_spec",
+        fingerprint=fingerprint_from("review", description, "src/demo.py", 12),
+        description=description,
+        file_path="src/demo.py",
+        line=12,
+    )
+
+
+def test_findings_list_shows_findings(tmp_path: Path) -> None:
+    workspace = tmp_path / ".spec_orch_runs" / "SPC-FINDINGS"
+    append_finding(workspace, _make_finding("f-1234", "Missing validation on input"))
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        ["findings", "list", "SPC-FINDINGS", "--repo-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "Missing validation on input" in result.stdout
+    assert "f-1234" in result.stdout
+
+
+def test_findings_resolve_marks_resolved(tmp_path: Path) -> None:
+    workspace = tmp_path / ".spec_orch_runs" / "SPC-RESOLVE"
+    append_finding(workspace, _make_finding("f-resolve", "Fix race condition"))
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        ["findings", "resolve", "SPC-RESOLVE", "f-resolve", "--repo-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "resolved" in result.stdout.lower()
+    assert load_findings(workspace)[0].resolved is True
+
+
+def test_findings_add_creates_finding(tmp_path: Path) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "findings",
+            "add",
+            "SPC-ADD",
+            "--source",
+            "manual",
+            "--severity",
+            "advisory",
+            "--description",
+            "Document the missing CLI flag",
+            "--file-path",
+            "src/spec_orch/cli.py",
+            "--line",
+            "42",
+            "--scope",
+            "in_spec",
+            "--confidence",
+            "0.7",
+            "--repo-root",
+            str(tmp_path),
+        ],
+    )
+
+    workspace = tmp_path / ".spec_orch_runs" / "SPC-ADD"
+    findings = load_findings(workspace)
+
+    assert result.exit_code == 0
+    assert "added finding" in result.stdout.lower()
+    assert len(findings) == 1
+    assert findings[0].source == "manual"
+    assert findings[0].description == "Document the missing CLI flag"
 
 
 def test_watch_command_shows_activity_log(tmp_path) -> None:
