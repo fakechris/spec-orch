@@ -68,30 +68,34 @@ class LinearClient:
         assigned_to_me: bool = False,
         first: int = 50,
     ) -> list[dict[str, Any]]:
-        filter_parts = [f'team: {{ key: {{ eq: "{team_key}" }} }}']
+        variables: dict[str, Any] = {"first": first, "teamKey": team_key}
+        filter_parts = ["team: { key: { eq: $teamKey } }"]
+        var_defs = "$first: Int!, $teamKey: String!"
+
         if filter_state:
-            filter_parts.append(f'state: {{ name: {{ eq: "{filter_state}" }} }}')
+            variables["filterState"] = filter_state
+            filter_parts.append("state: { name: { eq: $filterState } }")
+            var_defs += ", $filterState: String!"
         if assigned_to_me:
             filter_parts.append("assignee: { isMe: { eq: true } }")
+
         filter_str = ", ".join(filter_parts)
-        result = self.query(
-            f"""
-            query($first: Int!) {{
-              issues(filter: {{ {filter_str} }}, first: $first) {{
-                nodes {{
-                  id
-                  identifier
-                  title
-                  description
-                  state {{ name }}
-                  labels {{ nodes {{ name }} }}
-                  assignee {{ name email }}
-                }}
-              }}
-            }}
-            """,
-            variables={"first": first},
+        query = (
+            f"query({var_defs}) {{\n"
+            f"  issues(filter: {{ {filter_str} }}, first: $first) {{\n"
+            "    nodes {\n"
+            "      id\n"
+            "      identifier\n"
+            "      title\n"
+            "      description\n"
+            "      state { name }\n"
+            "      labels { nodes { name } }\n"
+            "      assignee { name email }\n"
+            "    }\n"
+            "  }\n"
+            "}"
         )
+        result = self.query(query, variables=variables)
         nodes: list[dict[str, Any]] = result.get("issues", {}).get("nodes", [])
         return nodes
 
@@ -110,9 +114,40 @@ class LinearClient:
         create: dict[str, Any] = result.get("commentCreate", {})
         return create
 
+    def resolve_state_id(self, issue_id: str, state_name: str) -> str:
+        """Resolve a human-readable state name to its Linear workflow state ID."""
+        team_result = self.query(
+            """
+            query($issueId: String!) {
+              issue(id: $issueId) {
+                team {
+                  states { nodes { id name } }
+                }
+              }
+            }
+            """,
+            variables={"issueId": issue_id},
+        )
+        states = (
+            team_result.get("issue", {})
+            .get("team", {})
+            .get("states", {})
+            .get("nodes", [])
+        )
+        for state in states:
+            if state.get("name") == state_name:
+                state_id: str = state["id"]
+                return state_id
+        available = [s.get("name", "") for s in states]
+        raise ValueError(
+            f"State '{state_name}' not found for issue {issue_id}. "
+            f"Available states: {available}"
+        )
+
     def update_issue_state(
         self, issue_id: str, state_name: str
     ) -> dict[str, Any]:
+        state_id = self.resolve_state_id(issue_id, state_name)
         result = self.query(
             """
             mutation($issueId: String!, $stateId: String!) {
@@ -122,7 +157,7 @@ class LinearClient:
               }
             }
             """,
-            variables={"issueId": issue_id, "stateId": state_name},
+            variables={"issueId": issue_id, "stateId": state_id},
         )
         update: dict[str, Any] = result.get("issueUpdate", {})
         return update

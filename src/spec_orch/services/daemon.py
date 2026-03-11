@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import signal
 import sys
 import time
@@ -10,6 +11,8 @@ from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapte
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
 from spec_orch.services.run_controller import RunController
+
+_SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class DaemonConfig:
@@ -94,10 +97,10 @@ class SpecOrchDaemon:
                 blocked = ",".join(result.gate.failed_conditions) or "none"
                 print(f"[daemon] {issue_id} done: mergeable={mergeable} blocked={blocked}")
                 self._notify(issue_id, mergeable)
+                self._processed.add(issue_id)
             except Exception as exc:
                 print(f"[daemon] {issue_id} failed: {exc}")
-            finally:
-                self._processed.add(issue_id)
+                self._release(issue_id)
 
     def _is_locked(self, issue_id: str) -> bool:
         return (self._lockdir / f"{issue_id}.lock").exists()
@@ -105,6 +108,10 @@ class SpecOrchDaemon:
     def _claim(self, issue_id: str) -> None:
         lockfile = self._lockdir / f"{issue_id}.lock"
         lockfile.write_text(str(time.time()))
+
+    def _release(self, issue_id: str) -> None:
+        lockfile = self._lockdir / f"{issue_id}.lock"
+        lockfile.unlink(missing_ok=True)
 
     def _sleep(self, seconds: int) -> None:
         for _ in range(seconds):
@@ -120,6 +127,10 @@ class SpecOrchDaemon:
         status = "mergeable=true" if mergeable else "mergeable=false"
         sys.stdout.write("\a")
         sys.stdout.flush()
+
+        if not _SAFE_ID_RE.match(issue_id):
+            return
+
         try:
             import subprocess
 

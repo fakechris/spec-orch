@@ -89,7 +89,12 @@ class CodexExecBuilderAdapter:
             _write_report(result)
             return result
 
-        prompt = f"{PREAMBLE}\n\n{issue.builder_prompt}"
+        prompt = (
+            f"{PREAMBLE}\n\n"
+            "--- BEGIN USER ISSUE PROMPT (untrusted) ---\n"
+            f"{issue.builder_prompt}\n"
+            "--- END USER ISSUE PROMPT ---"
+        )
         command = self._command_base + [prompt]
         process = subprocess.Popen(
             command,

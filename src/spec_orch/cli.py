@@ -254,11 +254,56 @@ def gate(
         raise typer.Exit(1)
 
     data = json.loads(result_file.read_text())
-    mergeable = data.get("mergeable", False)
-    blocked = data.get("failed_conditions", [])
-    typer.echo(f"{issue_id}: mergeable={mergeable}")
-    if blocked:
-        typer.echo(f"  blocked: {', '.join(blocked)}")
+
+    from spec_orch.domain.models import (
+        GateInput,
+        ReviewSummary,
+        VerificationDetail,
+        VerificationSummary,
+    )
+
+    builder_data = data.get("builder", {})
+    review_data = data.get("review", {})
+    verification_data = data.get("verification", {})
+    acceptance_data = data.get("human_acceptance", {})
+
+    _fail = VerificationDetail(
+        command=[], exit_code=1, stdout="", stderr="",
+    )
+    details = {
+        name: VerificationDetail(
+            command=detail.get("command", []),
+            exit_code=detail.get("exit_code", 1),
+            stdout="",
+            stderr="",
+        )
+        for name, detail in verification_data.items()
+    }
+    verification = VerificationSummary(
+        lint_passed=details.get("lint", _fail).exit_code == 0,
+        typecheck_passed=details.get("typecheck", _fail).exit_code == 0,
+        test_passed=details.get("test", _fail).exit_code == 0,
+        build_passed=details.get("build", _fail).exit_code == 0,
+        details=details,
+    )
+    review = ReviewSummary(
+        verdict=review_data.get("verdict", "pending"),
+        reviewed_by=review_data.get("reviewed_by"),
+    )
+    gate_input = GateInput(
+        spec_exists=True,
+        spec_approved=True,
+        within_boundaries=True,
+        builder_succeeded=builder_data.get("succeeded", False),
+        verification=verification,
+        review=review,
+        human_acceptance=acceptance_data.get("accepted", False),
+    )
+    verdict = svc.evaluate(gate_input)
+
+    typer.echo(f"{issue_id}: mergeable={verdict.mergeable}")
+    if verdict.failed_conditions:
+        typer.echo(f"  blocked: {', '.join(verdict.failed_conditions)}")
     else:
         typer.echo("  all conditions passed")
 
@@ -297,7 +342,7 @@ def create_pr(
 
     gh_svc = GitHubPRService()
 
-    title = f"[SpecOrch] {issue_id}: {data.get('issue', {}).get('title', issue_id)}"
+    title = f"[SpecOrch] {issue_id}: {data.get('title', issue_id)}"
     body_lines = [
         f"## SpecOrch: {issue_id}",
         "",

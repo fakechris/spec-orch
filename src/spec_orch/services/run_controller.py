@@ -371,9 +371,12 @@ class RunController:
             "turn_contract_compliance", default_turn_contract_compliance()
         )
         builder.metadata["run_id"] = run_id
-        write_report = getattr(self.builder_adapter, "_write_report", None)
-        if write_report and builder.adapter == adapter_name:
-            write_report(builder)
+        from spec_orch.services.codex_exec_builder_adapter import (
+            _write_report as write_builder_report,
+        )
+
+        if builder.adapter == adapter_name:
+            write_builder_report(builder)
         self.telemetry_service.log_event(
             workspace=workspace,
             run_id=run_id,

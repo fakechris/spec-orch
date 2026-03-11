@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from spec_orch.domain.models import Issue, IssueContext
+
+_VALID_ISSUE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class FixtureIssueSource:
@@ -11,6 +14,11 @@ class FixtureIssueSource:
         self.repo_root = repo_root
 
     def load(self, issue_id: str) -> Issue:
+        if not _VALID_ISSUE_ID_RE.match(issue_id):
+            raise ValueError(
+                f"Invalid issue_id: {issue_id!r}. "
+                "Only alphanumeric characters, hyphens, and underscores are allowed."
+            )
         fixture_path = self.repo_root / "fixtures" / "issues" / f"{issue_id}.json"
         if not fixture_path.exists():
             raise FileNotFoundError(
