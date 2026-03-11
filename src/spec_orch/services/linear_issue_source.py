@@ -76,7 +76,7 @@ class LinearIssueSource:
         notes_lines: list[str] = []
         for line in content.splitlines():
             stripped = line.strip()
-            if stripped.startswith("- ") and "/" in stripped:
+            if (stripped.startswith("- ") or stripped.startswith("* ")) and "/" in stripped:
                 files.append(stripped[2:].strip())
             elif stripped:
                 notes_lines.append(stripped)

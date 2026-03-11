@@ -90,20 +90,17 @@ class SpecOrchDaemon:
             print("[daemon] stopped")
 
     def _build_planner(self) -> PlannerAdapter | None:
-        """Build a PlannerAdapter from config, resolving API key dynamically."""
+        """Build a PlannerAdapter from config.
+
+        Token resolution is deferred to the adapter's ``api_key`` property so
+        that ``token_command`` tokens are refreshed on every ``plan()`` call,
+        not just once at daemon startup.
+        """
         if not self.config.planner_model:
             return None
 
         api_key: str | None = None
-        if self.config.planner_token_command:
-            try:
-                api_key = _subprocess.check_output(
-                    self.config.planner_token_command, shell=True, text=True,
-                ).strip()
-            except _subprocess.CalledProcessError as exc:
-                print(f"[daemon] token_command failed: {exc}")
-                return None
-        elif self.config.planner_api_key_env:
+        if self.config.planner_api_key_env:
             api_key = os.environ.get(self.config.planner_api_key_env)
 
         api_base: str | None = None
@@ -119,6 +116,7 @@ class SpecOrchDaemon:
                 model=self.config.planner_model,
                 api_key=api_key,
                 api_base=api_base,
+                token_command=self.config.planner_token_command,
             )
         except ImportError:
             print("[daemon] litellm not installed, planner disabled")
@@ -188,13 +186,15 @@ class SpecOrchDaemon:
         self, raw_issue: dict[str, Any], result: RunResult,
     ) -> None:
         """Post a run summary back to Linear as a comment."""
+        import httpx
+
         linear_id = raw_issue.get("id", "")
         if not linear_id or not hasattr(self, "_write_back"):
             return
         try:
             self._write_back.post_run_summary(linear_id=linear_id, result=result)
             print(f"[daemon] wrote summary to Linear for {result.issue.issue_id}")
-        except Exception as exc:
+        except (httpx.HTTPError, RuntimeError, OSError) as exc:
             print(f"[daemon] write-back failed: {exc}")
 
     def _notify(self, issue_id: str, mergeable: bool) -> None:

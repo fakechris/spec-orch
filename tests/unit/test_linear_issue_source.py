@@ -102,3 +102,25 @@ def test_default_verification_commands():
     assert "test" in issue.verification_commands
     assert "typecheck" in issue.verification_commands
     assert "build" in issue.verification_commands
+
+
+def test_context_parses_asterisk_bullet_files():
+    """Linear converts `- ` to `* ` in Markdown; context parsing must handle both."""
+    raw = {
+        "id": "uuid-6",
+        "identifier": "SPC-6",
+        "title": "Asterisk test",
+        "description": (
+            "Overview\n\n"
+            "## Context\n"
+            "* src/spec_orch/cli.py\n"
+            "* src/spec_orch/services/run_controller.py\n"
+            "Architecture notes here.\n"
+        ),
+    }
+    source, _ = _make_source(raw)
+    issue = source.load("SPC-6")
+
+    assert "src/spec_orch/cli.py" in issue.context.files_to_read
+    assert "src/spec_orch/services/run_controller.py" in issue.context.files_to_read
+    assert "Architecture" in issue.context.architecture_notes
