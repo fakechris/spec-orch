@@ -15,6 +15,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+planner = [
+  "litellm>=1.60",
+]
 dev = [
   "pytest>=9,<10",
   "ruff>=0.9",

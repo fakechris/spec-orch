@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from spec_orch.domain.models import TERMINAL_STATES
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
@@ -26,6 +27,9 @@ class DaemonConfig:
         builder = raw.get("builder", {})
         self.builder_adapter: str = builder.get("adapter", "codex_exec")
         self.codex_executable: str = builder.get("codex_executable", "codex")
+
+        planner = raw.get("planner", {})
+        self.planner_model: str | None = planner.get("model")
 
         daemon = raw.get("daemon", {})
         self.max_concurrent: int = daemon.get("max_concurrent", 1)
@@ -56,13 +60,19 @@ class SpecOrchDaemon:
         client = LinearClient(token_env=self.config.linear_token_env)
         issue_source = LinearIssueSource(client=client)
         builder = CodexExecBuilderAdapter(executable=self.config.codex_executable)
+
+        planner = self._build_planner()
+
         controller = RunController(
             repo_root=self.repo_root,
             builder_adapter=builder,
             issue_source=issue_source,
+            planner_adapter=planner,
         )
 
         print(f"[daemon] started, polling {self.config.team_key} every {self.config.poll_interval_seconds}s")  # noqa: E501
+        if planner:
+            print(f"[daemon] planner: {planner.ADAPTER_NAME}")
         try:
             while self._running:
                 self._poll_and_run(client, controller)
@@ -70,6 +80,21 @@ class SpecOrchDaemon:
         finally:
             client.close()
             print("[daemon] stopped")
+
+    def _build_planner(self) -> Any:
+        """Build a PlannerAdapter if planner config is present, else None."""
+        planner_cfg = getattr(self.config, "planner_model", None)
+        if not planner_cfg:
+            return None
+        try:
+            from spec_orch.services.litellm_planner_adapter import (
+                LiteLLMPlannerAdapter,
+            )
+
+            return LiteLLMPlannerAdapter(model=planner_cfg)
+        except ImportError:
+            print("[daemon] litellm not installed, planner disabled")
+            return None
 
     def _poll_and_run(self, client: LinearClient, controller: RunController) -> None:
         try:
@@ -92,12 +117,19 @@ class SpecOrchDaemon:
             self._claim(issue_id)
             print(f"[daemon] processing {issue_id}")
             try:
-                result = controller.run_issue(issue_id)
+                result = controller.advance(issue_id)
+                state = result.state
                 mergeable = result.gate.mergeable
                 blocked = ",".join(result.gate.failed_conditions) or "none"
-                print(f"[daemon] {issue_id} done: mergeable={mergeable} blocked={blocked}")
-                self._notify(issue_id, mergeable)
-                self._processed.add(issue_id)
+                print(
+                    f"[daemon] {issue_id}: state={state.value} "
+                    f"mergeable={mergeable} blocked={blocked}"
+                )
+                if state in TERMINAL_STATES:
+                    self._notify(issue_id, mergeable)
+                    self._processed.add(issue_id)
+                else:
+                    self._release(issue_id)
             except Exception as exc:
                 print(f"[daemon] {issue_id} failed: {exc}")
                 self._release(issue_id)

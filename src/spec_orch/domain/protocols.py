@@ -4,7 +4,13 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
-from spec_orch.domain.models import BuilderEvent, BuilderResult, Issue
+from spec_orch.domain.models import (
+    BuilderEvent,
+    BuilderResult,
+    Issue,
+    PlannerResult,
+    SpecSnapshot,
+)
 
 
 @runtime_checkable
@@ -47,3 +53,25 @@ class BuilderAdapter(Protocol):
 @runtime_checkable
 class IssueSource(Protocol):
     def load(self, issue_id: str) -> Issue: ...
+
+
+@runtime_checkable
+class PlannerAdapter(Protocol):
+    """Drives the Spec stage: analyses an issue, generates questions, and drafts a spec.
+
+    Implementations:
+      - LiteLLMPlannerAdapter  — autonomous, calls an LLM
+      - (none needed for coding-environment mode — the human drives via CLI)
+    """
+
+    ADAPTER_NAME: str
+
+    def plan(
+        self,
+        *,
+        issue: Issue,
+        workspace: Path,
+        existing_snapshot: SpecSnapshot | None = None,
+    ) -> PlannerResult:
+        """Analyse the issue and return questions + optional spec draft."""
+        ...
