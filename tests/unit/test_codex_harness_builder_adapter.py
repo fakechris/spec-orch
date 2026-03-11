@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
+from spec_orch.domain.compliance import evaluate_pre_action_narration_compliance
 from spec_orch.domain.models import Issue
-from spec_orch.services.codex_harness_builder_adapter import (
+from spec_orch.services._archived.codex_harness_builder_adapter import (
     CodexHarnessBuilderAdapter,
     CodexHarnessTransportError,
-    evaluate_pre_action_narration_compliance,
 )
 
 

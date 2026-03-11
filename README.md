@@ -105,13 +105,9 @@ You can point SpecOrch at an explicit Codex executable:
 .venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root . --codex-executable /path/to/codex
 ```
 
-If the Codex harness transport cannot be started, SpecOrch falls back to the existing `pi_codex` adapter for compatibility:
+If the Codex harness transport cannot be started (e.g. the executable is missing or crashes on startup), the builder step is recorded as failed and the gate will block mergeability on the builder condition.
 
-```bash
-.venv/bin/python -m spec_orch.cli run-issue SPC-1 --repo-root . --codex-executable /missing/codex --pi-executable /path/to/pi
-```
-
-Both builder paths inject `SPEC_ORCH_BUILDER_AGENT=codex`. The active adapter is recorded in `builder_report.json` and the top-level `report.json`.
+The active adapter is recorded in `builder_report.json` and the top-level `report.json`.
 
 ## Telemetry
 
@@ -157,6 +153,8 @@ For builder dogfooding, point SpecOrch at a local Codex CLI installation:
 
 - [System Design v0](docs/architecture/spec-orch-system-design-v0.md)
 - [v1 Implementation Plan](docs/plans/2026-03-07-spec-orch-v1-implementation.md)
+- [P0-Alpha Dogfood Plan](docs/plans/2026-03-08-p0-alpha-dogfood-plan.md)
+- [P0-Alpha Issue Backlog](docs/plans/2026-03-08-p0-alpha-issue-backlog.md)
 - [Orchestration Options and MVP Dogfooding](docs/architecture/orchestration-plane-options-and-mvp.md)
 - [Observability v1 Design](docs/architecture/observability-v1-design.md)
 

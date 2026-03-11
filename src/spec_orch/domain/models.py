@@ -6,12 +6,21 @@ from typing import Any
 
 
 @dataclass(slots=True)
+class IssueContext:
+    files_to_read: list[str] = field(default_factory=list)
+    architecture_notes: str = ""
+    constraints: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class Issue:
     issue_id: str
     title: str
     summary: str
     builder_prompt: str | None = None
     verification_commands: dict[str, list[str]] = field(default_factory=dict)
+    context: IssueContext = field(default_factory=IssueContext)
+    acceptance_criteria: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)

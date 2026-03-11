@@ -5,6 +5,17 @@ from spec_orch.services.run_controller import RunController
 
 
 def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-1.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-1",
+                "title": "Build MVP runner",
+                "summary": "Run one local fixture issue through the prototype pipeline.",
+            }
+        )
+    )
     controller = RunController(repo_root=tmp_path)
 
     result = controller.run_issue("SPC-1")
@@ -20,7 +31,7 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     assert "verification" in result.gate.failed_conditions
     assert "review" in result.gate.failed_conditions
     assert "human_acceptance" in result.explain.read_text()
-    assert '"adapter": "codex_harness"' in result.report.read_text()
+    assert '"adapter": "codex_exec"' in result.report.read_text()
     assert '"agent": "codex"' in result.report.read_text()
     telemetry_dir = result.workspace / "telemetry"
     assert telemetry_dir.exists()
@@ -48,7 +59,7 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     )
 
 
-def test_run_controller_keeps_codex_harness_failure_when_app_server_is_unavailable(
+def test_run_controller_keeps_builder_failure_when_executable_is_unavailable(
     tmp_path: Path,
 ) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
@@ -57,8 +68,8 @@ def test_run_controller_keeps_codex_harness_failure_when_app_server_is_unavailab
         json.dumps(
             {
                 "issue_id": "SPC-21",
-                "title": "Unavailable harness",
-                "summary": "Keep the codex harness failure when the app-server is unavailable.",
+                "title": "Unavailable builder",
+                "summary": "Keep the builder failure when the executable is unavailable.",
                 "builder_prompt": "Implement without fallback.",
                 "verification_commands": {
                     "lint": ["{python}", "-c", "print('lint ok')"],
@@ -78,9 +89,8 @@ def test_run_controller_keeps_codex_harness_failure_when_app_server_is_unavailab
     result = controller.run_issue("SPC-21")
 
     assert result.builder.succeeded is False
-    assert result.builder.adapter == "codex_harness"
+    assert result.builder.adapter == "codex_exec"
     assert result.builder.agent == "codex"
-    assert "missing-codex" in result.builder.stderr
     assert result.builder.metadata["turn_contract_compliance"] == {
         "compliant": True,
         "first_action_seen": False,
@@ -101,10 +111,9 @@ def test_run_controller_keeps_codex_harness_failure_when_app_server_is_unavailab
     assert "builder_first_action_seen=no" in explain_text
     assert "builder_contract_violations=0" in explain_text
     events = _read_events(telemetry_dir / "events.jsonl")
-    assert not any(event["event_type"] == "builder_fallback" for event in events)
     assert any(
         event["event_type"] == "builder_completed"
-        and event["adapter"] == "codex_harness"
+        and event["adapter"] == "codex_exec"
         and event["data"]["succeeded"] is False
         for event in events
     )
@@ -153,12 +162,12 @@ def test_review_and_accept_issue_recompute_gate_and_update_artifacts(tmp_path: P
         == initial.builder.metadata["turn_contract_compliance"]
     )
     assert '"reviewed_by": "claude"' in (reviewed.workspace / "report.json").read_text()
-    assert "review_status=pass" in reviewed.explain.read_text()
+    assert "| review | pass |" in reviewed.explain.read_text()
     assert accepted.gate.mergeable is True
     assert accepted.gate.failed_conditions == []
     assert (accepted.workspace / "acceptance.json").exists()
     assert '"accepted_by": "chris"' in (accepted.workspace / "report.json").read_text()
-    assert "acceptance_status=accepted" in accepted.explain.read_text()
+    assert "| human_acceptance | accepted |" in accepted.explain.read_text()
     telemetry_dir = accepted.workspace / "telemetry"
     assert telemetry_dir.exists()
     events = _read_events(telemetry_dir / "events.jsonl")

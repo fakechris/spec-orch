@@ -1,0 +1,13 @@
+[linear]
+token_env = "SPEC_ORCH_LINEAR_TOKEN"
+team_key = "SPC"
+poll_interval_seconds = 60
+issue_filter = "assigned_to_me"
+
+[builder]
+adapter = "codex_exec"
+codex_executable = "codex"
+
+[daemon]
+max_concurrent = 1
+lockfile_dir = ".spec_orch_locks/"

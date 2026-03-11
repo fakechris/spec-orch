@@ -1,0 +1,17 @@
+{
+  "issue_id": "SPC-EODF-DRY",
+  "title": "EODF dry-run validation",
+  "summary": "Validate the end-to-end dogfood flow without a real builder.",
+  "verification_commands": {
+    "lint": ["{python}", "-m", "ruff", "check", "src/"],
+    "typecheck": ["{python}", "-c", "print('type ok')"],
+    "test": ["{python}", "-m", "pytest", "-q"],
+    "build": ["{python}", "-c", "print('build ok')"]
+  },
+  "acceptance_criteria": [
+    "run-issue completes without error",
+    "status shows mergeable info",
+    "review-issue records verdict",
+    "accept-issue marks as accepted"
+  ]
+}

@@ -1,59 +1,59 @@
-# Task Plan: Formalize SpecOrch design docs and v1 plan
+# Task Plan: Prototype-first SpecOrch buildout
 
 ## Goal
-Turn the provided SpecOrch v0 concept into repository-native documentation, a concrete v1 implementation plan, and an initialized git repository with a first commit.
+Iteratively turn the docs-first SpecOrch repo into a runnable prototype that can dogfood its own issue workflow end-to-end.
 
 ## Current Phase
-Phase 5
+Phase 2
 
 ## Phases
 
-### Phase 1: Requirements & Discovery
+### Phase 1: Repository Baseline & Scope
 - [x] Understand user intent
-- [x] Identify constraints and requirements
-- [x] Document findings in findings.md
+- [x] Confirm current `main` state and merged prototype capabilities
+- [x] Choose the next smallest end-to-end slice
+- [x] Document the slice boundary in planning files
 - **Status:** complete
 
-### Phase 2: Planning & Structure
-- [x] Define technical approach
-- [x] Create project structure if needed
-- [x] Document decisions with rationale
-- **Status:** complete
-
-### Phase 3: Documentation Authoring
-- [x] Create architecture document
-- [x] Create implementation plan
-- [x] Create repository overview
-- **Status:** complete
-
-### Phase 4: Repository Setup & Verification
-- [x] Initialize git repository
-- [x] Review generated files
-- [x] Capture verification results in progress.md
-- **Status:** complete
-
-### Phase 5: Delivery
-- [ ] Commit documentation
-- [ ] Summarize deliverables
-- [ ] Deliver to user
+### Phase 2: Isolated Workspace & Baseline
+- [ ] Create isolated git worktree from `main`
+- [ ] Set up a project-local `.venv`
+- [ ] Run clean baseline tests before changes
 - **Status:** in_progress
 
+### Phase 3: TDD for Acceptance Flow
+- [ ] Add failing tests for human acceptance artifacts and gate recomputation
+- [ ] Verify the new tests fail for the expected reason
+- **Status:** pending
+
+### Phase 4: Implementation
+- [ ] Implement minimal acceptance recording flow
+- [ ] Recompute gate after acceptance
+- [ ] Update `report.json` and `explain.md`
+- **Status:** pending
+
+### Phase 5: Verification & Integration
+- [ ] Run targeted and full test suite
+- [ ] Commit feature branch changes
+- [ ] Cherry-pick cleanly back to `main`
+- **Status:** pending
+
 ## Key Questions
-1. What should be committed now versus deferred into future implementation work?
-2. How should the v0 concept be translated into an executable v1 plan for an empty repository?
+1. What is the smallest human-acceptance mechanism that closes the prototype loop without adding workflow bloat?
+2. How should acceptance be persisted so it can be re-read by gate computation and later synced to Linear/PR states?
 
 ## Decisions Made
 | Decision | Rationale |
 |----------|-----------|
-| Create `docs/architecture/spec-orch-system-design-v0.md` as the canonical design doc | Keeps the original concept intact but turns it into a repository-owned artifact |
-| Create `docs/plans/2026-03-07-spec-orch-v1-implementation.md` as the execution handoff | Matches the writing-plans workflow and provides a concrete path from concept to build |
-| Add a minimal `README.md` and `.gitignore` | Gives the empty repository basic project orientation and sane defaults |
+| Keep the next slice focused on explicit human acceptance | The current prototype already handles builder and verification; acceptance is the missing piece for a true mergeable path |
+| Continue using project-local `.worktrees/` and `.venv` | Matches the repo policy and keeps the prototype hermetic from system Python |
+| Use TDD for the new acceptance flow | The behavior is small, testable, and should become the contract for later Linear/PR integration |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-| `rg --files` returned exit code 1 in an empty directory | 1 | Switched to `ls -la` to confirm the workspace was empty rather than assuming a failure |
+| None yet for this increment | - | - |
 
 ## Notes
-- Update phase status as progress changes.
-- Verify documents before creating the initial commit.
+- Keep the scope to local artifacts and CLI behavior only.
+- Defer real reviewer adapter and external state sync until acceptance flow is stable.

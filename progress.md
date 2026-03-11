@@ -45,7 +45,7 @@
   - `docs/plans/2026-03-07-spec-orch-v1-implementation.md`
 
 ### Phase 5: Delivery
-- **Status:** in_progress
+- **Status:** complete
 - Actions taken:
   - Prepared the repository for the initial documentation commit.
   - Evaluated orchestration-layer options for the next design slice.
@@ -73,8 +73,72 @@
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 5: Delivery |
-| Where am I going? | Create the first commit and deliver the repo summary |
-| What's the goal? | Turn the concept into formal docs, a v1 plan, and a committed repository baseline |
-| What have I learned? | The workspace was empty, so the first deliverable should be docs-first and structure-light |
-| What have I done? | Bootstrapped skills, planned the task, and authored the initial repository documents |
+| Where am I? | Prototype increment planning before the next feature branch |
+| Where am I going? | Add explicit human acceptance so the prototype can complete a full local issue lifecycle |
+| What's the goal? | Reach a dogfoodable end-to-end local run that can become mergeable after acceptance |
+| What have I learned? | The last missing control-plane step is human acceptance, not more builder depth |
+| What have I done? | Confirmed the current `main` state, selected the acceptance-flow slice, and refreshed planning files |
+
+## Session: 2026-03-08
+
+### Phase 1: Repository Baseline & Scope
+- **Status:** complete
+- Actions taken:
+  - Re-read the repository state on `main`.
+  - Confirmed the builder adapter changes were already merged via cherry-picks.
+  - Selected explicit human acceptance as the next minimal increment.
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+### Phase 2: Isolated Workspace & Baseline
+- **Status:** complete
+- Actions taken:
+  - Confirmed `.worktrees/` is ignored by git.
+  - Prepared to create a fresh feature worktree from `main`.
+
+## Session: 2026-03-10
+
+### Dogfood-First Development Plan Execution
+- **Status:** complete
+- **All tasks from the plan have been implemented and verified:**
+
+| Task | Description | Status |
+|------|-------------|--------|
+| P0-READY | Dogfood 基础设施 (ruff/mypy, fixture JSONs, lint baseline) | complete |
+| SPC-P0-1 | README 修复 (第一个 dogfood 循环) | complete |
+| SPC-P0-2 | 提取 _finalize_run + compliance 共享模块 | complete |
+| SPC-P0-3 | BuilderAdapter/IssueSource Protocol + DI 重构 | complete |
+| SPC-P1-1 | codex exec --experimental-json 替换 941 行 app-server | complete |
+| SPC-UX-1 | status/explain/diff/cherry-pick CLI 命令 | complete |
+| SPC-UX-2 | 富 explain.md (Gate 明细表 + acceptance checklist) | complete |
+| SPC-L1 | Linear 客户端 + LinearIssueSource | complete |
+| SPC-D1 | daemon 主循环 + spec-orch.toml 配置 | complete |
+| SPC-D2 | daemon 完成通知 (macOS + terminal bell) | complete |
+| SPC-G1 | Gate 配置化 + gate.policy.yaml + CLI 命令 | complete |
+| SPC-W1 | Linear write-back (explain 摘要 + 状态更新) | complete |
+| SPC-W2 | GitHub PR 自动创建 + Gate as PR status check | complete |
+
+### New Files Created
+- `src/spec_orch/domain/protocols.py` — BuilderAdapter / IssueSource protocols
+- `src/spec_orch/domain/compliance.py` — extracted compliance functions
+- `src/spec_orch/services/codex_exec_builder_adapter.py` — new simpler builder
+- `src/spec_orch/services/fixture_issue_source.py` — fixture-based issue source
+- `src/spec_orch/services/linear_client.py` — Linear GraphQL API client
+- `src/spec_orch/services/linear_issue_source.py` — Linear-backed issue source
+- `src/spec_orch/services/linear_write_back.py` — write summaries back to Linear
+- `src/spec_orch/services/daemon.py` — daemon main loop + config
+- `src/spec_orch/services/github_pr_service.py` — GitHub PR creation + gate status
+- `spec-orch.toml` — daemon configuration
+- `gate.policy.yaml` — configurable gate policy
+- `fixtures/issues/SPC-*.json` — dogfood issue fixtures
+- `tests/unit/test_daemon.py` — daemon unit tests
+- `tests/unit/test_gate_service.py` — gate service tests
+- `tests/unit/test_linear_write_back.py` — write-back tests
+- `tests/unit/test_github_pr_service.py` — github PR service tests
+
+### Verification
+- **ruff**: All checks passed
+- **mypy**: No issues found
+- **pytest**: 42/42 tests passed

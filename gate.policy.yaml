@@ -1,0 +1,34 @@
+conditions:
+  spec_exists:
+    required: true
+    description: "Task spec file exists in the worktree"
+
+  spec_approved:
+    required: true
+    description: "Spec has been approved by a reviewer"
+
+  within_boundaries:
+    required: true
+    description: "Changes stay within the declared scope boundary"
+
+  builder:
+    required: true
+    description: "Builder agent completed successfully"
+
+  verification:
+    required: true
+    description: "All verification commands (lint, typecheck, test, build) passed"
+
+  review:
+    required: true
+    description: "Code review verdict is pass"
+
+  preview:
+    required: false
+    description: "Preview environment check passed (only when preview_required)"
+
+  human_acceptance:
+    required: true
+    description: "A human has explicitly accepted the change"
+
+auto_merge: false
