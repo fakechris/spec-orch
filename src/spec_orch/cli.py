@@ -10,15 +10,25 @@ import tempfile
 import time
 from pathlib import Path
 from typing import IO
+from uuid import uuid4
 
 import typer
 
+from spec_orch.domain.models import Finding
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
+from spec_orch.services.finding_store import (
+    append_finding,
+    fingerprint_from,
+    load_findings,
+    resolve_finding,
+)
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
 from spec_orch.services.run_controller import RunController
 from spec_orch.services.workspace_service import WorkspaceService
 
 app = typer.Typer(help="SpecOrch MVP prototype CLI.")
+findings_app = typer.Typer()
+app.add_typer(findings_app, name="findings")
 
 
 def _resolve_version() -> str:
@@ -251,6 +261,76 @@ def explain_issue(
         typer.echo(f"no explain report found for {issue_id}")
         raise typer.Exit(1)
     typer.echo(explain_path.read_text())
+
+
+@findings_app.command("list")
+def list_findings(
+    issue_id: str,
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+) -> None:
+    """List persisted findings for an issue workspace."""
+    workspace = WorkspaceService(repo_root=Path(repo_root)).issue_workspace_path(issue_id)
+    findings = load_findings(workspace)
+    if not findings:
+        typer.echo("no findings")
+        return
+    for finding in findings:
+        typer.echo(
+            " ".join(
+                [
+                    f"id={finding.id}",
+                    f"source={finding.source}",
+                    f"severity={finding.severity}",
+                    f"scope={finding.scope}",
+                    f"resolved={finding.resolved}",
+                    f"description={finding.description}",
+                ]
+            )
+        )
+
+
+@findings_app.command("resolve")
+def resolve_issue_finding(
+    issue_id: str,
+    finding_id: str,
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+) -> None:
+    """Resolve a persisted finding by ID."""
+    workspace = WorkspaceService(repo_root=Path(repo_root)).issue_workspace_path(issue_id)
+    if resolve_finding(workspace, finding_id):
+        typer.echo(f"resolved finding {finding_id}")
+        return
+    typer.echo(f"finding not found: {finding_id}")
+    raise typer.Exit(1)
+
+
+@findings_app.command("add")
+def add_finding(
+    issue_id: str,
+    source: str = typer.Option(..., "--source"),
+    severity: str = typer.Option("advisory", "--severity"),
+    description: str = typer.Option(..., "--description"),
+    file_path: str | None = typer.Option(None, "--file-path"),
+    line: int | None = typer.Option(None, "--line"),
+    scope: str = typer.Option("in_spec", "--scope"),
+    confidence: float = typer.Option(0.5, "--confidence"),
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+) -> None:
+    """Persist a new finding for an issue workspace."""
+    workspace = WorkspaceService(repo_root=Path(repo_root)).issue_workspace_path(issue_id)
+    finding = Finding(
+        id=f"f-{uuid4().hex[:8]}",
+        source=source,
+        severity=severity,
+        confidence=confidence,
+        scope=scope,
+        fingerprint=fingerprint_from(source, description, file_path, line),
+        description=description,
+        file_path=file_path,
+        line=line,
+    )
+    append_finding(workspace, finding)
+    typer.echo(f"added finding {finding.id}")
 
 
 @app.command("diff")

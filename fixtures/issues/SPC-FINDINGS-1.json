@@ -1,0 +1,53 @@
+{
+  "issue_id": "SPC-FINDINGS-1",
+  "title": "findings CLI command",
+  "summary": "The Finding store (`finding_store.py`) and Finding model were added in Phase 3 of the architecture evolution, but there is no CLI surface for interacting with findings.  Users need a way to list, inspect, and resolve findings from the terminal during the review convergence loop.",
+  "builder_prompt": "1. Read `src/spec_orch/services/finding_store.py` to understand the Finding persistence API (load_findings, append_finding, resolve_finding, fingerprint_from, load_review_meta, bump_review_epoch).\n2. Read `src/spec_orch/domain/models.py` to understand the Finding dataclass fields (id, source, severity, confidence, scope, fingerprint, description, file_path, line, suggested_action, resolved).\n3. In `src/spec_orch/cli.py`, create a typer sub-app `findings_app = typer.Typer()` and register it with `app.add_typer(findings_app, name=\"findings\")`. Add three commands:\n   - `findings_app.command(\"list\")`: takes `issue_id: str` and `--repo-root` option. Uses WorkspaceService to get workspace path, calls `load_findings(workspace)`, and prints each finding as a formatted line showing id, source, severity, scope, resolved status, and description.\n   - `findings_app.command(\"resolve\")`: takes `issue_id: str`, `finding_id: str`, and `--repo-root`. Calls `resolve_finding(workspace, finding_id)` and prints success/failure.\n   - `findings_app.command(\"add\")`: takes `issue_id: str`, `--source` (required), `--severity` (required, default \"advisory\"), `--description` (required), `--file-path` (optional), `--line` (optional int), `--scope` (default \"in_spec\"), `--confidence` (default 0.5 float), `--repo-root`. Creates a Finding with auto-generated id (e.g. f\"f-{uuid4().hex[:8]}\") and fingerprint via fingerprint_from(), calls append_finding(), prints confirmation.\n4. Add at least 3 tests in `tests/unit/test_cli_smoke.py`:\n   - test_findings_list_shows_findings: create a workspace with findings.jsonl, invoke `findings list`, assert output contains finding description\n   - test_findings_resolve_marks_resolved: add a finding, invoke `findings resolve`, verify it's resolved\n   - test_findings_add_creates_finding: invoke `findings add` with required flags, verify findings.jsonl has the new entry\n5. Run ruff check src/ and fix any lint errors.\n6. Run pytest tests/ -q to make sure nothing is broken.",
+  "verification_commands": {
+    "lint": [
+      "{python}",
+      "-m",
+      "ruff",
+      "check",
+      "src/"
+    ],
+    "typecheck": [
+      "{python}",
+      "-m",
+      "mypy",
+      "src/"
+    ],
+    "test": [
+      "{python}",
+      "-m",
+      "pytest",
+      "tests/",
+      "-q"
+    ],
+    "build": [
+      "{python}",
+      "-c",
+      "print('build ok')"
+    ]
+  },
+  "acceptance_criteria": [
+    "`spec-orch findings list SPC-X` prints findings in a readable table",
+    "`spec-orch findings resolve SPC-X f1` marks finding f1 as resolved",
+    "`spec-orch findings add SPC-X --source gemini --severity blocking --description \"path traversal\"` creates a new finding",
+    "All new tests pass",
+    "ruff check and mypy pass with zero errors",
+    "Existing 138 tests still pass"
+  ],
+  "context": {
+    "files_to_read": [
+      "src/spec_orch/cli.py",
+      "tests/unit/test_cli_smoke.py"
+    ],
+    "architecture_notes": "The finding_store module already provides `load_findings()`,\n`append_finding()`, `resolve_finding()`, and `fingerprint_from()`.\nThe CLI commands simply wire these to typer with appropriate formatting.",
+    "constraints": [
+      "Use the existing `finding_store.py` service \u2014 do not duplicate persistence logic",
+      "Follow existing CLI patterns (typer, repo-root option, echo output)",
+      "Findings subcommands should work on the issue workspace path"
+    ]
+  }
+}
