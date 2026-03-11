@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
+
+_VALID_ISSUE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class WorkspaceService:
@@ -27,6 +30,11 @@ class WorkspaceService:
         return workspace
 
     def issue_workspace_path(self, issue_id: str) -> Path:
+        if not _VALID_ISSUE_ID_RE.match(issue_id):
+            raise ValueError(
+                f"Invalid issue_id: {issue_id!r}. "
+                "Only alphanumeric characters, hyphens, and underscores are allowed."
+            )
         if self._is_git_repository():
             return self.repo_root / ".worktrees" / issue_id
         return self.repo_root / ".spec_orch_runs" / issue_id

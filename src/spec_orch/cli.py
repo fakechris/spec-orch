@@ -444,8 +444,9 @@ def watch_issue(
         typer.echo(f"no activity log found for {issue_id}")
         raise typer.Exit(1)
 
-    offset = log_path.stat().st_size
-    lines = log_path.read_text(encoding="utf-8").splitlines()
+    content = log_path.read_text(encoding="utf-8")
+    offset = len(content.encode("utf-8"))
+    lines = content.splitlines()
     if tail > 0:
         lines = lines[-tail:]
     for line in lines:
