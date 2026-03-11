@@ -103,7 +103,8 @@ def _heading_matches(heading: str, aliases: list[str]) -> bool:
     parts = [_normalize_text(part) for part in heading.split("/")]
     candidates = [normalized_heading, *parts]
     return any(
-        alias in candidate or candidate in alias
+        candidate == alias
+        or bool(re.match(rf"^{re.escape(alias)}\b", candidate))
         for alias in (_normalize_text(alias) for alias in aliases)
         for candidate in candidates
         if candidate
@@ -119,7 +120,7 @@ def _extract_first_paragraph_after(lines: list[str], start_index: int) -> str:
         if stripped.startswith("#"):
             if in_paragraph:
                 break
-            continue
+            break
         if not stripped:
             if in_paragraph:
                 break

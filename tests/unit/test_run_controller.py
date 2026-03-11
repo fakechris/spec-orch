@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 
+import pytest
+
+from spec_orch.domain.models import BuilderResult
 from spec_orch.services.run_controller import RunController
 
 
@@ -181,5 +184,107 @@ def test_review_and_accept_issue_recompute_gate_and_update_artifacts(tmp_path: P
     )
 
 
+def test_run_issue_closes_activity_logger_on_exception(tmp_path: Path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-ERR.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-ERR",
+                "title": "Run logger cleanup",
+                "summary": "Close the logger when verification fails.",
+            }
+        )
+    )
+    controller = RunController(repo_root=tmp_path)
+    logger = _TrackingActivityLogger()
+
+    controller._open_activity_logger = lambda _workspace: logger
+    controller.verification_service.run = _raise_runtime_error
+
+    with pytest.raises(RuntimeError, match="boom"):
+        controller.run_issue("SPC-ERR")
+
+    assert logger.entered is True
+    assert logger.exited is True
+    assert logger.closed is True
+
+
+def test_rerun_issue_closes_activity_logger_on_exception(tmp_path: Path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-RERR.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-RERR",
+                "title": "Rerun logger cleanup",
+                "summary": "Close the logger when rerun verification fails.",
+                "verification_commands": {
+                    "lint": ["{python}", "-c", "print('lint ok')"],
+                    "typecheck": ["{python}", "-c", "print('type ok')"],
+                    "test": ["{python}", "-c", "print('test ok')"],
+                    "build": ["{python}", "-c", "print('build ok')"],
+                },
+            }
+        )
+    )
+    controller = RunController(repo_root=tmp_path)
+    controller.builder_adapter = _PassingBuilderAdapter()
+    controller.run_issue("SPC-RERR")
+    logger = _TrackingActivityLogger()
+
+    controller._open_activity_logger = lambda _workspace: logger
+    controller.verification_service.run = _raise_runtime_error
+
+    with pytest.raises(RuntimeError, match="boom"):
+        controller.rerun_issue("SPC-RERR")
+
+    assert logger.entered is True
+    assert logger.exited is True
+    assert logger.closed is True
+
+
 def _read_events(events_path: Path) -> list[dict]:
     return [json.loads(line) for line in events_path.read_text().splitlines()]
+
+
+class _TrackingActivityLogger:
+    def __init__(self) -> None:
+        self.entered = False
+        self.exited = False
+        self.closed = False
+
+    def __enter__(self):
+        self.entered = True
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.exited = True
+        self.close()
+
+    def log(self, _event: dict) -> None:
+        pass
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _PassingBuilderAdapter:
+    ADAPTER_NAME = "passing_builder"
+    AGENT_NAME = "codex"
+
+    def run(self, **_kwargs) -> BuilderResult:
+        return BuilderResult(
+            succeeded=True,
+            command=[],
+            stdout="",
+            stderr="",
+            report_path=Path("builder_report.json"),
+            adapter=self.ADAPTER_NAME,
+            agent=self.AGENT_NAME,
+            metadata={},
+        )
+
+
+def _raise_runtime_error(**_kwargs):
+    raise RuntimeError("boom")

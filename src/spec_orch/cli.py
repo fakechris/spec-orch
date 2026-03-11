@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.metadata
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -443,6 +444,7 @@ def watch_issue(
         typer.echo(f"no activity log found for {issue_id}")
         raise typer.Exit(1)
 
+    offset = log_path.stat().st_size
     lines = log_path.read_text(encoding="utf-8").splitlines()
     if tail > 0:
         lines = lines[-tail:]
@@ -455,7 +457,6 @@ def watch_issue(
             return
 
     try:
-        offset = log_path.stat().st_size
         while True:
             time.sleep(0.3)
             current_size = log_path.stat().st_size
@@ -625,7 +626,7 @@ def _edit_fixture_json(fixture: dict[str, object]) -> dict[str, object]:
         temp_file.write(json.dumps(fixture, indent=2) + "\n")
 
     try:
-        result = subprocess.run(editor.split() + [str(temp_path)], check=False)
+        result = subprocess.run(shlex.split(editor) + [str(temp_path)], check=False)
         if result.returncode != 0:
             typer.echo(f"editor exited with code {result.returncode}")
             raise typer.Exit(1)

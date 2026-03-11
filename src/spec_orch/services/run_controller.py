@@ -62,76 +62,75 @@ class RunController:
         workspace = self.workspace_service.prepare_issue_workspace(issue.issue_id)
         run_id = self.telemetry_service.new_run_id(issue.issue_id)
 
-        activity_logger = self._open_activity_logger(workspace)
+        with self._open_activity_logger(workspace) as activity_logger:
+            self._log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue.issue_id,
+                component="run_controller",
+                event_type="run_started",
+                message="Started issue run.",
+            )
 
-        self._log_and_emit(
-            activity_logger=activity_logger,
-            workspace=workspace,
-            run_id=run_id,
-            issue_id=issue.issue_id,
-            component="run_controller",
-            event_type="run_started",
-            message="Started issue run.",
-        )
+            task_spec, progress = self.artifact_service.write_initial_artifacts(
+                workspace=workspace,
+                issue_id=issue.issue_id,
+                issue_title=issue.title,
+            )
 
-        task_spec, progress = self.artifact_service.write_initial_artifacts(
-            workspace=workspace,
-            issue_id=issue.issue_id,
-            issue_title=issue.title,
-        )
+            builder = self._run_builder(
+                issue=issue,
+                workspace=workspace,
+                run_id=run_id,
+                activity_logger=activity_logger,
+            )
+            self._log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue.issue_id,
+                component="verification",
+                event_type="verification_started",
+                message="Started verification steps.",
+            )
+            verification = self.verification_service.run(issue=issue, workspace=workspace)
+            self._log_verification_events(
+                workspace=workspace,
+                issue_id=issue.issue_id,
+                run_id=run_id,
+                verification=verification,
+                activity_logger=activity_logger,
+            )
+            review = self.review_adapter.initialize(
+                issue_id=issue.issue_id,
+                workspace=workspace,
+                builder_turn_contract_compliance=builder.metadata.get(
+                    "turn_contract_compliance"
+                ),
+            )
+            self._log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue.issue_id,
+                component="review",
+                event_type="review_initialized",
+                message="Initialized local review state.",
+                data={"verdict": review.verdict},
+            )
 
-        builder = self._run_builder(
-            issue=issue, workspace=workspace, run_id=run_id,
-            activity_logger=activity_logger,
-        )
-        self._log_and_emit(
-            activity_logger=activity_logger,
-            workspace=workspace,
-            run_id=run_id,
-            issue_id=issue.issue_id,
-            component="verification",
-            event_type="verification_started",
-            message="Started verification steps.",
-        )
-        verification = self.verification_service.run(issue=issue, workspace=workspace)
-        self._log_verification_events(
-            workspace=workspace,
-            issue_id=issue.issue_id,
-            run_id=run_id,
-            verification=verification,
-            activity_logger=activity_logger,
-        )
-        review = self.review_adapter.initialize(
-            issue_id=issue.issue_id,
-            workspace=workspace,
-            builder_turn_contract_compliance=builder.metadata.get(
-                "turn_contract_compliance"
-            ),
-        )
-        self._log_and_emit(
-            activity_logger=activity_logger,
-            workspace=workspace,
-            run_id=run_id,
-            issue_id=issue.issue_id,
-            component="review",
-            event_type="review_initialized",
-            message="Initialized local review state.",
-            data={"verdict": review.verdict},
-        )
-
-        gate, explain, report = self._finalize_run(
-            issue=issue,
-            workspace=workspace,
-            run_id=run_id,
-            builder=builder,
-            verification=verification,
-            review=review,
-            human_acceptance=False,
-            accepted_by=None,
-            activity_logger=activity_logger,
-        )
-
-        activity_logger.close()
+            gate, explain, report = self._finalize_run(
+                issue=issue,
+                workspace=workspace,
+                run_id=run_id,
+                builder=builder,
+                verification=verification,
+                review=review,
+                human_acceptance=False,
+                accepted_by=None,
+                activity_logger=activity_logger,
+            )
 
         return RunResult(
             issue=issue,
@@ -294,65 +293,62 @@ class RunController:
             self._load_existing_run(issue_id)
         )
 
-        activity_logger = self._open_activity_logger(workspace)
+        with self._open_activity_logger(workspace) as activity_logger:
+            review = self.review_adapter.initialize(
+                issue_id=issue.issue_id,
+                workspace=workspace,
+                builder_turn_contract_compliance=builder.metadata.get(
+                    "turn_contract_compliance"
+                ),
+            )
+            acceptance_data = report_data.get("human_acceptance", {})
+            human_acceptance = acceptance_data.get("accepted", False)
+            accepted_by = acceptance_data.get("accepted_by")
 
-        review = self.review_adapter.initialize(
-            issue_id=issue.issue_id,
-            workspace=workspace,
-            builder_turn_contract_compliance=builder.metadata.get(
-                "turn_contract_compliance"
-            ),
-        )
-        acceptance_data = report_data.get("human_acceptance", {})
-        human_acceptance = acceptance_data.get("accepted", False)
-        accepted_by = acceptance_data.get("accepted_by")
+            self._log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue.issue_id,
+                component="verification",
+                event_type="rerun_verification_started",
+                message="Re-running verification steps.",
+            )
+            verification = self.verification_service.run(
+                issue=issue, workspace=workspace,
+            )
+            self._log_verification_events(
+                workspace=workspace,
+                issue_id=issue.issue_id,
+                run_id=run_id,
+                verification=verification,
+                activity_logger=activity_logger,
+            )
 
-        self._log_and_emit(
-            activity_logger=activity_logger,
-            workspace=workspace,
-            run_id=run_id,
-            issue_id=issue.issue_id,
-            component="verification",
-            event_type="rerun_verification_started",
-            message="Re-running verification steps.",
-        )
-        verification = self.verification_service.run(
-            issue=issue, workspace=workspace,
-        )
-        self._log_verification_events(
-            workspace=workspace,
-            issue_id=issue.issue_id,
-            run_id=run_id,
-            verification=verification,
-            activity_logger=activity_logger,
-        )
-
-        gate, explain, updated_report = self._finalize_run(
-            issue=issue,
-            workspace=workspace,
-            run_id=run_id,
-            builder=builder,
-            verification=verification,
-            review=review,
-            human_acceptance=human_acceptance,
-            accepted_by=accepted_by,
-            activity_logger=activity_logger,
-        )
-        self._log_and_emit(
-            activity_logger=activity_logger,
-            workspace=workspace,
-            run_id=run_id,
-            issue_id=issue.issue_id,
-            component="run_controller",
-            event_type="rerun_completed",
-            message="Completed re-run with fresh verification.",
-            data={
-                "mergeable": gate.mergeable,
-                "failed_conditions": gate.failed_conditions,
-            },
-        )
-
-        activity_logger.close()
+            gate, explain, updated_report = self._finalize_run(
+                issue=issue,
+                workspace=workspace,
+                run_id=run_id,
+                builder=builder,
+                verification=verification,
+                review=review,
+                human_acceptance=human_acceptance,
+                accepted_by=accepted_by,
+                activity_logger=activity_logger,
+            )
+            self._log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue.issue_id,
+                component="run_controller",
+                event_type="rerun_completed",
+                message="Completed re-run with fresh verification.",
+                data={
+                    "mergeable": gate.mergeable,
+                    "failed_conditions": gate.failed_conditions,
+                },
+            )
 
         return RunResult(
             issue=issue,
