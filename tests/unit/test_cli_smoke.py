@@ -199,6 +199,54 @@ def test_status_command_reports_missing_run(tmp_path) -> None:
     assert "no run found" in result.stdout
 
 
+def test_status_all_command_shows_issue_table(tmp_path) -> None:
+    runs_dir = tmp_path / ".spec_orch_runs"
+    for issue_id, state, mergeable, title in (
+        ("SPC-20", "review_pending", False, "Second issue"),
+        ("SPC-3", "accepted", True, "First issue"),
+    ):
+        workspace = runs_dir / issue_id
+        workspace.mkdir(parents=True)
+        (workspace / "report.json").write_text(
+            json.dumps(
+                {
+                    "issue_id": issue_id,
+                    "state": state,
+                    "mergeable": mergeable,
+                    "title": title,
+                }
+            )
+        )
+
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["status", "--all", "--repo-root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "Issue ID" in result.stdout
+    assert "State" in result.stdout
+    assert "Mergeable" in result.stdout
+    assert "Title" in result.stdout
+    assert "SPC-3" in result.stdout
+    assert "accepted" in result.stdout
+    assert "True" in result.stdout
+    assert "First issue" in result.stdout
+    assert "SPC-20" in result.stdout
+    assert "review_pending" in result.stdout
+    assert "False" in result.stdout
+    assert "Second issue" in result.stdout
+    assert result.stdout.index("SPC-3") < result.stdout.index("SPC-20")
+
+
+def test_status_all_command_reports_no_issues_found(tmp_path) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["status", "--all", "--repo-root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "no issues found" in result.stdout
+
+
 def test_gate_command_shows_issue_verdict(tmp_path) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.metadata
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -243,11 +244,63 @@ def rerun_issue(
 
 @app.command("status")
 def status_issue(
-    issue_id: str,
+    ctx: typer.Context,
+    issue_id: str | None = typer.Argument(None),
+    all_issues: bool = typer.Option(False, "--all", "-a"),
     repo_root: Path = typer.Option(Path("."), "--repo-root"),
 ) -> None:
     """Show the current status of an issue run."""
     ws = WorkspaceService(repo_root=Path(repo_root))
+    if all_issues:
+        if issue_id:
+            ctx.fail("Do not provide ISSUE_ID with --all.")
+        workspace_root = (
+            Path(repo_root) / ".worktrees"
+            if ws._is_git_repository()
+            else Path(repo_root) / ".spec_orch_runs"
+        )
+        if not workspace_root.exists():
+            typer.echo("no issues found")
+            return
+
+        rows: list[tuple[str, str, str, str]] = []
+        sorted_dirs = sorted(
+            workspace_root.iterdir(),
+            key=lambda path: _issue_sort_key(path.name),
+        )
+        for workspace in sorted_dirs:
+            if not workspace.is_dir():
+                continue
+
+            report_path = workspace / "report.json"
+            if report_path.exists():
+                report = json.loads(report_path.read_text())
+                state = str(report.get("state", "in_progress"))
+                mergeable = str(report.get("mergeable", False))
+                title = str(report.get("title", workspace.name))
+            else:
+                state = "in_progress"
+                mergeable = "False"
+                title = workspace.name
+            rows.append((workspace.name, state, mergeable, title))
+
+        if not rows:
+            typer.echo("no issues found")
+            return
+
+        headers = ("Issue ID", "State", "Mergeable", "Title")
+        widths = [
+            max(len(header), *(len(row[index]) for row in rows))
+            for index, header in enumerate(headers)
+        ]
+        typer.echo(_format_status_table_row(headers, widths))
+        typer.echo(_format_status_table_row(tuple("-" * width for width in widths), widths))
+        for row in rows:
+            typer.echo(_format_status_table_row(row, widths))
+        return
+
+    if not issue_id:
+        ctx.fail("Missing argument 'ISSUE_ID'.")
     workspace = ws.issue_workspace_path(issue_id)
     if not workspace.exists():
         typer.echo(f"no run found for {issue_id}")
@@ -261,6 +314,23 @@ def status_issue(
     typer.echo(
         f"issue={issue_id} workspace={workspace} "
         f"mergeable={report.get('mergeable', False)} blocked={blocked}"
+    )
+
+
+def _issue_sort_key(issue_id: str) -> list[int | str]:
+    return [
+        int(part) if part.isdigit() else part.lower()
+        for part in re.split(r"(\d+)", issue_id)
+        if part
+    ]
+
+
+def _format_status_table_row(
+    values: tuple[str, ...], widths: list[int]
+) -> str:
+    return "  ".join(
+        value.ljust(width)
+        for value, width in zip(values, widths, strict=True)
     )
 
 
@@ -944,12 +1014,59 @@ def _make_controller(
         issue_source = LinearIssueSource(client=client)
     else:
         issue_source = FixtureIssueSource(repo_root=Path(repo_root))
+
+    planner = _build_planner_from_toml(repo_root)
+
     return RunController(
         repo_root=repo_root,
         builder_adapter=CodexExecBuilderAdapter(executable=codex_executable),
         issue_source=issue_source,
+        planner_adapter=planner,
         live_stream=live_stream,
     )
+
+
+def _build_planner_from_toml(repo_root: Path) -> Any:
+    """Build a PlannerAdapter from spec-orch.toml if planner section exists."""
+    config_path = repo_root / "spec-orch.toml"
+    if not config_path.exists():
+        return None
+    try:
+        import tomllib
+
+        with config_path.open("rb") as f:
+            raw = tomllib.load(f)
+    except Exception:
+        return None
+
+    planner_cfg = raw.get("planner", {})
+    model = planner_cfg.get("model")
+    if not model:
+        return None
+
+    api_key: str | None = None
+    api_key_env = planner_cfg.get("api_key_env")
+    if api_key_env:
+        api_key = os.environ.get(api_key_env)
+
+    api_base: str | None = None
+    api_base_env = planner_cfg.get("api_base_env")
+    if api_base_env:
+        api_base = os.environ.get(api_base_env)
+
+    token_command = planner_cfg.get("token_command")
+
+    try:
+        from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
+
+        return LiteLLMPlannerAdapter(
+            model=model,
+            api_key=api_key,
+            api_base=api_base,
+            token_command=token_command,
+        )
+    except ImportError:
+        return None
 
 
 def _edit_fixture_json(fixture: dict[str, object]) -> dict[str, object]:

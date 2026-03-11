@@ -9,10 +9,9 @@ adapter = "codex_exec"
 codex_executable = "codex"
 
 [planner]
-model = "anthropic/claude-sonnet-4-20250514"
+model = "anthropic/MiniMax-M2.5"
 api_key_env = "SPEC_ORCH_LLM_API_KEY"
 api_base_env = "SPEC_ORCH_LLM_API_BASE"
-# token_command = "gcloud auth print-access-token"
 
 [daemon]
 max_concurrent = 1
