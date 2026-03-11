@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from spec_orch.services.plan_parser import parse_plan
+from spec_orch.services.plan_parser import _heading_matches, parse_plan
 
 
 def _write_plan(tmp_path: Path, content: str) -> Path:
@@ -193,3 +193,25 @@ def test_parse_handles_empty_document(tmp_path: Path) -> None:
     assert plan.constraints == []
     assert plan.architecture_notes == ""
     assert plan.files_to_read == []
+
+
+def test_parse_summary_stops_at_next_heading_for_empty_section(tmp_path: Path) -> None:
+    plan_path = _write_plan(
+        tmp_path,
+        """
+        # Build plan-to-spec
+
+        ## Background
+
+        ## File Changes
+        - Create `src/spec_orch/services/plan_parser.py` with parsing logic.
+        """,
+    )
+
+    plan = parse_plan(plan_path)
+
+    assert plan.summary == ""
+
+
+def test_heading_match_does_not_false_positive_on_substring() -> None:
+    assert _heading_matches("Redesigned", ["design"]) is False

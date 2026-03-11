@@ -294,6 +294,41 @@ def test_watch_command_reports_missing_log(tmp_path) -> None:
     assert "no activity log" in result.stdout
 
 
+def test_watch_command_keeps_lines_appended_during_initial_read(tmp_path) -> None:
+    workspace = tmp_path / ".spec_orch_runs" / "SPC-RACE"
+    telemetry_dir = workspace / "telemetry"
+    telemetry_dir.mkdir(parents=True)
+    log_path = telemetry_dir / "activity.log"
+    log_path.write_text("existing line\n", encoding="utf-8")
+
+    original_read_text = __import__("pathlib").Path.read_text
+
+    def racing_read_text(path, *args, **kwargs):
+        text = original_read_text(path, *args, **kwargs)
+        if path == log_path:
+            log_path.write_text(text + "raced line\n", encoding="utf-8")
+        return text
+
+    def finish_watch(_seconds: float) -> None:
+        (workspace / "report.json").write_text("{}", encoding="utf-8")
+
+    runner = CliRunner()
+    with patch.object(
+        __import__("pathlib").Path,
+        "read_text",
+        autospec=True,
+        side_effect=racing_read_text,
+    ):
+        with patch("spec_orch.cli.time.sleep", side_effect=finish_watch):
+            result = runner.invoke(
+                app, ["watch", "SPC-RACE", "--repo-root", str(tmp_path)]
+            )
+
+    assert result.exit_code == 0
+    assert "existing line" in result.stdout
+    assert "raced line" in result.stdout
+
+
 def test_logs_command_shows_activity_log(tmp_path) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
@@ -488,3 +523,36 @@ def test_plan_to_spec_appears_in_help() -> None:
 
     assert result.exit_code == 0
     assert "plan-to-spec" in result.stdout
+
+
+def test_plan_to_spec_edit_uses_shell_style_editor_splitting(tmp_path) -> None:
+    fixture_path = tmp_path / "plan.md"
+    fixture_path.write_text("# Title\n", encoding="utf-8")
+    invoked = {}
+
+    def fake_run(command, check=False):
+        invoked["command"] = command
+
+        class Result:
+            returncode = 0
+
+        return Result()
+
+    runner = CliRunner()
+    with patch.dict("os.environ", {"EDITOR": 'python -c "print(\'ok\')"'}):
+        with patch("spec_orch.cli.subprocess.run", side_effect=fake_run):
+            result = runner.invoke(
+                app,
+                [
+                    "plan-to-spec",
+                    str(fixture_path),
+                    "--issue-id",
+                    "SPC-EDIT",
+                    "--output",
+                    str(tmp_path / "fixture.json"),
+                    "--edit",
+                ],
+            )
+
+    assert result.exit_code == 0
+    assert invoked["command"][:3] == ["python", "-c", "print('ok')"]

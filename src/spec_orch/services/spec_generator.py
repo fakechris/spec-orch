@@ -34,8 +34,9 @@ def generate_builder_prompt(plan: PlanData) -> str:
         f"{index}. {instruction}"
         for index, instruction in enumerate(instructions, start=1)
     ]
-    numbered.append("Run ruff check src/ and fix any lint errors.")
-    numbered.append("Run pytest tests/ -q to make sure nothing is broken.")
+    next_index = len(numbered) + 1
+    numbered.append(f"{next_index}. Run ruff check src/ and fix any lint errors.")
+    numbered.append(f"{next_index + 1}. Run pytest tests/ -q to make sure nothing is broken.")
     return "\n".join(numbered)
 
 
@@ -48,7 +49,7 @@ def _instruction_from_change(change: str) -> str:
         remainder = _remainder_after_path(change, path)
         return f"Create `{path}`{f' {remainder}' if remainder else ''}"
 
-    if re.search(r"\b(modify|update|in)\b", change, re.IGNORECASE):
+    if re.search(r"\b(modify|update)\b", change, re.IGNORECASE):
         remainder = _remainder_after_path(change, path)
         remainder = re.sub(r"^(to)\s+", "", remainder, flags=re.IGNORECASE)
         return f"In `{path}`, {remainder}".rstrip()

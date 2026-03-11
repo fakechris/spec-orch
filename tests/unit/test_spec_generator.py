@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from spec_orch.services.plan_parser import PlanData
-from spec_orch.services.spec_generator import generate_builder_prompt, generate_fixture
+from spec_orch.services.spec_generator import (
+    _instruction_from_change,
+    generate_builder_prompt,
+    generate_fixture,
+)
 
 
 def test_generate_fixture_produces_valid_schema() -> None:
@@ -53,6 +57,13 @@ def test_generate_builder_prompt_appends_lint_suffix() -> None:
     assert "Run pytest tests/ -q to make sure nothing is broken." in prompt
 
 
+def test_generate_builder_prompt_suffix_is_numbered() -> None:
+    prompt = generate_builder_prompt(PlanData(file_changes=["Do the thing."]))
+
+    assert "2. Run ruff check src/ and fix any lint errors." in prompt
+    assert "3. Run pytest tests/ -q to make sure nothing is broken." in prompt
+
+
 def test_generate_fixture_with_empty_plan() -> None:
     fixture = generate_fixture(PlanData(), "SPC-EMPTY")
 
@@ -90,3 +101,11 @@ def test_generate_builder_prompt_converts_modify_instructions() -> None:
     )
 
     assert "1. In `src/spec_orch/cli.py`, add the plan-to-spec command." in prompt
+
+
+def test_instruction_from_change_does_not_rewrite_in_bullets() -> None:
+    instruction = _instruction_from_change(
+        "Add unit tests in `tests/test_x.py` for the parser."
+    )
+
+    assert instruction == "Add unit tests in `tests/test_x.py` for the parser."
