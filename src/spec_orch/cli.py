@@ -3,7 +3,10 @@ from __future__ import annotations
 import importlib.metadata
 import json
 import subprocess
+import sys
+import time
 from pathlib import Path
+from typing import IO
 
 import typer
 
@@ -48,10 +51,16 @@ def run_issue(
     repo_root: Path = typer.Option(Path("."), "--repo-root"),
     codex_executable: str = typer.Option("codex", "--codex-executable"),
     pi_executable: str = typer.Option("pi", "--pi-executable"),
+    live: bool = typer.Option(
+        False, "--live", help="Stream builder events to stderr in real-time."
+    ),
 ) -> None:
     """Run one local issue fixture through the MVP pipeline."""
+    live_stream: IO[str] | None = sys.stderr if live else None
     controller = _make_controller(
-        repo_root=repo_root, codex_executable=codex_executable
+        repo_root=repo_root,
+        codex_executable=codex_executable,
+        live_stream=live_stream,
     )
     result = controller.run_issue(issue_id)
     typer.echo(
@@ -360,6 +369,109 @@ def gate(
         typer.echo(f"  auto_merge: {gate_policy.auto_merge}")
 
 
+@app.command("watch")
+def watch_issue(
+    issue_id: str,
+    repo_root: Path = typer.Option(".", "--repo-root", "-r"),
+    follow: bool = typer.Option(
+        False, "--follow", "-f", help="Keep watching even after log ends."
+    ),
+    tail: int = typer.Option(
+        0, "--tail", "-n", help="Show last N lines only (0 = all)."
+    ),
+) -> None:
+    """Watch real-time activity log for an issue run."""
+    ws = WorkspaceService(repo_root=Path(repo_root))
+    workspace = ws.issue_workspace_path(issue_id)
+    log_path = workspace / "telemetry" / "activity.log"
+    if not log_path.exists():
+        typer.echo(f"no activity log found for {issue_id}")
+        raise typer.Exit(1)
+
+    lines = log_path.read_text(encoding="utf-8").splitlines()
+    if tail > 0:
+        lines = lines[-tail:]
+    for line in lines:
+        typer.echo(line)
+
+    if not follow:
+        still_running = not (workspace / "report.json").exists()
+        if not still_running:
+            return
+
+    try:
+        offset = log_path.stat().st_size
+        while True:
+            time.sleep(0.3)
+            current_size = log_path.stat().st_size
+            if current_size > offset:
+                with log_path.open("r", encoding="utf-8") as f:
+                    f.seek(offset)
+                    new_data = f.read()
+                offset = current_size
+                for line in new_data.splitlines():
+                    typer.echo(line)
+            elif (workspace / "report.json").exists() and not follow:
+                break
+    except KeyboardInterrupt:
+        pass
+
+
+@app.command("logs")
+def logs_issue(
+    issue_id: str,
+    repo_root: Path = typer.Option(".", "--repo-root", "-r"),
+    raw: bool = typer.Option(
+        False, "--raw", help="Print raw codex events (incoming_events.jsonl)."
+    ),
+    events: bool = typer.Option(
+        False, "--events", help="Print orchestrator events (events.jsonl)."
+    ),
+    filter_type: str = typer.Option(
+        "", "--filter", help="Filter by event type substring."
+    ),
+) -> None:
+    """View complete activity logs for an issue run."""
+    ws = WorkspaceService(repo_root=Path(repo_root))
+    workspace = ws.issue_workspace_path(issue_id)
+    telemetry_dir = workspace / "telemetry"
+
+    if raw:
+        _print_jsonl(telemetry_dir / "incoming_events.jsonl", filter_type)
+        return
+    if events:
+        _print_jsonl(telemetry_dir / "events.jsonl", filter_type)
+        return
+
+    log_path = telemetry_dir / "activity.log"
+    if not log_path.exists():
+        typer.echo(f"no activity log found for {issue_id}")
+        raise typer.Exit(1)
+
+    for line in log_path.read_text(encoding="utf-8").splitlines():
+        if filter_type and filter_type.upper() not in line.upper():
+            continue
+        typer.echo(line)
+
+
+def _print_jsonl(path: Path, filter_type: str) -> None:
+    if not path.exists():
+        typer.echo(f"file not found: {path}")
+        raise typer.Exit(1)
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        if filter_type:
+            try:
+                obj = json.loads(line)
+                etype = obj.get("event_type", "") or obj.get("type", "")
+                if filter_type.lower() not in etype.lower():
+                    continue
+            except json.JSONDecodeError:
+                continue
+        typer.echo(line)
+
+
 @app.command("create-pr")
 def create_pr(
     issue_id: str,
@@ -428,11 +540,17 @@ def create_pr(
     typer.echo(f"gate status set: {'success' if mergeable else 'failure'}")
 
 
-def _make_controller(*, repo_root: Path, codex_executable: str = "codex") -> RunController:
+def _make_controller(
+    *,
+    repo_root: Path,
+    codex_executable: str = "codex",
+    live_stream: IO[str] | None = None,
+) -> RunController:
     return RunController(
         repo_root=repo_root,
         builder_adapter=CodexExecBuilderAdapter(executable=codex_executable),
         issue_source=FixtureIssueSource(repo_root=Path(repo_root)),
+        live_stream=live_stream,
     )
 
 

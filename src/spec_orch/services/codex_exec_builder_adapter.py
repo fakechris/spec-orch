@@ -133,15 +133,30 @@ class CodexExecBuilderAdapter:
                             }
                         )
 
-                    match event.get("type"):
+                    etype = event.get("type", "")
+                    item = event.get("item", {})
+                    itype = item.get("type", "")
+                    match etype:
+                        case "item.started":
+                            if itype == "command_execution":
+                                state.setdefault("commands_started", 0)
+                                state["commands_started"] += 1
                         case "item.completed":
-                            item = event.get("item", {})
-                            if item.get("type") == "agent_message":
+                            if itype == "agent_message":
                                 state["final_message"] = item.get("text", "")
+                            elif itype == "command_execution":
+                                state.setdefault("commands_completed", 0)
+                                state["commands_completed"] += 1
+                            elif itype == "file_change":
+                                state.setdefault("files_changed", [])
+                                state["files_changed"].append(
+                                    item.get("file", "")
+                                )
                         case "turn.plan.updated":
                             state["plan"] = event.get("items", [])
                         case "turn.completed":
                             state["turn_status"] = "success"
+                            state["usage"] = event.get("usage", {})
                         case "turn.failed":
                             state["turn_status"] = "failure"
 
@@ -178,6 +193,10 @@ class CodexExecBuilderAdapter:
                 "plan": plan,
                 "turn_status": turn_status,
                 "turn_contract_compliance": compliance,
+                "usage": state.get("usage", {}),
+                "commands_started": state.get("commands_started", 0),
+                "commands_completed": state.get("commands_completed", 0),
+                "files_changed": state.get("files_changed", []),
             },
         )
         _write_report(result)
@@ -186,15 +205,41 @@ class CodexExecBuilderAdapter:
 
 def _short_description(event: dict[str, Any]) -> str:
     t: str = event.get("type", "")
-    if t == "item.completed":
-        item = event.get("item", {})
-        itype = item.get("type", "")
-        if itype == "agent_message":
-            text = item.get("text", "")[:80]
-            return f"agent_message: {text}..."
-        return f"item.completed ({itype})"
-    if t in ("turn.completed", "turn.failed"):
-        return t
+    item = event.get("item", {})
+    itype = item.get("type", "")
+    match t:
+        case "item.started":
+            if itype == "command_execution":
+                return f"command_started: {item.get('command', '')}"
+            return f"item.started ({itype})"
+        case "item.completed":
+            if itype == "agent_message":
+                text = item.get("text", "")[:80]
+                return f"agent_message: {text}..."
+            if itype == "command_execution":
+                exit_code = item.get("exit_code", "?")
+                cmd = item.get("command", "")
+                return f"command_completed: {cmd} (exit {exit_code})"
+            if itype == "file_change":
+                return f"file_change: {item.get('file', '')}"
+            if itype == "reasoning":
+                text = item.get("text", "")[:60]
+                return f"reasoning: {text}..."
+            return f"item.completed ({itype})"
+        case "turn.completed":
+            usage = event.get("usage", {})
+            if usage:
+                return (
+                    f"turn.completed "
+                    f"({usage.get('input_tokens', 0)} in"
+                    f" / {usage.get('output_tokens', 0)} out)"
+                )
+            return "turn.completed"
+        case "turn.failed":
+            return "turn.failed"
+        case "turn.plan.updated":
+            items = event.get("items", [])
+            return f"plan.updated ({len(items)} items)"
     return t or "event"
 
 

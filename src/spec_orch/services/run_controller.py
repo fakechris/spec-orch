@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from spec_orch.domain.compliance import (
     default_turn_contract_compliance,
@@ -20,6 +20,7 @@ from spec_orch.domain.models import (
     VerificationSummary,
 )
 from spec_orch.domain.protocols import BuilderAdapter, IssueSource
+from spec_orch.services.activity_logger import ActivityLogger
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
@@ -39,6 +40,7 @@ class RunController:
         pi_executable: str = "pi",
         builder_adapter: BuilderAdapter | None = None,
         issue_source: IssueSource | None = None,
+        live_stream: IO[str] | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
         self.artifact_service = ArtifactService()
@@ -53,12 +55,17 @@ class RunController:
         self.issue_source: IssueSource = issue_source or FixtureIssueSource(
             repo_root=self.repo_root
         )
+        self._live_stream = live_stream
 
     def run_issue(self, issue_id: str) -> RunResult:
         issue = self.issue_source.load(issue_id)
         workspace = self.workspace_service.prepare_issue_workspace(issue.issue_id)
         run_id = self.telemetry_service.new_run_id(issue.issue_id)
-        self.telemetry_service.log_event(
+
+        activity_logger = self._open_activity_logger(workspace)
+
+        self._log_and_emit(
+            activity_logger=activity_logger,
             workspace=workspace,
             run_id=run_id,
             issue_id=issue.issue_id,
@@ -73,8 +80,12 @@ class RunController:
             issue_title=issue.title,
         )
 
-        builder = self._run_builder(issue=issue, workspace=workspace, run_id=run_id)
-        self.telemetry_service.log_event(
+        builder = self._run_builder(
+            issue=issue, workspace=workspace, run_id=run_id,
+            activity_logger=activity_logger,
+        )
+        self._log_and_emit(
+            activity_logger=activity_logger,
             workspace=workspace,
             run_id=run_id,
             issue_id=issue.issue_id,
@@ -88,6 +99,7 @@ class RunController:
             issue_id=issue.issue_id,
             run_id=run_id,
             verification=verification,
+            activity_logger=activity_logger,
         )
         review = self.review_adapter.initialize(
             issue_id=issue.issue_id,
@@ -96,7 +108,8 @@ class RunController:
                 "turn_contract_compliance"
             ),
         )
-        self.telemetry_service.log_event(
+        self._log_and_emit(
+            activity_logger=activity_logger,
             workspace=workspace,
             run_id=run_id,
             issue_id=issue.issue_id,
@@ -115,7 +128,10 @@ class RunController:
             review=review,
             human_acceptance=False,
             accepted_by=None,
+            activity_logger=activity_logger,
         )
+
+        activity_logger.close()
 
         return RunResult(
             issue=issue,
@@ -277,6 +293,9 @@ class RunController:
         issue, workspace, report_data, run_id, builder = (
             self._load_existing_run(issue_id)
         )
+
+        activity_logger = self._open_activity_logger(workspace)
+
         review = self.review_adapter.initialize(
             issue_id=issue.issue_id,
             workspace=workspace,
@@ -288,7 +307,8 @@ class RunController:
         human_acceptance = acceptance_data.get("accepted", False)
         accepted_by = acceptance_data.get("accepted_by")
 
-        self.telemetry_service.log_event(
+        self._log_and_emit(
+            activity_logger=activity_logger,
             workspace=workspace,
             run_id=run_id,
             issue_id=issue.issue_id,
@@ -304,6 +324,7 @@ class RunController:
             issue_id=issue.issue_id,
             run_id=run_id,
             verification=verification,
+            activity_logger=activity_logger,
         )
 
         gate, explain, updated_report = self._finalize_run(
@@ -315,8 +336,10 @@ class RunController:
             review=review,
             human_acceptance=human_acceptance,
             accepted_by=accepted_by,
+            activity_logger=activity_logger,
         )
-        self.telemetry_service.log_event(
+        self._log_and_emit(
+            activity_logger=activity_logger,
             workspace=workspace,
             run_id=run_id,
             issue_id=issue.issue_id,
@@ -328,6 +351,8 @@ class RunController:
                 "failed_conditions": gate.failed_conditions,
             },
         )
+
+        activity_logger.close()
 
         return RunResult(
             issue=issue,
@@ -341,8 +366,55 @@ class RunController:
             gate=gate,
         )
 
+    def _log_and_emit(
+        self,
+        *,
+        activity_logger: ActivityLogger | None = None,
+        workspace: Path,
+        run_id: str,
+        issue_id: str,
+        component: str,
+        event_type: str,
+        severity: str = "info",
+        message: str,
+        adapter: str | None = None,
+        agent: str | None = None,
+        data: dict | None = None,
+    ) -> None:
+        """Log to telemetry and forward to the activity logger."""
+        self.telemetry_service.log_event(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue_id,
+            component=component,
+            event_type=event_type,
+            severity=severity,
+            message=message,
+            adapter=adapter,
+            agent=agent,
+            data=data,
+        )
+        if activity_logger:
+            activity_logger.log({
+                "event_type": event_type,
+                "component": component,
+                "message": message,
+                "data": data or {},
+            })
+
+    def _open_activity_logger(self, workspace: Path) -> ActivityLogger:
+        return ActivityLogger(
+            ActivityLogger.activity_log_path(workspace),
+            live_stream=self._live_stream,
+        )
+
     def _make_event_logger(
-        self, *, workspace: Path, run_id: str, issue_id: str
+        self,
+        *,
+        workspace: Path,
+        run_id: str,
+        issue_id: str,
+        activity_logger: ActivityLogger | None = None,
     ) -> Callable[[dict[str, Any]], None]:
         def _log(event: dict[str, Any]) -> None:
             self.telemetry_service.log_event(
@@ -357,6 +429,8 @@ class RunController:
                 agent=event.get("agent"),
                 data=event.get("data"),
             )
+            if activity_logger:
+                activity_logger.log(event.get("data", event))
         return _log
 
     def _finalize_run(
@@ -370,6 +444,7 @@ class RunController:
         review: ReviewSummary,
         human_acceptance: bool,
         accepted_by: str | None,
+        activity_logger: ActivityLogger | None = None,
     ) -> tuple[GateVerdict, Path, Path]:
         gate = self.gate_service.evaluate(
             GateInput(
@@ -387,6 +462,7 @@ class RunController:
             issue_id=issue.issue_id,
             run_id=run_id,
             gate=gate,
+            activity_logger=activity_logger,
         )
         explain = self.artifact_service.write_explain_report(
             workspace=workspace,
@@ -423,10 +499,18 @@ class RunController:
             return "passed"
         return "failed"
 
-    def _run_builder(self, *, issue: Issue, workspace: Path, run_id: str) -> BuilderResult:
+    def _run_builder(
+        self,
+        *,
+        issue: Issue,
+        workspace: Path,
+        run_id: str,
+        activity_logger: ActivityLogger | None = None,
+    ) -> BuilderResult:
         adapter_name = self.builder_adapter.ADAPTER_NAME
         agent_name = self.builder_adapter.AGENT_NAME
-        self.telemetry_service.log_event(
+        self._log_and_emit(
+            activity_logger=activity_logger,
             workspace=workspace,
             run_id=run_id,
             issue_id=issue.issue_id,
@@ -442,7 +526,10 @@ class RunController:
                 workspace=workspace,
                 run_id=run_id,
                 event_logger=self._make_event_logger(
-                    workspace=workspace, run_id=run_id, issue_id=issue.issue_id
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=issue.issue_id,
+                    activity_logger=activity_logger,
                 ),
             )
         except Exception as exc:
@@ -474,7 +561,8 @@ class RunController:
 
         if builder.adapter == adapter_name:
             write_builder_report(builder)
-        self.telemetry_service.log_event(
+        self._log_and_emit(
+            activity_logger=activity_logger,
             workspace=workspace,
             run_id=run_id,
             issue_id=issue.issue_id,
@@ -495,9 +583,11 @@ class RunController:
         issue_id: str,
         run_id: str,
         verification: VerificationSummary,
+        activity_logger: ActivityLogger | None = None,
     ) -> None:
         for step_name, detail in verification.details.items():
-            self.telemetry_service.log_event(
+            self._log_and_emit(
+                activity_logger=activity_logger,
                 workspace=workspace,
                 run_id=run_id,
                 issue_id=issue_id,
@@ -512,7 +602,8 @@ class RunController:
                 },
             )
 
-        self.telemetry_service.log_event(
+        self._log_and_emit(
+            activity_logger=activity_logger,
             workspace=workspace,
             run_id=run_id,
             issue_id=issue_id,
@@ -523,8 +614,17 @@ class RunController:
             data={"all_passed": verification.all_passed},
         )
 
-    def _log_gate_event(self, *, workspace: Path, issue_id: str, run_id: str, gate) -> None:
-        self.telemetry_service.log_event(
+    def _log_gate_event(
+        self,
+        *,
+        workspace: Path,
+        issue_id: str,
+        run_id: str,
+        gate: GateVerdict,
+        activity_logger: ActivityLogger | None = None,
+    ) -> None:
+        self._log_and_emit(
+            activity_logger=activity_logger,
             workspace=workspace,
             run_id=run_id,
             issue_id=issue_id,

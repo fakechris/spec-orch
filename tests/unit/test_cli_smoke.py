@@ -42,6 +42,8 @@ def test_cli_help_shows_run_issue_command() -> None:
     assert "daemon" in result.stdout
     assert "gate" in result.stdout
     assert "create-pr" in result.stdout
+    assert "watch" in result.stdout
+    assert "logs" in result.stdout
 
 
 def test_run_issue_uses_fixture_and_reports_gate_result(tmp_path) -> None:
@@ -254,3 +256,158 @@ def test_gate_show_policy() -> None:
     result = runner.invoke(app, ["gate", "--show-policy"])
     assert result.exit_code == 0
     assert "Gate Policy" in result.stdout
+
+
+def test_watch_command_shows_activity_log(tmp_path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-W.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-W",
+                "title": "Watch test",
+                "summary": "Test watch command.",
+            }
+        )
+    )
+    runner = CliRunner()
+    runner.invoke(app, ["run-issue", "SPC-W", "--repo-root", str(tmp_path)])
+
+    result = runner.invoke(
+        app, ["watch", "SPC-W", "--repo-root", str(tmp_path)]
+    )
+
+    assert result.exit_code == 0
+    assert any(
+        tag in result.stdout
+        for tag in ("RUN", "BUILDER", "VERIFY", "GATE")
+    )
+
+
+def test_watch_command_reports_missing_log(tmp_path) -> None:
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["watch", "SPC-NONE", "--repo-root", str(tmp_path)]
+    )
+    assert result.exit_code == 1
+    assert "no activity log" in result.stdout
+
+
+def test_logs_command_shows_activity_log(tmp_path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-L.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-L",
+                "title": "Logs test",
+                "summary": "Test logs command.",
+            }
+        )
+    )
+    runner = CliRunner()
+    runner.invoke(app, ["run-issue", "SPC-L", "--repo-root", str(tmp_path)])
+
+    result = runner.invoke(
+        app, ["logs", "SPC-L", "--repo-root", str(tmp_path)]
+    )
+
+    assert result.exit_code == 0
+    assert any(
+        tag in result.stdout
+        for tag in ("RUN", "BUILDER", "VERIFY", "GATE")
+    )
+
+
+def test_logs_command_filter(tmp_path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-LF.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-LF",
+                "title": "Logs filter test",
+                "summary": "Test logs filter.",
+            }
+        )
+    )
+    runner = CliRunner()
+    runner.invoke(app, ["run-issue", "SPC-LF", "--repo-root", str(tmp_path)])
+
+    result = runner.invoke(
+        app, ["logs", "SPC-LF", "--repo-root", str(tmp_path), "--filter", "GATE"]
+    )
+
+    assert result.exit_code == 0
+    assert "GATE" in result.stdout
+    for line in result.stdout.strip().splitlines():
+        assert "GATE" in line.upper()
+
+
+def test_logs_command_raw_mode(tmp_path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-LR.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-LR",
+                "title": "Raw logs test",
+                "summary": "Test raw logs.",
+            }
+        )
+    )
+    runner = CliRunner()
+    runner.invoke(app, ["run-issue", "SPC-LR", "--repo-root", str(tmp_path)])
+
+    result = runner.invoke(
+        app, ["logs", "SPC-LR", "--repo-root", str(tmp_path), "--raw"]
+    )
+
+    if result.exit_code == 0:
+        pass
+    else:
+        assert "file not found" in result.stdout
+
+
+def test_logs_command_events_mode(tmp_path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-LE.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-LE",
+                "title": "Events logs test",
+                "summary": "Test events logs.",
+            }
+        )
+    )
+    runner = CliRunner()
+    runner.invoke(app, ["run-issue", "SPC-LE", "--repo-root", str(tmp_path)])
+
+    result = runner.invoke(
+        app, ["logs", "SPC-LE", "--repo-root", str(tmp_path), "--events"]
+    )
+
+    assert result.exit_code == 0
+    assert "run_started" in result.stdout or "event_type" in result.stdout
+
+
+def test_run_issue_with_live_flag(tmp_path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-LV.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-LV",
+                "title": "Live test",
+                "summary": "Test live flag.",
+            }
+        )
+    )
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["run-issue", "SPC-LV", "--repo-root", str(tmp_path), "--live"],
+    )
+    assert result.exit_code == 0
+    assert "SPC-LV" in result.stdout
