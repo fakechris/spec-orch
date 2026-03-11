@@ -140,3 +140,26 @@ def test_daemon_poll_and_run_releases_non_terminal(tmp_path: Path) -> None:
     mock_controller.advance.assert_called_once_with("SPC-12")
     assert "SPC-12" not in daemon._processed
     assert not daemon._is_locked("SPC-12")
+
+
+def test_daemon_poll_and_run_marks_gate_evaluated_as_processed(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    mock_client = MagicMock()
+    mock_client.list_issues.return_value = [{"identifier": "SPC-13"}]
+
+    mock_gate = MagicMock()
+    mock_gate.mergeable = False
+    mock_gate.failed_conditions = ["human_acceptance"]
+    mock_result = MagicMock()
+    mock_result.gate = mock_gate
+    mock_result.state = RunState.GATE_EVALUATED
+
+    mock_controller = MagicMock()
+    mock_controller.advance.return_value = mock_result
+
+    daemon._poll_and_run(mock_client, mock_controller)
+
+    mock_controller.advance.assert_called_once_with("SPC-13")
+    assert "SPC-13" in daemon._processed

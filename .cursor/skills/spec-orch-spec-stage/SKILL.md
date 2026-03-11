@@ -110,6 +110,12 @@ spec-orch accept-issue SPC-FEAT-1 --accepted-by chris
 spec-orch findings list SPC-FEAT-1
 ```
 
+If verification fails or you fixed code after review feedback, re-run checks:
+
+```bash
+spec-orch rerun SPC-FEAT-1
+```
+
 ## Decision Guide
 
 | Situation | Action |

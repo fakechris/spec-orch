@@ -7,7 +7,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from spec_orch.domain.models import TERMINAL_STATES
+from spec_orch.domain.models import TERMINAL_STATES, RunState
+from spec_orch.domain.protocols import PlannerAdapter
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
@@ -81,7 +82,7 @@ class SpecOrchDaemon:
             client.close()
             print("[daemon] stopped")
 
-    def _build_planner(self) -> Any:
+    def _build_planner(self) -> PlannerAdapter | None:
         """Build a PlannerAdapter if planner config is present, else None."""
         planner_cfg = getattr(self.config, "planner_model", None)
         if not planner_cfg:
@@ -125,7 +126,7 @@ class SpecOrchDaemon:
                     f"[daemon] {issue_id}: state={state.value} "
                     f"mergeable={mergeable} blocked={blocked}"
                 )
-                if state in TERMINAL_STATES:
+                if state in TERMINAL_STATES or state == RunState.GATE_EVALUATED:
                     self._notify(issue_id, mergeable)
                     self._processed.add(issue_id)
                 else:

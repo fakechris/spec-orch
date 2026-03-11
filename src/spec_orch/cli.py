@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO
 from uuid import uuid4
@@ -414,8 +415,6 @@ def answer_question(
         raise typer.Exit(1)
     matching[0].answer = answer
     matching[0].answered_by = decided_by
-    from datetime import UTC, datetime
-
     snapshot.decisions.append(
         Decision(
             question_id=question_id,

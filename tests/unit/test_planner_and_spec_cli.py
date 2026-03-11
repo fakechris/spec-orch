@@ -334,11 +334,36 @@ def test_litellm_planner_adapter_parse_response():
     mock_response = MagicMock()
     mock_response.choices = [mock_choice]
 
-    result = adapter._parse_response(mock_response, issue)
+    result = adapter._parse_response(mock_response, issue, None)
     assert len(result.questions) == 2
     assert result.questions[0].text == "Which DB?"
     assert result.questions[0].blocking is True
     assert result.questions[1].blocking is False
+    assert result.spec_draft is None
+
+
+def test_litellm_planner_adapter_parse_response_with_spec_summary():
+    from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
+
+    adapter = LiteLLMPlannerAdapter(model="test/model")
+    issue = _make_issue()
+
+    mock_tool_call = MagicMock()
+    mock_tool_call.function.arguments = json.dumps({
+        "questions": [],
+        "spec_summary": "Implement pagination with cursor tokens.",
+    })
+    mock_message = MagicMock()
+    mock_message.tool_calls = [mock_tool_call]
+    mock_message.content = None
+    mock_choice = MagicMock()
+    mock_choice.message = mock_message
+    mock_response = MagicMock()
+    mock_response.choices = [mock_choice]
+
+    result = adapter._parse_response(mock_response, issue, None)
+    assert result.spec_draft is not None
+    assert result.spec_draft.issue.summary == "Implement pagination with cursor tokens."
 
 
 def test_litellm_planner_adapter_build_user_message():
@@ -347,6 +372,8 @@ def test_litellm_planner_adapter_build_user_message():
     adapter = LiteLLMPlannerAdapter(model="test/model")
     issue = _make_issue()
     msg = adapter._build_user_message(issue, None)
+    assert "Untrusted Issue Payload" in msg
+    assert "```json" in msg
     assert "SPC-TEST-1" in msg
     assert "Test Issue" in msg
     assert "Implement the feature" in msg

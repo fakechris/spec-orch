@@ -486,6 +486,7 @@ class RunController:
             )
 
         snapshot.approved = True
+        snapshot.version += 1
         write_spec_snapshot(workspace, snapshot)
 
         run_id = self.telemetry_service.new_run_id(issue.issue_id)
