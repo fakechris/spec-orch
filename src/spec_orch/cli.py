@@ -131,6 +131,9 @@ def rerun_issue(
     codex_executable: str = typer.Option("codex", "--codex-executable"),
 ) -> None:
     """Re-run verification and gate on an existing issue workspace."""
+    if Path(issue_id).name != issue_id:
+        typer.echo(f"Invalid issue_id: {issue_id}")
+        raise typer.Exit(1)
     controller = _make_controller(
         repo_root=repo_root, codex_executable=codex_executable
     )

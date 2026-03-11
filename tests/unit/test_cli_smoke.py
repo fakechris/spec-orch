@@ -1,3 +1,4 @@
+import json
 from unittest.mock import patch
 
 from typer.testing import CliRunner
@@ -44,8 +45,6 @@ def test_cli_help_shows_run_issue_command() -> None:
 
 
 def test_run_issue_uses_fixture_and_reports_gate_result(tmp_path) -> None:
-    import json
-
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-1.json").write_text(
@@ -143,8 +142,6 @@ def test_review_and_accept_issue_mark_existing_run_mergeable(tmp_path) -> None:
 
 
 def test_status_command_shows_issue_state(tmp_path) -> None:
-    import json
-
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-20.json").write_text(
@@ -167,8 +164,6 @@ def test_status_command_shows_issue_state(tmp_path) -> None:
 
 
 def test_explain_command_prints_report(tmp_path) -> None:
-    import json
-
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-30.json").write_text(
@@ -199,8 +194,6 @@ def test_status_command_reports_missing_run(tmp_path) -> None:
 
 
 def test_gate_command_shows_issue_verdict(tmp_path) -> None:
-    import json
-
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-G.json").write_text(
@@ -225,8 +218,6 @@ def test_gate_command_shows_issue_verdict(tmp_path) -> None:
 
 
 def test_rerun_command_re_runs_verification(tmp_path) -> None:
-    import json
-
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-RR.json").write_text(

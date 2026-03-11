@@ -129,6 +129,48 @@ class RunController:
             gate=gate,
         )
 
+    def _load_existing_run(
+        self, issue_id: str,
+    ) -> tuple[Issue, Path, dict, str, BuilderResult]:
+        """Load issue, workspace, report data, run_id, and builder for an
+        existing run.  Validates the issue_id and falls back to report.json
+        when the issue source is unavailable."""
+        if Path(issue_id).name != issue_id:
+            raise ValueError(f"Invalid issue_id: {issue_id}")
+
+        workspace = self.workspace_service.issue_workspace_path(issue_id)
+        if not workspace.exists():
+            raise FileNotFoundError(f"workspace not found for issue {issue_id}")
+
+        report_path = workspace / "report.json"
+        if not report_path.exists():
+            raise FileNotFoundError(f"report not found for issue {issue_id}")
+
+        report_data = json.loads(report_path.read_text())
+        run_id: str = report_data["run_id"]
+        builder = self._builder_from_report(report_data, workspace)
+
+        try:
+            issue = self.issue_source.load(issue_id)
+        except Exception:
+            issue = self._issue_from_report(report_data)
+
+        return issue, workspace, report_data, run_id, builder
+
+    def _issue_from_report(self, report_data: dict) -> Issue:
+        """Reconstruct a minimal Issue from persisted report.json."""
+        verification_cmds: dict[str, list[str]] = {}
+        for name, detail in report_data.get("verification", {}).items():
+            cmd = detail.get("command", [])
+            if cmd:
+                verification_cmds[name] = cmd
+        return Issue(
+            issue_id=report_data["issue_id"],
+            title=report_data.get("title", report_data["issue_id"]),
+            summary="",
+            verification_commands=verification_cmds,
+        )
+
     def review_issue(
         self,
         issue_id: str,
@@ -136,18 +178,9 @@ class RunController:
         verdict: str,
         reviewed_by: str,
     ) -> RunResult:
-        issue = self.issue_source.load(issue_id)
-        workspace = self.workspace_service.issue_workspace_path(issue.issue_id)
-        if not workspace.exists():
-            raise FileNotFoundError(f"workspace not found for issue {issue.issue_id}")
-
-        report = workspace / "report.json"
-        if not report.exists():
-            raise FileNotFoundError(f"report not found for issue {issue.issue_id}")
-
-        report_data = json.loads(report.read_text())
-        run_id = report_data["run_id"]
-        builder = self._builder_from_report(report_data, workspace)
+        issue, workspace, report_data, run_id, builder = (
+            self._load_existing_run(issue_id)
+        )
         verification = self._verification_from_report(report_data)
         review = self.review_adapter.review(
             issue_id=issue.issue_id,
@@ -193,23 +226,14 @@ class RunController:
         )
 
     def accept_issue(self, issue_id: str, *, accepted_by: str) -> RunResult:
-        issue = self.issue_source.load(issue_id)
-        workspace = self.workspace_service.issue_workspace_path(issue.issue_id)
-        if not workspace.exists():
-            raise FileNotFoundError(f"workspace not found for issue {issue.issue_id}")
-
-        report = workspace / "report.json"
-        if not report.exists():
-            raise FileNotFoundError(f"report not found for issue {issue.issue_id}")
-
-        report_data = json.loads(report.read_text())
-        run_id = report_data["run_id"]
+        issue, workspace, report_data, run_id, builder = (
+            self._load_existing_run(issue_id)
+        )
         self.artifact_service.write_acceptance_artifact(
             workspace=workspace,
             issue_id=issue.issue_id,
             accepted_by=accepted_by,
         )
-        builder = self._builder_from_report(report_data, workspace)
         verification = self._verification_from_report(report_data)
         review = self._review_from_report(report_data, workspace)
         gate, explain, updated_report = self._finalize_run(
@@ -245,24 +269,21 @@ class RunController:
         )
 
     def rerun_issue(self, issue_id: str) -> RunResult:
-        """Re-run verification and gate on an existing workspace."""
-        issue = self.issue_source.load(issue_id)
-        workspace = self.workspace_service.issue_workspace_path(issue.issue_id)
-        if not workspace.exists():
-            raise FileNotFoundError(
-                f"workspace not found for issue {issue.issue_id}"
-            )
+        """Re-run verification and gate on an existing workspace.
 
-        report = workspace / "report.json"
-        if not report.exists():
-            raise FileNotFoundError(
-                f"report not found for issue {issue.issue_id}"
-            )
-
-        report_data = json.loads(report.read_text())
-        run_id = report_data["run_id"]
-        builder = self._builder_from_report(report_data, workspace)
-        review = self._review_from_report(report_data, workspace)
+        Resets review to pending since code may have changed.
+        Falls back to report.json if issue source is unavailable.
+        """
+        issue, workspace, report_data, run_id, builder = (
+            self._load_existing_run(issue_id)
+        )
+        review = self.review_adapter.initialize(
+            issue_id=issue.issue_id,
+            workspace=workspace,
+            builder_turn_contract_compliance=builder.metadata.get(
+                "turn_contract_compliance"
+            ),
+        )
         acceptance_data = report_data.get("human_acceptance", {})
         human_acceptance = acceptance_data.get("accepted", False)
         accepted_by = acceptance_data.get("accepted_by")

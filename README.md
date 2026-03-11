@@ -19,7 +19,7 @@ What works on `main`:
 - fixture-driven or Linear-backed issue loading (`IssueSource` protocol)
 - per-issue git worktrees
 - `task.spec.md`, `progress.md`, `report.json`, `explain.md`
-- Codex builder via `codex exec --experimental-json` (`BuilderAdapter` protocol)
+- Codex builder via `codex exec --json` (`BuilderAdapter` protocol)
 - local review and acceptance state transitions
 - real verification command execution (ruff, mypy, pytest)
 - configurable Gate evaluation with `gate.policy.yaml`
@@ -111,7 +111,7 @@ spec-orch daemon / CLI
         ├── WorkspaceService → git worktree
         ├── ArtifactService → task.spec.md, progress.md, explain.md
         ├── BuilderAdapter (Protocol)
-        │     └── CodexExecBuilderAdapter (codex exec --experimental-json)
+        │     └── CodexExecBuilderAdapter (codex exec --json)
         ├── VerificationService → ruff, mypy, pytest
         ├── ReviewAdapter → review_report.json
         ├── GateService → configurable multi-condition gate
