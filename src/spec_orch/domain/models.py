@@ -1,8 +1,52 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+
+class RunState(StrEnum):
+    """Explicit lifecycle states for an issue run."""
+
+    DRAFT = "draft"
+    SPEC_DRAFTING = "spec_drafting"
+    SPEC_APPROVED = "spec_approved"
+    BUILDING = "building"
+    VERIFYING = "verifying"
+    REVIEW_PENDING = "review_pending"
+    GATE_EVALUATED = "gate_evaluated"
+    ACCEPTED = "accepted"
+    MERGED = "merged"
+    FAILED = "failed"
+
+
+TERMINAL_STATES = frozenset({RunState.ACCEPTED, RunState.MERGED, RunState.FAILED})
+
+_VALID_TRANSITIONS: dict[RunState, frozenset[RunState]] = {
+    RunState.DRAFT: frozenset({RunState.SPEC_DRAFTING, RunState.SPEC_APPROVED, RunState.BUILDING}),
+    RunState.SPEC_DRAFTING: frozenset({RunState.SPEC_APPROVED, RunState.FAILED}),
+    RunState.SPEC_APPROVED: frozenset({RunState.BUILDING, RunState.FAILED}),
+    RunState.BUILDING: frozenset({RunState.VERIFYING, RunState.FAILED}),
+    RunState.VERIFYING: frozenset({RunState.REVIEW_PENDING, RunState.FAILED}),
+    RunState.REVIEW_PENDING: frozenset({RunState.GATE_EVALUATED, RunState.VERIFYING}),
+    RunState.GATE_EVALUATED: frozenset({
+        RunState.ACCEPTED, RunState.REVIEW_PENDING, RunState.VERIFYING,
+    }),
+    RunState.ACCEPTED: frozenset({RunState.MERGED}),
+    RunState.MERGED: frozenset(),
+    RunState.FAILED: frozenset({RunState.BUILDING, RunState.VERIFYING}),
+}
+
+
+def validate_transition(current: RunState, target: RunState) -> None:
+    """Raise ValueError if *current* → *target* is not a legal transition."""
+    allowed = _VALID_TRANSITIONS.get(current, frozenset())
+    if target not in allowed:
+        raise ValueError(
+            f"Invalid state transition: {current.value} → {target.value}. "
+            f"Allowed: {', '.join(s.value for s in sorted(allowed, key=lambda s: s.value))}"
+        )
 
 
 @dataclass(slots=True)
@@ -70,6 +114,55 @@ class ReviewSummary:
 
 
 @dataclass(slots=True)
+class Finding:
+    """A structured review observation — unified across all review sources."""
+
+    id: str
+    source: str
+    severity: str  # "blocking" | "advisory"
+    confidence: float
+    scope: str  # "in_spec" | "out_of_spec"
+    fingerprint: str
+    description: str
+    file_path: str | None = None
+    line: int | None = None
+    suggested_action: str | None = None
+    resolved: bool = False
+
+
+@dataclass(slots=True)
+class ReviewMeta:
+    """Convergence metadata for review loops."""
+
+    review_epoch: int = 0
+    autofix_budget: int = 3
+    findings: list[Finding] = field(default_factory=list)
+
+    @property
+    def blocking_unresolved(self) -> list[Finding]:
+        return [
+            f for f in self.findings
+            if f.severity == "blocking"
+            and not f.resolved
+            and f.scope == "in_spec"
+        ]
+
+    @property
+    def budget_exhausted(self) -> bool:
+        return self.review_epoch >= self.autofix_budget
+
+    def deduplicated_findings(self) -> list[Finding]:
+        """Return findings de-duplicated by fingerprint (keep first)."""
+        seen: set[str] = set()
+        result: list[Finding] = []
+        for f in self.findings:
+            if f.fingerprint not in seen:
+                seen.add(f.fingerprint)
+                result.append(f)
+        return result
+
+
+@dataclass(slots=True)
 class GateInput:
     spec_exists: bool = False
     spec_approved: bool = False
@@ -80,12 +173,79 @@ class GateInput:
     human_acceptance: bool = False
     preview_required: bool = False
     preview_passed: bool = False
+    review_meta: ReviewMeta = field(default_factory=ReviewMeta)
+
+
+@dataclass(slots=True)
+class BuilderEvent:
+    """Vendor-neutral event produced by a builder adapter.
+
+    Each adapter maps its raw events (Codex JSONL, Cursor WebSocket, etc.)
+    to this common model.  The ComplianceEngine and EventFormatter operate
+    exclusively on BuilderEvent, never on raw vendor payloads.
+    """
+
+    timestamp: str
+    # "message" | "command_start" | "command_end" | "file_change"
+    # | "plan" | "reasoning" | "turn_end" | "error"
+    kind: str
+    text: str = ""
+    exit_code: int | None = None
+    file_path: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
 class GateVerdict:
     mergeable: bool
     failed_conditions: list[str]
+    mergeable_internal: bool = True
+    mergeable_external: bool = True
+
+
+@dataclass(slots=True)
+class Question:
+    """A question raised during planning or execution."""
+
+    id: str
+    asked_by: str
+    target: str
+    category: str
+    blocking: bool
+    text: str
+    answer: str | None = None
+    answered_by: str | None = None
+
+
+@dataclass(slots=True)
+class Decision:
+    """A formal answer to a Question."""
+
+    question_id: str
+    answer: str
+    decided_by: str
+    timestamp: str
+
+
+@dataclass
+class SpecSnapshot:
+    """Frozen, approved specification consumed by the builder.
+
+    The builder reads only this artifact — it must not modify it or access
+    the raw fixture/plan directly.
+    """
+
+    version: int
+    approved: bool
+    approved_by: str | None
+    issue: Issue
+    questions: list[Question] = field(default_factory=list)
+    decisions: list[Decision] = field(default_factory=list)
+
+    def has_unresolved_blocking_questions(self) -> bool:
+        blocking_ids = {q.id for q in self.questions if q.blocking}
+        answered_ids = {d.question_id for d in self.decisions}
+        return bool(blocking_ids - answered_ids)
 
 
 @dataclass(slots=True)
@@ -99,3 +259,4 @@ class RunResult:
     builder: BuilderResult
     review: ReviewSummary
     gate: GateVerdict
+    state: RunState = RunState.GATE_EVALUATED

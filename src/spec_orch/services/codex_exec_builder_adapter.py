@@ -11,7 +11,7 @@ from spec_orch.domain.compliance import (
     default_turn_contract_compliance,
     evaluate_pre_action_narration_compliance,
 )
-from spec_orch.domain.models import BuilderResult, Issue
+from spec_orch.domain.models import BuilderEvent, BuilderResult, Issue
 
 PREAMBLE = (
     "## FORBIDDEN BEFORE FIRST ACTION\n"
@@ -58,6 +58,75 @@ class CodexExecBuilderAdapter:
             "workspace-write",
             "--skip-git-repo-check",
         ]
+
+    def can_handle(self, issue: Issue) -> bool:
+        return True
+
+    def prepare(self, *, issue: Issue, workspace: Path) -> None:
+        pass
+
+    def collect_artifacts(self, workspace: Path) -> list[Path]:
+        artifacts: list[Path] = []
+        for name in ("builder_report.json", "telemetry/incoming_events.jsonl"):
+            p = workspace / name
+            if p.exists():
+                artifacts.append(p)
+        return artifacts
+
+    def map_events(
+        self, raw_events: list[dict[str, Any]],
+    ) -> list[BuilderEvent]:
+        """Convert Codex JSONL events to vendor-neutral BuilderEvent."""
+        from datetime import UTC, datetime
+
+        result: list[BuilderEvent] = []
+        for raw in raw_events:
+            etype = raw.get("type", "")
+            item = raw.get("item", {})
+            itype = item.get("type", "")
+            ts = raw.get("timestamp", datetime.now(UTC).isoformat())
+            if etype == "item.started" and itype == "command_execution":
+                result.append(BuilderEvent(
+                    timestamp=ts, kind="command_start",
+                    text=item.get("command", ""),
+                ))
+            elif etype == "item.completed" and itype == "command_execution":
+                result.append(BuilderEvent(
+                    timestamp=ts, kind="command_end",
+                    text=item.get("command", ""),
+                    exit_code=item.get("exit_code"),
+                ))
+            elif etype == "item.completed" and itype == "agent_message":
+                result.append(BuilderEvent(
+                    timestamp=ts, kind="message",
+                    text=item.get("text", ""),
+                ))
+            elif etype == "item.completed" and itype == "file_change":
+                result.append(BuilderEvent(
+                    timestamp=ts, kind="file_change",
+                    file_path=item.get("file"),
+                ))
+            elif etype == "item.completed" and itype == "reasoning":
+                result.append(BuilderEvent(
+                    timestamp=ts, kind="reasoning",
+                    text=item.get("text", ""),
+                ))
+            elif etype == "turn.plan.updated":
+                result.append(BuilderEvent(
+                    timestamp=ts, kind="plan",
+                    metadata={"items": raw.get("items", [])},
+                ))
+            elif etype == "turn.completed":
+                result.append(BuilderEvent(
+                    timestamp=ts, kind="turn_end",
+                    metadata=raw.get("usage", {}),
+                ))
+            elif etype == "turn.failed":
+                result.append(BuilderEvent(
+                    timestamp=ts, kind="error",
+                    text="Turn failed",
+                ))
+        return result
 
     def run(
         self,

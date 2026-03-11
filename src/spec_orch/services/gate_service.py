@@ -75,10 +75,15 @@ class GateService:
             failed_conditions.append("preview")
         if "human_acceptance" in required and not gate_input.human_acceptance:
             failed_conditions.append("human_acceptance")
+        if "findings" in required and gate_input.review_meta.blocking_unresolved:
+            failed_conditions.append("findings")
 
+        mergeable_internal = not failed_conditions
         return GateVerdict(
-            mergeable=not failed_conditions,
+            mergeable=mergeable_internal,
             failed_conditions=failed_conditions,
+            mergeable_internal=mergeable_internal,
+            mergeable_external=True,
         )
 
     def describe_policy(self) -> str:
