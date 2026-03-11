@@ -1,6 +1,28 @@
+import json
+from unittest.mock import patch
+
 from typer.testing import CliRunner
 
 from spec_orch.cli import app
+
+
+def test_cli_version_flag_prints_version() -> None:
+    runner = CliRunner()
+    with patch("spec_orch.cli._resolve_version", return_value="1.2.3"):
+        result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert "1.2.3" in result.stdout
+
+
+def test_cli_version_flag_falls_back_to_dev() -> None:
+    runner = CliRunner()
+    with patch(
+        "importlib.metadata.version",
+        side_effect=__import__("importlib.metadata").metadata.PackageNotFoundError,
+    ):
+        result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert "dev" in result.stdout
 
 
 def test_cli_help_shows_run_issue_command() -> None:
@@ -12,6 +34,7 @@ def test_cli_help_shows_run_issue_command() -> None:
     assert "run-issue" in result.stdout
     assert "review-issue" in result.stdout
     assert "accept-issue" in result.stdout
+    assert "rerun" in result.stdout
     assert "status" in result.stdout
     assert "explain" in result.stdout
     assert "diff" in result.stdout
@@ -22,8 +45,6 @@ def test_cli_help_shows_run_issue_command() -> None:
 
 
 def test_run_issue_uses_fixture_and_reports_gate_result(tmp_path) -> None:
-    import json
-
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-1.json").write_text(
@@ -121,8 +142,6 @@ def test_review_and_accept_issue_mark_existing_run_mergeable(tmp_path) -> None:
 
 
 def test_status_command_shows_issue_state(tmp_path) -> None:
-    import json
-
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-20.json").write_text(
@@ -145,8 +164,6 @@ def test_status_command_shows_issue_state(tmp_path) -> None:
 
 
 def test_explain_command_prints_report(tmp_path) -> None:
-    import json
-
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-30.json").write_text(
@@ -177,8 +194,6 @@ def test_status_command_reports_missing_run(tmp_path) -> None:
 
 
 def test_gate_command_shows_issue_verdict(tmp_path) -> None:
-    import json
-
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-G.json").write_text(
@@ -199,6 +214,38 @@ def test_gate_command_shows_issue_verdict(tmp_path) -> None:
 
     assert result.exit_code == 0
     assert "SPC-G" in result.stdout
+    assert "mergeable=" in result.stdout
+
+
+def test_rerun_command_re_runs_verification(tmp_path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-RR.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-RR",
+                "title": "Rerun test",
+                "summary": "Test rerun command.",
+                "verification_commands": {
+                    "lint": ["{python}", "-c", "print('lint ok')"],
+                    "typecheck": ["{python}", "-c", "print('type ok')"],
+                    "test": ["{python}", "-c", "print('test ok')"],
+                    "build": ["{python}", "-c", "print('build ok')"],
+                },
+            }
+        )
+    )
+    runner = CliRunner()
+    runner.invoke(
+        app, ["run-issue", "SPC-RR", "--repo-root", str(tmp_path)]
+    )
+
+    result = runner.invoke(
+        app, ["rerun", "SPC-RR", "--repo-root", str(tmp_path)]
+    )
+
+    assert result.exit_code == 0
+    assert "SPC-RR" in result.stdout
     assert "mergeable=" in result.stdout
 
 

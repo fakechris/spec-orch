@@ -1,0 +1,23 @@
+{
+  "issue_id": "SPC-BOOT-3",
+  "title": "Add --version flag to CLI",
+  "summary": "Add a --version callback to the Typer CLI that prints the spec-orch version. Read the version from pyproject.toml metadata using importlib.metadata.",
+  "builder_prompt": "Add a --version flag to the spec-orch CLI.\n\n1. In src/spec_orch/cli.py, add a version callback to the Typer app that prints the version when --version is passed.\n2. Use importlib.metadata.version('spec-orch') to get the version string, with a fallback to 'dev' if metadata is not available.\n3. Add the version callback to the existing @app.callback() function.\n4. Run ruff check src/ and fix any lint errors.\n5. Run the tests with pytest tests/ -q to make sure nothing is broken.",
+  "verification_commands": {
+    "lint": ["{python}", "-m", "ruff", "check", "src/"],
+    "typecheck": ["{python}", "-m", "mypy", "src/"],
+    "test": ["{python}", "-m", "pytest", "tests/", "-q"],
+    "build": ["{python}", "-c", "print('build ok')"]
+  },
+  "acceptance_criteria": [
+    "spec-orch --version prints a version string",
+    "Version is read from package metadata with fallback",
+    "All existing tests still pass",
+    "ruff and mypy pass"
+  ],
+  "context": {
+    "files_to_read": ["src/spec_orch/cli.py", "pyproject.toml"],
+    "architecture_notes": "The CLI uses Typer. The @app.callback() already exists. Use the standard Typer version callback pattern.",
+    "constraints": ["Do not break existing tests", "Keep the change minimal"]
+  }
+}

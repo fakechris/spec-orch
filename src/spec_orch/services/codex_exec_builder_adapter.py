@@ -53,7 +53,7 @@ class CodexExecBuilderAdapter:
         self._command_base = [
             executable,
             "exec",
-            "--experimental-json",
+            "--json",
             "--sandbox",
             "workspace-write",
             "--skip-git-repo-check",

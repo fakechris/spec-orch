@@ -142,3 +142,51 @@
 - **ruff**: All checks passed
 - **mypy**: No issues found
 - **pytest**: 42/42 tests passed
+
+## Session: 2026-03-10 (PR #1 Review Fixes + EODF Bootstrap)
+
+### PR #1 Code Review Fixes
+- **Status:** complete
+- Fixed 9 issues raised by chatgpt-codex-connector, gemini-code-assist, devin-ai-integration
+- Key fixes: lockfile release on failure, AppleScript injection, GraphQL injection,
+  state name→ID resolution, gate re-evaluation, path traversal, prompt injection,
+  PR title lookup, _write_report import
+- Commit: `c15f487`
+
+### EODF Bootstrap
+- **Status:** complete
+- Successfully demonstrated semi-auto EODF self-development loop
+
+| EODF Issue | Description | Result |
+|------------|-------------|--------|
+| SPC-BOOT-1 | Update README for post-PR#1 architecture | mergeable=True |
+| SPC-BOOT-2 | Add rerun CLI command | mergeable=True |
+
+#### EODF Loop Verified
+1. `run-issue SPC-BOOT-1` → builder skipped, verification passed
+2. `review-issue` → verdict=pass
+3. `accept-issue` → human_acceptance=True
+4. `gate` → mergeable=True, all conditions passed
+5. `rerun SPC-BOOT-2` → re-verification passed
+
+#### New Capabilities
+- `rerun` CLI command: re-runs verification + gate on existing workspace
+- README updated to reflect EODF status and current architecture
+- EODF bootstrap fixtures: SPC-BOOT-1, SPC-BOOT-2
+
+### Full-Auto EODF Milestone
+- **SPC-BOOT-3**: Codex (`codex exec --json`) 自动实现了 `--version` CLI flag
+- Codex 生成了正确的实现代码（importlib.metadata + Typer callback）
+- Codex 生成的测试有 mock 路径错误（monkeypatch 模块属性 vs 局部别名），手动修复
+- 修复 `--experimental-json` → `--json` flag（codex 0.114.0 稳定 API）
+
+| EODF Issue | 模式 | Builder | Verification | Gate |
+|------------|------|---------|--------------|------|
+| SPC-BOOT-1 | 半自动 | skipped | all pass | mergeable=True |
+| SPC-BOOT-2 | 半自动 | skipped | all pass | mergeable=True |
+| SPC-BOOT-3 | **全自动** | **codex exec** | test fix needed | mergeable after fix |
+
+### Verification
+- **ruff**: All checks passed
+- **mypy**: No issues found
+- **pytest**: 47/47 tests passed

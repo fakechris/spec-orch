@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.metadata
 import json
 import subprocess
 from pathlib import Path
@@ -14,8 +15,30 @@ from spec_orch.services.workspace_service import WorkspaceService
 app = typer.Typer(help="SpecOrch MVP prototype CLI.")
 
 
+def _resolve_version() -> str:
+    try:
+        return importlib.metadata.version("spec-orch")
+    except importlib.metadata.PackageNotFoundError:
+        return "dev"
+
+
+def _version_callback(value: bool) -> None:
+    if not value:
+        return
+    typer.echo(_resolve_version())
+    raise typer.Exit()
+
+
 @app.callback()
-def cli() -> None:
+def cli(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show the spec-orch version and exit.",
+    ),
+) -> None:
     """SpecOrch MVP prototype CLI."""
 
 
@@ -96,6 +119,32 @@ def review_issue(
                 f"blocked={','.join(result.gate.failed_conditions) or 'none'}",
                 f"review_verdict={verdict}",
                 f"reviewed_by={reviewed_by}",
+            ]
+        )
+    )
+
+
+@app.command("rerun")
+def rerun_issue(
+    issue_id: str,
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+    codex_executable: str = typer.Option("codex", "--codex-executable"),
+) -> None:
+    """Re-run verification and gate on an existing issue workspace."""
+    if Path(issue_id).name != issue_id:
+        typer.echo(f"Invalid issue_id: {issue_id}")
+        raise typer.Exit(1)
+    controller = _make_controller(
+        repo_root=repo_root, codex_executable=codex_executable
+    )
+    result = controller.rerun_issue(issue_id)
+    typer.echo(
+        " ".join(
+            [
+                f"issue={result.issue.issue_id}",
+                f"workspace={result.workspace}",
+                f"mergeable={result.gate.mergeable}",
+                f"blocked={','.join(result.gate.failed_conditions) or 'none'}",
             ]
         )
     )
