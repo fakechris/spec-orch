@@ -39,6 +39,8 @@ questions_app = typer.Typer()
 app.add_typer(questions_app, name="questions")
 spec_app = typer.Typer()
 app.add_typer(spec_app, name="spec")
+config_app = typer.Typer()
+app.add_typer(config_app, name="config")
 
 
 def _resolve_version() -> str:
@@ -606,6 +608,47 @@ def daemon(
     d.run()
 
 
+@config_app.command("check")
+def config_check(
+    config: Path = typer.Option(
+        "spec-orch.toml", "--config", "-c", help="Path to spec-orch.toml config file."
+    ),
+) -> None:
+    """Validate spec-orch.toml and related external dependencies."""
+    from spec_orch.services.config_checker import CheckResult, ConfigChecker
+
+    checker = ConfigChecker()
+    results: list[CheckResult] = checker.check_toml(config)
+
+    try:
+        raw = checker.load_toml(config)
+    except (FileNotFoundError, ValueError, OSError):
+        raw = {}
+    except Exception:
+        raw = {}
+
+    linear = raw.get("linear", {}) if isinstance(raw, dict) else {}
+    builder = raw.get("builder", {}) if isinstance(raw, dict) else {}
+    planner = raw.get("planner", {}) if isinstance(raw, dict) else {}
+
+    linear_token_env = linear.get("token_env") if isinstance(linear, dict) else None
+    linear_token = os.environ.get(linear_token_env, "") if linear_token_env else ""
+    linear_team_key = linear.get("team_key", "") if isinstance(linear, dict) else ""
+    codex_executable = (
+        builder.get("codex_executable", "codex") if isinstance(builder, dict) else "codex"
+    )
+    planner_model = planner.get("model") if isinstance(planner, dict) else None
+    planner_api_key_env = planner.get("api_key_env") if isinstance(planner, dict) else None
+
+    results.extend(checker.check_linear(linear_token, linear_team_key))
+    results.append(checker.check_codex(codex_executable))
+    results.extend(checker.check_planner(planner_model, planner_api_key_env))
+
+    _print_check_report(results)
+    if any(result.status == "fail" for result in results):
+        raise typer.Exit(1)
+
+
 @app.command()
 def gate(
     issue_id: str = typer.Argument(
@@ -805,6 +848,16 @@ def _print_jsonl(path: Path, filter_type: str) -> None:
         typer.echo(line)
 
 
+def _print_check_report(results: list[Any]) -> None:
+    counts = {"pass": 0, "warn": 0, "fail": 0}
+    for result in results:
+        counts[result.status] = counts.get(result.status, 0) + 1
+        typer.echo(f"[{result.status.upper()}] {result.name}: {result.message}")
+    typer.echo(
+        f"Summary: {counts['pass']} pass, {counts['warn']} warn, {counts['fail']} fail"
+    )
+
+
 @app.command("create-pr")
 def create_pr(
     issue_id: str,
@@ -851,6 +904,8 @@ def create_pr(
         if len(text) > 3000:
             text = text[:3000] + "\n\n*(truncated)*"
         body_lines.extend(["", "### Explain", "", text])
+
+    body_lines.extend(["", f"Closes {issue_id}"])
 
     try:
         pr_url = gh_svc.create_pr(

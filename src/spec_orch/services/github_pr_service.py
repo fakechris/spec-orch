@@ -130,6 +130,7 @@ class GitHubPRService:
                 text = text[:3000] + "\n\n*(truncated)*"
             lines.extend(["", "### Explain Report", "", text])
 
+        lines.extend(["", f"Closes {issue.issue_id}"])
         return "\n".join(lines)
 
     def _current_branch(self, workspace: Path) -> str | None:

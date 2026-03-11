@@ -1,6 +1,6 @@
 [linear]
 token_env = "SPEC_ORCH_LINEAR_TOKEN"
-team_key = "SPC"
+team_key = "SON"
 poll_interval_seconds = 60
 issue_filter = "assigned_to_me"
 
