@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
@@ -689,3 +689,36 @@ def test_plan_to_spec_edit_uses_shell_style_editor_splitting(tmp_path) -> None:
 
     assert result.exit_code == 0
     assert invoked["command"][:3] == ["python", "-c", "print('ok')"]
+
+
+def test_create_pr_triggers_linear_writeback(tmp_path: Path) -> None:
+    from spec_orch.cli import _linear_writeback_on_pr
+    from spec_orch.domain.models import GateVerdict
+
+    config = tmp_path / "spec-orch.toml"
+    config.write_text(
+        '[linear]\ntoken_env = "TEST_LINEAR_TOKEN"\nteam_key = "SON"\n'
+    )
+
+    report = {"state": "gate_evaluated", "title": "Test issue"}
+    gate = GateVerdict(mergeable=False, failed_conditions=["review"])
+
+    fake_client = MagicMock()
+    fake_client.get_issue.return_value = {"id": "uuid-123", "identifier": "SON-99"}
+
+    with (
+        patch.dict("os.environ", {"TEST_LINEAR_TOKEN": "fake-token"}),
+        patch("os.getcwd", return_value=str(tmp_path)),
+        patch(
+            "spec_orch.cli.Path",
+            side_effect=lambda p="spec-orch.toml": config if p == "spec-orch.toml" else Path(p),
+        ),
+        patch("spec_orch.services.linear_client.LinearClient", return_value=fake_client),
+    ):
+        _linear_writeback_on_pr("SON-99", report, "https://github.com/pr/1", gate)
+
+    fake_client.add_comment.assert_called_once()
+    comment = fake_client.add_comment.call_args[0][1]
+    assert "SON-99" in comment
+    assert "gate_evaluated" in comment
+    fake_client.update_issue_state.assert_called_once_with("uuid-123", "In Progress")

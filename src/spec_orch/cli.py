@@ -997,6 +997,66 @@ def create_pr(
     gh_svc.set_gate_status(workspace=workspace, gate=gate_verdict)
     typer.echo(f"gate status set: {'success' if mergeable else 'failure'}")
 
+    _linear_writeback_on_pr(issue_id, data, pr_url, gate_verdict)
+
+
+def _linear_writeback_on_pr(
+    issue_id: str,
+    report: dict[str, Any],
+    pr_url: str | None,
+    gate: Any,
+) -> None:
+    """Post a pipeline summary to Linear when a token is available."""
+    import tomllib as _tomllib
+
+    config_path = Path("spec-orch.toml")
+    if not config_path.exists():
+        return
+    try:
+        with config_path.open("rb") as f:
+            raw = _tomllib.load(f)
+    except Exception:
+        return
+
+    linear_cfg = raw.get("linear", {})
+    token_env = linear_cfg.get("token_env", "")
+    token = os.environ.get(token_env, "") if token_env else ""
+    if not token:
+        return
+
+    try:
+        from spec_orch.services.linear_client import LinearClient
+
+        client = LinearClient(token=token)
+        issue_data = client.get_issue(issue_id)
+        if not issue_data:
+            client.close()
+            return
+        linear_id = issue_data["id"]
+
+        state = report.get("state", "unknown")
+        title = report.get("title", issue_id)
+        mergeable = "yes" if gate.mergeable else "no"
+        blocked = ", ".join(gate.failed_conditions) if gate.failed_conditions else "none"
+
+        comment = (
+            f"## SpecOrch Pipeline Complete\n\n"
+            f"**Issue**: {issue_id} — {title}\n"
+            f"**State**: {state}\n"
+            f"**Mergeable**: {mergeable}\n"
+            f"**Blocked by**: {blocked}\n"
+        )
+        if pr_url:
+            comment += f"**PR**: {pr_url}\n"
+        comment += f"\n_Auto-close on merge via `Closes {issue_id}` in PR body._"
+
+        client.add_comment(linear_id, comment)
+        client.update_issue_state(linear_id, "In Progress")
+        typer.echo(f"linear: posted summary to {issue_id}")
+        client.close()
+    except Exception as exc:
+        typer.echo(f"linear writeback skipped: {exc}")
+
 
 def _make_controller(
     *,
