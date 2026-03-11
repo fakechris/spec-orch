@@ -27,6 +27,11 @@ from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapte
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
 from spec_orch.services.gate_service import GateService
 from spec_orch.services.review_adapter import LocalReviewAdapter
+from spec_orch.services.spec_snapshot_service import (
+    create_initial_snapshot,
+    read_spec_snapshot,
+    write_spec_snapshot,
+)
 from spec_orch.services.telemetry_service import TelemetryService
 from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.workspace_service import WorkspaceService
@@ -78,6 +83,19 @@ class RunController:
                 workspace=workspace,
                 issue_id=issue.issue_id,
                 issue_title=issue.title,
+            )
+
+            snapshot = create_initial_snapshot(issue, approved=True)
+            write_spec_snapshot(workspace, snapshot)
+            self._log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue.issue_id,
+                component="spec",
+                event_type="spec_snapshot_created",
+                message="Created and auto-approved spec snapshot v1.",
+                data={"version": 1, "approved": True},
             )
 
             builder = self._run_builder(
@@ -481,10 +499,14 @@ class RunController:
         activity_logger: ActivityLogger | None = None,
         state: RunState = RunState.GATE_EVALUATED,
     ) -> tuple[GateVerdict, Path, Path]:
+        snapshot = read_spec_snapshot(workspace)
+        spec_exists = snapshot is not None
+        spec_approved = snapshot.approved if snapshot else False
+
         gate = self.gate_service.evaluate(
             GateInput(
-                spec_exists=True,
-                spec_approved=True,
+                spec_exists=spec_exists,
+                spec_approved=spec_approved,
                 within_boundaries=True,
                 builder_succeeded=builder.succeeded,
                 verification=verification,

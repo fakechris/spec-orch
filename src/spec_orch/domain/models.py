@@ -133,6 +133,51 @@ class GateVerdict:
 
 
 @dataclass(slots=True)
+class Question:
+    """A question raised during planning or execution."""
+
+    id: str
+    asked_by: str
+    target: str
+    category: str
+    blocking: bool
+    text: str
+    answer: str | None = None
+    answered_by: str | None = None
+
+
+@dataclass(slots=True)
+class Decision:
+    """A formal answer to a Question."""
+
+    question_id: str
+    answer: str
+    decided_by: str
+    timestamp: str
+
+
+@dataclass
+class SpecSnapshot:
+    """Frozen, approved specification consumed by the builder.
+
+    The builder reads only this artifact — it must not modify it or access
+    the raw fixture/plan directly.
+    """
+
+    version: int
+    approved: bool
+    approved_by: str | None
+    issue: Issue
+    questions: list[Question] = field(default_factory=list)
+    decisions: list[Decision] = field(default_factory=list)
+
+    def has_unresolved_blocking_questions(self) -> bool:
+        blocking_ids = {q.id for q in self.questions if q.blocking}
+        answered_ids = {d.question_id for d in self.decisions}
+        return bool(blocking_ids - answered_ids)
+
+
+@dataclass(slots=True)
 class RunResult:
     issue: Issue
     workspace: Path
