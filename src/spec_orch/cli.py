@@ -1288,7 +1288,14 @@ def promote_plan(
         raise typer.Exit(1)
 
     plan = load_plan(plan_path)
-    svc = PromotionService()
+
+    linear_client = None
+    linear_token = os.environ.get("SPEC_ORCH_LINEAR_TOKEN")
+    if linear_token:
+        from spec_orch.services.linear_client import LinearClient
+        linear_client = LinearClient(token=linear_token)
+
+    svc = PromotionService(linear_client=linear_client)
     plan = svc.promote(plan)
     save_plan(plan, plan_path)
 

@@ -1,7 +1,7 @@
 {
   "plan_id": "plan-19d10b0e",
   "mission_id": "2026-03-i-want-to-add-parallel-wave-execution-to-spec-orch-currently-spec-orch-run-only",
-  "status": "draft",
+  "status": "executing",
   "waves": [
     {
       "wave_number": 0,
@@ -25,7 +25,7 @@
           ],
           "verification_commands": {},
           "builder_prompt": "Add the following dataclasses to domain/models.py: ParallelConfig (with effective_limit() method using os.cpu_count()), PacketResult, WaveResult, ExecutionPlanResult. Ensure proper imports for dataclass, typing, os.",
-          "linear_issue_id": null
+          "linear_issue_id": "SON-13"
         },
         {
           "packet_id": "parallel-protocols-scaffold",
@@ -43,7 +43,7 @@
           ],
           "verification_commands": {},
           "builder_prompt": "Add to domain/protocols.py: PacketExecutor (ABC) with async execute_packet(packet, wave_id, cancel_event) -> PacketResult; WaveExecutor (ABC) with async execute_wave(wave, wave_id, config, cancel_event) -> WaveResult. Import WorkPacket from models.",
-          "linear_issue_id": null
+          "linear_issue_id": "SON-14"
         },
         {
           "packet_id": "test-scaffold-parallel",
@@ -59,7 +59,7 @@
           ],
           "verification_commands": {},
           "builder_prompt": "Create tests/test_parallel_execution.py with stubbed test methods: test_concurrency_limiting, test_fail_fast_behavior, test_cancellation_handler. Use pytest and pytest-asyncio.",
-          "linear_issue_id": null
+          "linear_issue_id": "SON-15"
         }
       ]
     },
@@ -83,7 +83,7 @@
           "acceptance_criteria": [],
           "verification_commands": {},
           "builder_prompt": "Create src/spec_orch/services/packet_executor.py implementing PacketExecutor protocol. Use asyncio.create_subprocess_exec to run 'codex exec' commands. Track timing with time.perf_counter(). Handle cancel_event check during execution. Return PacketResult with exit_code, stdout, stderr.",
-          "linear_issue_id": null
+          "linear_issue_id": "SON-16"
         },
         {
           "packet_id": "wave-executor-impl",
@@ -109,7 +109,7 @@
           ],
           "verification_commands": {},
           "builder_prompt": "Create src/spec_orch/services/wave_executor.py implementing WaveExecutor. Use asyncio.Semaphore with config.effective_limit(). Execute packets concurrently using asyncio.gather (no return_exceptions) to achieve fail-fast. On any exception, cancel remaining and propagate. Return WaveResult with all_succeeded = all(r.exit_code == 0).",
-          "linear_issue_id": null
+          "linear_issue_id": "SON-17"
         }
       ]
     },
@@ -138,7 +138,7 @@
           ],
           "verification_commands": {},
           "builder_prompt": "Modify run_controller.py or create new execution flow that: 1) Iterates waves sequentially, 2) For each wave calls WaveExecutor.execute_wave() with ParallelConfig, 3) On wave failure (not all_succeeded), abort remaining waves and return early, 4) Collect all WaveResults into ExecutionPlanResult with total_duration.",
-          "linear_issue_id": null
+          "linear_issue_id": "SON-18"
         },
         {
           "packet_id": "cancellation-handler",
@@ -160,7 +160,7 @@
           ],
           "verification_commands": {},
           "builder_prompt": "Create src/spec_orch/services/process_manager.py with: ProcessManager class that tracks running subprocesses, handles SIGINT to set cancel_event, send_sigterm_to_all(), wait_then_sigkill(timeout=5), and cleanup(). Integrate with PacketExecutor to register processes.",
-          "linear_issue_id": null
+          "linear_issue_id": "SON-19"
         },
         {
           "packet_id": "structured-logging",
@@ -180,7 +180,7 @@
           ],
           "verification_commands": {},
           "builder_prompt": "Extend activity_logger.py to add logging methods for each event type (wave_started, wave_completed, etc.) that include wave_id and packet_id in the log record. Use event_formatter.py to format as structured JSON with required fields.",
-          "linear_issue_id": null
+          "linear_issue_id": "SON-20"
         }
       ]
     },
@@ -210,7 +210,7 @@
           ],
           "verification_commands": {},
           "builder_prompt": "Implement the test scaffold in tests/test_parallel_execution.py: 1) test_concurrency_limiting - mock PacketExecutor, track concurrent executions, verify max concurrency, 2) test_fail_fast_behavior - mock slow executor that raises on first, verify remaining cancelled, 3) test_cancellation_handler - verify ProcessManager sends SIGTERM then SIGKILL sequence.",
-          "linear_issue_id": null
+          "linear_issue_id": "SON-21"
         },
         {
           "packet_id": "integration-verification",
@@ -232,7 +232,7 @@
           ],
           "verification_commands": {},
           "builder_prompt": "Add --max-concurrency argument to cli.py (default 3). Pass to ParallelConfig in execution. Test end-to-end run with a simple spec to verify ExecutionPlanResult returned with correct structure and timing.",
-          "linear_issue_id": null
+          "linear_issue_id": "SON-22"
         }
       ]
     }
