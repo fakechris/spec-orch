@@ -16,7 +16,7 @@ from uuid import uuid4
 
 import typer
 
-from spec_orch.domain.models import Decision, Finding, Question
+from spec_orch.domain.models import Decision, Finding, Question, RunState
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
 from spec_orch.services.finding_store import (
     append_finding,
@@ -42,6 +42,8 @@ spec_app = typer.Typer()
 app.add_typer(spec_app, name="spec")
 config_app = typer.Typer()
 app.add_typer(config_app, name="config")
+mission_app = typer.Typer()
+app.add_typer(mission_app, name="mission")
 
 
 def _resolve_version() -> str:
@@ -166,7 +168,29 @@ def accept_issue(
     codex_executable: str = typer.Option("codex", "--codex-executable"),
     pi_executable: str = typer.Option("pi", "--pi-executable"),
 ) -> None:
-    """Record human acceptance for an existing issue run."""
+    """Record human acceptance — shows spec compliance checklist first."""
+    from spec_orch.services.deviation_service import (
+        detect_deviations,
+        write_deviations,
+    )
+
+    ws = WorkspaceService(repo_root=Path(repo_root))
+    workspace = ws.issue_workspace_path(issue_id)
+
+    snapshot = read_spec_snapshot(workspace)
+    if snapshot:
+        typer.echo("--- Spec Compliance Checklist ---")
+        for i, ac in enumerate(snapshot.issue.acceptance_criteria, 1):
+            typer.echo(f"  [{i}] {ac}")
+        deviations = detect_deviations(workspace=workspace, snapshot=snapshot)
+        if deviations:
+            typer.echo(f"\n--- {len(deviations)} Deviation(s) Detected ---")
+            for d in deviations:
+                typer.echo(f"  [{d.severity}] {d.description}")
+            write_deviations(workspace, deviations)
+        else:
+            typer.echo("\nNo deviations detected.")
+
     controller = _make_controller(
         repo_root=repo_root, codex_executable=codex_executable
     )
@@ -599,6 +623,89 @@ def advance_issue(
             ]
         )
     )
+
+
+@app.command("run")
+def run_full(
+    issue_id: str,
+    repo_root: Path = typer.Option(Path("."), "--repo-root"),
+    codex_executable: str = typer.Option("codex", "--codex-executable"),
+    live: bool = typer.Option(False, "--live"),
+    source: str = typer.Option(
+        "fixture", "--source", "-s", help="Issue source: fixture or linear.",
+    ),
+    auto_pr: bool = typer.Option(
+        False, "--auto-pr", help="Automatically create a GitHub PR on completion.",
+    ),
+    base: str = typer.Option("main", "--base", "-b", help="Base branch for PR."),
+) -> None:
+    """Run an issue through the full pipeline in one shot.
+
+    Drives the issue from DRAFT all the way to GATE_EVALUATED (or FAILED),
+    using LLM self-answer for blocking questions when a planner is configured.
+    Optionally creates a GitHub PR and writes back to Linear.
+    """
+    live_stream: IO[str] | None = sys.stderr if live else None
+    controller = _make_controller(
+        repo_root=repo_root,
+        codex_executable=codex_executable,
+        live_stream=live_stream,
+        source=source,
+    )
+    typer.echo(f"running full pipeline for {issue_id}...")
+    result = controller.advance_to_completion(issue_id)
+    typer.echo(
+        " ".join([
+            f"issue={result.issue.issue_id}",
+            f"state={result.state.value}",
+            f"mergeable={result.gate.mergeable}",
+            f"blocked={','.join(result.gate.failed_conditions) or 'none'}",
+        ])
+    )
+
+    if auto_pr and result.state == RunState.GATE_EVALUATED:
+        from spec_orch.services.github_pr_service import GitHubPRService
+
+        workspace = result.workspace
+        data = json.loads((workspace / "report.json").read_text())
+        gate_verdict = result.gate
+        gh_svc = GitHubPRService()
+        title = f"[SpecOrch] {issue_id}: {data.get('title', issue_id)}"
+        body_lines = [
+            f"## SpecOrch: {issue_id}",
+            "",
+            f"**Mergeable**: {'yes' if result.gate.mergeable else 'no'}",
+        ]
+        if result.gate.failed_conditions:
+            body_lines.append(
+                f"**Blocked**: {', '.join(result.gate.failed_conditions)}"
+            )
+        explain_path = workspace / "explain.md"
+        if explain_path.exists():
+            text = explain_path.read_text().strip()
+            if len(text) > 3000:
+                text = text[:3000] + "\n\n*(truncated)*"
+            body_lines.extend(["", "### Explain", "", text])
+        body_lines.extend(["", f"Closes {issue_id}"])
+
+        try:
+            pr_url = gh_svc.create_pr(
+                workspace=workspace,
+                title=title,
+                body="\n".join(body_lines),
+                base=base,
+                draft=True,
+            )
+            if pr_url:
+                typer.echo(f"PR created: {pr_url}")
+                gh_svc.set_gate_status(workspace=workspace, gate=gate_verdict)
+                _linear_writeback_on_pr(
+                    issue_id, data, pr_url, gate_verdict, Path(repo_root),
+                )
+            else:
+                typer.echo("could not create PR (branch may be main)")
+        except RuntimeError as exc:
+            typer.echo(f"auto-PR failed: {exc}")
 
 
 @app.command("diff")
@@ -1062,6 +1169,276 @@ def _linear_writeback_on_pr(
         typer.echo(f"linear writeback skipped: {exc}")
     finally:
         client.close()
+
+
+@app.command("plan")
+def plan_mission(
+    mission_id: str = typer.Argument(..., help="Mission ID to scope."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Generate a wave-based execution plan (DAG) from a Mission spec."""
+    from spec_orch.services.mission_service import MissionService
+    from spec_orch.services.promotion_service import save_plan
+    from spec_orch.services.scoper_adapter import LiteLLMScoperAdapter
+
+    svc = MissionService(repo_root=Path(repo_root))
+    mission = svc.get_mission(mission_id)
+
+    spec_file = Path(repo_root) / mission.spec_path
+    spec_content = spec_file.read_text() if spec_file.exists() else ""
+
+    tree_lines: list[str] = []
+    src = Path(repo_root) / "src"
+    if src.exists():
+        for p in sorted(src.rglob("*.py")):
+            tree_lines.append(str(p.relative_to(repo_root)))
+
+    planner_cfg = _load_planner_config(Path(repo_root))
+    scoper = LiteLLMScoperAdapter(
+        model=planner_cfg.get("model", "anthropic/claude-sonnet-4-20250514"),
+        api_key=planner_cfg.get("api_key"),
+        api_base=planner_cfg.get("api_base"),
+        token_command=planner_cfg.get("token_command"),
+    )
+
+    plan = scoper.scope(
+        mission=mission,
+        codebase_context={
+            "spec_content": spec_content,
+            "file_tree": "\n".join(tree_lines),
+        },
+    )
+
+    plan_path = Path(repo_root) / "docs/specs" / mission_id / "plan.json"
+    save_plan(plan, plan_path)
+
+    total_packets = sum(len(w.work_packets) for w in plan.waves)
+    typer.echo(
+        f"plan generated: {len(plan.waves)} waves, "
+        f"{total_packets} work packets"
+    )
+    for w in plan.waves:
+        typer.echo(
+            f"  wave {w.wave_number}: {w.description} "
+            f"({len(w.work_packets)} packets)"
+        )
+
+
+@app.command("plan-show")
+def plan_show(
+    mission_id: str = typer.Argument(..., help="Mission ID."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Display the execution plan for a Mission."""
+    from spec_orch.services.promotion_service import load_plan
+
+    plan_path = Path(repo_root) / "docs/specs" / mission_id / "plan.json"
+    if not plan_path.exists():
+        typer.echo(f"no plan found for {mission_id}")
+        raise typer.Exit(1)
+
+    plan = load_plan(plan_path)
+    typer.echo(f"plan: {plan.plan_id} | mission: {plan.mission_id}")
+    typer.echo(f"status: {plan.status.value}")
+    for w in plan.waves:
+        typer.echo(f"\n--- Wave {w.wave_number}: {w.description} ---")
+        for p in w.work_packets:
+            deps = f" (depends: {', '.join(p.depends_on)})" if p.depends_on else ""
+            issue = f" [{p.linear_issue_id}]" if p.linear_issue_id else ""
+            typer.echo(f"  [{p.run_class}] {p.packet_id}: {p.title}{deps}{issue}")
+
+
+@app.command("promote")
+def promote_plan(
+    mission_id: str = typer.Argument(..., help="Mission ID to promote."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Promote a plan to execution — create Linear issues from work packets."""
+    from spec_orch.services.promotion_service import PromotionService, load_plan, save_plan
+
+    plan_path = Path(repo_root) / "docs/specs" / mission_id / "plan.json"
+    if not plan_path.exists():
+        typer.echo(f"no plan found for {mission_id}")
+        raise typer.Exit(1)
+
+    plan = load_plan(plan_path)
+    svc = PromotionService()
+    plan = svc.promote(plan)
+    save_plan(plan, plan_path)
+
+    total = sum(len(w.work_packets) for w in plan.waves)
+    typer.echo(f"promoted {total} work packets to execution")
+    for w in plan.waves:
+        for p in w.work_packets:
+            typer.echo(f"  {p.linear_issue_id}: {p.title}")
+
+
+@app.command("retro")
+def retro_mission(
+    mission_id: str = typer.Argument(..., help="Mission ID."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Generate a retrospective for a Mission — deviations, decisions, outcomes."""
+    from spec_orch.services.deviation_service import load_deviations
+    from spec_orch.services.mission_service import MissionService
+    from spec_orch.services.promotion_service import load_plan
+
+    svc = MissionService(repo_root=Path(repo_root))
+    mission = svc.get_mission(mission_id)
+
+    mission_issue_ids: set[str] | None = None
+    plan_path = Path(repo_root) / "docs/specs" / mission_id / "plan.json"
+    if plan_path.exists():
+        plan = load_plan(plan_path)
+        mission_issue_ids = set()
+        for w in plan.waves:
+            for p in w.work_packets:
+                if p.linear_issue_id:
+                    mission_issue_ids.add(p.linear_issue_id)
+
+    ws = WorkspaceService(repo_root=Path(repo_root))
+    base_dir = ws.repo_root / ".spec_orch_runs"
+    if not base_dir.exists():
+        base_dir = ws.repo_root / ".worktrees"
+
+    retro_lines = [
+        f"# Retrospective: {mission.title}",
+        f"\n**Mission**: `{mission_id}`",
+        f"**Status**: {mission.status.value}",
+        "",
+        "## Issues",
+        "",
+    ]
+
+    issue_dirs = sorted(base_dir.iterdir()) if base_dir.exists() else []
+    total_deviations = 0
+    issues_included = 0
+    for issue_dir in issue_dirs:
+        report_path = issue_dir / "report.json"
+        if not report_path.exists():
+            continue
+        data = json.loads(report_path.read_text())
+        issue_id = data.get("issue_id", issue_dir.name)
+        if mission_issue_ids is not None and issue_id not in mission_issue_ids:
+            continue
+        issues_included += 1
+        state = data.get("state", "unknown")
+        mergeable = data.get("mergeable", False)
+        retro_lines.append(
+            f"- **{issue_id}**: {data.get('title', '')} "
+            f"| state={state} | mergeable={mergeable}"
+        )
+        deviations = load_deviations(issue_dir)
+        if deviations:
+            total_deviations += len(deviations)
+            for d in deviations:
+                retro_lines.append(
+                    f"  - [{d.severity}] {d.description} ({d.resolution})"
+                )
+
+    retro_lines.extend([
+        "",
+        "## Summary",
+        "",
+        f"- Total deviations: {total_deviations}",
+        f"- Issues processed: {issues_included}",
+    ])
+
+    retro_content = "\n".join(retro_lines) + "\n"
+    retro_path = (
+        Path(repo_root) / "docs/specs" / mission_id / "retrospective.md"
+    )
+    retro_path.parent.mkdir(parents=True, exist_ok=True)
+    retro_path.write_text(retro_content)
+    typer.echo(f"retrospective written: {retro_path}")
+    typer.echo(retro_content)
+
+
+def _load_planner_config(repo_root: Path) -> dict[str, Any]:
+    """Load planner config from spec-orch.toml."""
+    config_path = repo_root / "spec-orch.toml"
+    if not config_path.exists():
+        return {}
+    try:
+        import tomllib
+
+        with config_path.open("rb") as f:
+            raw = tomllib.load(f)
+    except (ImportError, FileNotFoundError, tomllib.TOMLDecodeError):
+        return {}
+    planner_cfg = raw.get("planner", {})
+    result: dict[str, Any] = {}
+    if planner_cfg.get("model"):
+        result["model"] = planner_cfg["model"]
+    api_key_env = planner_cfg.get("api_key_env")
+    if api_key_env:
+        result["api_key"] = os.environ.get(api_key_env)
+    api_base_env = planner_cfg.get("api_base_env")
+    if api_base_env:
+        result["api_base"] = os.environ.get(api_base_env)
+    result["token_command"] = planner_cfg.get("token_command")
+    return result
+
+
+@mission_app.command("create")
+def mission_create(
+    title: str = typer.Argument(..., help="Mission title."),
+    mission_id: str | None = typer.Option(None, "--id", help="Override generated ID."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Create a new Mission with a canonical spec skeleton."""
+    from spec_orch.services.mission_service import MissionService
+
+    svc = MissionService(repo_root=Path(repo_root))
+    m = svc.create_mission(title, mission_id=mission_id)
+    typer.echo(f"mission created: {m.mission_id}")
+    typer.echo(f"spec: {m.spec_path}")
+
+
+@mission_app.command("approve")
+def mission_approve(
+    mission_id: str = typer.Argument(..., help="Mission ID to approve."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Approve a Mission spec, freezing it for execution."""
+    from spec_orch.services.mission_service import MissionService
+
+    svc = MissionService(repo_root=Path(repo_root))
+    m = svc.approve_mission(mission_id)
+    typer.echo(f"mission {m.mission_id} approved at {m.approved_at}")
+
+
+@mission_app.command("status")
+def mission_status(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """List all Missions and their status."""
+    from spec_orch.services.mission_service import MissionService
+
+    svc = MissionService(repo_root=Path(repo_root))
+    missions = svc.list_missions()
+    if not missions:
+        typer.echo("no missions found")
+        return
+    for m in missions:
+        typer.echo(f"{m.mission_id:40s} {m.status.value:12s} {m.title}")
+
+
+@mission_app.command("show")
+def mission_show(
+    mission_id: str = typer.Argument(..., help="Mission ID."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Print the canonical spec for a Mission."""
+    from spec_orch.services.mission_service import MissionService
+
+    svc = MissionService(repo_root=Path(repo_root))
+    m = svc.get_mission(mission_id)
+    spec_file = Path(repo_root) / m.spec_path
+    if spec_file.exists():
+        typer.echo(spec_file.read_text())
+    else:
+        typer.echo(f"spec file not found: {m.spec_path}")
 
 
 def _make_controller(

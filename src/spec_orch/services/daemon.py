@@ -38,6 +38,9 @@ class DaemonConfig:
         self.planner_api_base_env: str | None = planner.get("api_base_env")
         self.planner_token_command: str | None = planner.get("token_command")
 
+        github = raw.get("github", {})
+        self.base_branch: str = github.get("base_branch", "main")
+
         daemon = raw.get("daemon", {})
         self.max_concurrent: int = daemon.get("max_concurrent", 1)
         self.lockfile_dir: str = daemon.get("lockfile_dir", ".spec_orch_locks/")
@@ -141,9 +144,9 @@ class SpecOrchDaemon:
                 continue
 
             self._claim(issue_id)
-            print(f"[daemon] processing {issue_id}")
+            print(f"[daemon] processing {issue_id} (full pipeline)")
             try:
-                result = controller.advance(issue_id)
+                result = controller.advance_to_completion(issue_id)
                 state = result.state
                 mergeable = result.gate.mergeable
                 blocked = ",".join(result.gate.failed_conditions) or "none"
@@ -154,12 +157,51 @@ class SpecOrchDaemon:
                 if state in TERMINAL_STATES or state == RunState.GATE_EVALUATED:
                     self._notify(issue_id, mergeable)
                     self._write_back_result(raw_issue, result)
+                    self._auto_create_pr(issue_id, result)
                     self._processed.add(issue_id)
                 else:
                     self._release(issue_id)
             except Exception as exc:
                 print(f"[daemon] {issue_id} failed: {exc}")
                 self._release(issue_id)
+
+    def _auto_create_pr(
+        self, issue_id: str, result: RunResult,
+    ) -> None:
+        """Automatically create a GitHub PR when gate is evaluated."""
+        if result.state != RunState.GATE_EVALUATED:
+            return
+        try:
+            from spec_orch.services.github_pr_service import GitHubPRService
+
+            workspace = result.workspace
+            gh_svc = GitHubPRService()
+            title = f"[SpecOrch] {issue_id}: {result.issue.title}"
+            body_lines = [
+                f"## SpecOrch: {issue_id}",
+                "",
+                f"**Mergeable**: {'yes' if result.gate.mergeable else 'no'}",
+            ]
+            if result.gate.failed_conditions:
+                body_lines.append(
+                    f"**Blocked**: {', '.join(result.gate.failed_conditions)}"
+                )
+            body_lines.extend(["", f"Closes {issue_id}"])
+
+            pr_url = gh_svc.create_pr(
+                workspace=workspace,
+                title=title,
+                body="\n".join(body_lines),
+                base=self.config.base_branch,
+                draft=True,
+            )
+            if pr_url:
+                print(f"[daemon] PR created: {pr_url}")
+                gh_svc.set_gate_status(workspace=workspace, gate=result.gate)
+            else:
+                print(f"[daemon] could not create PR for {issue_id}")
+        except (RuntimeError, OSError, FileNotFoundError) as exc:
+            print(f"[daemon] auto-PR failed for {issue_id}: {exc}")
 
     def _is_locked(self, issue_id: str) -> bool:
         return (self._lockdir / f"{issue_id}.lock").exists()
