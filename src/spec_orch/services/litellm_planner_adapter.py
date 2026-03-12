@@ -12,10 +12,12 @@ import os
 import shlex
 import subprocess
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.models import (
+    Decision,
     Issue,
     IssueContext,
     PlannerResult,
@@ -210,6 +212,85 @@ class LiteLLMPlannerAdapter:
             spec_draft=spec_draft,
             raw_response=raw_text,
         )
+
+    def answer_questions(
+        self,
+        *,
+        snapshot: SpecSnapshot,
+        issue: Issue,
+    ) -> SpecSnapshot:
+        """Use the LLM to autonomously answer unresolved blocking questions."""
+        unanswered = [
+            q for q in snapshot.questions
+            if q.blocking and q.answer is None
+        ]
+        if not unanswered:
+            return snapshot
+
+        try:
+            import litellm
+        except ImportError as exc:
+            raise ImportError(
+                "litellm is required for LiteLLMPlannerAdapter. "
+                "Install with: pip install spec-orch[planner]"
+            ) from exc
+
+        q_list = "\n".join(
+            f"- [{q.category}] (id={q.id}) {q.text}" for q in unanswered
+        )
+        user_msg = (
+            "You previously analysed this issue and asked clarifying questions.\n"
+            "Now answer each question yourself based on the issue context and "
+            "common engineering best practices.\n\n"
+            f"## Issue\n```json\n"
+            f"{json.dumps(self._issue_payload(issue), ensure_ascii=False, indent=2)}"
+            f"\n```\n\n## Questions to answer\n{q_list}\n\n"
+            "Respond with a JSON object:\n"
+            '{"answers": [{"id": "<question_id>", "answer": "<your answer>"}]}\n'
+            "Answer every question. Be concise and practical."
+        )
+
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a senior engineer answering planning questions.",
+                },
+                {"role": "user", "content": user_msg},
+            ],
+            "temperature": self.temperature,
+        }
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+        if self.api_base:
+            kwargs["api_base"] = self.api_base
+
+        response = litellm.completion(**kwargs)
+        content = response.choices[0].message.content or ""
+
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            import re
+            match = re.search(r"\{.*\}", content, re.DOTALL)
+            parsed = json.loads(match.group()) if match else {"answers": []}
+
+        answer_map = {a["id"]: a["answer"] for a in parsed.get("answers", [])}
+
+        now = datetime.now(UTC).isoformat()
+        for q in snapshot.questions:
+            if q.id in answer_map:
+                q.answer = answer_map[q.id]
+                q.answered_by = "planner/auto"
+                snapshot.decisions.append(Decision(
+                    question_id=q.id,
+                    answer=answer_map[q.id],
+                    decided_by="planner/auto",
+                    timestamp=now,
+                ))
+
+        return snapshot
 
     @staticmethod
     def _issue_payload(issue: Issue) -> dict[str, Any]:

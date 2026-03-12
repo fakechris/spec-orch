@@ -1,14 +1,163 @@
 # SpecOrch
 
-SpecOrch is an AI-native software delivery orchestration system for individuals and small teams.
+**AI-native software delivery orchestration for individuals and small teams.**
 
-It treats:
+SpecOrch solves a core problem in agent-heavy development: when you have many coding agents working in parallel, the bottleneck is no longer writing code — it's **decision bandwidth**, **interface stability**, and **verifiable completion**. SpecOrch provides the missing layers between "I have an idea" and "it's safely merged."
 
-- `Linear` as the control plane for deciding what to work on
-- `Obsidian` as the knowledge plane for capturing why and how work happened
-- `Orchestrator` as the runtime control center
-- `Codex`, `Claude`, and browser/mobile agents as execution adapters
-- `Spec` and `Gate` as the definition-of-done and mergeability layer
+## Philosophy: Five Layers, Not a Linear Pipeline
+
+Traditional dev flows are linear: requirement → issue → code → PR → merge.
+
+In multi-agent development, this breaks down. SpecOrch separates the process into five distinct layers:
+
+| Layer | Purpose | Where it lives |
+|-------|---------|---------------|
+| **Discussion** | Diverge, brainstorm, explore options | Coding environment / Slack / TUI |
+| **Contract** | Freeze the spec — what to build, boundaries, acceptance criteria | `docs/specs/` in GitHub repo |
+| **Execution** | Break into waves, assign to agents, track dependencies | Linear issues + ExecutionPlan DAG |
+| **Code** | Build, verify, review in isolated worktrees | Git worktrees + Codex/Claude agents |
+| **Evidence** | Prove completion — gate, deviations, retrospective | `report.json` / `explain.md` / `deviations.jsonl` |
+
+The key insight:
+
+> **Issue is not the requirement — Spec is the requirement.**
+> **Merge is not done — Gate is done.**
+
+## User Story: From Idea to Merged Code
+
+### Step 1: Discuss and Draft a Spec
+
+You start in your coding environment (Cursor, Claude Code) or a Slack thread. Brainstorm with an LLM about what to build, explore trade-offs, discuss architecture. This is the *discussion layer* — it can be messy.
+
+When ready, create a Mission:
+
+```bash
+spec-orch mission create "WebSocket Real-time Notifications"
+# Creates docs/specs/2026-03-websocket-real-time-notifications/spec.md
+```
+
+Edit `spec.md` with the LLM's help: user value, technical scope, acceptance criteria, interface contracts, constraints. Iterate until satisfied.
+
+### Step 2: Approve the Spec
+
+When the spec is solid, freeze it:
+
+```bash
+spec-orch mission approve 2026-03-websocket-real-time-notifications
+```
+
+From this point forward, `spec.md` is the single source of truth. Linear doesn't own the spec — it only references it.
+
+### Step 3: Generate an Execution Plan
+
+The Scoper LLM reads your spec + codebase structure and produces a wave-based DAG:
+
+```bash
+spec-orch plan 2026-03-websocket-real-time-notifications
+# Output: 4 waves, 7 work packets
+#   wave 0: Contract Freeze (1 packet)
+#   wave 1: Scaffold (2 packets)
+#   wave 2: Parallel Feature Build (3 packets)
+#   wave 3: Integration + QA (1 packet)
+```
+
+Waves execute sequentially; work packets within a wave can run in parallel.
+
+### Step 4: Promote to Linear
+
+One command creates Linear issues from the plan:
+
+```bash
+spec-orch promote 2026-03-websocket-real-time-notifications
+# promoted 7 work packets to execution
+#   SON-20: [W0] Define WebSocket message types
+#   SON-21: [W1] Scaffold server handler
+#   ...
+```
+
+Each issue carries: spec section reference, files in scope, acceptance criteria, builder prompt, and dependency links.
+
+### Step 5: Execute (Two Modes)
+
+**One-shot CLI** — you drive it:
+
+```bash
+spec-orch run SON-20 --source linear --auto-pr
+```
+
+This runs the full pipeline in one command: loads issue → LLM plans questions → LLM self-answers → approves spec → Codex builds → verification (lint/typecheck/test) → review → gate evaluation → creates GitHub PR → writes back to Linear.
+
+**Daemon mode** — fully autonomous:
+
+```bash
+spec-orch daemon --config spec-orch.toml --repo-root .
+```
+
+Polls Linear for Todo issues, runs `advance_to_completion()` on each, auto-creates PRs, writes back results.
+
+### Step 6: Human Acceptance
+
+You don't re-read every line of AI-generated diff. Instead:
+
+```bash
+spec-orch accept-issue SON-20 --accepted-by chris
+```
+
+This shows you a **spec compliance checklist** and **deviation summary** — you verify *results against spec*, not code against intuition.
+
+### Step 7: Retrospective
+
+After the mission completes:
+
+```bash
+spec-orch retro 2026-03-websocket-real-time-notifications
+```
+
+Generates `retrospective.md`: all deviations, failed attempts, key decisions. Knowledge is captured for the next cycle.
+
+## Architecture
+
+```
+Five-Layer Architecture
+═══════════════════════
+
+Discussion ─── Coding env / Slack / TUI
+     │
+     ▼
+Contract ───── docs/specs/<mission>/spec.md + mission.json
+     │
+     ▼
+Execution ──── ExecutionPlan (DAG/Wave) → Linear Issues
+     │
+     ▼
+Code ───────── RunController → Codex Builder → Verification → Review
+     │
+     ▼
+Evidence ───── Gate → report.json → explain.md → deviations.jsonl → Linear write-back
+```
+
+### Object Model
+
+```
+Mission / Spec ─────── "Why and what" (approved contract, version-controlled)
+    │
+ExecutionPlan / DAG ── "How to split" (waves, work packets, dependencies)
+    │
+WorkPacket / Issue ─── "Atomic task" (one agent, one worktree, one PR)
+    │
+Run / Evidence ─────── "What happened" (build, verify, review, gate, deviations)
+```
+
+### Key Roles
+
+| System | Role |
+|--------|------|
+| **GitHub repo `docs/specs/`** | Canonical spec — version-controlled, reviewable, agent-readable |
+| **Linear** | Execution graph + delegation surface + status truth |
+| **Obsidian** | Knowledge plane — research, retro, thinking (Phase 5+) |
+| **Orchestrator** | Claim issue → worktree → builder → verification → gate → PR |
+| **Gate** | Prove completion — the *only* merge authority |
+| **Human** | Final acceptance — verifies results, not diffs |
 
 ## Status
 
@@ -16,23 +165,29 @@ SpecOrch is in **dogfood-first (EODF)** mode — the system is used to develop i
 
 What works on `main`:
 
-- fixture-driven or Linear-backed issue loading (`IssueSource` protocol)
-- per-issue git worktrees
-- `task.spec.md`, `progress.md`, `report.json`, `explain.md`
+- Five-layer architecture: Discussion → Contract → Execution → Code → Evidence
+- `Mission` model with canonical specs in `docs/specs/`
+- `ExecutionPlan` / `Wave` / `WorkPacket` DAG with LLM-based scoping
+- One-shot `spec-orch run` with LLM self-answering blocking questions
+- `advance_to_completion()` for full pipeline automation
+- Fixture-driven or Linear-backed issue loading (`IssueSource` protocol)
+- Per-issue git worktrees with isolated execution
 - Codex builder via `codex exec --json` (`BuilderAdapter` protocol)
-- local review and acceptance state transitions
-- real verification command execution (ruff, mypy, pytest)
-- configurable Gate evaluation with `gate.policy.yaml`
-- daemon mode with Linear polling, lockfile, graceful shutdown
-- Linear write-back (explain summary + state updates)
+- Real verification: ruff, mypy, pytest
+- Configurable Gate evaluation with `gate.policy.yaml`
+- Daemon mode with full automation: poll → build → gate → PR → Linear write-back
 - GitHub PR auto-creation + Gate as commit status check
-- structured telemetry for builder, verification, review, and gate
+- Spec deviation tracking (`deviations.jsonl`)
+- Retrospective generation (`spec-orch retro`)
+- Enhanced acceptance with spec compliance checklist
 
 What is still intentionally incomplete:
 
-- real Obsidian sync
+- Real Obsidian sync (knowledge plane connector)
 - Claude review adapter
-- preview deployment and browser verification
+- Preview deployment and browser verification
+- Slack integration for discussion layer
+- Wave-aware scheduling in daemon (dependency ordering)
 
 ## Quick Start
 
@@ -42,98 +197,75 @@ python3.13 -m venv .venv
 .venv/bin/python -m pytest -q
 ```
 
-## CLI Commands
+## CLI Reference
 
-### Core workflow
-
-```bash
-# Run an issue through the pipeline (fixture-based)
-spec-orch run-issue SPC-1 --repo-root .
-
-# Review and accept
-spec-orch review-issue SPC-1 --repo-root . --verdict pass --reviewed-by claude
-spec-orch accept-issue SPC-1 --repo-root . --accepted-by chris
-
-# Inspect results
-spec-orch status SPC-1 --repo-root .
-spec-orch explain SPC-1 --repo-root .
-spec-orch diff SPC-1 --repo-root .
-```
-
-### Gate and PR
+### Mission Management (Contract Layer)
 
 ```bash
-# Evaluate gate with current policy
-spec-orch gate SPC-1 --repo-root . --policy gate.policy.yaml
-spec-orch gate --show-policy
-
-# Create GitHub PR with gate status
-spec-orch create-pr SPC-1 --repo-root .
+spec-orch mission create "Feature Title"          # Create mission + spec skeleton
+spec-orch mission approve <mission-id>             # Freeze spec for execution
+spec-orch mission status                           # List all missions
+spec-orch mission show <mission-id>                # Print canonical spec
 ```
 
-### Daemon mode
+### Planning & Promotion (Execution Layer)
 
 ```bash
-# Poll Linear for issues and process automatically
-spec-orch daemon --config spec-orch.toml --repo-root .
+spec-orch plan <mission-id>                        # LLM scoper generates DAG
+spec-orch plan-show <mission-id>                   # View wave/packet breakdown
+spec-orch promote <mission-id>                     # Create Linear issues from plan
 ```
 
-### Semi-auto EODF workflow
-
-When `builder_prompt` is `null` in a fixture, the builder step is skipped. This allows manual coding + automated verification/gate — the semi-auto EODF loop:
+### Execution (Code Layer)
 
 ```bash
-spec-orch run-issue SPC-BOOT-1 --repo-root .
-# ... make code changes manually ...
-spec-orch review-issue SPC-BOOT-1 --repo-root . --verdict pass --reviewed-by chris
-spec-orch accept-issue SPC-BOOT-1 --repo-root . --accepted-by chris
-spec-orch gate SPC-BOOT-1 --repo-root .
-spec-orch create-pr SPC-BOOT-1 --repo-root .
+spec-orch run <issue-id> --source linear --auto-pr # Full one-shot pipeline
+spec-orch advance <issue-id> --source linear       # Single state transition
+spec-orch run-issue <issue-id>                     # Legacy: build + verify + gate
+spec-orch daemon --config spec-orch.toml           # Autonomous polling mode
 ```
 
-## Issue Fixtures
+### Review & Acceptance (Evidence Layer)
 
-Issue fixtures live in `fixtures/issues/<issue-id>.json`. They support:
-
-- `builder_prompt`: prompt for the builder adapter (`null` to skip builder)
-- `verification_commands`: real commands to run (`{python}` resolves to venv interpreter)
-- `acceptance_criteria`: structured acceptance checklist
-- `context`: architecture notes, files to read, constraints
-
-## Architecture
-
-```
-spec-orch daemon / CLI
-  └── RunController
-        ├── IssueSource (Protocol)
-        │     ├── FixtureIssueSource
-        │     └── LinearIssueSource
-        ├── WorkspaceService → git worktree
-        ├── ArtifactService → task.spec.md, progress.md, explain.md
-        ├── BuilderAdapter (Protocol)
-        │     └── CodexExecBuilderAdapter (codex exec --json)
-        ├── VerificationService → ruff, mypy, pytest
-        ├── ReviewAdapter → review_report.json
-        ├── GateService → configurable multi-condition gate
-        ├── TelemetryService → events.jsonl
-        └── WritebackService
-              ├── LinearWriteBackService
-              └── GitHubPRService
+```bash
+spec-orch review-issue <id> --verdict pass --reviewed-by <name>
+spec-orch accept-issue <id> --accepted-by <name>   # Shows spec compliance first
+spec-orch status <id>                               # Current state
+spec-orch status --all                              # All issues table
+spec-orch explain <id>                              # Gate explanation report
+spec-orch retro <mission-id>                        # Mission retrospective
 ```
 
-## Telemetry
+### Gate & PR
 
-Each issue workspace contains a `telemetry/` directory with `events.jsonl` and builder-specific artifacts (`incoming_events.jsonl`).
+```bash
+spec-orch gate <id> --policy gate.policy.yaml      # Evaluate gate
+spec-orch create-pr <id>                           # GitHub PR + Linear write-back
+```
+
+### Utilities
+
+```bash
+spec-orch config check                             # Validate spec-orch.toml
+spec-orch diff <id>                                # Git diff for issue worktree
+spec-orch cherry-pick <id>                         # Cherry-pick into current branch
+spec-orch watch <id>                               # Real-time activity log
+spec-orch logs <id>                                # Complete activity history
+```
 
 ## Repository Layout
 
-- `src/spec_orch/`: CLI, orchestration services, domain models
-- `tests/`: unit and integration tests
-- `fixtures/issues/`: local issue fixtures
-- `docs/`: architecture, plans, reviews
-- `gate.policy.yaml`: configurable gate policy
-- `spec-orch.toml`: daemon configuration
-- `.worktrees/`: local isolated workspaces (gitignored)
+```
+src/spec_orch/            CLI, orchestration services, domain models
+tests/                    Unit and integration tests (226+)
+fixtures/issues/          Local issue fixtures
+docs/specs/               Canonical specs per mission
+docs/architecture/        System design documents
+docs/plans/               Implementation plans and roadmaps
+gate.policy.yaml          Configurable gate policy
+spec-orch.toml            Daemon + planner configuration
+.worktrees/               Local isolated workspaces (gitignored)
+```
 
 ## Documents
 

@@ -117,7 +117,7 @@ def test_daemon_poll_and_run_skips_locked(tmp_path: Path) -> None:
     daemon._claim("SPC-10")
     daemon._poll_and_run(mock_client, mock_controller)
 
-    mock_controller.advance.assert_not_called()
+    mock_controller.advance_to_completion.assert_not_called()
 
 
 def test_daemon_poll_and_run_processes_new_issue(tmp_path: Path) -> None:
@@ -136,11 +136,11 @@ def test_daemon_poll_and_run_processes_new_issue(tmp_path: Path) -> None:
     mock_result.state = RunState.ACCEPTED
 
     mock_controller = MagicMock()
-    mock_controller.advance.return_value = mock_result
+    mock_controller.advance_to_completion.return_value = mock_result
 
     daemon._poll_and_run(mock_client, mock_controller)
 
-    mock_controller.advance.assert_called_once_with("SPC-11")
+    mock_controller.advance_to_completion.assert_called_once_with("SPC-11")
     assert "SPC-11" in daemon._processed
     daemon._write_back.post_run_summary.assert_called_once()
 
@@ -162,11 +162,11 @@ def test_daemon_poll_and_run_releases_non_terminal(tmp_path: Path) -> None:
     mock_result.state = RunState.SPEC_DRAFTING
 
     mock_controller = MagicMock()
-    mock_controller.advance.return_value = mock_result
+    mock_controller.advance_to_completion.return_value = mock_result
 
     daemon._poll_and_run(mock_client, mock_controller)
 
-    mock_controller.advance.assert_called_once_with("SPC-12")
+    mock_controller.advance_to_completion.assert_called_once_with("SPC-12")
     assert "SPC-12" not in daemon._processed
     assert not daemon._is_locked("SPC-12")
 
@@ -187,9 +187,33 @@ def test_daemon_poll_and_run_marks_gate_evaluated_as_processed(tmp_path: Path) -
     mock_result.state = RunState.GATE_EVALUATED
 
     mock_controller = MagicMock()
-    mock_controller.advance.return_value = mock_result
+    mock_controller.advance_to_completion.return_value = mock_result
 
     daemon._poll_and_run(mock_client, mock_controller)
 
-    mock_controller.advance.assert_called_once_with("SPC-13")
+    mock_controller.advance_to_completion.assert_called_once_with("SPC-13")
     assert "SPC-13" in daemon._processed
+
+
+def test_daemon_auto_create_pr(tmp_path: Path) -> None:
+    """Daemon should attempt PR creation when reaching GATE_EVALUATED."""
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    mock_gate = MagicMock()
+    mock_gate.mergeable = True
+    mock_gate.failed_conditions = []
+    mock_result = MagicMock()
+    mock_result.state = RunState.GATE_EVALUATED
+    mock_result.gate = mock_gate
+    mock_result.issue.title = "Test Issue"
+    mock_result.issue.issue_id = "SPC-20"
+    mock_result.workspace = tmp_path
+
+    with patch(
+        "spec_orch.services.github_pr_service.GitHubPRService"
+    ) as MockGH:
+        mock_gh = MockGH.return_value
+        mock_gh.create_pr.return_value = "https://github.com/pr/99"
+        daemon._auto_create_pr("SPC-20", mock_result)
+        mock_gh.create_pr.assert_called_once()

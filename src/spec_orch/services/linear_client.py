@@ -99,6 +99,50 @@ class LinearClient:
         nodes: list[dict[str, Any]] = result.get("issues", {}).get("nodes", [])
         return nodes
 
+    def create_issue(
+        self,
+        *,
+        team_key: str,
+        title: str,
+        description: str = "",
+    ) -> dict[str, Any]:
+        """Create a new issue in the given team."""
+        team_result = self.query(
+            """
+            query($key: String!) {
+              teams(filter: { key: { eq: $key } }) {
+                nodes { id }
+              }
+            }
+            """,
+            variables={"key": team_key},
+        )
+        teams = team_result.get("teams", {}).get("nodes", [])
+        if not teams:
+            raise ValueError(f"Team not found: {team_key}")
+        team_id: str = teams[0]["id"]
+
+        result = self.query(
+            """
+            mutation($teamId: String!, $title: String!, $description: String) {
+              issueCreate(input: {
+                teamId: $teamId, title: $title, description: $description
+              }) {
+                success
+                issue { id identifier title }
+              }
+            }
+            """,
+            variables={
+                "teamId": team_id,
+                "title": title,
+                "description": description,
+            },
+        )
+        create_data: dict[str, Any] = result.get("issueCreate", {})
+        issue: dict[str, Any] = create_data.get("issue", {})
+        return issue
+
     def add_comment(self, issue_id: str, body: str) -> dict[str, Any]:
         result = self.query(
             """

@@ -1,0 +1,166 @@
+"""LiteLLM-backed ScoperAdapter — breaks a Mission into a wave-based DAG."""
+
+from __future__ import annotations
+
+import json
+import os
+import shlex
+import subprocess
+import uuid
+from typing import Any
+
+from spec_orch.domain.models import (
+    ExecutionPlan,
+    Mission,
+    PlanStatus,
+    Wave,
+    WorkPacket,
+)
+
+_SCOPER_SYSTEM_PROMPT = """\
+You are a technical scoper for SpecOrch.
+Given a mission spec, break it into an execution plan with sequential waves.
+
+Rules:
+- Wave 0 is always "Contract Freeze / Scaffold" (interfaces, types, base tests).
+- Later waves contain parallelizable work packets.
+- The last wave is always "Integration / QA".
+- Each work packet is an atomic task for a single coding agent.
+
+Respond with JSON:
+{
+  "waves": [
+    {
+      "wave_number": 0,
+      "description": "...",
+      "work_packets": [
+        {
+          "packet_id": "unique-id",
+          "title": "...",
+          "spec_section": "section reference from the spec",
+          "run_class": "feature|bug|refactor|spike|qa",
+          "files_in_scope": ["path/to/file.py"],
+          "files_out_of_scope": [],
+          "depends_on": [],
+          "acceptance_criteria": ["..."],
+          "builder_prompt": "concise implementation instruction"
+        }
+      ]
+    }
+  ]
+}
+Do NOT include anything outside this JSON object.\
+"""
+
+
+class LiteLLMScoperAdapter:
+    """Breaks a Mission spec into wave-based work packets using an LLM."""
+
+    ADAPTER_NAME: str = "litellm_scoper"
+
+    def __init__(
+        self,
+        *,
+        model: str = "anthropic/claude-sonnet-4-20250514",
+        api_key: str | None = None,
+        api_base: str | None = None,
+        temperature: float = 0.3,
+        token_command: str | None = None,
+    ) -> None:
+        self.model = model
+        self._static_api_key = api_key or os.environ.get("SPEC_ORCH_LLM_API_KEY")
+        self.api_base = api_base or os.environ.get("SPEC_ORCH_LLM_API_BASE")
+        self.temperature = temperature
+        self._token_command = token_command
+
+    @property
+    def api_key(self) -> str | None:
+        if self._token_command:
+            return subprocess.check_output(
+                shlex.split(self._token_command), text=True,
+            ).strip()
+        return self._static_api_key
+
+    def scope(
+        self,
+        *,
+        mission: Mission,
+        codebase_context: dict[str, Any],
+    ) -> ExecutionPlan:
+        try:
+            import litellm
+        except ImportError as exc:
+            raise ImportError(
+                "litellm is required for LiteLLMScoperAdapter."
+            ) from exc
+
+        spec_content = codebase_context.get("spec_content", "")
+        file_tree = codebase_context.get("file_tree", "")
+
+        user_msg = (
+            f"## Mission: {mission.title}\n\n"
+            f"### Spec\n```markdown\n{spec_content}\n```\n\n"
+            f"### Acceptance Criteria\n"
+            + "\n".join(f"- {c}" for c in mission.acceptance_criteria)
+            + "\n\n### Constraints\n"
+            + "\n".join(f"- {c}" for c in mission.constraints)
+            + f"\n\n### Codebase Structure\n```\n{file_tree}\n```"
+        )
+
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": _SCOPER_SYSTEM_PROMPT},
+                {"role": "user", "content": user_msg},
+            ],
+            "temperature": self.temperature,
+        }
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+        if self.api_base:
+            kwargs["api_base"] = self.api_base
+
+        response = litellm.completion(**kwargs)
+        return self._parse_response(response, mission)
+
+    def _parse_response(
+        self, response: Any, mission: Mission,
+    ) -> ExecutionPlan:
+        content = response.choices[0].message.content or ""
+
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            import re
+            match = re.search(r"\{.*\}", content, re.DOTALL)
+            parsed = json.loads(match.group()) if match else {"waves": []}
+
+        waves = []
+        for w in parsed.get("waves", []):
+            packets = []
+            for p in w.get("work_packets", []):
+                packets.append(WorkPacket(
+                    packet_id=p.get(
+                        "packet_id", f"wp-{uuid.uuid4().hex[:8]}",
+                    ),
+                    title=p.get("title", "Untitled"),
+                    spec_section=p.get("spec_section", ""),
+                    run_class=p.get("run_class", "feature"),
+                    files_in_scope=p.get("files_in_scope", []),
+                    files_out_of_scope=p.get("files_out_of_scope", []),
+                    depends_on=p.get("depends_on", []),
+                    acceptance_criteria=p.get("acceptance_criteria", []),
+                    builder_prompt=p.get("builder_prompt", ""),
+                ))
+            waves.append(Wave(
+                wave_number=w.get("wave_number", len(waves)),
+                description=w.get("description", ""),
+                work_packets=packets,
+            ))
+
+        return ExecutionPlan(
+            plan_id=f"plan-{uuid.uuid4().hex[:8]}",
+            mission_id=mission.mission_id,
+            waves=waves,
+            status=PlanStatus.DRAFT,
+        )

@@ -418,6 +418,59 @@ class RunController:
             return RunState.DRAFT
         return state
 
+    def advance_to_completion(self, issue_id: str) -> RunResult:
+        """Drive *issue_id* through the full pipeline until GATE_EVALUATED or FAILED.
+
+        Unlike ``advance()`` which executes a single transition, this loops
+        continuously.  When the spec has unresolved blocking questions and a
+        planner is available, it uses the planner's ``answer_questions`` to
+        resolve them autonomously.
+        """
+        max_iterations = 10
+        for _ in range(max_iterations):
+            state = self.get_state(issue_id)
+            if state in {RunState.GATE_EVALUATED, RunState.MERGED, RunState.ACCEPTED}:
+                break
+            if state == RunState.SPEC_DRAFTING and self.planner_adapter is not None:
+                workspace = self.workspace_service.issue_workspace_path(issue_id)
+                snapshot = read_spec_snapshot(workspace)
+                if snapshot and snapshot.has_unresolved_blocking_questions():
+                    issue = self.issue_source.load(issue_id)
+                    snapshot = self.planner_adapter.answer_questions(
+                        snapshot=snapshot, issue=issue,
+                    )
+                    write_spec_snapshot(workspace, snapshot)
+            result = self.advance(issue_id)
+            if result.state == RunState.FAILED:
+                return result
+        else:
+            return self.advance(issue_id)
+
+        return self._load_final_result(issue_id)
+
+    def _load_final_result(self, issue_id: str) -> RunResult:
+        """Load a RunResult from persisted report.json for a completed run."""
+        issue, workspace, report_data, run_id, builder, state = (
+            self._load_existing_run(issue_id)
+        )
+        review = self._review_from_report(report_data, workspace)
+        gate = GateVerdict(
+            mergeable=report_data.get("mergeable", False),
+            failed_conditions=report_data.get("failed_conditions", []),
+        )
+        return RunResult(
+            issue=issue,
+            workspace=workspace,
+            task_spec=workspace / "task.spec.md",
+            progress=workspace / "progress.md",
+            explain=workspace / "explain.md",
+            report=workspace / "report.json",
+            builder=builder,
+            review=review,
+            gate=gate,
+            state=state,
+        )
+
     def advance(self, issue_id: str) -> RunResult:
         """Execute the next legal transition for *issue_id*.
 

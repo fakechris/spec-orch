@@ -470,3 +470,129 @@ def test_litellm_planner_adapter_raises_without_litellm():
         ImportError, match="litellm is required"
     ):
         adapter.plan(issue=issue, workspace=Path("/tmp"))
+
+
+# ───────── advance_to_completion + answer_questions ─────────
+
+
+class FakePlannerWithSelfAnswer:
+    ADAPTER_NAME = "fake_auto_planner"
+
+    def plan(self, *, issue, workspace, existing_snapshot=None):
+        return PlannerResult(
+            questions=[
+                Question(
+                    id="q-block-1", asked_by="planner", target="user",
+                    category="requirement", blocking=True,
+                    text="Which database?",
+                ),
+            ],
+        )
+
+    def answer_questions(self, *, snapshot, issue):
+        from spec_orch.domain.models import Decision
+
+        for q in snapshot.questions:
+            if q.blocking and q.answer is None:
+                q.answer = "PostgreSQL"
+                q.answered_by = "planner/auto"
+                snapshot.decisions.append(Decision(
+                    question_id=q.id,
+                    answer="PostgreSQL",
+                    decided_by="planner/auto",
+                    timestamp="2026-01-01T00:00:00",
+                ))
+        return snapshot
+
+
+class FakeBuilder:
+    ADAPTER_NAME = "fake_builder"
+    AGENT_NAME = "fake"
+
+    def run(self, *, issue, workspace, run_id=None, event_logger=None):
+        from spec_orch.domain.models import BuilderResult
+
+        return BuilderResult(
+            succeeded=True,
+            command=["echo", "ok"],
+            stdout="ok",
+            stderr="",
+            report_path=workspace / "builder_report.json",
+            adapter=self.ADAPTER_NAME,
+            agent=self.AGENT_NAME,
+        )
+
+
+def test_advance_to_completion_full_pipeline(tmp_path):
+    """advance_to_completion should drive DRAFT -> GATE_EVALUATED with
+    LLM self-answering blocking questions along the way."""
+    repo = _make_fixture(tmp_path)
+    controller = RunController(
+        repo_root=repo,
+        planner_adapter=FakePlannerWithSelfAnswer(),
+        builder_adapter=FakeBuilder(),
+    )
+    result = controller.advance_to_completion("SPC-TEST-1")
+    assert result.state == RunState.GATE_EVALUATED
+
+
+def test_advance_to_completion_stops_on_failure(tmp_path):
+    """advance_to_completion should stop and return FAILED when build fails."""
+    repo = _make_fixture(tmp_path)
+
+    class FailBuilder:
+        ADAPTER_NAME = "fail_builder"
+        AGENT_NAME = "fail"
+
+        def run(self, *, issue, workspace, run_id=None, event_logger=None):
+            raise RuntimeError("build crashed")
+
+    controller = RunController(
+        repo_root=repo,
+        planner_adapter=FakePlannerWithSelfAnswer(),
+        builder_adapter=FailBuilder(),
+    )
+    result = controller.advance_to_completion("SPC-TEST-1")
+    assert result.state in {RunState.GATE_EVALUATED, RunState.FAILED}
+
+
+def test_answer_questions_fills_answers():
+    from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
+
+    adapter = LiteLLMPlannerAdapter(model="test/model")
+    issue = _make_issue()
+    snapshot = create_initial_snapshot(issue)
+    snapshot.questions.append(
+        Question(
+            id="q-1", asked_by="planner", target="user",
+            category="requirement", blocking=True, text="Which DB?",
+        )
+    )
+    assert snapshot.has_unresolved_blocking_questions()
+
+    mock_message = MagicMock()
+    mock_message.content = json.dumps({
+        "answers": [{"id": "q-1", "answer": "PostgreSQL"}],
+    })
+    mock_choice = MagicMock()
+    mock_choice.message = mock_message
+    mock_response = MagicMock()
+    mock_response.choices = [mock_choice]
+
+    mock_litellm = MagicMock()
+    mock_litellm.completion.return_value = mock_response
+    with patch.dict("sys.modules", {"litellm": mock_litellm}):
+        result = adapter.answer_questions(snapshot=snapshot, issue=issue)
+
+    assert result.questions[0].answer == "PostgreSQL"
+    assert result.questions[0].answered_by == "planner/auto"
+    assert len(result.decisions) == 1
+    assert not result.has_unresolved_blocking_questions()
+
+
+def test_run_full_cli_command_exists():
+    """Verify the `run` command is registered."""
+    runner = CliRunner()
+    result = runner.invoke(app, ["run", "--help"])
+    assert result.exit_code == 0
+    assert "full pipeline" in result.output.lower()

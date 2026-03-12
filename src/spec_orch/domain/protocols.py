@@ -7,7 +7,9 @@ from typing import Any, Protocol, runtime_checkable
 from spec_orch.domain.models import (
     BuilderEvent,
     BuilderResult,
+    ExecutionPlan,
     Issue,
+    Mission,
     PlannerResult,
     SpecSnapshot,
 )
@@ -74,4 +76,33 @@ class PlannerAdapter(Protocol):
         existing_snapshot: SpecSnapshot | None = None,
     ) -> PlannerResult:
         """Analyse the issue and return questions + optional spec draft."""
+        ...
+
+    def answer_questions(
+        self,
+        *,
+        snapshot: SpecSnapshot,
+        issue: Issue,
+    ) -> SpecSnapshot:
+        """Use the LLM to autonomously answer unresolved blocking questions.
+
+        Returns an updated snapshot with answers filled in and decisions recorded.
+        Used in one-shot / daemon mode where no human is available.
+        """
+        ...
+
+
+@runtime_checkable
+class ScoperAdapter(Protocol):
+    """Breaks a Mission into a wave-based ExecutionPlan (DAG of WorkPackets)."""
+
+    ADAPTER_NAME: str
+
+    def scope(
+        self,
+        *,
+        mission: Mission,
+        codebase_context: dict[str, Any],
+    ) -> ExecutionPlan:
+        """Analyse the mission spec and produce a DAG of waves and work packets."""
         ...

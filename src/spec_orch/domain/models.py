@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,81 @@ def validate_transition(current: RunState, target: RunState) -> None:
         )
 
 
+class MissionStatus(StrEnum):
+    """Lifecycle states for a Mission (contract layer above issues)."""
+
+    DRAFTING = "drafting"
+    APPROVED = "approved"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    ARCHIVED = "archived"
+
+
+@dataclass
+class Mission:
+    """A cross-issue contract that defines what to build and why.
+
+    The canonical spec lives in ``docs/specs/<mission_id>/spec.md`` inside the
+    repo, not in Linear or any external system.
+    """
+
+    mission_id: str
+    title: str
+    status: MissionStatus = MissionStatus.DRAFTING
+    spec_path: str = ""
+    acceptance_criteria: list[str] = field(default_factory=list)
+    constraints: list[str] = field(default_factory=list)
+    interface_contracts: list[str] = field(default_factory=list)
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    approved_at: str | None = None
+    completed_at: str | None = None
+
+
+class PlanStatus(StrEnum):
+    """Lifecycle states for an ExecutionPlan."""
+
+    DRAFT = "draft"
+    APPROVED = "approved"
+    EXECUTING = "executing"
+    COMPLETED = "completed"
+
+
+@dataclass
+class WorkPacket:
+    """An atomic unit of work derived from a Mission — becomes a Linear issue."""
+
+    packet_id: str
+    title: str
+    spec_section: str = ""
+    run_class: str = "feature"
+    files_in_scope: list[str] = field(default_factory=list)
+    files_out_of_scope: list[str] = field(default_factory=list)
+    depends_on: list[str] = field(default_factory=list)
+    acceptance_criteria: list[str] = field(default_factory=list)
+    verification_commands: dict[str, list[str]] = field(default_factory=dict)
+    builder_prompt: str = ""
+    linear_issue_id: str | None = None
+
+
+@dataclass
+class Wave:
+    """A group of parallelizable WorkPackets within an ExecutionPlan."""
+
+    wave_number: int
+    description: str = ""
+    work_packets: list[WorkPacket] = field(default_factory=list)
+
+
+@dataclass
+class ExecutionPlan:
+    """A DAG of Waves derived from a Mission by the Scoper."""
+
+    plan_id: str
+    mission_id: str
+    waves: list[Wave] = field(default_factory=list)
+    status: PlanStatus = PlanStatus.DRAFT
+
+
 @dataclass(slots=True)
 class IssueContext:
     files_to_read: list[str] = field(default_factory=list)
@@ -65,6 +141,9 @@ class Issue:
     verification_commands: dict[str, list[str]] = field(default_factory=dict)
     context: IssueContext = field(default_factory=IssueContext)
     acceptance_criteria: list[str] = field(default_factory=list)
+    mission_id: str | None = None
+    spec_section: str | None = None
+    run_class: str | None = None
 
 
 @dataclass(slots=True)
@@ -255,6 +334,20 @@ class PlannerResult:
     questions: list[Question]
     spec_draft: SpecSnapshot | None = None
     raw_response: str = ""
+
+
+@dataclass(slots=True)
+class SpecDeviation:
+    """Records how execution diverged from the approved spec."""
+
+    deviation_id: str
+    issue_id: str
+    mission_id: str = ""
+    description: str = ""
+    severity: str = "minor"  # minor | major | blocking
+    resolution: str = "pending"  # pending | accepted | spec_amended | reverted
+    detected_by: str = "gate"
+    file_path: str | None = None
 
 
 @dataclass(slots=True)
