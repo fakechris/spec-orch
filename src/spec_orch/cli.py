@@ -1665,7 +1665,8 @@ def _start_linear_adapter(svc: Any, repo_root: Path) -> None:
         raw = tomllib.load(f)
 
     linear_cfg = raw.get("linear", {})
-    conv_cfg = raw.get("conversation", {}).get("linear", {})
+    conv_section = raw.get("conversation", {})
+    conv_cfg = conv_section.get("linear", {}) if isinstance(conv_section, dict) else {}
 
     from spec_orch.services.linear_client import LinearClient
     from spec_orch.services.linear_conversation_adapter import LinearConversationAdapter

@@ -35,10 +35,11 @@ class SlackConversationAdapter:
         self._app_token_env = app_token_env
         self._handler: Any = None
         self._bot_user_id: str | None = None
+        self._thread_channels: dict[str, str] = {}
 
     def listen(
         self,
-        callback: Callable[[ConversationMessage], None],
+        callback: Callable[[ConversationMessage], str | None],
     ) -> None:
         """Start the Slack Socket Mode listener (blocks until ``stop()``)."""
         try:
@@ -83,7 +84,7 @@ class SlackConversationAdapter:
         self,
         event: dict[str, Any],
         say: Callable[..., Any],
-        callback: Callable[[ConversationMessage], None],
+        callback: Callable[[ConversationMessage], str | None],
     ) -> None:
         user_id = event.get("user", "")
         if user_id == self._bot_user_id:
@@ -94,6 +95,9 @@ class SlackConversationAdapter:
         if self._bot_user_id:
             text = text.replace(f"<@{self._bot_user_id}>", "").strip()
 
+        slack_channel = event.get("channel", "")
+        self._thread_channels[thread_ts] = slack_channel
+
         msg = ConversationMessage(
             message_id=event.get("ts", ""),
             thread_id=thread_ts,
@@ -102,7 +106,7 @@ class SlackConversationAdapter:
             timestamp=datetime.now(UTC).isoformat(),
             channel=_CHANNEL,
             metadata={
-                "slack_channel": event.get("channel", ""),
+                "slack_channel": slack_channel,
                 "slack_thread_ts": thread_ts,
                 "slack_user": user_id,
             },
@@ -118,11 +122,17 @@ class SlackConversationAdapter:
 
         This is used for out-of-band replies (not in the listen callback path).
         In the normal flow, replies are sent via ``say()`` inside ``_on_message``.
+        Requires that the thread was previously seen via ``_on_message`` so the
+        channel ID is cached in ``_thread_channels``.
         """
+        channel = self._thread_channels.get(thread_id)
+        if not channel:
+            print(f"[slack-conv] no channel cached for thread {thread_id}")
+            return
         if self._handler and hasattr(self._handler, "app"):
             try:
                 self._handler.app.client.chat_postMessage(
-                    channel=thread_id,
+                    channel=channel,
                     text=content,
                     thread_ts=thread_id,
                 )

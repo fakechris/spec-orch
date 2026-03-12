@@ -115,7 +115,7 @@ class TestSlackConversationAdapter:
 
 
 class TestSlackAdapterReply:
-    def test_reply_with_handler(self):
+    def test_reply_with_cached_channel(self):
         mock_bolt = ModuleType("slack_bolt")
         mock_bolt.App = MagicMock
         mock_socket = ModuleType("slack_bolt.adapter.socket_mode")
@@ -136,11 +136,37 @@ class TestSlackAdapterReply:
             mock_handler = MagicMock()
             mock_handler.app.client.chat_postMessage = MagicMock()
             adapter._handler = mock_handler
+            adapter._thread_channels["1234.5678"] = "C_REAL_CHAN"
 
-            adapter.reply("C123", "hello there")
+            adapter.reply("1234.5678", "hello there")
 
             mock_handler.app.client.chat_postMessage.assert_called_once_with(
-                channel="C123",
+                channel="C_REAL_CHAN",
                 text="hello there",
-                thread_ts="C123",
+                thread_ts="1234.5678",
             )
+
+    def test_reply_without_cached_channel_does_nothing(self):
+        mock_bolt = ModuleType("slack_bolt")
+        mock_bolt.App = MagicMock
+        mock_socket = ModuleType("slack_bolt.adapter.socket_mode")
+        mock_socket.SocketModeHandler = MagicMock
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "slack_bolt": mock_bolt,
+                "slack_bolt.adapter.socket_mode": mock_socket,
+            },
+        ):
+            from spec_orch.services.slack_conversation_adapter import (
+                SlackConversationAdapter,
+            )
+
+            adapter = SlackConversationAdapter()
+            mock_handler = MagicMock()
+            adapter._handler = mock_handler
+
+            adapter.reply("unknown-thread", "hello")
+
+            mock_handler.app.client.chat_postMessage.assert_not_called()

@@ -123,10 +123,12 @@ class ConversationAdapter(Protocol):
 
     def listen(
         self,
-        callback: Callable[[ConversationMessage], None],
+        callback: Callable[[ConversationMessage], str | None],
     ) -> None:
         """Start listening for incoming messages. Calls *callback* on each.
 
+        The callback returns an optional reply string; the adapter is
+        responsible for sending it back through its channel.
         This method blocks until ``stop()`` is called.
         """
         ...

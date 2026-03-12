@@ -38,12 +38,19 @@ class TestLinearConversationAdapter:
 
         adapter = self._make_adapter(client)
         received = []
-        adapter._poll_once(callback=lambda msg: received.append(msg))
+
+        def capture_callback(msg):
+            received.append(msg)
+            return "LLM reply"
+
+        client.get_issue.return_value = {"id": "lin-uuid-1"}
+        adapter._poll_once(callback=capture_callback)
 
         assert len(received) == 1
         assert received[0].content == "What about caching?"
         assert received[0].thread_id == "TST-1"
         assert received[0].channel == "linear"
+        client.add_comment.assert_called_once()
 
     def test_skips_bot_own_comments(self) -> None:
         client = MagicMock()
@@ -86,6 +93,29 @@ class TestLinearConversationAdapter:
 
         client.list_comments.assert_not_called()
         assert len(received) == 0
+
+    def test_no_reply_when_callback_returns_none(self) -> None:
+        client = MagicMock()
+        client.list_issues.return_value = [
+            {
+                "id": "lin-uuid-nr",
+                "identifier": "TST-NR",
+                "title": "No reply",
+                "labels": {"nodes": [{"name": "spec-orch"}]},
+            },
+        ]
+        client.list_comments.return_value = [
+            {
+                "id": "comment-nr",
+                "body": "just a comment",
+                "createdAt": "2026-03-12T10:05:00Z",
+                "user": {"id": "user-1", "name": "Alice", "email": ""},
+            },
+        ]
+
+        adapter = self._make_adapter(client)
+        adapter._poll_once(callback=lambda msg: None)
+        client.add_comment.assert_not_called()
 
     def test_deduplicates_comments_across_polls(self) -> None:
         client = MagicMock()

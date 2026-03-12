@@ -226,6 +226,9 @@ class ConversationService:
             ConversationMessage(**m)
             for m in data.get("messages", [])
         ]
+        fallback_ts = datetime.fromtimestamp(
+            path.stat().st_mtime, tz=UTC,
+        ).isoformat()
         return ConversationThread(
             thread_id=data["thread_id"],
             channel=data["channel"],
@@ -233,9 +236,7 @@ class ConversationService:
             messages=messages,
             status=ThreadStatus(data.get("status", "active")),
             spec_snapshot=data.get("spec_snapshot"),
-            created_at=data.get(
-                "created_at", datetime.now(UTC).isoformat(),
-            ),
+            created_at=data.get("created_at", fallback_ts),
         )
 
     def list_threads(self) -> list[ConversationThread]:
@@ -245,4 +246,11 @@ class ConversationService:
         return threads
 
     def get_thread(self, thread_id: str) -> ConversationThread | None:
-        return self._get_or_create_thread(thread_id, "unknown")
+        if thread_id in self._threads:
+            return self._threads[thread_id]
+        path = self._threads_dir / f"{thread_id}.json"
+        if path.exists():
+            thread = self._load_thread(path)
+            self._threads[thread_id] = thread
+            return thread
+        return None

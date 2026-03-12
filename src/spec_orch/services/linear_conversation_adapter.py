@@ -42,7 +42,7 @@ class LinearConversationAdapter:
 
     def listen(
         self,
-        callback: Callable[[ConversationMessage], None],
+        callback: Callable[[ConversationMessage], str | None],
     ) -> None:
         """Poll Linear for new comments on watched issues."""
         self._running = True
@@ -55,7 +55,7 @@ class LinearConversationAdapter:
 
     def _poll_once(
         self,
-        callback: Callable[[ConversationMessage], None],
+        callback: Callable[[ConversationMessage], str | None],
     ) -> None:
         issues = self._client.list_issues(
             team_key=self._team_key,
@@ -97,7 +97,9 @@ class LinearConversationAdapter:
                         "user_email": user_info.get("email", ""),
                     },
                 )
-                callback(msg)
+                reply_text = callback(msg)
+                if reply_text:
+                    self.reply(msg.thread_id, reply_text)
 
     def reply(self, thread_id: str, content: str) -> None:
         """Post a comment back to the Linear issue."""
