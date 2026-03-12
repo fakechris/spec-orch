@@ -61,6 +61,9 @@ def check_pipeline(mission_id: str, repo_root: Path) -> list[PipelineStage]:
     has_linear_issues = _plan_has_linear_issues(plan_data)
     plan_status = plan_data.get("status", "")
 
+    is_completed = mission_data.get("completed_at") is not None
+    has_retro = (specs_dir / "retro.md").exists()
+
     stage_done: dict[str, bool] = {
         "discuss": has_spec,
         "freeze": has_spec and has_mission,
@@ -68,11 +71,11 @@ def check_pipeline(mission_id: str, repo_root: Path) -> list[PipelineStage]:
         "plan": has_plan,
         "promote": has_linear_issues,
         "run": plan_status in ("executing", "completed"),
-        "gate": False,
-        "pr": False,
-        "review": False,
-        "merge": mission_data.get("completed_at") is not None,
-        "retro": (specs_dir / "retro.md").exists(),
+        "gate": is_completed,
+        "pr": is_completed,
+        "review": is_completed,
+        "merge": is_completed,
+        "retro": has_retro,
     }
 
     stages: list[PipelineStage] = []
