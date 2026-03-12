@@ -118,6 +118,7 @@ def save_plan(plan: ExecutionPlan, path: Path) -> None:
             "files_out_of_scope": p.files_out_of_scope,
             "depends_on": p.depends_on,
             "acceptance_criteria": p.acceptance_criteria,
+            "verification_commands": p.verification_commands,
             "builder_prompt": p.builder_prompt,
             "linear_issue_id": p.linear_issue_id,
         }

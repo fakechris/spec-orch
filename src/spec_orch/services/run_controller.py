@@ -36,6 +36,8 @@ from spec_orch.services.telemetry_service import TelemetryService
 from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.workspace_service import WorkspaceService
 
+_MAX_ADVANCE_ITERATIONS = 10
+
 
 class RunController:
     def __init__(
@@ -426,8 +428,7 @@ class RunController:
         planner is available, it uses the planner's ``answer_questions`` to
         resolve them autonomously.
         """
-        max_iterations = 10
-        for _ in range(max_iterations):
+        for _ in range(_MAX_ADVANCE_ITERATIONS):
             state = self.get_state(issue_id)
             if state in {RunState.GATE_EVALUATED, RunState.MERGED, RunState.ACCEPTED}:
                 break

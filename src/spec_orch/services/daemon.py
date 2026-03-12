@@ -38,6 +38,9 @@ class DaemonConfig:
         self.planner_api_base_env: str | None = planner.get("api_base_env")
         self.planner_token_command: str | None = planner.get("token_command")
 
+        github = raw.get("github", {})
+        self.base_branch: str = github.get("base_branch", "main")
+
         daemon = raw.get("daemon", {})
         self.max_concurrent: int = daemon.get("max_concurrent", 1)
         self.lockfile_dir: str = daemon.get("lockfile_dir", ".spec_orch_locks/")
@@ -189,7 +192,7 @@ class SpecOrchDaemon:
                 workspace=workspace,
                 title=title,
                 body="\n".join(body_lines),
-                base="main",
+                base=self.config.base_branch,
                 draft=True,
             )
             if pr_url:
@@ -197,7 +200,7 @@ class SpecOrchDaemon:
                 gh_svc.set_gate_status(workspace=workspace, gate=result.gate)
             else:
                 print(f"[daemon] could not create PR for {issue_id}")
-        except Exception as exc:
+        except (RuntimeError, OSError, FileNotFoundError) as exc:
             print(f"[daemon] auto-PR failed for {issue_id}: {exc}")
 
     def _is_locked(self, issue_id: str) -> bool:

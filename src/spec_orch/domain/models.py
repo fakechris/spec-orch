@@ -336,6 +336,19 @@ class PlannerResult:
     raw_response: str = ""
 
 
+class DeviationSeverity(StrEnum):
+    MINOR = "minor"
+    MAJOR = "major"
+    BLOCKING = "blocking"
+
+
+class DeviationResolution(StrEnum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    SPEC_AMENDED = "spec_amended"
+    REVERTED = "reverted"
+
+
 @dataclass(slots=True)
 class SpecDeviation:
     """Records how execution diverged from the approved spec."""
@@ -344,8 +357,8 @@ class SpecDeviation:
     issue_id: str
     mission_id: str = ""
     description: str = ""
-    severity: str = "minor"  # minor | major | blocking
-    resolution: str = "pending"  # pending | accepted | spec_amended | reverted
+    severity: str = DeviationSeverity.MINOR
+    resolution: str = DeviationResolution.PENDING
     detected_by: str = "gate"
     file_path: str | None = None
 

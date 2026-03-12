@@ -1281,9 +1281,20 @@ def retro_mission(
     """Generate a retrospective for a Mission — deviations, decisions, outcomes."""
     from spec_orch.services.deviation_service import load_deviations
     from spec_orch.services.mission_service import MissionService
+    from spec_orch.services.promotion_service import load_plan
 
     svc = MissionService(repo_root=Path(repo_root))
     mission = svc.get_mission(mission_id)
+
+    mission_issue_ids: set[str] | None = None
+    plan_path = Path(repo_root) / "docs/specs" / mission_id / "plan.json"
+    if plan_path.exists():
+        plan = load_plan(plan_path)
+        mission_issue_ids = set()
+        for w in plan.waves:
+            for p in w.work_packets:
+                if p.linear_issue_id:
+                    mission_issue_ids.add(p.linear_issue_id)
 
     ws = WorkspaceService(repo_root=Path(repo_root))
     base_dir = ws.repo_root / ".spec_orch_runs"
@@ -1301,12 +1312,16 @@ def retro_mission(
 
     issue_dirs = sorted(base_dir.iterdir()) if base_dir.exists() else []
     total_deviations = 0
+    issues_included = 0
     for issue_dir in issue_dirs:
         report_path = issue_dir / "report.json"
         if not report_path.exists():
             continue
         data = json.loads(report_path.read_text())
         issue_id = data.get("issue_id", issue_dir.name)
+        if mission_issue_ids is not None and issue_id not in mission_issue_ids:
+            continue
+        issues_included += 1
         state = data.get("state", "unknown")
         mergeable = data.get("mergeable", False)
         retro_lines.append(
@@ -1326,7 +1341,7 @@ def retro_mission(
         "## Summary",
         "",
         f"- Total deviations: {total_deviations}",
-        f"- Issues processed: {len(issue_dirs)}",
+        f"- Issues processed: {issues_included}",
     ])
 
     retro_content = "\n".join(retro_lines) + "\n"
@@ -1346,9 +1361,10 @@ def _load_planner_config(repo_root: Path) -> dict[str, Any]:
         return {}
     try:
         import tomllib
+
         with config_path.open("rb") as f:
             raw = tomllib.load(f)
-    except Exception:
+    except (ImportError, FileNotFoundError, tomllib.TOMLDecodeError):
         return {}
     planner_cfg = raw.get("planner", {})
     result: dict[str, Any] = {}
