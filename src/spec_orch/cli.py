@@ -1248,6 +1248,7 @@ def plan_mission(
             f"  wave {w.wave_number}: {w.description} "
             f"({len(w.work_packets)} packets)"
         )
+    _show_next_step(mission_id, Path(repo_root))
 
 
 @app.command("plan-show")
@@ -1272,6 +1273,7 @@ def plan_show(
             deps = f" (depends: {', '.join(p.depends_on)})" if p.depends_on else ""
             issue = f" [{p.linear_issue_id}]" if p.linear_issue_id else ""
             typer.echo(f"  [{p.run_class}] {p.packet_id}: {p.title}{deps}{issue}")
+    _show_next_step(mission_id, Path(repo_root))
 
 
 @app.command("promote")
@@ -1304,6 +1306,32 @@ def promote_plan(
     for w in plan.waves:
         for p in w.work_packets:
             typer.echo(f"  {p.linear_issue_id}: {p.title}")
+    _show_next_step(mission_id, Path(repo_root))
+
+
+def _show_next_step(mission_id: str, repo_root: Path) -> None:
+    """Print the next pipeline step hint after a command completes."""
+    from spec_orch.services.pipeline_checker import next_step
+
+    nxt = next_step(mission_id, repo_root)
+    if nxt:
+        typer.echo(f"\n>> next: {nxt.label}  ({nxt.command_hint})")
+
+
+@app.command("pipeline")
+def pipeline_status(
+    mission_id: str = typer.Argument(..., help="Mission ID to check."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Show the EODF pipeline progress for a mission."""
+    from spec_orch.services.pipeline_checker import check_pipeline, format_pipeline
+
+    stages = check_pipeline(mission_id, Path(repo_root))
+    typer.echo(f"Pipeline: {mission_id}\n")
+    typer.echo(format_pipeline(stages))
+
+    done = sum(1 for s in stages if s.status == "done")
+    typer.echo(f"\n{done}/{len(stages)} stages complete")
 
 
 @app.command("retro")
@@ -1439,6 +1467,7 @@ def mission_approve(
     svc = MissionService(repo_root=Path(repo_root))
     m = svc.approve_mission(mission_id)
     typer.echo(f"mission {m.mission_id} approved at {m.approved_at}")
+    _show_next_step(m.mission_id, Path(repo_root))
 
 
 @mission_app.command("status")
