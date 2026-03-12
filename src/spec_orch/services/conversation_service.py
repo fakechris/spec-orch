@@ -111,7 +111,8 @@ class ConversationService:
         for line in spec_md.splitlines():
             stripped = line.strip()
             if stripped.startswith("# "):
-                return stripped[2:].strip()[:60]
+                title = stripped[2:].strip()[:60]
+                return title if title else fallback
         return fallback
 
     def _freeze_thread(self, thread: ConversationThread) -> str:

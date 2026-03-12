@@ -1297,9 +1297,13 @@ def promote_plan(
         from spec_orch.services.linear_client import LinearClient
         linear_client = LinearClient(token=linear_token)
 
-    svc = PromotionService(linear_client=linear_client)
-    plan = svc.promote(plan)
-    save_plan(plan, plan_path)
+    try:
+        svc = PromotionService(linear_client=linear_client)
+        plan = svc.promote(plan)
+        save_plan(plan, plan_path)
+    finally:
+        if linear_client is not None:
+            linear_client.close()
 
     total = sum(len(w.work_packets) for w in plan.waves)
     typer.echo(f"promoted {total} work packets to execution")
@@ -1431,6 +1435,8 @@ def _load_planner_config(repo_root: Path) -> dict[str, Any]:
     result: dict[str, Any] = {}
     if planner_cfg.get("model"):
         result["model"] = planner_cfg["model"]
+    if planner_cfg.get("api_type"):
+        result["api_type"] = planner_cfg["api_type"]
     api_key_env = planner_cfg.get("api_key_env")
     if api_key_env:
         result["api_key"] = os.environ.get(api_key_env)

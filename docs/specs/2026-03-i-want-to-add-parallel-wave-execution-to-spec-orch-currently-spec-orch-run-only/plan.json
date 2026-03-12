@@ -50,7 +50,9 @@
           "title": "Create test scaffold for parallel execution",
           "spec_section": "Acceptance Criteria",
           "run_class": "feature",
-          "files_in_scope": [],
+          "files_in_scope": [
+            "tests/test_parallel_execution.py"
+          ],
           "files_out_of_scope": [],
           "depends_on": [],
           "acceptance_criteria": [
