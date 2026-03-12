@@ -839,11 +839,12 @@ def config_check(
         builder.get("codex_executable", "codex") if isinstance(builder, dict) else "codex"
     )
     planner_model = planner.get("model") if isinstance(planner, dict) else None
+    planner_api_type = planner.get("api_type", "anthropic") if isinstance(planner, dict) else "anthropic"
     planner_api_key_env = planner.get("api_key_env") if isinstance(planner, dict) else None
 
     results.extend(checker.check_linear(linear_token, linear_team_key))
     results.append(checker.check_codex(codex_executable))
-    results.extend(checker.check_planner(planner_model, planner_api_key_env))
+    results.extend(checker.check_planner(planner_model, planner_api_key_env, planner_api_type))
 
     _print_check_report(results)
     if any(result.status == "fail" for result in results):
@@ -1219,7 +1220,8 @@ def plan_mission(
 
     planner_cfg = _load_planner_config(Path(repo_root))
     scoper = LiteLLMScoperAdapter(
-        model=planner_cfg.get("model", "anthropic/claude-sonnet-4-20250514"),
+        model=planner_cfg.get("model", "claude-sonnet-4-20250514"),
+        api_type=planner_cfg.get("api_type", "anthropic"),
         api_key=planner_cfg.get("api_key"),
         api_base=planner_cfg.get("api_base"),
         token_command=planner_cfg.get("token_command"),
@@ -1246,6 +1248,7 @@ def plan_mission(
             f"  wave {w.wave_number}: {w.description} "
             f"({len(w.work_packets)} packets)"
         )
+    _show_next_step(mission_id, Path(repo_root))
 
 
 @app.command("plan-show")
@@ -1270,6 +1273,7 @@ def plan_show(
             deps = f" (depends: {', '.join(p.depends_on)})" if p.depends_on else ""
             issue = f" [{p.linear_issue_id}]" if p.linear_issue_id else ""
             typer.echo(f"  [{p.run_class}] {p.packet_id}: {p.title}{deps}{issue}")
+    _show_next_step(mission_id, Path(repo_root))
 
 
 @app.command("promote")
@@ -1286,15 +1290,52 @@ def promote_plan(
         raise typer.Exit(1)
 
     plan = load_plan(plan_path)
-    svc = PromotionService()
-    plan = svc.promote(plan)
-    save_plan(plan, plan_path)
+
+    linear_client = None
+    linear_token = os.environ.get("SPEC_ORCH_LINEAR_TOKEN")
+    if linear_token:
+        from spec_orch.services.linear_client import LinearClient
+        linear_client = LinearClient(token=linear_token)
+
+    try:
+        svc = PromotionService(linear_client=linear_client)
+        plan = svc.promote(plan)
+        save_plan(plan, plan_path)
+    finally:
+        if linear_client is not None:
+            linear_client.close()
 
     total = sum(len(w.work_packets) for w in plan.waves)
     typer.echo(f"promoted {total} work packets to execution")
     for w in plan.waves:
         for p in w.work_packets:
             typer.echo(f"  {p.linear_issue_id}: {p.title}")
+    _show_next_step(mission_id, Path(repo_root))
+
+
+def _show_next_step(mission_id: str, repo_root: Path) -> None:
+    """Print the next pipeline step hint after a command completes."""
+    from spec_orch.services.pipeline_checker import next_step
+
+    nxt = next_step(mission_id, repo_root)
+    if nxt:
+        typer.echo(f"\n>> next: {nxt.label}  ({nxt.command_hint})")
+
+
+@app.command("pipeline")
+def pipeline_status(
+    mission_id: str = typer.Argument(..., help="Mission ID to check."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Show the EODF pipeline progress for a mission."""
+    from spec_orch.services.pipeline_checker import check_pipeline, format_pipeline
+
+    stages = check_pipeline(mission_id, Path(repo_root))
+    typer.echo(f"Pipeline: {mission_id}\n")
+    typer.echo(format_pipeline(stages))
+
+    done = sum(1 for s in stages if s.status == "done")
+    typer.echo(f"\n{done}/{len(stages)} stages complete")
 
 
 @app.command("retro")
@@ -1394,6 +1435,8 @@ def _load_planner_config(repo_root: Path) -> dict[str, Any]:
     result: dict[str, Any] = {}
     if planner_cfg.get("model"):
         result["model"] = planner_cfg["model"]
+    if planner_cfg.get("api_type"):
+        result["api_type"] = planner_cfg["api_type"]
     api_key_env = planner_cfg.get("api_key_env")
     if api_key_env:
         result["api_key"] = os.environ.get(api_key_env)
@@ -1430,6 +1473,7 @@ def mission_approve(
     svc = MissionService(repo_root=Path(repo_root))
     m = svc.approve_mission(mission_id)
     typer.echo(f"mission {m.mission_id} approved at {m.approved_at}")
+    _show_next_step(m.mission_id, Path(repo_root))
 
 
 @mission_app.command("status")
@@ -1522,12 +1566,14 @@ def _build_planner_from_toml(repo_root: Path) -> Any:
         api_base = os.environ.get(api_base_env)
 
     token_command = planner_cfg.get("token_command")
+    api_type = planner_cfg.get("api_type", "anthropic")
 
     try:
         from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
 
         return LiteLLMPlannerAdapter(
             model=model,
+            api_type=api_type,
             api_key=api_key,
             api_base=api_base,
             token_command=token_command,
@@ -1588,11 +1634,13 @@ def _load_conversation_planner(
         api_key_env = planner_cfg.get("api_key_env")
         api_base_env = planner_cfg.get("api_base_env")
         token_command = planner_cfg.get("token_command")
+        api_type = planner_cfg.get("api_type", "anthropic")
 
         from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
 
         return LiteLLMPlannerAdapter(
             model=model,
+            api_type=api_type,
             api_key=os.environ.get(api_key_env) if api_key_env else None,
             api_base=os.environ.get(api_base_env) if api_base_env else None,
             token_command=token_command,

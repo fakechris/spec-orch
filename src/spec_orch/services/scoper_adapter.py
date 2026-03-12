@@ -58,16 +58,27 @@ class LiteLLMScoperAdapter:
 
     ADAPTER_NAME: str = "litellm_scoper"
 
+    VALID_API_TYPES = ("anthropic", "openai")
+
     def __init__(
         self,
         *,
-        model: str = "anthropic/claude-sonnet-4-20250514",
+        model: str = "claude-sonnet-4-20250514",
+        api_type: str = "anthropic",
         api_key: str | None = None,
         api_base: str | None = None,
         temperature: float = 0.3,
         token_command: str | None = None,
     ) -> None:
-        self.model = model
+        if api_type not in self.VALID_API_TYPES:
+            raise ValueError(
+                f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}"
+            )
+        self.api_type = api_type
+        if "/" in model:
+            self.model = model
+        else:
+            self.model = f"{api_type}/{model}"
         self._static_api_key = api_key or os.environ.get("SPEC_ORCH_LLM_API_KEY")
         self.api_base = api_base or os.environ.get("SPEC_ORCH_LLM_API_BASE")
         self.temperature = temperature

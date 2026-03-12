@@ -9,7 +9,8 @@ adapter = "codex_exec"
 codex_executable = "codex"
 
 [planner]
-model = "anthropic/MiniMax-M2.5"
+model = "MiniMax-M2.5"
+api_type = "anthropic"
 api_key_env = "SPEC_ORCH_LLM_API_KEY"
 api_base_env = "SPEC_ORCH_LLM_API_BASE"
 

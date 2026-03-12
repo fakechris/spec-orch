@@ -190,7 +190,10 @@ class ConfigChecker:
         return CheckResult(name="codex", status="pass", message=version)
 
     def check_planner(
-        self, model: str | None, api_key_env: str | None
+        self,
+        model: str | None,
+        api_key_env: str | None,
+        api_type: str = "anthropic",
     ) -> list[CheckResult]:
         results: list[CheckResult] = []
 
@@ -199,7 +202,7 @@ class ConfigChecker:
                 CheckResult(
                     name="planner_model",
                     status="pass",
-                    message=f"Planner model configured: {model}",
+                    message=f"Planner model configured: {model} (api_type={api_type})",
                 )
             )
         else:
