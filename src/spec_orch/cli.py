@@ -44,6 +44,8 @@ config_app = typer.Typer()
 app.add_typer(config_app, name="config")
 mission_app = typer.Typer()
 app.add_typer(mission_app, name="mission")
+discuss_app = typer.Typer()
+app.add_typer(discuss_app, name="discuss")
 
 
 def _resolve_version() -> str:
@@ -1541,6 +1543,193 @@ def _edit_fixture_json(fixture: dict[str, object]) -> dict[str, object]:
         raise typer.Exit(1) from exc
     finally:
         temp_path.unlink(missing_ok=True)
+
+
+def _load_conversation_planner(
+    repo_root: Path,
+) -> Any:
+    """Build a LiteLLMPlannerAdapter from spec-orch.toml for conversation use."""
+    try:
+        import tomllib
+    except ImportError:
+        return None
+    toml_path = repo_root / "spec-orch.toml"
+    if not toml_path.exists():
+        return None
+    try:
+        with open(toml_path, "rb") as f:
+            raw = tomllib.load(f)
+        planner_cfg = raw.get("planner", {})
+        model = planner_cfg.get("model")
+        if not model:
+            return None
+        api_key_env = planner_cfg.get("api_key_env")
+        api_base_env = planner_cfg.get("api_base_env")
+        token_command = planner_cfg.get("token_command")
+
+        from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
+
+        return LiteLLMPlannerAdapter(
+            model=model,
+            api_key=os.environ.get(api_key_env) if api_key_env else None,
+            api_base=os.environ.get(api_base_env) if api_base_env else None,
+            token_command=token_command,
+        )
+    except (ImportError, FileNotFoundError, tomllib.TOMLDecodeError):
+        return None
+
+
+@discuss_app.callback(invoke_without_command=True)
+def discuss_tui(
+    ctx: typer.Context,
+    channel: str = typer.Option(
+        "cli", "--channel", "-c",
+        help="Conversation channel: cli, slack, or linear.",
+    ),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Interactive brainstorming with the LLM planner."""
+    if ctx.invoked_subcommand is not None:
+        return
+
+    from spec_orch.services.conversation_service import ConversationService
+
+    planner = _load_conversation_planner(repo_root)
+    svc = ConversationService(repo_root=repo_root, planner=planner)
+
+    if channel == "slack":
+        _start_slack_adapter(svc, repo_root)
+        return
+
+    if channel == "linear":
+        _start_linear_adapter(svc, repo_root)
+        return
+
+    thread_id = f"cli-{uuid4().hex[:8]}"
+    typer.echo("SpecOrch brainstorming (type 'quit' to exit, '@spec-orch freeze' to freeze)")
+    typer.echo(f"Thread: {thread_id}")
+
+    while True:
+        try:
+            user_input = input("\nyou> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            typer.echo("\nbye")
+            break
+        if not user_input:
+            continue
+        if user_input.lower() in ("quit", "exit", "q"):
+            break
+
+        from spec_orch.domain.models import ConversationMessage
+
+        msg = ConversationMessage(
+            message_id=f"cli-{uuid4().hex[:8]}",
+            thread_id=thread_id,
+            sender="user",
+            content=user_input,
+            timestamp=datetime.now(UTC).isoformat(),
+            channel="cli",
+        )
+        reply = svc.handle_message(msg)
+        if reply:
+            typer.echo(f"\nbot> {reply}")
+
+
+def _start_slack_adapter(svc: Any, repo_root: Path) -> None:
+    try:
+        from spec_orch.services.slack_conversation_adapter import (
+            SlackConversationAdapter,
+        )
+    except ImportError as exc:
+        typer.echo("slack-bolt not installed. Run: pip install spec-orch[slack]")
+        raise typer.Exit(1) from exc
+
+    adapter = SlackConversationAdapter()
+    typer.echo("Starting Slack bot (Socket Mode)...")
+    adapter.listen(callback=svc.handle_message)
+
+
+def _start_linear_adapter(svc: Any, repo_root: Path) -> None:
+    try:
+        import tomllib
+    except ImportError as exc:
+        typer.echo("tomllib not available")
+        raise typer.Exit(1) from exc
+
+    toml_path = repo_root / "spec-orch.toml"
+    if not toml_path.exists():
+        typer.echo("spec-orch.toml not found")
+        raise typer.Exit(1)
+
+    with open(toml_path, "rb") as f:
+        raw = tomllib.load(f)
+
+    linear_cfg = raw.get("linear", {})
+    conv_section = raw.get("conversation", {})
+    conv_cfg = conv_section.get("linear", {}) if isinstance(conv_section, dict) else {}
+
+    from spec_orch.services.linear_client import LinearClient
+    from spec_orch.services.linear_conversation_adapter import LinearConversationAdapter
+
+    client = LinearClient(token_env=linear_cfg.get("token_env", "SPEC_ORCH_LINEAR_TOKEN"))
+    adapter = LinearConversationAdapter(
+        client=client,
+        team_key=linear_cfg.get("team_key", "SON"),
+        watch_label=conv_cfg.get("watch_label", "spec-orch"),
+        poll_interval_seconds=conv_cfg.get("poll_interval_seconds", 30),
+    )
+    typer.echo("Starting Linear comment bot (polling)...")
+    adapter.listen(callback=svc.handle_message)
+
+
+@discuss_app.command("list")
+def discuss_list(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """List active conversation threads."""
+    from spec_orch.services.conversation_service import ConversationService
+
+    svc = ConversationService(repo_root=repo_root)
+    threads = svc.list_threads()
+    if not threads:
+        typer.echo("No conversation threads found.")
+        return
+    for t in threads:
+        n_msgs = len(t.messages)
+        typer.echo(
+            f"  {t.thread_id}  channel={t.channel}  status={t.status.value}  "
+            f"messages={n_msgs}  mission={t.mission_id or '-'}"
+        )
+
+
+@discuss_app.command("freeze")
+def discuss_freeze(
+    thread_id: str = typer.Argument(..., help="Thread ID to freeze."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Manually freeze a conversation thread into a spec."""
+    from spec_orch.domain.models import ConversationMessage
+    from spec_orch.services.conversation_service import ConversationService
+
+    planner = _load_conversation_planner(repo_root)
+    svc = ConversationService(repo_root=repo_root, planner=planner)
+
+    thread = svc.get_thread(thread_id)
+    if thread is None or not thread.messages:
+        typer.echo(f"Thread {thread_id} not found or empty.")
+        raise typer.Exit(1)
+
+    msg = ConversationMessage(
+        message_id=f"cmd-{uuid4().hex[:8]}",
+        thread_id=thread_id,
+        sender="user",
+        content="@spec-orch freeze",
+        timestamp=datetime.now(UTC).isoformat(),
+        channel=thread.channel,
+    )
+    result = svc.handle_message(msg)
+    if result:
+        typer.echo(result)
 
 
 def main() -> None:

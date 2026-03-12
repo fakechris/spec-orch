@@ -18,6 +18,9 @@ dependencies = [
 planner = [
   "litellm>=1.60",
 ]
+slack = [
+  "slack-bolt>=1.21",
+]
 dev = [
   "pytest>=9,<10",
   "ruff>=0.9",

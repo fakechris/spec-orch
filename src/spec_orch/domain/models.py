@@ -336,6 +336,40 @@ class PlannerResult:
     raw_response: str = ""
 
 
+class ThreadStatus(StrEnum):
+    """Lifecycle states for a conversation thread."""
+
+    ACTIVE = "active"
+    FROZEN = "frozen"
+    ARCHIVED = "archived"
+
+
+@dataclass
+class ConversationMessage:
+    """A single message in a discussion thread — channel-agnostic."""
+
+    message_id: str
+    thread_id: str
+    sender: str
+    content: str
+    timestamp: str
+    channel: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ConversationThread:
+    """Persistent state for a multi-turn brainstorming discussion."""
+
+    thread_id: str
+    channel: str
+    mission_id: str | None = None
+    messages: list[ConversationMessage] = field(default_factory=list)
+    status: ThreadStatus = ThreadStatus.ACTIVE
+    spec_snapshot: str | None = None
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+
 class DeviationSeverity(StrEnum):
     MINOR = "minor"
     MAJOR = "major"

@@ -691,6 +691,21 @@ def test_plan_to_spec_edit_uses_shell_style_editor_splitting(tmp_path) -> None:
     assert invoked["command"][:3] == ["python", "-c", "print('ok')"]
 
 
+def test_discuss_list_empty(tmp_path: Path) -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["discuss", "list", "--repo-root", str(tmp_path)])
+    assert result.exit_code == 0
+    assert "no conversation threads" in result.stdout.lower()
+
+
+def test_discuss_help_shows_subcommands() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["discuss", "--help"])
+    assert result.exit_code == 0
+    assert "list" in result.stdout
+    assert "freeze" in result.stdout
+
+
 def test_create_pr_triggers_linear_writeback(tmp_path: Path) -> None:
     from spec_orch.cli import _linear_writeback_on_pr
     from spec_orch.domain.models import GateVerdict

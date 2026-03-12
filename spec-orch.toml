@@ -16,3 +16,14 @@ api_base_env = "SPEC_ORCH_LLM_API_BASE"
 [daemon]
 max_concurrent = 1
 lockfile_dir = ".spec_orch_locks/"
+
+[conversation]
+default_channel = "cli"
+
+[conversation.slack]
+bot_token_env = "SLACK_BOT_TOKEN"
+app_token_env = "SLACK_APP_TOKEN"
+
+[conversation.linear]
+watch_label = "spec-orch"
+poll_interval_seconds = 30

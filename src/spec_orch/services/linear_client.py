@@ -158,6 +158,38 @@ class LinearClient:
         create: dict[str, Any] = result.get("commentCreate", {})
         return create
 
+    def list_comments(
+        self,
+        issue_id: str,
+        *,
+        first: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Fetch comments for an issue, ordered by creation time."""
+        result = self.query(
+            """
+            query($issueId: String!, $first: Int!) {
+              issue(id: $issueId) {
+                comments(first: $first, orderBy: createdAt) {
+                  nodes {
+                    id
+                    body
+                    createdAt
+                    user { id name email }
+                  }
+                }
+              }
+            }
+            """,
+            variables={"issueId": issue_id, "first": first},
+        )
+        issue = result.get("issue")
+        if not issue:
+            return []
+        nodes: list[dict[str, Any]] = (
+            issue.get("comments", {}).get("nodes", [])
+        )
+        return nodes
+
     def resolve_state_id(self, issue_id: str, state_name: str) -> str:
         """Resolve a human-readable state name to its Linear workflow state ID."""
         team_result = self.query(

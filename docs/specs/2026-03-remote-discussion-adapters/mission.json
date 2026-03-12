@@ -1,0 +1,12 @@
+{
+  "mission_id": "2026-03-remote-discussion-adapters",
+  "title": "Remote Discussion Adapters",
+  "status": "approved",
+  "spec_path": "docs/specs/2026-03-remote-discussion-adapters/spec.md",
+  "acceptance_criteria": [],
+  "constraints": [],
+  "interface_contracts": [],
+  "created_at": "2026-03-12T09:24:42.557598+00:00",
+  "approved_at": "2026-03-12T09:25:17.808982+00:00",
+  "completed_at": null
+}
