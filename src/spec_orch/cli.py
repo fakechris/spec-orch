@@ -62,6 +62,27 @@ def _version_callback(value: bool) -> None:
     raise typer.Exit()
 
 
+def _load_dotenv() -> None:
+    """Load .env from repo root (or parents) if present."""
+    candidate = Path.cwd()
+    for _ in range(5):
+        env_path = candidate / ".env"
+        if env_path.is_file():
+            for line in env_path.read_text().splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key, value = key.strip(), value.strip()
+                if key and key not in os.environ:
+                    os.environ[key] = value
+            break
+        parent = candidate.parent
+        if parent == candidate:
+            break
+        candidate = parent
+
+
 @app.callback()
 def cli(
     version: bool = typer.Option(
@@ -73,6 +94,7 @@ def cli(
     ),
 ) -> None:
     """SpecOrch MVP prototype CLI."""
+    _load_dotenv()
 
 
 @app.command("plan-to-spec")
