@@ -292,6 +292,108 @@ class LiteLLMPlannerAdapter:
 
         return snapshot
 
+    def brainstorm(
+        self,
+        *,
+        conversation_history: list[dict[str, str]],
+        codebase_context: str = "",
+    ) -> str:
+        """Multi-turn brainstorming — returns a free-form reply.
+
+        Unlike ``plan()`` which produces structured JSON, this method maintains
+        a natural conversation with the user to explore requirements, trade-offs,
+        and design decisions before formalising a spec.
+        """
+        try:
+            import litellm
+        except ImportError as exc:
+            raise ImportError(
+                "litellm is required for LiteLLMPlannerAdapter. "
+                "Install with: pip install spec-orch[planner]"
+            ) from exc
+
+        system_msg = (
+            "You are a senior software architect helping brainstorm "
+            "requirements and design for a development project.\n"
+            "Be concise, ask clarifying questions when the user's intent is "
+            "ambiguous, and suggest concrete approaches.\n"
+            "When the discussion has converged, say so and offer to freeze "
+            "the conclusions into a formal spec."
+        )
+        if codebase_context:
+            system_msg += (
+                "\n\nHere is relevant codebase context:\n"
+                f"```\n{codebase_context}\n```"
+            )
+
+        messages: list[dict[str, str]] = [
+            {"role": "system", "content": system_msg},
+            *conversation_history,
+        ]
+
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self.temperature,
+        }
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+        if self.api_base:
+            kwargs["api_base"] = self.api_base
+
+        response = litellm.completion(**kwargs)
+        return response.choices[0].message.content or ""
+
+    def summarise_to_spec(
+        self,
+        *,
+        conversation_history: list[dict[str, str]],
+        title: str,
+    ) -> str:
+        """Distil a conversation into a structured spec markdown document."""
+        try:
+            import litellm
+        except ImportError as exc:
+            raise ImportError(
+                "litellm is required for LiteLLMPlannerAdapter. "
+                "Install with: pip install spec-orch[planner]"
+            ) from exc
+
+        messages: list[dict[str, str]] = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a technical writer. Summarise the following "
+                    "brainstorming conversation into a structured spec "
+                    "using this template:\n\n"
+                    f"# {title}\n\n"
+                    "## Goal\n\n## Scope\n\n### In scope\n\n"
+                    "### Out of scope\n\n"
+                    "## Acceptance Criteria\n\n## Constraints\n\n"
+                    "## Interface Contracts\n\n"
+                    "Output ONLY the markdown spec, no preamble."
+                ),
+            },
+            *conversation_history,
+            {
+                "role": "user",
+                "content": "Please freeze this discussion into a formal spec now.",
+            },
+        ]
+
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.2,
+        }
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+        if self.api_base:
+            kwargs["api_base"] = self.api_base
+
+        response = litellm.completion(**kwargs)
+        return response.choices[0].message.content or ""
+
     @staticmethod
     def _issue_payload(issue: Issue) -> dict[str, Any]:
         return {

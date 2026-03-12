@@ -7,6 +7,7 @@ from typing import Any, Protocol, runtime_checkable
 from spec_orch.domain.models import (
     BuilderEvent,
     BuilderResult,
+    ConversationMessage,
     ExecutionPlan,
     Issue,
     Mission,
@@ -105,4 +106,35 @@ class ScoperAdapter(Protocol):
         codebase_context: dict[str, Any],
     ) -> ExecutionPlan:
         """Analyse the mission spec and produce a DAG of waves and work packets."""
+        ...
+
+
+@runtime_checkable
+class ConversationAdapter(Protocol):
+    """Transport-agnostic conversation channel.
+
+    Implementations:
+      - SlackConversationAdapter  — Slack Bolt + Socket Mode
+      - LinearConversationAdapter — polls Linear issue comments
+      - CLIConversationAdapter    — stdin/stdout for local TUI
+    """
+
+    ADAPTER_NAME: str
+
+    def listen(
+        self,
+        callback: Callable[[ConversationMessage], None],
+    ) -> None:
+        """Start listening for incoming messages. Calls *callback* on each.
+
+        This method blocks until ``stop()`` is called.
+        """
+        ...
+
+    def reply(self, thread_id: str, content: str) -> None:
+        """Send a reply to a specific thread."""
+        ...
+
+    def stop(self) -> None:
+        """Graceful shutdown."""
         ...
