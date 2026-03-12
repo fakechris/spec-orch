@@ -1,0 +1,240 @@
+{
+  "plan_id": "plan-19d10b0e",
+  "mission_id": "2026-03-i-want-to-add-parallel-wave-execution-to-spec-orch-currently-spec-orch-run-only",
+  "status": "draft",
+  "waves": [
+    {
+      "wave_number": 0,
+      "description": "Contract Freeze / Scaffold - Define data classes and protocols for parallel execution",
+      "work_packets": [
+        {
+          "packet_id": "parallel-models-scaffold",
+          "title": "Add parallel execution data classes to domain/models.py",
+          "spec_section": "Interface Contracts",
+          "run_class": "feature",
+          "files_in_scope": [
+            "src/spec_orch/domain/models.py"
+          ],
+          "files_out_of_scope": [],
+          "depends_on": [],
+          "acceptance_criteria": [
+            "ParallelConfig with max_concurrency (default 3), max_concurrency_cap, effective_limit()",
+            "PacketResult with packet_id, wave_id, exit_code, stdout, stderr, duration_seconds",
+            "WaveResult with wave_id, packet_results, all_succeeded, failed_packets property",
+            "ExecutionPlanResult with wave_results, total_duration, is_success() method"
+          ],
+          "verification_commands": {},
+          "builder_prompt": "Add the following dataclasses to domain/models.py: ParallelConfig (with effective_limit() method using os.cpu_count()), PacketResult, WaveResult, ExecutionPlanResult. Ensure proper imports for dataclass, typing, os.",
+          "linear_issue_id": null
+        },
+        {
+          "packet_id": "parallel-protocols-scaffold",
+          "title": "Add executor protocols to domain/protocols.py",
+          "spec_section": "Interface Contracts",
+          "run_class": "feature",
+          "files_in_scope": [
+            "src/spec_orch/domain/protocols.py"
+          ],
+          "files_out_of_scope": [],
+          "depends_on": [],
+          "acceptance_criteria": [
+            "PacketExecutor ABC with execute_packet abstract method",
+            "WaveExecutor ABC with execute_wave abstract method"
+          ],
+          "verification_commands": {},
+          "builder_prompt": "Add to domain/protocols.py: PacketExecutor (ABC) with async execute_packet(packet, wave_id, cancel_event) -> PacketResult; WaveExecutor (ABC) with async execute_wave(wave, wave_id, config, cancel_event) -> WaveResult. Import WorkPacket from models.",
+          "linear_issue_id": null
+        },
+        {
+          "packet_id": "test-scaffold-parallel",
+          "title": "Create test scaffold for parallel execution",
+          "spec_section": "Acceptance Criteria",
+          "run_class": "feature",
+          "files_in_scope": [],
+          "files_out_of_scope": [],
+          "depends_on": [],
+          "acceptance_criteria": [
+            "Test files created in tests/ directory for parallel execution",
+            "Tests stubbed for: concurrency limiting, fail-fast behavior, cancellation"
+          ],
+          "verification_commands": {},
+          "builder_prompt": "Create tests/test_parallel_execution.py with stubbed test methods: test_concurrency_limiting, test_fail_fast_behavior, test_cancellation_handler. Use pytest and pytest-asyncio.",
+          "linear_issue_id": null
+        }
+      ]
+    },
+    {
+      "wave_number": 1,
+      "description": "Core Implementation - PacketExecutor and WaveExecutor with asyncio concurrency",
+      "work_packets": [
+        {
+          "packet_id": "packet-executor-impl",
+          "title": "Implement PacketExecutor with subprocess execution",
+          "spec_section": "Interface Contracts - PacketExecutor",
+          "run_class": "feature",
+          "files_in_scope": [
+            "src/spec_orch/services/packet_executor.py"
+          ],
+          "files_out_of_scope": [],
+          "depends_on": [
+            "parallel-models-scaffold",
+            "parallel-protocols-scaffold"
+          ],
+          "acceptance_criteria": [],
+          "verification_commands": {},
+          "builder_prompt": "Create src/spec_orch/services/packet_executor.py implementing PacketExecutor protocol. Use asyncio.create_subprocess_exec to run 'codex exec' commands. Track timing with time.perf_counter(). Handle cancel_event check during execution. Return PacketResult with exit_code, stdout, stderr.",
+          "linear_issue_id": null
+        },
+        {
+          "packet_id": "wave-executor-impl",
+          "title": "Implement WaveExecutor with semaphore-based concurrency",
+          "spec_section": "Interface Contracts - WaveExecutor",
+          "run_class": "feature",
+          "files_in_scope": [
+            "src/spec_orch/services/wave_executor.py"
+          ],
+          "files_out_of_scope": [],
+          "depends_on": [
+            "parallel-models-scaffold",
+            "parallel-protocols-scaffold",
+            "packet-executor-impl"
+          ],
+          "acceptance_criteria": [
+            "WaveExecutor implements protocol from protocols.py",
+            "Uses asyncio.Semaphore for concurrency limiting",
+            "effective_limit() caps at CPU cores",
+            "Uses asyncio.gather with return_exceptions=False for fail-fast",
+            "First exception cancels remaining packets",
+            "Returns WaveResult with all packet results"
+          ],
+          "verification_commands": {},
+          "builder_prompt": "Create src/spec_orch/services/wave_executor.py implementing WaveExecutor. Use asyncio.Semaphore with config.effective_limit(). Execute packets concurrently using asyncio.gather (no return_exceptions) to achieve fail-fast. On any exception, cancel remaining and propagate. Return WaveResult with all_succeeded = all(r.exit_code == 0).",
+          "linear_issue_id": null
+        }
+      ]
+    },
+    {
+      "wave_number": 2,
+      "description": "Integration - Run controller integration, cancellation, and logging",
+      "work_packets": [
+        {
+          "packet_id": "parallel-run-controller",
+          "title": "Integrate parallel execution into run controller",
+          "spec_section": "Scope - AsyncioWaveExecutor",
+          "run_class": "feature",
+          "files_in_scope": [
+            "src/spec_orch/services/run_controller.py",
+            "src/spec_orch/services/mission_service.py"
+          ],
+          "files_out_of_scope": [],
+          "depends_on": [
+            "wave-executor-impl"
+          ],
+          "acceptance_criteria": [
+            "Waves execute sequentially",
+            "Packets within wave execute in parallel",
+            "Failed wave aborts entire execution (no subsequent waves)",
+            "Returns ExecutionPlanResult with timing"
+          ],
+          "verification_commands": {},
+          "builder_prompt": "Modify run_controller.py or create new execution flow that: 1) Iterates waves sequentially, 2) For each wave calls WaveExecutor.execute_wave() with ParallelConfig, 3) On wave failure (not all_succeeded), abort remaining waves and return early, 4) Collect all WaveResults into ExecutionPlanResult with total_duration.",
+          "linear_issue_id": null
+        },
+        {
+          "packet_id": "cancellation-handler",
+          "title": "Implement SIGINT/SIGTERM/SIGKILL cancellation handling",
+          "spec_section": "Cancellation behavior",
+          "run_class": "feature",
+          "files_in_scope": [
+            "src/spec_orch/services/process_manager.py"
+          ],
+          "files_out_of_scope": [],
+          "depends_on": [
+            "packet-executor-impl"
+          ],
+          "acceptance_criteria": [
+            "Ctrl-C (SIGINT) sets cancel_event",
+            "Sends SIGTERM to all running subprocesses",
+            "Waits 5s, then SIGKILL if still running",
+            "Aborts remaining waves"
+          ],
+          "verification_commands": {},
+          "builder_prompt": "Create src/spec_orch/services/process_manager.py with: ProcessManager class that tracks running subprocesses, handles SIGINT to set cancel_event, send_sigterm_to_all(), wait_then_sigkill(timeout=5), and cleanup(). Integrate with PacketExecutor to register processes.",
+          "linear_issue_id": null
+        },
+        {
+          "packet_id": "structured-logging",
+          "title": "Add structured JSON logging with wave/packet correlation",
+          "spec_section": "Logging format",
+          "run_class": "feature",
+          "files_in_scope": [
+            "src/spec_orch/services/activity_logger.py",
+            "src/spec_orch/services/event_formatter.py"
+          ],
+          "files_out_of_scope": [],
+          "depends_on": [],
+          "acceptance_criteria": [
+            "All log messages include wave_id and packet_id fields",
+            "Events: wave_started, wave_completed, wave_failed, packet_started, packet_completed, packet_failed, execution_started, execution_completed, execution_cancelled",
+            "Structured JSON output"
+          ],
+          "verification_commands": {},
+          "builder_prompt": "Extend activity_logger.py to add logging methods for each event type (wave_started, wave_completed, etc.) that include wave_id and packet_id in the log record. Use event_formatter.py to format as structured JSON with required fields.",
+          "linear_issue_id": null
+        }
+      ]
+    },
+    {
+      "wave_number": 3,
+      "description": "Integration / QA - Unit tests and verification",
+      "work_packets": [
+        {
+          "packet_id": "parallel-unit-tests",
+          "title": "Write unit tests for concurrency, fail-fast, and cancellation",
+          "spec_section": "Acceptance Criteria",
+          "run_class": "qa",
+          "files_in_scope": [
+            "tests/test_parallel_execution.py"
+          ],
+          "files_out_of_scope": [],
+          "depends_on": [
+            "wave-executor-impl",
+            "cancellation-handler",
+            "test-scaffold-parallel"
+          ],
+          "acceptance_criteria": [
+            "test_concurrency_limiting: Verify max N packets run concurrently",
+            "test_fail_fast_behavior: First failure cancels remaining in wave",
+            "test_cancellation_handler: SIGINT triggers SIGTERM then SIGKILL flow",
+            "All tests pass"
+          ],
+          "verification_commands": {},
+          "builder_prompt": "Implement the test scaffold in tests/test_parallel_execution.py: 1) test_concurrency_limiting - mock PacketExecutor, track concurrent executions, verify max concurrency, 2) test_fail_fast_behavior - mock slow executor that raises on first, verify remaining cancelled, 3) test_cancellation_handler - verify ProcessManager sends SIGTERM then SIGKILL sequence.",
+          "linear_issue_id": null
+        },
+        {
+          "packet_id": "integration-verification",
+          "title": "Integration verification and CLI test",
+          "spec_section": "Acceptance Criteria",
+          "run_class": "qa",
+          "files_in_scope": [
+            "src/spec_orch/cli.py"
+          ],
+          "files_out_of_scope": [],
+          "depends_on": [
+            "parallel-run-controller",
+            "structured-logging"
+          ],
+          "acceptance_criteria": [
+            "CLI accepts --max-concurrency flag",
+            "End-to-end execution with parallel waves produces correct result structure",
+            "Logging output includes wave_id and packet_id"
+          ],
+          "verification_commands": {},
+          "builder_prompt": "Add --max-concurrency argument to cli.py (default 3). Pass to ParallelConfig in execution. Test end-to-end run with a simple spec to verify ExecutionPlanResult returned with correct structure and timing.",
+          "linear_issue_id": null
+        }
+      ]
+    }
+  ]
+}

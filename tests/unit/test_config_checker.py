@@ -171,7 +171,7 @@ def test_check_planner_requires_defined_api_key_env() -> None:
         CheckResult(
             name="planner_model",
             status="pass",
-            message="Planner model configured: anthropic/claude-sonnet",
+            message="Planner model configured: anthropic/claude-sonnet (api_type=anthropic)",
         ),
         CheckResult(
             name="planner_api_key",
@@ -236,7 +236,7 @@ def test_config_check_command_prints_report_and_succeeds(tmp_path: Path) -> None
                 CheckResult(
                     "planner_model",
                     "pass",
-                    "Planner model configured: anthropic/claude-sonnet",
+                    "Planner model configured: anthropic/claude-sonnet (api_type=anthropic)",
                 ),
                 CheckResult(
                     "planner_api_key",
@@ -304,7 +304,7 @@ def test_config_check_command_exits_nonzero_on_failures(tmp_path: Path) -> None:
                 CheckResult(
                     "planner_model",
                     "pass",
-                    "Planner model configured: anthropic/claude-sonnet",
+                    "Planner model configured: anthropic/claude-sonnet (api_type=anthropic)",
                 ),
                 CheckResult(
                     "planner_api_key",

@@ -105,6 +105,15 @@ class ConversationService:
 
         return f"Unknown command: {cmd}"
 
+    @staticmethod
+    def _extract_title_from_spec(spec_md: str, fallback: str) -> str:
+        """Extract the H1 title from generated spec markdown."""
+        for line in spec_md.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("# "):
+                return stripped[2:].strip()[:60]
+        return fallback
+
     def _freeze_thread(self, thread: ConversationThread) -> str:
         if not thread.messages:
             return "Nothing to freeze — thread is empty."
@@ -112,13 +121,15 @@ class ConversationService:
         if self._planner is None:
             return "Cannot freeze: no planner configured."
 
-        title = self._infer_title(thread)
+        inferred = self._infer_title(thread)
         history = self._build_history(thread)
 
         spec_md: str = self._planner.summarise_to_spec(
             conversation_history=history,
-            title=title,
+            title=inferred,
         )
+
+        title = self._extract_title_from_spec(spec_md, inferred)
 
         from spec_orch.services.mission_service import MissionService
 
@@ -165,7 +176,8 @@ class ConversationService:
             raw = first_user.content.strip()
             raw = _COMMAND_RE.sub("", raw).strip()
             if raw:
-                return raw[:80]
+                first_sentence = raw.split(".")[0].split("。")[0].split("\n")[0]
+                return first_sentence[:60]
         return f"Discussion {thread.thread_id[:8]}"
 
     @staticmethod

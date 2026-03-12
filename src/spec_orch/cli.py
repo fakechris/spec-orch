@@ -839,11 +839,12 @@ def config_check(
         builder.get("codex_executable", "codex") if isinstance(builder, dict) else "codex"
     )
     planner_model = planner.get("model") if isinstance(planner, dict) else None
+    planner_api_type = planner.get("api_type", "anthropic") if isinstance(planner, dict) else "anthropic"
     planner_api_key_env = planner.get("api_key_env") if isinstance(planner, dict) else None
 
     results.extend(checker.check_linear(linear_token, linear_team_key))
     results.append(checker.check_codex(codex_executable))
-    results.extend(checker.check_planner(planner_model, planner_api_key_env))
+    results.extend(checker.check_planner(planner_model, planner_api_key_env, planner_api_type))
 
     _print_check_report(results)
     if any(result.status == "fail" for result in results):
@@ -1219,7 +1220,8 @@ def plan_mission(
 
     planner_cfg = _load_planner_config(Path(repo_root))
     scoper = LiteLLMScoperAdapter(
-        model=planner_cfg.get("model", "anthropic/claude-sonnet-4-20250514"),
+        model=planner_cfg.get("model", "claude-sonnet-4-20250514"),
+        api_type=planner_cfg.get("api_type", "anthropic"),
         api_key=planner_cfg.get("api_key"),
         api_base=planner_cfg.get("api_base"),
         token_command=planner_cfg.get("token_command"),
@@ -1522,12 +1524,14 @@ def _build_planner_from_toml(repo_root: Path) -> Any:
         api_base = os.environ.get(api_base_env)
 
     token_command = planner_cfg.get("token_command")
+    api_type = planner_cfg.get("api_type", "anthropic")
 
     try:
         from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
 
         return LiteLLMPlannerAdapter(
             model=model,
+            api_type=api_type,
             api_key=api_key,
             api_base=api_base,
             token_command=token_command,
@@ -1588,11 +1592,13 @@ def _load_conversation_planner(
         api_key_env = planner_cfg.get("api_key_env")
         api_base_env = planner_cfg.get("api_base_env")
         token_command = planner_cfg.get("token_command")
+        api_type = planner_cfg.get("api_type", "anthropic")
 
         from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
 
         return LiteLLMPlannerAdapter(
             model=model,
+            api_type=api_type,
             api_key=os.environ.get(api_key_env) if api_key_env else None,
             api_base=os.environ.get(api_base_env) if api_base_env else None,
             token_command=token_command,
