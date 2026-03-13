@@ -155,6 +155,69 @@ class GitHubPRService:
         sha = result.stdout.strip()
         return sha if result.returncode == 0 and sha else None
 
+    def mark_ready(self, workspace: Path, pr_number: int | None = None) -> bool:
+        """Convert a draft PR to ready-for-review."""
+        if pr_number is None:
+            pr_number = self._current_pr_number(workspace)
+        if not pr_number:
+            return False
+        result = subprocess.run(
+            [self.gh, "pr", "ready", str(pr_number)],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.returncode == 0
+
+    def merge_pr(
+        self,
+        workspace: Path,
+        *,
+        pr_number: int | None = None,
+        method: str = "squash",
+        delete_branch: bool = True,
+    ) -> bool:
+        """Merge a PR. Returns True on success."""
+        if pr_number is None:
+            pr_number = self._current_pr_number(workspace)
+        if not pr_number:
+            return False
+
+        self.mark_ready(workspace, pr_number)
+
+        cmd = [
+            self.gh, "pr", "merge", str(pr_number),
+            f"--{method}",
+            "--auto",
+        ]
+        if delete_branch:
+            cmd.append("--delete-branch")
+        result = subprocess.run(
+            cmd,
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.returncode == 0
+
+    def _current_pr_number(self, workspace: Path) -> int | None:
+        """Get the PR number for the current branch."""
+        result = subprocess.run(
+            [self.gh, "pr", "view", "--json", "number", "-q", ".number"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return None
+        try:
+            return int(result.stdout.strip())
+        except ValueError:
+            return None
+
     def _ensure_remote_branch(self, workspace: Path, branch: str) -> None:
         subprocess.run(
             ["git", "push", "-u", "origin", branch],

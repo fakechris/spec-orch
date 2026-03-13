@@ -681,6 +681,12 @@ def run_full(
     auto_pr: bool = typer.Option(
         False, "--auto-pr", help="Automatically create a GitHub PR on completion.",
     ),
+    auto_merge: bool = typer.Option(
+        False, "--auto-merge", help="Auto-merge if gate passes (implies --auto-pr).",
+    ),
+    gate_profile: str = typer.Option(
+        "", "--gate-profile", help="Gate profile to apply (e.g. daemon, ci).",
+    ),
     base: str = typer.Option("main", "--base", "-b", help="Base branch for PR."),
 ) -> None:
     """Run an issue through the full pipeline in one shot.
@@ -689,6 +695,8 @@ def run_full(
     using LLM self-answer for blocking questions when a planner is configured.
     Optionally creates a GitHub PR and writes back to Linear.
     """
+    if auto_merge:
+        auto_pr = True
     live_stream: IO[str] | None = sys.stderr if live else None
     controller = _make_controller(
         repo_root=repo_root,
@@ -732,17 +740,26 @@ def run_full(
             body_lines.extend(["", "### Explain", "", text])
         body_lines.extend(["", f"Closes {issue_id}"])
 
+        should_merge = auto_merge and result.gate.mergeable
         try:
             pr_url = gh_svc.create_pr(
                 workspace=workspace,
                 title=title,
                 body="\n".join(body_lines),
                 base=base,
-                draft=True,
+                draft=not should_merge,
             )
             if pr_url:
                 typer.echo(f"PR created: {pr_url}")
                 gh_svc.set_gate_status(workspace=workspace, gate=gate_verdict)
+
+                if should_merge:
+                    merged = gh_svc.merge_pr(workspace, method="squash")
+                    if merged:
+                        typer.echo("auto-merge: enabled (waiting for checks)")
+                    else:
+                        typer.echo("auto-merge: could not enable")
+
                 _linear_writeback_on_pr(
                     issue_id, data, pr_url, gate_verdict, Path(repo_root),
                 )
@@ -873,45 +890,157 @@ def config_check(
         raise typer.Exit(1)
 
 
-@app.command()
-def gate(
+gate_app = typer.Typer(help="Gate evaluation commands.")
+app.add_typer(gate_app, name="gate")
+
+
+@gate_app.command("evaluate")
+def gate_evaluate(
     issue_id: str = typer.Argument(
-        default="", help="Issue ID to evaluate gate for (optional)."
+        default="", help="Issue ID to evaluate gate for."
     ),
     repo_root: Path = typer.Option(".", "--repo-root", "-r"),
     policy: Path = typer.Option(
         "gate.policy.yaml", "--policy", "-p", help="Path to gate.policy.yaml."
     ),
-    show_policy: bool = typer.Option(
-        False, "--show-policy", help="Print the gate policy and exit."
+    profile: str = typer.Option(
+        "", "--profile", help="Gate profile to apply (e.g. daemon, ci, strict)."
+    ),
+    report_file: Path | None = typer.Option(
+        None, "--report", help="Path to report.json (overrides issue workspace)."
+    ),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output in JSON format."
     ),
 ) -> None:
-    """Evaluate the gate for an issue, or show gate policy."""
-    from spec_orch.services.gate_service import GatePolicy, GateService
+    """Evaluate the gate for an issue or report file."""
+    from spec_orch.services.gate_service import GateService
 
-    gate_policy: GatePolicy | None = None
-    if Path(policy).exists():
-        gate_policy = GatePolicy.from_yaml(Path(policy))
-
+    gate_policy = _load_gate_policy(policy, profile)
     svc = GateService(policy=gate_policy)
 
-    if show_policy:
-        typer.echo(svc.describe_policy())
-        return
-
-    if not issue_id:
-        typer.echo("provide an issue_id or use --show-policy")
+    if not issue_id and report_file is None:
+        typer.echo("provide an issue_id or --report")
         raise typer.Exit(1)
 
-    ws = WorkspaceService(repo_root=Path(repo_root))
-    workspace = ws.issue_workspace_path(issue_id)
-    result_file = workspace / "report.json"
+    if report_file is not None:
+        result_file = Path(report_file)
+    else:
+        ws = WorkspaceService(repo_root=Path(repo_root))
+        workspace = ws.issue_workspace_path(issue_id)
+        result_file = workspace / "report.json"
+
     if not result_file.exists():
-        typer.echo(f"no run found for {issue_id}")
+        typer.echo(f"report not found: {result_file}")
         raise typer.Exit(1)
 
     data = json.loads(result_file.read_text())
+    gate_input = _build_gate_input_from_report(data)
+    verdict = svc.evaluate(gate_input)
+    auto_merge = svc.should_auto_merge(gate_input)
 
+    if output_json:
+        typer.echo(json.dumps({
+            "issue_id": issue_id or data.get("issue_id", ""),
+            "mergeable": verdict.mergeable,
+            "failed_conditions": verdict.failed_conditions,
+            "auto_merge": auto_merge,
+            "profile": profile or "default",
+        }, indent=2))
+        return
+
+    label = issue_id or result_file.parent.name
+    typer.echo(f"{label}: mergeable={verdict.mergeable}")
+    if verdict.failed_conditions:
+        typer.echo(f"  blocked: {', '.join(verdict.failed_conditions)}")
+    else:
+        typer.echo("  all conditions passed")
+    typer.echo(f"  auto_merge: {gate_policy.auto_merge} (would_trigger={auto_merge})")
+    if profile:
+        typer.echo(f"  profile: {profile}")
+
+
+@gate_app.command("show-policy")
+def gate_show_policy(
+    policy: Path = typer.Option(
+        "gate.policy.yaml", "--policy", "-p", help="Path to gate.policy.yaml."
+    ),
+    profile: str = typer.Option(
+        "", "--profile", help="Apply a profile before showing."
+    ),
+    output_json: bool = typer.Option(False, "--json", help="Output in JSON format."),
+) -> None:
+    """Print the current gate policy."""
+    from spec_orch.services.gate_service import GateService
+
+    gate_policy = _load_gate_policy(policy, profile)
+    svc = GateService(policy=gate_policy)
+
+    if output_json:
+        typer.echo(json.dumps(svc.describe_as_dict(), indent=2))
+    else:
+        typer.echo(svc.describe_policy())
+        if profile:
+            typer.echo(f"\n  (profile '{profile}' applied)")
+
+
+@gate_app.command("list-conditions")
+def gate_list_conditions(
+    policy: Path = typer.Option(
+        "gate.policy.yaml", "--policy", "-p", help="Path to gate.policy.yaml."
+    ),
+) -> None:
+    """List all known gate conditions and their status."""
+    from spec_orch.services.gate_service import ALL_KNOWN_CONDITIONS
+
+    gate_policy = _load_gate_policy(policy, "")
+    for cond in sorted(ALL_KNOWN_CONDITIONS):
+        status = "required" if cond in gate_policy.required_conditions else "optional"
+        typer.echo(f"  {cond:25s} [{status}]")
+
+
+@gate_app.command("profiles")
+def gate_list_profiles(
+    policy: Path = typer.Option(
+        "gate.policy.yaml", "--policy", "-p", help="Path to gate.policy.yaml."
+    ),
+) -> None:
+    """List available gate profiles."""
+    gate_policy = _load_gate_policy(policy, "")
+    profiles = gate_policy.available_profiles()
+    if not profiles:
+        typer.echo("no profiles defined")
+        return
+    for pname in profiles:
+        pcfg = gate_policy.profiles[pname]
+        disables = pcfg.get("disable", [])
+        enables = pcfg.get("enable", [])
+        am = pcfg.get("auto_merge", "inherit")
+        parts = []
+        if disables:
+            parts.append(f"disable=[{','.join(disables)}]")
+        if enables:
+            parts.append(f"enable=[{','.join(enables)}]")
+        parts.append(f"auto_merge={am}")
+        typer.echo(f"  {pname:15s} {' '.join(parts)}")
+
+
+def _load_gate_policy(
+    policy_path: Path, profile: str,
+) -> Any:
+    from spec_orch.services.gate_service import GatePolicy
+
+    if Path(policy_path).exists():
+        gate_policy = GatePolicy.from_yaml(Path(policy_path))
+    else:
+        gate_policy = GatePolicy.default()
+    if profile:
+        gate_policy = gate_policy.with_profile(profile)
+    return gate_policy
+
+
+def _build_gate_input_from_report(data: dict[str, Any]) -> Any:
+    """Construct a GateInput from a report.json dict."""
     from spec_orch.domain.models import (
         GateInput,
         ReviewSummary,
@@ -924,9 +1053,7 @@ def gate(
     verification_data = data.get("verification", {})
     acceptance_data = data.get("human_acceptance", {})
 
-    _fail = VerificationDetail(
-        command=[], exit_code=1, stdout="", stderr="",
-    )
+    _fail = VerificationDetail(command=[], exit_code=1, stdout="", stderr="")
     details = {
         name: VerificationDetail(
             command=detail.get("command", []),
@@ -947,7 +1074,7 @@ def gate(
         verdict=review_data.get("verdict", "pending"),
         reviewed_by=review_data.get("reviewed_by"),
     )
-    gate_input = GateInput(
+    return GateInput(
         spec_exists=True,
         spec_approved=True,
         within_boundaries=True,
@@ -956,16 +1083,6 @@ def gate(
         review=review,
         human_acceptance=acceptance_data.get("accepted", False),
     )
-    verdict = svc.evaluate(gate_input)
-
-    typer.echo(f"{issue_id}: mergeable={verdict.mergeable}")
-    if verdict.failed_conditions:
-        typer.echo(f"  blocked: {', '.join(verdict.failed_conditions)}")
-    else:
-        typer.echo("  all conditions passed")
-
-    if gate_policy:
-        typer.echo(f"  auto_merge: {gate_policy.auto_merge}")
 
 
 @app.command("watch")
