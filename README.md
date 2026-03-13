@@ -1,5 +1,10 @@
 # SpecOrch
 
+[![CI](https://github.com/fakechris/spec-orch/actions/workflows/ci.yml/badge.svg)](https://github.com/fakechris/spec-orch/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/spec-orch)](https://pypi.org/project/spec-orch/)
+[![Python 3.11+](https://img.shields.io/pypi/pyversions/spec-orch)](https://pypi.org/project/spec-orch/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **AI-native software delivery orchestration for individuals and small teams.**
 
 SpecOrch solves a core problem in agent-heavy development: when you have many coding agents working in parallel, the bottleneck is no longer writing code — it's **decision bandwidth**, **interface stability**, and **verifiable completion**. SpecOrch provides the missing layers between "I have an idea" and "it's safely merged."
@@ -233,13 +238,70 @@ What is still intentionally incomplete:
 - Preview deployment and browser verification
 - Slack bot for discussion layer
 
-## Quick Start
+## Installation
+
+### From PyPI (pip / uv)
 
 ```bash
-python3.13 -m venv .venv
-.venv/bin/pip install -e .[dev]
+# pip
+pip install spec-orch
+
+# uv (recommended — faster)
+uv pip install spec-orch
+
+# With optional features
+pip install "spec-orch[planner]"      # LLM planning via LiteLLM
+pip install "spec-orch[dashboard]"    # Web dashboard (FastAPI)
+pip install "spec-orch[all]"          # Everything
+```
+
+### pipx (isolated global install)
+
+```bash
+pipx install spec-orch
+pipx install "spec-orch[all]"
+```
+
+### Homebrew (macOS)
+
+```bash
+brew tap fakechris/spec-orch
+brew install spec-orch
+```
+
+### From source
+
+```bash
+git clone https://github.com/fakechris/spec-orch.git
+cd spec-orch
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+### Verify
+
+```bash
+spec-orch --version   # 0.2.0
+spec-orch config check
+```
+
+### Requirements
+
+- **Python 3.11+** (3.11, 3.12, 3.13 tested)
+- **Git** (for worktree-based isolation)
+- **Codex CLI** (`codex exec --json`) — builder adapter
+- **Linear API token** (optional, for issue tracking integration)
+- **LLM API key** (optional, for `discuss` / `plan` / readiness triage)
+
+### Quick Start
+
+```bash
 cp .env.example .env   # Add your API tokens
-.venv/bin/python -m pytest -q
+spec-orch mission create "My First Feature"
+spec-orch discuss
+# Type @freeze when done
+spec-orch plan my-first-feature
+spec-orch run-plan my-first-feature
 ```
 
 ## CLI Reference (49 commands)

@@ -4,13 +4,30 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "spec-orch"
-version = "0.1.0"
-description = "SpecOrch MVP prototype"
+version = "0.2.0"
+description = "AI-powered specification orchestrator — from discussion to deployed code via LLM-driven planning, execution, and review."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+  {name = "fakechris"},
+]
+keywords = ["ai", "orchestration", "spec", "llm", "devops", "automation"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Build Tools",
+  "Topic :: Software Development :: Libraries :: Application Frameworks",
+  "Typing :: Typed",
+]
 dependencies = [
-  "typer>=0.24,<0.25",
-  "httpx>=0.28",
+  "typer>=0.9",
+  "httpx>=0.27",
   "pyyaml>=6.0",
 ]
 
@@ -25,21 +42,40 @@ dashboard = [
 slack = [
   "slack-bolt>=1.21",
 ]
+all = [
+  "spec-orch[planner,dashboard,slack]",
+]
 dev = [
-  "pytest>=9,<10",
+  "spec-orch[all]",
+  "pytest>=8",
   "ruff>=0.9",
   "mypy>=1.14",
   "types-PyYAML>=6.0",
+  "build>=1.0",
+  "twine>=5.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/fakechris/spec-orch"
+Repository = "https://github.com/fakechris/spec-orch"
+Documentation = "https://github.com/fakechris/spec-orch#readme"
+Issues = "https://github.com/fakechris/spec-orch/issues"
+Changelog = "https://github.com/fakechris/spec-orch/releases"
 
 [project.scripts]
 spec-orch = "spec_orch.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+spec_orch = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
@@ -52,7 +88,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 "tests/**" = ["E501"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.11"
 strict = false
 warn_return_any = true
 warn_unused_configs = true
