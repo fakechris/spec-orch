@@ -18,8 +18,8 @@ api_base_env = "SPEC_ORCH_LLM_API_BASE"
 max_concurrent = 1
 lockfile_dir = ".spec_orch_locks/"
 consume_state = "Ready"
-require_labels = ["agent-ready"]
-exclude_labels = ["blocked"]
+require_labels = []
+exclude_labels = ["blocked", "needs-clarification"]
 skip_parents = true
 
 [conversation]
