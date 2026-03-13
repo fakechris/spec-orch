@@ -68,7 +68,7 @@ a plan.json or mission.
 ### Hotfix (Production Blockers, Security Issues)
 
 The fastest path for urgent fixes where delay is unacceptable.
-Review can happen after merge if necessary.
+Pre-merge review is optional; post-merge review is mandatory.
 
 | Step | Required | Actor |
 |------|----------|-------|
@@ -78,7 +78,7 @@ Review can happen after merge if necessary.
 | Verification (tests pass) | Yes | Verifier |
 | Gate evaluation | Relaxed | Gate (minimal profile) |
 | Create PR | Yes | Human / Orchestrator |
-| PR review | Post-merge OK | Reviewer |
+| Pre-merge review | Optional | Reviewer |
 | Merge | Yes | Human |
 | Post-merge review | Yes | Reviewer |
 
@@ -124,8 +124,8 @@ Applied to `main` via GitHub API:
 ### Standard: Fix a test that creates real API calls
 
 ```
-1. Human discovers SON-57~70 junk issues caused by a test bug
-2. Human creates SON-71 in Linear (Bug label)
+1. Human discovers junk issues (e.g. SON-57, SON-58, ...) caused by a test bug
+2. Human creates SON-XX in Linear (Bug label)
 3. Human/Agent creates branch: fix/promote-test-side-effect
 4. Agent fixes the test, runs verification
 5. Agent creates PR linking SON-71
