@@ -1,5 +1,9 @@
 # SpecOrch Pipeline: Stages, Roles, and Responsibilities
 
+> **Related:** Not all changes follow the full pipeline.  See
+> [Change Management Policy](change-management-policy.md) for the
+> three-tier model (Full / Standard / Hotfix).
+
 ## Role Definitions
 
 | Role | Identity | Tools / Implementation |
