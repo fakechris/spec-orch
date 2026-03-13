@@ -27,16 +27,20 @@ The key insight:
 
 ### Step 1: Discuss and Draft a Spec
 
-You start in your coding environment (Cursor, Claude Code) or a Slack thread. Brainstorm with an LLM about what to build, explore trade-offs, discuss architecture. This is the *discussion layer* — it can be messy.
+Start in your coding environment (Cursor, Claude Code) or a Slack thread. Brainstorm with an LLM about what to build, explore trade-offs, discuss architecture. This is the *discussion layer* — it can be messy.
 
-When ready, create a Mission:
+```bash
+spec-orch discuss
+# Interactive TUI brainstorming with LLM planner
+# Type @freeze when ready to formalise the discussion into a spec
+```
+
+Or create a Mission directly:
 
 ```bash
 spec-orch mission create "WebSocket Real-time Notifications"
 # Creates docs/specs/2026-03-websocket-real-time-notifications/spec.md
 ```
-
-Edit `spec.md` with the LLM's help: user value, technical scope, acceptance criteria, interface contracts, constraints. Iterate until satisfied.
 
 ### Step 2: Approve the Spec
 
@@ -90,10 +94,25 @@ This runs the full pipeline in one command: loads issue → LLM plans questions 
 **Daemon mode** — fully autonomous:
 
 ```bash
-spec-orch daemon --config spec-orch.toml --repo-root .
+spec-orch daemon start --config spec-orch.toml --repo-root .
 ```
 
-Polls Linear for Todo issues, runs `advance_to_completion()` on each, auto-creates PRs, writes back results.
+The daemon continuously:
+1. Polls Linear for issues in **Ready** state
+2. Runs **readiness triage** — a rule-based + LLM check on issue completeness; posts clarification questions on Linear if the issue is underspecified
+3. Moves the issue to **In Progress** and executes the build pipeline
+4. Runs verification (lint, typecheck, tests) and gate evaluation
+5. Checks merge readiness (`git merge-tree` dry-run), auto-rebases if needed
+6. Creates a GitHub PR and moves the issue to **In Review**
+7. Monitors for review fixes (**review loop**) — when new commits are pushed, re-runs verification and gate
+8. On merge, Linear auto-closes the issue to **Done**
+
+**Mission mode** — execute a full plan:
+
+```bash
+spec-orch run-plan 2026-03-websocket-real-time-notifications
+# Executes all waves in sequence, packets in parallel
+```
 
 ### Step 6: Human Acceptance
 
@@ -121,7 +140,7 @@ Generates `retrospective.md`: all deviations, failed attempts, key decisions. Kn
 Five-Layer Architecture
 ═══════════════════════
 
-Discussion ─── Coding env / Slack / TUI
+Discussion ─── CLI TUI / Slack / Linear comments
      │
      ▼
 Contract ───── docs/specs/<mission>/spec.md + mission.json
@@ -148,14 +167,30 @@ WorkPacket / Issue ─── "Atomic task" (one agent, one worktree, one PR)
 Run / Evidence ─────── "What happened" (build, verify, review, gate, deviations)
 ```
 
+### Key Components
+
+| Component | Role |
+|-----------|------|
+| **RunController** | Orchestrates the full issue lifecycle: claim → worktree → build → verify → review → gate |
+| **ReadinessChecker** | Rule-based + LLM evaluation of issue completeness before execution |
+| **CodexExecBuilderAdapter** | Delegates code generation to `codex exec --json` |
+| **VerificationService** | Runs lint, typecheck, test, build via subprocess |
+| **GateService** | Evaluates merge conditions per `gate.policy.yaml` profiles |
+| **ComplianceEngine** | Evaluates agent behaviour against YAML-defined contracts |
+| **GitHubPRService** | Creates PRs, checks merge readiness, auto-rebases, tracks review updates |
+| **LinearClient** | GraphQL client for issue CRUD, comments, state transitions, labels |
+| **PromotionService** | Creates Linear issues from an ExecutionPlan's work packets |
+| **ConversationService** | Transport-agnostic brainstorming engine (TUI, Linear, Slack) |
+| **DaemonInstaller** | Generates systemd/launchd service files for daemon process management |
+| **ParallelRunController** | Executes multi-wave plans with concurrent packet execution |
+
 ### Key Roles
 
 | System | Role |
 |--------|------|
 | **GitHub repo `docs/specs/`** | Canonical spec — version-controlled, reviewable, agent-readable |
 | **Linear** | Execution graph + delegation surface + status truth |
-| **Obsidian** | Knowledge plane — research, retro, thinking (Phase 5+) |
-| **Orchestrator** | Claim issue → worktree → builder → verification → gate → PR |
+| **Orchestrator** | Claim issue → triage → worktree → builder → verification → gate → PR |
 | **Gate** | Prove completion — the *only* merge authority |
 | **Human** | Final acceptance — verifies results, not diffs |
 
@@ -168,110 +203,227 @@ What works on `main`:
 - Five-layer architecture: Discussion → Contract → Execution → Code → Evidence
 - `Mission` model with canonical specs in `docs/specs/`
 - `ExecutionPlan` / `Wave` / `WorkPacket` DAG with LLM-based scoping
+- Interactive brainstorming via `spec-orch discuss` with `@freeze` to spec
 - One-shot `spec-orch run` with LLM self-answering blocking questions
 - `advance_to_completion()` for full pipeline automation
+- Parallel wave execution via `spec-orch run-plan`
 - Fixture-driven or Linear-backed issue loading (`IssueSource` protocol)
 - Per-issue git worktrees with isolated execution
 - Codex builder via `codex exec --json` (`BuilderAdapter` protocol)
 - Real verification: ruff, mypy, pytest
-- Configurable Gate evaluation with `gate.policy.yaml`
-- Daemon mode with full automation: poll → build → gate → PR → Linear write-back
+- Configurable Gate evaluation with `gate.policy.yaml` (profiles, auto-merge conditions)
+- Configurable compliance engine with `compliance.contracts.yaml`
+- Daemon mode: poll Ready → readiness triage → build → gate → PR → Linear write-back
+- Daemon review loop: detects new commits on PRs, re-runs verification + gate
+- Daemon merge readiness: `git merge-tree` dry-run + auto-rebase before PR creation
+- Daemon process management: systemd/launchd install, state persistence across restarts
 - GitHub PR auto-creation + Gate as commit status check
 - Spec deviation tracking (`deviations.jsonl`)
 - Retrospective generation (`spec-orch retro`)
 - Enhanced acceptance with spec compliance checklist
+- Three-tier change management: Full / Standard / Hotfix
+- Web dashboard for pipeline visualization
 
 What is still intentionally incomplete:
 
 - Real Obsidian sync (knowledge plane connector)
-- Claude review adapter
+- AI-assisted merge conflict resolution (SON-68)
+- Daemon hotfix mode with priority queue and minimal gate (SON-72)
 - Preview deployment and browser verification
-- Slack integration for discussion layer
-- Wave-aware scheduling in daemon (dependency ordering)
+- Slack bot for discussion layer
 
 ## Quick Start
 
 ```bash
 python3.13 -m venv .venv
 .venv/bin/pip install -e .[dev]
+cp .env.example .env   # Add your API tokens
 .venv/bin/python -m pytest -q
 ```
 
-## CLI Reference
+## CLI Reference (49 commands)
 
-### Mission Management (Contract Layer)
-
-```bash
-spec-orch mission create "Feature Title"          # Create mission + spec skeleton
-spec-orch mission approve <mission-id>             # Freeze spec for execution
-spec-orch mission status                           # List all missions
-spec-orch mission show <mission-id>                # Print canonical spec
-```
-
-### Planning & Promotion (Execution Layer)
+### Discussion Layer
 
 ```bash
-spec-orch plan <mission-id>                        # LLM scoper generates DAG
-spec-orch plan-show <mission-id>                   # View wave/packet breakdown
-spec-orch promote <mission-id>                     # Create Linear issues from plan
+spec-orch discuss                     # Interactive brainstorming TUI
+spec-orch discuss list                # List active conversation threads
+spec-orch discuss freeze              # Freeze a conversation into a spec
 ```
 
-### Execution (Code Layer)
+### Contract Layer — Missions
 
 ```bash
-spec-orch run <issue-id> --source linear --auto-pr # Full one-shot pipeline
-spec-orch advance <issue-id> --source linear       # Single state transition
-spec-orch run-issue <issue-id>                     # Legacy: build + verify + gate
-spec-orch daemon --config spec-orch.toml           # Autonomous polling mode
+spec-orch mission create "Title"      # Create mission + spec skeleton
+spec-orch mission approve <id>        # Freeze spec for execution
+spec-orch mission status              # List all missions
+spec-orch mission show <id>           # Print canonical spec
 ```
 
-### Review & Acceptance (Evidence Layer)
+### Execution Layer — Planning & Promotion
+
+```bash
+spec-orch plan <mission-id>           # LLM scoper generates DAG
+spec-orch plan-show <mission-id>      # View wave/packet breakdown
+spec-orch promote <mission-id>        # Create Linear issues from plan
+spec-orch pipeline <mission-id>       # Show EODF pipeline progress (11 stages)
+```
+
+### Code Layer — Execution
+
+```bash
+spec-orch run <id> --source linear    # Full one-shot pipeline
+spec-orch run-plan <mission-id>       # Execute plan with parallel waves
+spec-orch run-issue <id>              # Build + verify + gate
+spec-orch advance <id> --source linear  # Single state transition
+spec-orch rerun <id>                  # Re-run verification + gate
+```
+
+### Code Layer — Daemon
+
+```bash
+spec-orch daemon start --config spec-orch.toml  # Start daemon (foreground)
+spec-orch daemon stop                 # Stop system service
+spec-orch daemon status               # Show service + state info
+spec-orch daemon install              # Install as systemd/launchd service
+```
+
+### Evidence Layer — Review & Acceptance
 
 ```bash
 spec-orch review-issue <id> --verdict pass --reviewed-by <name>
-spec-orch accept-issue <id> --accepted-by <name>   # Shows spec compliance first
-spec-orch status <id>                               # Current state
-spec-orch status --all                              # All issues table
-spec-orch explain <id>                              # Gate explanation report
-spec-orch retro <mission-id>                        # Mission retrospective
+spec-orch review-pr <id>             # Auto-review PR via GitHub bots
+spec-orch accept-issue <id> --accepted-by <name>
+spec-orch retro <mission-id>         # Mission retrospective
 ```
 
-### Gate & PR
+### Evidence Layer — Gate & Compliance
 
 ```bash
-spec-orch gate <id> --policy gate.policy.yaml      # Evaluate gate
-spec-orch create-pr <id>                           # GitHub PR + Linear write-back
+spec-orch gate evaluate <id>          # Evaluate gate conditions
+spec-orch gate show-policy            # Print current gate policy
+spec-orch gate list-conditions        # List all gate conditions
+spec-orch gate profiles               # List available profiles
+spec-orch compliance evaluate         # Evaluate builder events against contracts
+spec-orch compliance list-contracts   # List compliance contracts
 ```
 
-### Utilities
+### Inspection & Debugging
 
 ```bash
-spec-orch config check                             # Validate spec-orch.toml
-spec-orch diff <id>                                # Git diff for issue worktree
-spec-orch cherry-pick <id>                         # Cherry-pick into current branch
-spec-orch watch <id>                               # Real-time activity log
-spec-orch logs <id>                                # Complete activity history
+spec-orch status <id>                 # Current run state
+spec-orch status --all                # All issues table
+spec-orch explain <id>                # Gate explanation report
+spec-orch diff <id>                   # Git diff for issue worktree
+spec-orch cherry-pick <id>            # Cherry-pick into current branch
+spec-orch watch <id>                  # Real-time activity log
+spec-orch logs <id>                   # Complete activity history
+spec-orch create-pr <id>             # GitHub PR + Linear write-back
+spec-orch dashboard                   # Web dashboard
 ```
+
+### Spec & Questions Management
+
+```bash
+spec-orch spec show <id>              # Show spec snapshot
+spec-orch spec approve <id>           # Approve spec for build
+spec-orch spec draft <id>             # Draft spec from fixture
+spec-orch questions list <id>         # List blocking questions
+spec-orch questions add <id>          # Add a question
+spec-orch questions answer <id>       # Answer with a Decision
+spec-orch findings list <id>          # List findings
+spec-orch findings add <id>           # Add a finding
+spec-orch findings resolve <id>       # Resolve a finding
+```
+
+### Configuration
+
+```bash
+spec-orch config check                # Validate spec-orch.toml + dependencies
+spec-orch plan-to-spec <file>         # Convert plan markdown to fixture JSON
+spec-orch --version                   # Show version
+```
+
+## Configuration
+
+SpecOrch is configured via `spec-orch.toml`:
+
+```toml
+[linear]
+token_env = "SPEC_ORCH_LINEAR_TOKEN"
+team_key = "SON"
+
+[builder]
+adapter = "codex_exec"
+codex_executable = "codex"
+
+[planner]
+model = "minimax/MiniMax-M1"
+api_type = "litellm"
+api_key_env = "MINIMAX_API_KEY"
+
+[github]
+base_branch = "main"
+
+[daemon]
+max_concurrent = 1
+consume_state = "Ready"
+exclude_labels = ["blocked", "needs-clarification"]
+```
+
+Environment variables are loaded automatically from `.env` in the project root.
 
 ## Repository Layout
 
 ```
-src/spec_orch/            CLI, orchestration services, domain models
-tests/                    Unit and integration tests (226+)
-fixtures/issues/          Local issue fixtures
-docs/specs/               Canonical specs per mission
-docs/architecture/        System design documents
-docs/plans/               Implementation plans and roadmaps
-gate.policy.yaml          Configurable gate policy
-spec-orch.toml            Daemon + planner configuration
-.worktrees/               Local isolated workspaces (gitignored)
+src/spec_orch/
+  cli.py                 CLI entry point (49 commands)
+  domain/
+    models.py            Core domain models (Mission, ExecutionPlan, Run, Gate, etc.)
+    protocols.py         Adapter protocols (Builder, Planner, IssueSource, etc.)
+  services/
+    run_controller.py    Main orchestration loop
+    daemon.py            Autonomous daemon with triage, review loop, merge check
+    readiness_checker.py Rule-based + LLM issue completeness check
+    gate_service.py      Configurable gate evaluation
+    compliance_engine.py YAML-driven agent behaviour contracts
+    github_pr_service.py PR creation, merge readiness, auto-rebase
+    linear_client.py     Linear GraphQL API client
+    promotion_service.py ExecutionPlan → Linear issues
+    conversation_service.py  Transport-agnostic brainstorming engine
+    daemon_installer.py  systemd/launchd service file generation
+    parallel_run_controller.py  Multi-wave concurrent execution
+    codex_exec_builder_adapter.py  Codex exec integration
+    verification_service.py  Lint, typecheck, test runner
+tests/                   Unit and integration tests (396+)
+fixtures/issues/         Local issue fixtures
+docs/specs/              Canonical specs per mission
+docs/architecture/       System design and policy documents
+docs/plans/              Implementation plans and roadmaps
+gate.policy.yaml         Gate policy: conditions, profiles, auto-merge rules
+compliance.contracts.yaml  Compliance rules for agent behaviour
+spec-orch.toml           Daemon, planner, and Linear configuration
+.env                     API tokens (gitignored)
+.spec_orch_runs/         Per-issue run artifacts (gitignored)
+.worktrees/              Isolated git worktrees (gitignored)
 ```
 
 ## Documents
 
-- [System Design v0](docs/architecture/spec-orch-system-design-v0.md)
-- [P0-Alpha Dogfood Plan](docs/plans/2026-03-08-p0-alpha-dogfood-plan.md)
+### Current (authoritative)
+
+- [Pipeline Roles and Stages](docs/architecture/pipeline-roles-and-stages.md) — end-to-end flow with roles
+- [Change Management Policy](docs/architecture/change-management-policy.md) — three-tier workflow (Full/Standard/Hotfix)
+- [Linear API Surface](docs/architecture/linear-api-surface.md) — compatibility contract for Linear replacement
+- [Linear PM Convention](docs/specs/linear-pm-convention/spec.md) — daemon consumption protocol
 - [Competitive Analysis & Roadmap](docs/plans/2026-03-10-competitive-analysis-and-roadmap.md)
+
+### Historical (early design, kept as decision records)
+
+- [System Design v0](docs/architecture/spec-orch-system-design-v0.md)
+- [Orchestration Plane Options](docs/architecture/orchestration-plane-options-and-mvp.md)
+- [V1 Implementation Plan](docs/plans/2026-03-07-spec-orch-v1-implementation.md)
+- [P0-Alpha Dogfood Plan](docs/plans/2026-03-08-p0-alpha-dogfood-plan.md)
 
 ## License
 

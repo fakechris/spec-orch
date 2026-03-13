@@ -1,5 +1,12 @@
 # SpecOrch P0-Alpha Dogfood Plan
 
+> **Historical Document (2026-03-08).** This was the first dogfood plan.
+> The decision to use `codex app-server` was reversed in favour of
+> `codex exec --json`. The daemon architecture described here has since
+> been significantly expanded (readiness triage, review loop, merge
+> readiness, state persistence). See [README](../../README.md) for the
+> current implementation.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Move SpecOrch from a fixture-driven local prototype to a real dogfoodable orchestrator that pulls work from Linear, creates issue workspaces, runs Codex coding turns, writes results back, and keeps progressing through an event loop without manual shell babysitting.
