@@ -831,19 +831,89 @@ def cherry_pick_issue(
     typer.echo(f"cherry-picked {len(commits)} commit(s) from {issue_id}")
 
 
-@app.command()
-def daemon(
+daemon_app = typer.Typer(help="Daemon process management commands.")
+app.add_typer(daemon_app, name="daemon")
+
+
+@daemon_app.command("start")
+def daemon_start(
     config: Path = typer.Option(
         "spec-orch.toml", "--config", "-c", help="Path to spec-orch.toml config file."
     ),
     repo_root: Path = typer.Option(".", "--repo-root", "-r", help="Repository root."),
 ) -> None:
-    """Run the SpecOrch daemon that polls Linear for issues and processes them."""
+    """Start the SpecOrch daemon (foreground)."""
     from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
 
     cfg = DaemonConfig.from_toml(config)
     d = SpecOrchDaemon(config=cfg, repo_root=repo_root.resolve())
     d.run()
+
+
+@daemon_app.command("stop")
+def daemon_stop(
+    label: str = typer.Option(
+        "com.specorch.daemon", "--label", help="Service label."
+    ),
+) -> None:
+    """Stop the daemon system service."""
+    from spec_orch.services.daemon_installer import stop_service
+
+    if stop_service(label=label):
+        typer.echo("Daemon service stopped.")
+    else:
+        typer.echo("Failed to stop daemon service (may not be running).")
+        raise typer.Exit(1)
+
+
+@daemon_app.command("status")
+def daemon_status(
+    label: str = typer.Option(
+        "com.specorch.daemon", "--label", help="Service label."
+    ),
+    repo_root: Path = typer.Option(".", "--repo-root", "-r", help="Repository root."),
+) -> None:
+    """Show daemon status (service + persisted state)."""
+    from spec_orch.services.daemon_installer import service_status
+
+    info = service_status(label=label)
+    typer.echo(f"Platform:  {info['platform']}")
+    typer.echo(f"Installed: {info['installed']}")
+    typer.echo(f"Running:   {info['running']}")
+
+    state_path = repo_root.resolve() / ".spec_orch_locks" / "daemon_state.json"
+    if state_path.exists():
+        import json as _json
+
+        data = _json.loads(state_path.read_text())
+        typer.echo(f"Last poll: {data.get('last_poll', 'unknown')}")
+        typer.echo(f"Processed: {len(data.get('processed', []))} issues")
+        typer.echo(f"Triaged:   {len(data.get('triaged', []))} issues")
+    else:
+        typer.echo("State:     no persisted state found")
+
+
+@daemon_app.command("install")
+def daemon_install(
+    config: Path = typer.Option(
+        "spec-orch.toml", "--config", "-c", help="Path to spec-orch.toml config file."
+    ),
+    repo_root: Path = typer.Option(".", "--repo-root", "-r", help="Repository root."),
+    label: str = typer.Option(
+        "com.specorch.daemon", "--label", help="Service label."
+    ),
+) -> None:
+    """Install the daemon as a system service (systemd/launchd)."""
+    from spec_orch.services.daemon_installer import install_service
+
+    path = install_service(
+        repo_root=repo_root.resolve(),
+        config_path=config.resolve(),
+        label=label,
+    )
+    typer.echo(f"Service installed: {path}")
+    typer.echo("Start with: spec-orch daemon start --config spec-orch.toml")
+    typer.echo("Or via service manager: launchctl load / systemctl --user start")
 
 
 @config_app.command("check")

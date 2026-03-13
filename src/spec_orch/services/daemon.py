@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json as _json
 import os
 import re
 import signal
@@ -62,15 +63,39 @@ class DaemonConfig:
 
 
 class SpecOrchDaemon:
+    STATE_FILE = "daemon_state.json"
+
     def __init__(self, *, config: DaemonConfig, repo_root: Path) -> None:
         self.config = config
         self.repo_root = repo_root
         self._running = True
-        self._processed: set[str] = set()
-        self._triaged: set[str] = set()
         self._readiness_checker: Any = None
         self._lockdir = repo_root / config.lockfile_dir
         self._lockdir.mkdir(parents=True, exist_ok=True)
+        self._state_path = self._lockdir / self.STATE_FILE
+        saved = self._load_state()
+        self._processed: set[str] = set(saved.get("processed", []))
+        self._triaged: set[str] = set(saved.get("triaged", []))
+        self._last_poll: str = saved.get("last_poll", "")
+
+    def _load_state(self) -> dict[str, Any]:
+        if self._state_path.exists():
+            try:
+                return _json.loads(self._state_path.read_text())
+            except (_json.JSONDecodeError, OSError):
+                pass
+        return {}
+
+    def _save_state(self) -> None:
+        data = {
+            "processed": sorted(self._processed),
+            "triaged": sorted(self._triaged),
+            "last_poll": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        try:
+            self._state_path.write_text(_json.dumps(data, indent=2) + "\n")
+        except OSError as exc:
+            print(f"[daemon] failed to save state: {exc}")
 
     def run(self) -> None:
         signal.signal(signal.SIGINT, self._handle_signal)
@@ -101,8 +126,10 @@ class SpecOrchDaemon:
             while self._running:
                 self._check_clarification_replies(client)
                 self._poll_and_run(client, controller)
+                self._save_state()
                 self._sleep(self.config.poll_interval_seconds)
         finally:
+            self._save_state()
             client.close()
             print("[daemon] stopped")
 
