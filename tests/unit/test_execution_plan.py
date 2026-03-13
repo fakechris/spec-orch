@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
@@ -162,14 +162,16 @@ def test_promote_cli_local(tmp_path: Path):
     save_plan(plan, plan_dir / "plan.json")
 
     runner = CliRunner()
-    result = runner.invoke(
-        app, ["promote", "local-test", "--repo-root", str(tmp_path)],
-    )
+    with patch.dict("os.environ", {"SPEC_ORCH_LINEAR_TOKEN": ""}, clear=False):
+        result = runner.invoke(
+            app, ["promote", "local-test", "--repo-root", str(tmp_path)],
+        )
     assert result.exit_code == 0
     assert "promoted 1 work packets" in result.output
 
     reloaded = load_plan(plan_dir / "plan.json")
     assert reloaded.waves[0].work_packets[0].linear_issue_id is not None
+    assert reloaded.waves[0].work_packets[0].linear_issue_id.startswith("LOCAL-")
 
 
 def test_scoper_adapter_parse_response():
