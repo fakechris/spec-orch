@@ -8,7 +8,7 @@ import subprocess as _subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from spec_orch.domain.models import TERMINAL_STATES, RunResult, RunState
 from spec_orch.domain.protocols import PlannerAdapter
@@ -85,7 +85,7 @@ class SpecOrchDaemon:
     def _load_state(self) -> dict[str, Any]:
         if self._state_path.exists():
             try:
-                return _json.loads(self._state_path.read_text())
+                return cast(dict[str, Any], _json.loads(self._state_path.read_text()))
             except (_json.JSONDecodeError, OSError) as exc:
                 print(f"[daemon] failed to load state: {exc}")
         return {}

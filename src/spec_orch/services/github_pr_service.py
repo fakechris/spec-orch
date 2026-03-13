@@ -3,6 +3,7 @@ from __future__ import annotations
 import json as _json
 import subprocess
 from pathlib import Path
+from typing import Any, cast
 
 from spec_orch.domain.models import GateVerdict, RunResult
 
@@ -251,7 +252,7 @@ class GitHubPRService:
         if result.returncode != 0:
             return []
         try:
-            return _json.loads(result.stdout)
+            return cast(list[dict[Any, Any]], _json.loads(result.stdout))
         except _json.JSONDecodeError:
             return []
 

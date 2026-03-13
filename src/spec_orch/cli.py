@@ -1592,6 +1592,9 @@ def run_plan(
     handler.install()
 
     try:
+        from spec_orch.domain.protocols import PacketExecutor
+
+        pkt_exec: PacketExecutor
         if full_pipeline:
             from spec_orch.services.packet_executor import FullPipelinePacketExecutor
 
@@ -1602,7 +1605,7 @@ def run_plan(
         else:
             from spec_orch.services.packet_executor import SubprocessPacketExecutor
 
-            pkt_exec = SubprocessPacketExecutor(  # type: ignore[assignment]
+            pkt_exec = SubprocessPacketExecutor(
                 codex_bin=codex_executable,
                 workspace=str(Path(repo_root).resolve()),
             )

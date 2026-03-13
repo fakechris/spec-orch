@@ -146,7 +146,7 @@ class LiteLLMScoperAdapter:
             match = re.search(r"\{.*\}", content, re.DOTALL)
             parsed = json.loads(match.group()) if match else {"waves": []}
 
-        waves = []
+        waves: list[Wave] = []
         for w in parsed.get("waves", []):
             packets = []
             for p in w.get("work_packets", []):

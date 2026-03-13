@@ -12,7 +12,7 @@ from spec_orch.domain.models import (
     WaveResult,
     WorkPacket,
 )
-from spec_orch.services.packet_executor import SubprocessPacketExecutor
+from spec_orch.domain.protocols import PacketExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class AsyncioWaveExecutor:
     """Executes wave packets concurrently using asyncio + Semaphore."""
 
-    def __init__(self, packet_executor: SubprocessPacketExecutor) -> None:
+    def __init__(self, packet_executor: PacketExecutor) -> None:
         self._packet_executor = packet_executor
 
     async def execute_wave(
