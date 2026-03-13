@@ -45,6 +45,10 @@ class DaemonConfig:
         daemon = raw.get("daemon", {})
         self.max_concurrent: int = daemon.get("max_concurrent", 1)
         self.lockfile_dir: str = daemon.get("lockfile_dir", ".spec_orch_locks/")
+        self.consume_state: str = daemon.get("consume_state", "Ready")
+        self.require_labels: list[str] = daemon.get("require_labels", ["agent-ready"])
+        self.exclude_labels: list[str] = daemon.get("exclude_labels", ["blocked"])
+        self.skip_parents: bool = daemon.get("skip_parents", True)
 
     @classmethod
     def from_toml(cls, path: Path) -> DaemonConfig:
@@ -132,7 +136,10 @@ class SpecOrchDaemon:
             issues = client.list_issues(
                 team_key=self.config.team_key,
                 assigned_to_me=self.config.issue_filter == "assigned_to_me",
-                filter_state="Todo",
+                filter_state=self.config.consume_state,
+                filter_labels=self.config.require_labels or None,
+                exclude_labels=self.config.exclude_labels or None,
+                exclude_parents=self.config.skip_parents,
             )
         except Exception as exc:
             print(f"[daemon] poll error: {exc}")
@@ -140,6 +147,7 @@ class SpecOrchDaemon:
 
         for raw_issue in issues:
             issue_id = raw_issue.get("identifier", "")
+            linear_uid = raw_issue.get("id", "")
             if not issue_id or issue_id in self._processed:
                 continue
             if self._is_locked(issue_id):
@@ -147,6 +155,14 @@ class SpecOrchDaemon:
 
             self._claim(issue_id)
             print(f"[daemon] processing {issue_id} (full pipeline)")
+
+            # Ready → In Progress
+            if linear_uid:
+                try:
+                    client.update_issue_state(linear_uid, "In Progress")
+                except Exception as exc:
+                    print(f"[daemon] state→InProgress failed: {exc}")
+
             try:
                 result = controller.advance_to_completion(issue_id)
                 state = result.state
@@ -158,8 +174,14 @@ class SpecOrchDaemon:
                 )
                 if state in TERMINAL_STATES or state == RunState.GATE_EVALUATED:
                     self._notify(issue_id, mergeable)
+                    pr_created = self._auto_create_pr(issue_id, result)
+                    # In Progress → In Review (after PR)
+                    if pr_created and linear_uid:
+                        try:
+                            client.update_issue_state(linear_uid, "In Review")
+                        except Exception as exc:
+                            print(f"[daemon] state→InReview failed: {exc}")
                     self._write_back_result(raw_issue, result)
-                    self._auto_create_pr(issue_id, result)
                     self._processed.add(issue_id)
                 else:
                     self._release(issue_id)
@@ -169,10 +191,13 @@ class SpecOrchDaemon:
 
     def _auto_create_pr(
         self, issue_id: str, result: RunResult,
-    ) -> None:
-        """Automatically create a GitHub PR when gate is evaluated."""
+    ) -> bool:
+        """Automatically create a GitHub PR when gate is evaluated.
+
+        Returns True if a PR was successfully created.
+        """
         if result.state != RunState.GATE_EVALUATED:
-            return
+            return False
         try:
             from spec_orch.services.github_pr_service import GitHubPRService
 
@@ -200,10 +225,12 @@ class SpecOrchDaemon:
             if pr_url:
                 print(f"[daemon] PR created: {pr_url}")
                 gh_svc.set_gate_status(workspace=workspace, gate=result.gate)
-            else:
-                print(f"[daemon] could not create PR for {issue_id}")
+                return True
+            print(f"[daemon] could not create PR for {issue_id}")
+            return False
         except (RuntimeError, OSError, FileNotFoundError) as exc:
             print(f"[daemon] auto-PR failed for {issue_id}: {exc}")
+            return False
 
     def _is_locked(self, issue_id: str) -> bool:
         return (self._lockdir / f"{issue_id}.lock").exists()

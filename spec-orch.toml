@@ -17,6 +17,10 @@ api_base_env = "SPEC_ORCH_LLM_API_BASE"
 [daemon]
 max_concurrent = 1
 lockfile_dir = ".spec_orch_locks/"
+consume_state = "Ready"
+require_labels = ["agent-ready"]
+exclude_labels = ["blocked"]
+skip_parents = true
 
 [conversation]
 default_channel = "cli"

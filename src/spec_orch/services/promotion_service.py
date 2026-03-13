@@ -45,10 +45,16 @@ class PromotionService:
     def _promote_to_linear(
         self, plan: ExecutionPlan, *, team_key: str,
     ) -> ExecutionPlan:
-        """Create real Linear issues via the API."""
+        """Create real Linear issues with labels, parent, and Ready state."""
         from spec_orch.services.linear_client import LinearClient
 
         client: LinearClient = self._client  # type: ignore[assignment]
+
+        task_label_id = self._resolve_label_safe(client, "task")
+        ready_label_id = self._resolve_label_safe(client, "agent-ready")
+        label_ids = [lid for lid in [task_label_id, ready_label_id] if lid]
+
+        parent_uid = self._resolve_epic_uid(client, team_key, plan.mission_id)
 
         for wave in plan.waves:
             for packet in wave.work_packets:
@@ -60,12 +66,60 @@ class PromotionService:
                     title=f"[W{wave.wave_number}] {packet.title}",
                     description=description,
                 )
+                issue_uid = issue_data.get("id", "")
                 packet.linear_issue_id = issue_data.get(
-                    "identifier", issue_data.get("id", ""),
+                    "identifier", issue_uid,
                 )
+
+                update_input: dict = {}
+                if label_ids:
+                    update_input["labelIds"] = label_ids
+                if parent_uid:
+                    update_input["parentId"] = parent_uid
+
+                if update_input and issue_uid:
+                    import contextlib
+
+                    with contextlib.suppress(Exception):
+                        client.query(
+                            """
+                            mutation($id: String!, $input: IssueUpdateInput!) {
+                                issueUpdate(id: $id, input: $input) { success }
+                            }
+                            """,
+                            {"id": issue_uid, "input": update_input},
+                        )
 
         plan.status = PlanStatus.EXECUTING
         return plan
+
+    @staticmethod
+    def _resolve_label_safe(client: object, name: str) -> str | None:
+        try:
+            from spec_orch.services.linear_client import LinearClient
+
+            c: LinearClient = client  # type: ignore[assignment]
+            return c._resolve_label_id(name)
+        except (ValueError, Exception):
+            return None
+
+    @staticmethod
+    def _resolve_epic_uid(
+        client: object, team_key: str, mission_id: str,
+    ) -> str | None:
+        """Find a parent Epic issue that matches the mission context."""
+        try:
+            from spec_orch.services.linear_client import LinearClient
+
+            c: LinearClient = client  # type: ignore[assignment]
+            issues = c.list_issues(
+                team_key=team_key,
+                filter_labels=["epic"],
+                first=20,
+            )
+            return issues[0]["id"] if issues else None
+        except Exception:
+            return None
 
     @staticmethod
     def _build_issue_description(
@@ -79,23 +133,47 @@ class PromotionService:
             f"**Run Class**: {packet.run_class}",
             f"**Spec Section**: {packet.spec_section}",
             "",
-            "## Builder Prompt",
+            "## Goal",
             "",
             packet.builder_prompt,
+            "",
+            "## Non-Goals",
+            "",
+            "- Do not modify files outside of scope",
+            "- Do not change public API signatures unless specified",
             "",
             "## Acceptance Criteria",
             "",
         ]
         for c in packet.acceptance_criteria:
-            lines.append(f"- {c}")
+            lines.append(f"- [ ] {c}")
+
         if packet.files_in_scope:
-            lines.extend(["", "## Context", "", "Files in scope:"])
+            lines.extend(["", "## Files in Scope", ""])
             for f in packet.files_in_scope:
-                lines.append(f"- {f}")
+                lines.append(f"- `{f}`")
         if packet.files_out_of_scope:
-            lines.append("\nFiles out of scope:")
+            lines.extend(["", "## Files out of Scope", ""])
             for f in packet.files_out_of_scope:
-                lines.append(f"- {f}")
+                lines.append(f"- `{f}`")
+
+        verify = packet.verification_commands or {}
+        if verify:
+            lines.extend(["", "## Test Requirements", ""])
+            for name, cmd in verify.items():
+                cmd_str = " ".join(cmd) if isinstance(cmd, list) else str(cmd)
+                lines.append(f"- `{name}`: `{cmd_str}`")
+        else:
+            lines.extend(["", "## Test Requirements", "", "- All existing tests must pass"])
+
+        lines.extend([
+            "",
+            "## Merge Constraints",
+            "",
+            "- PR required, no direct push to main",
+            "- Gate evaluation must pass before merge",
+        ])
+
         if packet.depends_on:
             lines.extend([
                 "",

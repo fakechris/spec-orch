@@ -65,6 +65,9 @@ class LinearClient:
         *,
         team_key: str,
         filter_state: str | None = None,
+        filter_labels: list[str] | None = None,
+        exclude_labels: list[str] | None = None,
+        exclude_parents: bool = False,
         assigned_to_me: bool = False,
         first: int = 50,
     ) -> list[dict[str, Any]]:
@@ -78,6 +81,20 @@ class LinearClient:
             var_defs += ", $filterState: String!"
         if assigned_to_me:
             filter_parts.append("assignee: { isMe: { eq: true } }")
+        if filter_labels:
+            label_list = ", ".join(f'"{lb}"' for lb in filter_labels)
+            filter_parts.append(
+                f"labels: {{ some: {{ name: {{ in: [{label_list}] }} }} }}"
+            )
+        if exclude_labels:
+            excl_list = ", ".join(f'"{lb}"' for lb in exclude_labels)
+            filter_parts.append(
+                f"labels: {{ every: {{ name: {{ nin: [{excl_list}] }} }} }}"
+            )
+
+        child_fields = ""
+        if exclude_parents:
+            child_fields = "\n      children { nodes { id } }"
 
         filter_str = ", ".join(filter_parts)
         query = (
@@ -90,13 +107,21 @@ class LinearClient:
             "      description\n"
             "      state { name }\n"
             "      labels { nodes { name } }\n"
-            "      assignee { name email }\n"
+            "      assignee { name email }"
+            f"{child_fields}\n"
             "    }\n"
             "  }\n"
             "}"
         )
         result = self.query(query, variables=variables)
         nodes: list[dict[str, Any]] = result.get("issues", {}).get("nodes", [])
+
+        if exclude_parents:
+            nodes = [
+                n for n in nodes
+                if not n.get("children", {}).get("nodes")
+            ]
+
         return nodes
 
     def create_issue(
@@ -237,6 +262,73 @@ class LinearClient:
         )
         update: dict[str, Any] = result.get("issueUpdate", {})
         return update
+
+    def add_label(self, issue_id: str, label_name: str) -> None:
+        """Add a label to an issue by name. Resolves label ID automatically."""
+        label_id = self._resolve_label_id(label_name)
+        issue = self.get_issue(issue_id)
+        existing = [
+            n["name"]
+            for n in issue.get("labels", {}).get("nodes", [])
+        ]
+        if label_name in existing:
+            return
+        all_label_ids = [
+            self._resolve_label_id(n) for n in existing
+        ]
+        all_label_ids.append(label_id)
+        self.query(
+            """
+            mutation($id: String!, $labelIds: [String!]!) {
+                issueUpdate(id: $id, input: { labelIds: $labelIds }) {
+                    success
+                }
+            }
+            """,
+            variables={"id": issue["id"], "labelIds": all_label_ids},
+        )
+
+    def remove_label(self, issue_id: str, label_name: str) -> None:
+        """Remove a label from an issue by name."""
+        issue = self.get_issue(issue_id)
+        existing = [
+            n["name"]
+            for n in issue.get("labels", {}).get("nodes", [])
+        ]
+        if label_name not in existing:
+            return
+        remaining_ids = [
+            self._resolve_label_id(n)
+            for n in existing
+            if n != label_name
+        ]
+        self.query(
+            """
+            mutation($id: String!, $labelIds: [String!]!) {
+                issueUpdate(id: $id, input: { labelIds: $labelIds }) {
+                    success
+                }
+            }
+            """,
+            variables={"id": issue["id"], "labelIds": remaining_ids},
+        )
+
+    def _resolve_label_id(self, label_name: str) -> str:
+        result = self.query(
+            """
+            query($name: String!) {
+                issueLabels(filter: { name: { eq: $name } }) {
+                    nodes { id name }
+                }
+            }
+            """,
+            variables={"name": label_name},
+        )
+        nodes = result.get("issueLabels", {}).get("nodes", [])
+        if not nodes:
+            raise ValueError(f"Label not found: {label_name}")
+        label_id: str = nodes[0]["id"]
+        return label_id
 
     def close(self) -> None:
         self._client.close()
