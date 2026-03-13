@@ -124,9 +124,7 @@ class EventFormatter:
 
         return None
 
-    def _format_command_completed(
-        self, ts: str, item: dict, *, color: bool
-    ) -> str:
+    def _format_command_completed(self, ts: str, item: dict, *, color: bool) -> str:
         exit_code = item.get("exit_code", "?")
         output = item.get("aggregated_output", "")
         lines = output.splitlines() if output else []
@@ -143,9 +141,7 @@ class EventFormatter:
 
         if self._max_output_lines > 0 and lines:
             shown = lines[: self._max_output_lines]
-            preview = "\n".join(
-                f"         {_c(_DIM, '| ', color=color)}{ln}" for ln in shown
-            )
+            preview = "\n".join(f"         {_c(_DIM, '| ', color=color)}{ln}" for ln in shown)
             if line_count > self._max_output_lines:
                 preview += (
                     f"\n         {_c(_DIM, '| ', color=color)}"
@@ -153,18 +149,14 @@ class EventFormatter:
                 )
             return f"{summary}\n{preview}"
         elif self._max_output_lines == 0 and self._verbose and lines:
-            preview = "\n".join(
-                f"         {_c(_DIM, '| ', color=color)}{ln}" for ln in lines
-            )
+            preview = "\n".join(f"         {_c(_DIM, '| ', color=color)}{ln}" for ln in lines)
             return f"{summary}\n{preview}"
 
         return summary
 
     # ---- orchestrator events -------------------------------------------
 
-    def _format_orchestrator(
-        self, ts: str, event: dict[str, Any], *, color: bool
-    ) -> str | None:
+    def _format_orchestrator(self, ts: str, event: dict[str, Any], *, color: bool) -> str | None:
         etype: str = event.get("event_type", "")
         component: str = event.get("component", "")
         data: dict = event.get("data", {})

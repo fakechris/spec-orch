@@ -141,9 +141,7 @@ class RunController:
             review = self.review_adapter.initialize(
                 issue_id=issue.issue_id,
                 workspace=workspace,
-                builder_turn_contract_compliance=builder.metadata.get(
-                    "turn_contract_compliance"
-                ),
+                builder_turn_contract_compliance=builder.metadata.get("turn_contract_compliance"),
             )
             self._log_and_emit(
                 activity_logger=activity_logger,
@@ -183,7 +181,8 @@ class RunController:
         )
 
     def _load_existing_run(
-        self, issue_id: str,
+        self,
+        issue_id: str,
     ) -> tuple[Issue, Path, dict, str, BuilderResult, RunState]:
         """Load issue, workspace, report data, run_id, builder, and current
         state for an existing run.  Validates the issue_id and falls back to
@@ -237,8 +236,8 @@ class RunController:
         verdict: str,
         reviewed_by: str,
     ) -> RunResult:
-        issue, workspace, report_data, run_id, builder, _prev_state = (
-            self._load_existing_run(issue_id)
+        issue, workspace, report_data, run_id, builder, _prev_state = self._load_existing_run(
+            issue_id
         )
         verification = self._verification_from_report(report_data)
         review = self.review_adapter.review(
@@ -246,9 +245,7 @@ class RunController:
             workspace=workspace,
             verdict=verdict,
             reviewed_by=reviewed_by,
-            builder_turn_contract_compliance=builder.metadata.get(
-                "turn_contract_compliance"
-            ),
+            builder_turn_contract_compliance=builder.metadata.get("turn_contract_compliance"),
         )
         human_acceptance = report_data["human_acceptance"]["accepted"]
         accepted_by = report_data["human_acceptance"]["accepted_by"]
@@ -287,8 +284,8 @@ class RunController:
         )
 
     def accept_issue(self, issue_id: str, *, accepted_by: str) -> RunResult:
-        issue, workspace, report_data, run_id, builder, _prev_state = (
-            self._load_existing_run(issue_id)
+        issue, workspace, report_data, run_id, builder, _prev_state = self._load_existing_run(
+            issue_id
         )
         self.artifact_service.write_acceptance_artifact(
             workspace=workspace,
@@ -337,17 +334,15 @@ class RunController:
         Resets review to pending since code may have changed.
         Falls back to report.json if issue source is unavailable.
         """
-        issue, workspace, report_data, run_id, builder, _prev_state = (
-            self._load_existing_run(issue_id)
+        issue, workspace, report_data, run_id, builder, _prev_state = self._load_existing_run(
+            issue_id
         )
 
         with self._open_activity_logger(workspace) as activity_logger:
             review = self.review_adapter.initialize(
                 issue_id=issue.issue_id,
                 workspace=workspace,
-                builder_turn_contract_compliance=builder.metadata.get(
-                    "turn_contract_compliance"
-                ),
+                builder_turn_contract_compliance=builder.metadata.get("turn_contract_compliance"),
             )
             acceptance_data = report_data.get("human_acceptance", {})
             human_acceptance = acceptance_data.get("accepted", False)
@@ -363,7 +358,8 @@ class RunController:
                 message="Re-running verification steps.",
             )
             verification = self.verification_service.run(
-                issue=issue, workspace=workspace,
+                issue=issue,
+                workspace=workspace,
             )
             self._log_verification_events(
                 workspace=workspace,
@@ -438,7 +434,8 @@ class RunController:
                 if snapshot and snapshot.has_unresolved_blocking_questions():
                     issue = self.issue_source.load(issue_id)
                     snapshot = self.planner_adapter.answer_questions(
-                        snapshot=snapshot, issue=issue,
+                        snapshot=snapshot,
+                        issue=issue,
                     )
                     write_spec_snapshot(workspace, snapshot)
             result = self.advance(issue_id)
@@ -451,9 +448,7 @@ class RunController:
 
     def _load_final_result(self, issue_id: str) -> RunResult:
         """Load a RunResult from persisted report.json for a completed run."""
-        issue, workspace, report_data, run_id, builder, state = (
-            self._load_existing_run(issue_id)
-        )
+        issue, workspace, report_data, run_id, builder, state = self._load_existing_run(issue_id)
         review = self._review_from_report(report_data, workspace)
         gate = GateVerdict(
             mergeable=report_data.get("mergeable", False),
@@ -509,7 +504,9 @@ class RunController:
         if self.planner_adapter is None:
             self._persist_state(workspace, issue, run_id, RunState.SPEC_DRAFTING)
             return self._stub_result(
-                issue, workspace, RunState.SPEC_DRAFTING,
+                issue,
+                workspace,
+                RunState.SPEC_DRAFTING,
                 message="Awaiting manual spec drafting (no planner configured).",
             )
 
@@ -580,12 +577,14 @@ class RunController:
         existing: dict[str, Any] = {}
         if report_path.exists():
             existing = json.loads(report_path.read_text())
-        existing.update({
-            "state": state.value,
-            "run_id": run_id,
-            "issue_id": issue.issue_id,
-            "title": issue.title,
-        })
+        existing.update(
+            {
+                "state": state.value,
+                "run_id": run_id,
+                "issue_id": issue.issue_id,
+                "title": issue.title,
+            }
+        )
         report_path.write_text(json.dumps(existing, indent=2) + "\n")
 
     def _stub_result(
@@ -617,7 +616,8 @@ class RunController:
             builder=dummy_builder,
             review=ReviewSummary(),
             gate=GateVerdict(
-                mergeable=False, failed_conditions=["pre_build"],
+                mergeable=False,
+                failed_conditions=["pre_build"],
             ),
             state=state,
         )
@@ -651,12 +651,14 @@ class RunController:
             data=data,
         )
         if activity_logger:
-            activity_logger.log({
-                "event_type": event_type,
-                "component": component,
-                "message": message,
-                "data": data or {},
-            })
+            activity_logger.log(
+                {
+                    "event_type": event_type,
+                    "component": component,
+                    "message": message,
+                    "data": data or {},
+                }
+            )
 
     def _open_activity_logger(self, workspace: Path) -> ActivityLogger:
         return ActivityLogger(
@@ -687,6 +689,7 @@ class RunController:
             )
             if activity_logger:
                 activity_logger.log(event.get("data", event))
+
         return _log
 
     def _finalize_run(
@@ -813,9 +816,7 @@ class RunController:
                     "turn_contract_compliance": compliance,
                 },
             )
-        builder.metadata.setdefault(
-            "turn_contract_compliance", default_turn_contract_compliance()
-        )
+        builder.metadata.setdefault("turn_contract_compliance", default_turn_contract_compliance())
         builder.metadata["run_id"] = run_id
         from spec_orch.services.codex_exec_builder_adapter import (
             _write_report as write_builder_report,

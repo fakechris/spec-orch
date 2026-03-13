@@ -146,9 +146,7 @@ class ConfigChecker:
                 CheckResult(
                     name="linear_api",
                     status=status,
-                    message=(
-                        f"Connected to Linear team {team_key}. Workflow states: {state_text}"
-                    ),
+                    message=(f"Connected to Linear team {team_key}. Workflow states: {state_text}"),
                 )
             ]
         except Exception as exc:

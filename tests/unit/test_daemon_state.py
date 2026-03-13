@@ -1,4 +1,5 @@
 """Tests for daemon state persistence and daemon_installer."""
+
 from __future__ import annotations
 
 import json
@@ -28,11 +29,15 @@ def test_state_loaded_on_init(tmp_path: Path) -> None:
     locks_dir = tmp_path / "locks"
     locks_dir.mkdir()
     state_file = locks_dir / "daemon_state.json"
-    state_file.write_text(json.dumps({
-        "processed": ["SPC-A", "SPC-B"],
-        "triaged": ["SPC-C"],
-        "last_poll": "2026-01-01T00:00:00Z",
-    }))
+    state_file.write_text(
+        json.dumps(
+            {
+                "processed": ["SPC-A", "SPC-B"],
+                "triaged": ["SPC-C"],
+                "last_poll": "2026-01-01T00:00:00Z",
+            }
+        )
+    )
 
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(locks_dir)}})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)

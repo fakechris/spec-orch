@@ -12,6 +12,7 @@ from spec_orch.domain.models import (
     ParallelConfig,
     WorkPacket,
 )
+from spec_orch.domain.protocols import PacketExecutor
 from spec_orch.services.packet_executor import SubprocessPacketExecutor
 from spec_orch.services.wave_executor import AsyncioWaveExecutor
 
@@ -30,7 +31,7 @@ class ParallelRunController:
     ) -> None:
         self.repo_root = repo_root
         self.config = config or ParallelConfig()
-        self._packet_executor = SubprocessPacketExecutor(
+        self._packet_executor: PacketExecutor = SubprocessPacketExecutor(
             codex_bin=codex_bin,
             workspace=str(repo_root),
         )
@@ -53,7 +54,9 @@ class ParallelRunController:
     ) -> ExecutionPlanResult:
         waves: list[list[WorkPacket]] = [w.work_packets for w in plan.waves]
         result = await self._wave_executor.execute_plan(
-            waves, self.config, cancel_event,
+            waves,
+            self.config,
+            cancel_event,
         )
         return result
 

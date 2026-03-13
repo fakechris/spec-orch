@@ -49,13 +49,11 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     events = _read_events(telemetry_dir / "events.jsonl")
     assert any(event["event_type"] == "verification_started" for event in events)
     assert any(
-        event["event_type"] == "verification_step_completed"
-        and event["data"]["step"] == "lint"
+        event["event_type"] == "verification_step_completed" and event["data"]["step"] == "lint"
         for event in events
     )
     assert any(
-        event["event_type"] == "review_initialized"
-        and event["data"]["verdict"] == "pending"
+        event["event_type"] == "review_initialized" and event["data"]["verdict"] == "pending"
         for event in events
     )
     assert any(
@@ -130,6 +128,7 @@ def test_run_controller_keeps_builder_failure_when_executable_is_unavailable(
         and "builder" in event["data"]["failed_conditions"]
         for event in events
     )
+
 
 def test_review_and_accept_issue_recompute_gate_and_update_artifacts(tmp_path: Path) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
@@ -252,11 +251,13 @@ def test_run_issue_persists_state_in_report(tmp_path: Path) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-S1.json").write_text(
-        json.dumps({
-            "issue_id": "SPC-S1",
-            "title": "State tracking",
-            "summary": "Verify state is persisted.",
-        })
+        json.dumps(
+            {
+                "issue_id": "SPC-S1",
+                "title": "State tracking",
+                "summary": "Verify state is persisted.",
+            }
+        )
     )
     controller = RunController(repo_root=tmp_path)
     result = controller.run_issue("SPC-S1")
@@ -270,17 +271,19 @@ def test_accept_issue_sets_accepted_state(tmp_path: Path) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-S2.json").write_text(
-        json.dumps({
-            "issue_id": "SPC-S2",
-            "title": "Acceptance state",
-            "summary": "Verify accept sets ACCEPTED state.",
-            "verification_commands": {
-                "lint": ["{python}", "-c", "print('ok')"],
-                "typecheck": ["{python}", "-c", "print('ok')"],
-                "test": ["{python}", "-c", "print('ok')"],
-                "build": ["{python}", "-c", "print('ok')"],
-            },
-        })
+        json.dumps(
+            {
+                "issue_id": "SPC-S2",
+                "title": "Acceptance state",
+                "summary": "Verify accept sets ACCEPTED state.",
+                "verification_commands": {
+                    "lint": ["{python}", "-c", "print('ok')"],
+                    "typecheck": ["{python}", "-c", "print('ok')"],
+                    "test": ["{python}", "-c", "print('ok')"],
+                    "build": ["{python}", "-c", "print('ok')"],
+                },
+            }
+        )
     )
     controller = RunController(repo_root=tmp_path)
     controller.run_issue("SPC-S2")
@@ -296,11 +299,13 @@ def test_get_state_returns_draft_for_unknown_issue(tmp_path: Path) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-GHOST.json").write_text(
-        json.dumps({
-            "issue_id": "SPC-GHOST",
-            "title": "Ghost",
-            "summary": "No run yet.",
-        })
+        json.dumps(
+            {
+                "issue_id": "SPC-GHOST",
+                "title": "Ghost",
+                "summary": "No run yet.",
+            }
+        )
     )
     controller = RunController(repo_root=tmp_path)
     assert controller.get_state("SPC-GHOST") == RunState.DRAFT
@@ -310,11 +315,13 @@ def test_get_state_returns_persisted_state(tmp_path: Path) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-GS.json").write_text(
-        json.dumps({
-            "issue_id": "SPC-GS",
-            "title": "State read",
-            "summary": "Check get_state after run.",
-        })
+        json.dumps(
+            {
+                "issue_id": "SPC-GS",
+                "title": "State read",
+                "summary": "Check get_state after run.",
+            }
+        )
     )
     controller = RunController(repo_root=tmp_path)
     controller.run_issue("SPC-GS")

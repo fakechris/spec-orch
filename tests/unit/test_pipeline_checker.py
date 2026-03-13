@@ -128,7 +128,8 @@ def test_next_step_returns_none_when_complete(tmp_path: Path) -> None:
         "waves": [{"wave_number": 0, "work_packets": [{"linear_issue_id": "SON-1"}]}],
     }
     _setup_mission(
-        tmp_path, "m1",
+        tmp_path,
+        "m1",
         has_spec=True,
         approved_at="2026-01-01",
         completed_at="2026-01-02",

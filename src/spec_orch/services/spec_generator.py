@@ -31,8 +31,7 @@ def generate_fixture(plan: PlanData, issue_id: str) -> dict:
 def generate_builder_prompt(plan: PlanData) -> str:
     instructions = [_instruction_from_change(change) for change in plan.file_changes]
     numbered = [
-        f"{index}. {instruction}"
-        for index, instruction in enumerate(instructions, start=1)
+        f"{index}. {instruction}" for index, instruction in enumerate(instructions, start=1)
     ]
     next_index = len(numbered) + 1
     numbered.append(f"{next_index}. Run ruff check src/ and fix any lint errors.")

@@ -61,10 +61,7 @@ class LinearConversationAdapter:
             team_key=self._team_key,
             filter_state=None,
         )
-        watched = [
-            i for i in issues
-            if self._has_label(i, self._watch_label)
-        ]
+        watched = [i for i in issues if self._has_label(i, self._watch_label)]
 
         for issue in watched:
             linear_id: str = issue.get("id", "")
@@ -124,10 +121,7 @@ class LinearConversationAdapter:
     @staticmethod
     def _has_label(issue: dict[str, Any], label_name: str) -> bool:
         labels = issue.get("labels", {}).get("nodes", [])
-        return any(
-            lbl.get("name", "").lower() == label_name.lower()
-            for lbl in labels
-        )
+        return any(lbl.get("name", "").lower() == label_name.lower() for lbl in labels)
 
     def _sleep(self, seconds: int) -> None:
         for _ in range(seconds):

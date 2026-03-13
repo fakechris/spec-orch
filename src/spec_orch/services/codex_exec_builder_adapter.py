@@ -74,7 +74,8 @@ class CodexExecBuilderAdapter:
         return artifacts
 
     def map_events(
-        self, raw_events: list[dict[str, Any]],
+        self,
+        raw_events: list[dict[str, Any]],
     ) -> list[BuilderEvent]:
         """Convert Codex JSONL events to vendor-neutral BuilderEvent."""
         from datetime import UTC, datetime
@@ -86,46 +87,70 @@ class CodexExecBuilderAdapter:
             itype = item.get("type", "")
             ts = raw.get("timestamp", datetime.now(UTC).isoformat())
             if etype == "item.started" and itype == "command_execution":
-                result.append(BuilderEvent(
-                    timestamp=ts, kind="command_start",
-                    text=item.get("command", ""),
-                ))
+                result.append(
+                    BuilderEvent(
+                        timestamp=ts,
+                        kind="command_start",
+                        text=item.get("command", ""),
+                    )
+                )
             elif etype == "item.completed" and itype == "command_execution":
-                result.append(BuilderEvent(
-                    timestamp=ts, kind="command_end",
-                    text=item.get("command", ""),
-                    exit_code=item.get("exit_code"),
-                ))
+                result.append(
+                    BuilderEvent(
+                        timestamp=ts,
+                        kind="command_end",
+                        text=item.get("command", ""),
+                        exit_code=item.get("exit_code"),
+                    )
+                )
             elif etype == "item.completed" and itype == "agent_message":
-                result.append(BuilderEvent(
-                    timestamp=ts, kind="message",
-                    text=item.get("text", ""),
-                ))
+                result.append(
+                    BuilderEvent(
+                        timestamp=ts,
+                        kind="message",
+                        text=item.get("text", ""),
+                    )
+                )
             elif etype == "item.completed" and itype == "file_change":
-                result.append(BuilderEvent(
-                    timestamp=ts, kind="file_change",
-                    file_path=item.get("file"),
-                ))
+                result.append(
+                    BuilderEvent(
+                        timestamp=ts,
+                        kind="file_change",
+                        file_path=item.get("file"),
+                    )
+                )
             elif etype == "item.completed" and itype == "reasoning":
-                result.append(BuilderEvent(
-                    timestamp=ts, kind="reasoning",
-                    text=item.get("text", ""),
-                ))
+                result.append(
+                    BuilderEvent(
+                        timestamp=ts,
+                        kind="reasoning",
+                        text=item.get("text", ""),
+                    )
+                )
             elif etype == "turn.plan.updated":
-                result.append(BuilderEvent(
-                    timestamp=ts, kind="plan",
-                    metadata={"items": raw.get("items", [])},
-                ))
+                result.append(
+                    BuilderEvent(
+                        timestamp=ts,
+                        kind="plan",
+                        metadata={"items": raw.get("items", [])},
+                    )
+                )
             elif etype == "turn.completed":
-                result.append(BuilderEvent(
-                    timestamp=ts, kind="turn_end",
-                    metadata=raw.get("usage", {}),
-                ))
+                result.append(
+                    BuilderEvent(
+                        timestamp=ts,
+                        kind="turn_end",
+                        metadata=raw.get("usage", {}),
+                    )
+                )
             elif etype == "turn.failed":
-                result.append(BuilderEvent(
-                    timestamp=ts, kind="error",
-                    text="Turn failed",
-                ))
+                result.append(
+                    BuilderEvent(
+                        timestamp=ts,
+                        kind="error",
+                        text="Turn failed",
+                    )
+                )
         return result
 
     def run(
@@ -218,9 +243,7 @@ class CodexExecBuilderAdapter:
                                 state["commands_completed"] += 1
                             elif itype == "file_change":
                                 state.setdefault("files_changed", [])
-                                state["files_changed"].append(
-                                    item.get("file", "")
-                                )
+                                state["files_changed"].append(item.get("file", ""))
                         case "turn.plan.updated":
                             state["plan"] = event.get("items", [])
                         case "turn.completed":

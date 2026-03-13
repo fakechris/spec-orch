@@ -1,4 +1,5 @@
 """Tests for daemon review-loop and merge-readiness features."""
+
 from __future__ import annotations
 
 from pathlib import Path

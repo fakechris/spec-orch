@@ -97,12 +97,14 @@ def test_load_review_meta(tmp_path: Path) -> None:
 
 
 def test_review_meta_blocking_unresolved() -> None:
-    meta = ReviewMeta(findings=[
-        _make_finding(fid="f1", severity="blocking", scope="in_spec"),
-        _make_finding(fid="f2", severity="blocking", scope="out_of_spec"),
-        _make_finding(fid="f3", severity="advisory", scope="in_spec"),
-        _make_finding(fid="f4", severity="blocking", scope="in_spec", resolved=True),
-    ])
+    meta = ReviewMeta(
+        findings=[
+            _make_finding(fid="f1", severity="blocking", scope="in_spec"),
+            _make_finding(fid="f2", severity="blocking", scope="out_of_spec"),
+            _make_finding(fid="f3", severity="advisory", scope="in_spec"),
+            _make_finding(fid="f4", severity="blocking", scope="in_spec", resolved=True),
+        ]
+    )
     unresolved = meta.blocking_unresolved
     assert len(unresolved) == 1
     assert unresolved[0].id == "f1"
@@ -118,16 +120,28 @@ def test_review_meta_budget_exhausted() -> None:
 
 def test_review_meta_deduplication() -> None:
     fp = fingerprint_from("test", "same issue")
-    meta = ReviewMeta(findings=[
-        Finding(
-            id="f1", source="test", severity="blocking", confidence=0.9,
-            scope="in_spec", fingerprint=fp, description="same issue",
-        ),
-        Finding(
-            id="f2", source="test", severity="blocking", confidence=0.8,
-            scope="in_spec", fingerprint=fp, description="same issue",
-        ),
-    ])
+    meta = ReviewMeta(
+        findings=[
+            Finding(
+                id="f1",
+                source="test",
+                severity="blocking",
+                confidence=0.9,
+                scope="in_spec",
+                fingerprint=fp,
+                description="same issue",
+            ),
+            Finding(
+                id="f2",
+                source="test",
+                severity="blocking",
+                confidence=0.8,
+                scope="in_spec",
+                fingerprint=fp,
+                description="same issue",
+            ),
+        ]
+    )
     deduped = meta.deduplicated_findings()
     assert len(deduped) == 1
     assert deduped[0].id == "f1"
@@ -149,21 +163,29 @@ def test_gate_blocks_on_unresolved_findings() -> None:
     )
     svc = GateService(policy=policy)
 
-    meta_with_blocking = ReviewMeta(findings=[
-        _make_finding(fid="f1", severity="blocking", scope="in_spec"),
-    ])
-    verdict = svc.evaluate(GateInput(
-        human_acceptance=True,
-        review_meta=meta_with_blocking,
-    ))
+    meta_with_blocking = ReviewMeta(
+        findings=[
+            _make_finding(fid="f1", severity="blocking", scope="in_spec"),
+        ]
+    )
+    verdict = svc.evaluate(
+        GateInput(
+            human_acceptance=True,
+            review_meta=meta_with_blocking,
+        )
+    )
     assert not verdict.mergeable
     assert "findings" in verdict.failed_conditions
 
-    meta_resolved = ReviewMeta(findings=[
-        _make_finding(fid="f1", severity="blocking", scope="in_spec", resolved=True),
-    ])
-    verdict2 = svc.evaluate(GateInput(
-        human_acceptance=True,
-        review_meta=meta_resolved,
-    ))
+    meta_resolved = ReviewMeta(
+        findings=[
+            _make_finding(fid="f1", severity="blocking", scope="in_spec", resolved=True),
+        ]
+    )
+    verdict2 = svc.evaluate(
+        GateInput(
+            human_acceptance=True,
+            review_meta=meta_resolved,
+        )
+    )
     assert "findings" not in verdict2.failed_conditions

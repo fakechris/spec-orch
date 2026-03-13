@@ -124,7 +124,8 @@ def test_promotion_service_to_linear():
 def test_plan_show_cli_not_found(tmp_path: Path):
     runner = CliRunner()
     result = runner.invoke(
-        app, ["plan-show", "nonexistent", "--repo-root", str(tmp_path)],
+        app,
+        ["plan-show", "nonexistent", "--repo-root", str(tmp_path)],
     )
     assert result.exit_code == 1
     assert "no plan found" in result.output
@@ -143,7 +144,8 @@ def test_plan_show_cli(tmp_path: Path):
 
     runner = CliRunner()
     result = runner.invoke(
-        app, ["plan-show", "db-migration", "--repo-root", str(tmp_path)],
+        app,
+        ["plan-show", "db-migration", "--repo-root", str(tmp_path)],
     )
     assert result.exit_code == 0
     assert "wp-1" in result.output
@@ -164,7 +166,8 @@ def test_promote_cli_local(tmp_path: Path):
     runner = CliRunner()
     with patch.dict("os.environ", {"SPEC_ORCH_LINEAR_TOKEN": ""}, clear=False):
         result = runner.invoke(
-            app, ["promote", "local-test", "--repo-root", str(tmp_path)],
+            app,
+            ["promote", "local-test", "--repo-root", str(tmp_path)],
         )
     assert result.exit_code == 0
     assert "promoted 1 work packets" in result.output
@@ -181,22 +184,24 @@ def test_scoper_adapter_parse_response():
     mission = Mission(mission_id="test", title="Test")
 
     mock_message = MagicMock()
-    mock_message.content = json.dumps({
-        "waves": [
-            {
-                "wave_number": 0,
-                "description": "Scaffold",
-                "work_packets": [
-                    {
-                        "packet_id": "wp-1",
-                        "title": "Setup types",
-                        "run_class": "feature",
-                        "builder_prompt": "Create types",
-                    },
-                ],
-            },
-        ],
-    })
+    mock_message.content = json.dumps(
+        {
+            "waves": [
+                {
+                    "wave_number": 0,
+                    "description": "Scaffold",
+                    "work_packets": [
+                        {
+                            "packet_id": "wp-1",
+                            "title": "Setup types",
+                            "run_class": "feature",
+                            "builder_prompt": "Create types",
+                        },
+                    ],
+                },
+            ],
+        }
+    )
     mock_choice = MagicMock()
     mock_choice.message = mock_message
     mock_response = MagicMock()

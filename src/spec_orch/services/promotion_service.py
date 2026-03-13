@@ -35,15 +35,16 @@ class PromotionService:
         counter = 1
         for wave in plan.waves:
             for packet in wave.work_packets:
-                packet.linear_issue_id = (
-                    f"LOCAL-{plan.mission_id.upper()}-{counter}"
-                )
+                packet.linear_issue_id = f"LOCAL-{plan.mission_id.upper()}-{counter}"
                 counter += 1
         plan.status = PlanStatus.EXECUTING
         return plan
 
     def _promote_to_linear(
-        self, plan: ExecutionPlan, *, team_key: str,
+        self,
+        plan: ExecutionPlan,
+        *,
+        team_key: str,
     ) -> ExecutionPlan:
         """Create real Linear issues with labels, parent, and Ready state."""
         from spec_orch.services.linear_client import LinearClient
@@ -59,7 +60,9 @@ class PromotionService:
         for wave in plan.waves:
             for packet in wave.work_packets:
                 description = self._build_issue_description(
-                    packet, plan.mission_id, wave,
+                    packet,
+                    plan.mission_id,
+                    wave,
                 )
                 issue_data = client.create_issue(
                     team_key=team_key,
@@ -68,7 +71,8 @@ class PromotionService:
                 )
                 issue_uid = issue_data.get("id", "")
                 packet.linear_issue_id = issue_data.get(
-                    "identifier", issue_uid,
+                    "identifier",
+                    issue_uid,
                 )
 
                 update_input: dict = {}
@@ -105,7 +109,9 @@ class PromotionService:
 
     @staticmethod
     def _resolve_epic_uid(
-        client: object, team_key: str, mission_id: str,
+        client: object,
+        team_key: str,
+        mission_id: str,
     ) -> str | None:
         """Find a parent Epic issue that matches the mission context."""
         try:
@@ -166,19 +172,23 @@ class PromotionService:
         else:
             lines.extend(["", "## Test Requirements", "", "- All existing tests must pass"])
 
-        lines.extend([
-            "",
-            "## Merge Constraints",
-            "",
-            "- PR required, no direct push to main",
-            "- Gate evaluation must pass before merge",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Merge Constraints",
+                "",
+                "- PR required, no direct push to main",
+                "- Gate evaluation must pass before merge",
+            ]
+        )
 
         if packet.depends_on:
-            lines.extend([
-                "",
-                f"**Depends on**: {', '.join(packet.depends_on)}",
-            ])
+            lines.extend(
+                [
+                    "",
+                    f"**Depends on**: {', '.join(packet.depends_on)}",
+                ]
+            )
         return "\n".join(lines)
 
 
@@ -223,11 +233,13 @@ def load_plan(path: Path) -> ExecutionPlan:
     waves = []
     for w in data["waves"]:
         packets = [WorkPacket(**p) for p in w["work_packets"]]
-        waves.append(Wave(
-            wave_number=w["wave_number"],
-            description=w.get("description", ""),
-            work_packets=packets,
-        ))
+        waves.append(
+            Wave(
+                wave_number=w["wave_number"],
+                description=w.get("description", ""),
+                work_packets=packets,
+            )
+        )
     return ExecutionPlan(
         plan_id=data["plan_id"],
         mission_id=data["mission_id"],

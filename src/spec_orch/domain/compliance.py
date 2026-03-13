@@ -12,6 +12,7 @@ This module has two layers:
    ``CodexExecBuilderAdapter`` which maps Codex events into
    ``BuilderEvent`` before forwarding to the engine.
 """
+
 from __future__ import annotations
 
 import json
@@ -45,7 +46,8 @@ class ComplianceEngine:
         self._rules.append(rule)
 
     def evaluate(
-        self, events: Sequence[BuilderEvent],
+        self,
+        events: Sequence[BuilderEvent],
     ) -> dict[str, Any]:
         all_violations: list[dict[str, Any]] = []
         first_action = _find_first_action(events)
@@ -80,12 +82,14 @@ def pre_action_narration_rule(
             continue
         pattern = _matching_pre_action_pattern(evt.text)
         if pattern:
-            violations.append({
-                "timestamp": evt.timestamp,
-                "kind": evt.kind,
-                "text": evt.text,
-                "pattern": pattern.pattern,
-            })
+            violations.append(
+                {
+                    "timestamp": evt.timestamp,
+                    "kind": evt.kind,
+                    "text": evt.text,
+                    "pattern": pattern.pattern,
+                }
+            )
     return violations
 
 

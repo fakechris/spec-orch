@@ -16,41 +16,53 @@ def dashboard_repo(tmp_path: Path) -> Path:
     specs = tmp_path / "docs" / "specs" / mid
     specs.mkdir(parents=True)
 
-    (specs / "mission.json").write_text(json.dumps({
-        "mission_id": mid,
-        "title": "Dashboard Test",
-        "status": "approved",
-        "spec_path": f"docs/specs/{mid}/spec.md",
-        "acceptance_criteria": [],
-        "constraints": [],
-        "interface_contracts": [],
-        "created_at": "2026-01-01T00:00:00+00:00",
-        "approved_at": "2026-01-01T00:00:00+00:00",
-        "completed_at": None,
-    }))
-    (specs / "spec.md").write_text("# Dashboard Test\n")
-    (specs / "plan.json").write_text(json.dumps({
-        "plan_id": "plan-d",
-        "mission_id": mid,
-        "status": "executing",
-        "waves": [{
-            "wave_number": 0,
-            "description": "W0",
-            "work_packets": [{
-                "packet_id": "dp1",
-                "title": "Dash Packet",
-                "spec_section": "",
-                "run_class": "feature",
-                "files_in_scope": [],
-                "files_out_of_scope": [],
-                "depends_on": [],
+    (specs / "mission.json").write_text(
+        json.dumps(
+            {
+                "mission_id": mid,
+                "title": "Dashboard Test",
+                "status": "approved",
+                "spec_path": f"docs/specs/{mid}/spec.md",
                 "acceptance_criteria": [],
-                "verification_commands": {},
-                "builder_prompt": "",
-                "linear_issue_id": "SON-99",
-            }],
-        }],
-    }))
+                "constraints": [],
+                "interface_contracts": [],
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "approved_at": "2026-01-01T00:00:00+00:00",
+                "completed_at": None,
+            }
+        )
+    )
+    (specs / "spec.md").write_text("# Dashboard Test\n")
+    (specs / "plan.json").write_text(
+        json.dumps(
+            {
+                "plan_id": "plan-d",
+                "mission_id": mid,
+                "status": "executing",
+                "waves": [
+                    {
+                        "wave_number": 0,
+                        "description": "W0",
+                        "work_packets": [
+                            {
+                                "packet_id": "dp1",
+                                "title": "Dash Packet",
+                                "spec_section": "",
+                                "run_class": "feature",
+                                "files_in_scope": [],
+                                "files_out_of_scope": [],
+                                "depends_on": [],
+                                "acceptance_criteria": [],
+                                "verification_commands": {},
+                                "builder_prompt": "",
+                                "linear_issue_id": "SON-99",
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+    )
     return tmp_path
 
 
@@ -74,18 +86,22 @@ class TestGatherMissions:
         mid = "no-plan"
         specs = tmp_path / "docs" / "specs" / mid
         specs.mkdir(parents=True)
-        (specs / "mission.json").write_text(json.dumps({
-            "mission_id": mid,
-            "title": "No Plan",
-            "status": "drafting",
-            "spec_path": f"docs/specs/{mid}/spec.md",
-            "acceptance_criteria": [],
-            "constraints": [],
-            "interface_contracts": [],
-            "created_at": "2026-01-01T00:00:00+00:00",
-            "approved_at": None,
-            "completed_at": None,
-        }))
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mid,
+                    "title": "No Plan",
+                    "status": "drafting",
+                    "spec_path": f"docs/specs/{mid}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                    "approved_at": None,
+                    "completed_at": None,
+                }
+            )
+        )
         result = _gather_missions(tmp_path)
         assert len(result) == 1
         assert result[0]["plan"] is None

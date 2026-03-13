@@ -101,7 +101,8 @@ def test_update_status_completed(tmp_path: Path):
 def test_mission_cli_create(tmp_path: Path):
     runner = CliRunner()
     result = runner.invoke(
-        app, ["mission", "create", "Test Mission", "--repo-root", str(tmp_path)],
+        app,
+        ["mission", "create", "Test Mission", "--repo-root", str(tmp_path)],
     )
     assert result.exit_code == 0
     assert "mission created" in result.output
@@ -114,7 +115,8 @@ def test_mission_cli_approve(tmp_path: Path):
         ["mission", "create", "Test", "--id", "t-1", "--repo-root", str(tmp_path)],
     )
     result = runner.invoke(
-        app, ["mission", "approve", "t-1", "--repo-root", str(tmp_path)],
+        app,
+        ["mission", "approve", "t-1", "--repo-root", str(tmp_path)],
     )
     assert result.exit_code == 0
     assert "approved" in result.output
@@ -127,7 +129,8 @@ def test_mission_cli_status(tmp_path: Path):
         ["mission", "create", "Test", "--id", "t-1", "--repo-root", str(tmp_path)],
     )
     result = runner.invoke(
-        app, ["mission", "status", "--repo-root", str(tmp_path)],
+        app,
+        ["mission", "status", "--repo-root", str(tmp_path)],
     )
     assert result.exit_code == 0
     assert "t-1" in result.output
@@ -141,7 +144,8 @@ def test_mission_cli_show(tmp_path: Path):
         ["mission", "create", "Test", "--id", "t-1", "--repo-root", str(tmp_path)],
     )
     result = runner.invoke(
-        app, ["mission", "show", "t-1", "--repo-root", str(tmp_path)],
+        app,
+        ["mission", "show", "t-1", "--repo-root", str(tmp_path)],
     )
     assert result.exit_code == 0
     assert "# Test" in result.output

@@ -36,7 +36,10 @@ class TestInferSeverity:
         assert adapter._infer_severity("[nit] minor style", "coderabbit", {}) == "advisory"
 
     def test_changes_requested_state(self, adapter: GitHubReviewAdapter) -> None:
-        assert adapter._infer_severity("Fix bugs", "human", {"state": "CHANGES_REQUESTED"}) == "blocking"
+        assert (
+            adapter._infer_severity("Fix bugs", "human", {"state": "CHANGES_REQUESTED"})
+            == "blocking"
+        )
 
     def test_approved_state(self, adapter: GitHubReviewAdapter) -> None:
         assert adapter._infer_severity("LGTM", "human", {"state": "APPROVED"}) == "advisory"

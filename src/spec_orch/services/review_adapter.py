@@ -73,8 +73,7 @@ class LocalReviewAdapter:
                     "reviewed_by": summary.reviewed_by,
                     "reviewed_at": datetime.now(UTC).isoformat(),
                     "builder_turn_contract_compliance": (
-                        builder_turn_contract_compliance
-                        or default_turn_contract_compliance()
+                        builder_turn_contract_compliance or default_turn_contract_compliance()
                     ),
                 },
                 indent=2,

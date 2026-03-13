@@ -1,4 +1,5 @@
 """Tests for daemon mission-level plan execution."""
+
 from __future__ import annotations
 
 import json
@@ -62,9 +63,7 @@ def test_detect_mission_from_description(tmp_path: Path) -> None:
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
 
     _make_plan_json(tmp_path, "SPC-21")
-    result = daemon._detect_mission(
-        "SPC-21", {"description": "Uses plan.json for execution"}
-    )
+    result = daemon._detect_mission("SPC-21", {"description": "Uses plan.json for execution"})
     assert result == "SPC-21"
 
 
@@ -91,9 +90,7 @@ def test_execute_mission_success(tmp_path: Path) -> None:
         MagicMock(wave_id=1, all_succeeded=True, packet_results=[], failed_packets=[]),
     ]
 
-    with patch(
-        "spec_orch.services.parallel_run_controller.ParallelRunController"
-    ) as MockPRC:
+    with patch("spec_orch.services.parallel_run_controller.ParallelRunController") as MockPRC:
         mock_prc = MockPRC.return_value
         mock_prc.run_plan.return_value = mock_result
         MockPRC.load_plan.return_value = MagicMock(waves=[])
@@ -124,9 +121,7 @@ def test_execute_mission_failure(tmp_path: Path) -> None:
         ),
     ]
 
-    with patch(
-        "spec_orch.services.parallel_run_controller.ParallelRunController"
-    ) as MockPRC:
+    with patch("spec_orch.services.parallel_run_controller.ParallelRunController") as MockPRC:
         mock_prc = MockPRC.return_value
         mock_prc.run_plan.return_value = mock_result
         MockPRC.load_plan.return_value = MagicMock(waves=[])
@@ -157,9 +152,7 @@ def test_poll_routes_to_mission_when_plan_exists(tmp_path: Path) -> None:
     mock_plan_result.total_duration = 1.0
     mock_plan_result.wave_results = []
 
-    with patch(
-        "spec_orch.services.parallel_run_controller.ParallelRunController"
-    ) as MockPRC:
+    with patch("spec_orch.services.parallel_run_controller.ParallelRunController") as MockPRC:
         mock_prc = MockPRC.return_value
         mock_prc.run_plan.return_value = mock_plan_result
         MockPRC.load_plan.return_value = MagicMock(waves=[])

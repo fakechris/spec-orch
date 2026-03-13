@@ -100,7 +100,7 @@ def test_codex_harness_builder_adapter_runs_builder_turn_over_stdio(tmp_path: Pa
                 "## FORBIDDEN BEFORE FIRST ACTION\n"
                 "- No plan narration\n"
                 "- No skill/process references\n"
-                "- No \"I will now...\" sentences\n"
+                '- No "I will now..." sentences\n'
                 "Any output before exec_command_begin is non-compliant.\n\n"
                 "## FIRST ACTION REQUIREMENT\n"
                 "Your first output token must begin a concrete action:\n"
@@ -110,7 +110,7 @@ def test_codex_harness_builder_adapter_runs_builder_turn_over_stdio(tmp_path: Pa
                 "CRITICAL INSTRUCTIONS - FOLLOW EXACTLY:\n"
                 "- DO NOT describe what you are about to do\n"
                 "- DO NOT explain your plan or approach before acting\n"
-                "- DO NOT narrate steps like \"First I will read the repo, then I will...\"\n"
+                '- DO NOT narrate steps like "First I will read the repo, then I will..."\n'
                 "- DO NOT reference skill docs or planning process\n"
                 "- START with the first concrete action: a command, a code edit, or a test run\n"
                 "- If you must explain, do it AFTER the action, in one sentence max\n\n"
@@ -187,9 +187,7 @@ def test_codex_harness_builder_adapter_handles_approval_requests_and_logs_events
     assert result.succeeded is True
     assert "approval ok" in result.stdout
     responses = [json.loads(line) for line in response_log.read_text().splitlines()]
-    assert responses == [
-        {"jsonrpc": "2.0", "id": "approve-1", "result": {"decision": "accept"}}
-    ]
+    assert responses == [{"jsonrpc": "2.0", "id": "approve-1", "result": {"decision": "accept"}}]
     assert [event["event_type"] for event in events] == [
         "thread_started",
         "turn_started",
@@ -513,8 +511,7 @@ def test_codex_harness_builder_adapter_times_out_when_turn_goes_idle(tmp_path: P
         )
 
     assert any(
-        event["event_type"] == "turn_timeout"
-        and event["data"]["reason"] == "idle_timeout"
+        event["event_type"] == "turn_timeout" and event["data"]["reason"] == "idle_timeout"
         for event in events
     )
     state_data = json.loads((tmp_path / "telemetry" / "harness_state.json").read_text())
@@ -581,8 +578,7 @@ def test_codex_harness_builder_adapter_times_out_when_turn_has_no_progress(
         )
 
     assert any(
-        event["event_type"] == "turn_timeout"
-        and event["data"]["reason"] == "stalled_timeout"
+        event["event_type"] == "turn_timeout" and event["data"]["reason"] == "stalled_timeout"
         for event in events
     )
     state_data = json.loads((tmp_path / "telemetry" / "harness_state.json").read_text())

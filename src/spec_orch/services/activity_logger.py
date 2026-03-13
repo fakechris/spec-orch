@@ -29,9 +29,7 @@ class ActivityLogger:
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
         self._live_stream = live_stream
         self._formatter = EventFormatter(color=False, verbose=verbose)
-        self._live_formatter = EventFormatter(
-            color=True, verbose=verbose
-        ) if live_stream else None
+        self._live_formatter = EventFormatter(color=True, verbose=verbose) if live_stream else None
         self._lock = threading.Lock()
         self._handle = self._log_path.open("a", encoding="utf-8")
 

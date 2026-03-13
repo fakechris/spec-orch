@@ -100,7 +100,7 @@ class ConversationService:
             )
 
         if lower.startswith("mission create"):
-            title = cmd[len("mission create"):].strip().strip('"').strip("'")
+            title = cmd[len("mission create") :].strip().strip('"').strip("'")
             return self._create_mission_from_thread(thread, title)
 
         return f"Unknown command: {cmd}"
@@ -235,12 +235,10 @@ class ConversationService:
 
     def _load_thread(self, path: Path) -> ConversationThread:
         data = json.loads(path.read_text())
-        messages = [
-            ConversationMessage(**m)
-            for m in data.get("messages", [])
-        ]
+        messages = [ConversationMessage(**m) for m in data.get("messages", [])]
         fallback_ts = datetime.fromtimestamp(
-            path.stat().st_mtime, tz=UTC,
+            path.stat().st_mtime,
+            tz=UTC,
         ).isoformat()
         return ConversationThread(
             thread_id=data["thread_id"],

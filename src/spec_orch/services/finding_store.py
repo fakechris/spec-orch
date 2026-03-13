@@ -4,6 +4,7 @@ Findings are stored as one JSON object per line in
 ``workspace/findings.jsonl``, enabling append-only writes from multiple
 review sources while keeping reads simple.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -77,8 +78,7 @@ def bump_review_epoch(workspace: Path, budget: int = 3) -> int:
         budget = data.get("autofix_budget", budget)
     epoch += 1
     epoch_path.write_text(
-        json.dumps({"review_epoch": epoch, "autofix_budget": budget}, indent=2)
-        + "\n"
+        json.dumps({"review_epoch": epoch, "autofix_budget": budget}, indent=2) + "\n"
     )
     return epoch
 

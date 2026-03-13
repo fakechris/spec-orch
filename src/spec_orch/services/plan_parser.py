@@ -103,8 +103,7 @@ def _heading_matches(heading: str, aliases: list[str]) -> bool:
     parts = [_normalize_text(part) for part in heading.split("/")]
     candidates = [normalized_heading, *parts]
     return any(
-        candidate == alias
-        or bool(re.match(rf"^{re.escape(alias)}\b", candidate))
+        candidate == alias or bool(re.match(rf"^{re.escape(alias)}\b", candidate))
         for alias in (_normalize_text(alias) for alias in aliases)
         for candidate in candidates
         if candidate

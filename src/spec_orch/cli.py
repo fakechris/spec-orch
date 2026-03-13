@@ -134,9 +134,7 @@ def plan_to_spec(
         "-p",
         help="Override builder_prompt from file.",
     ),
-    no_builder: bool = typer.Option(
-        False, "--no-builder", help="Set builder_prompt to null."
-    ),
+    no_builder: bool = typer.Option(False, "--no-builder", help="Set builder_prompt to null."),
 ) -> None:
     """Convert a plan markdown file into an issue fixture JSON file."""
     from spec_orch.services.fixture_issue_source import _VALID_ISSUE_ID_RE
@@ -235,9 +233,7 @@ def accept_issue(
         else:
             typer.echo("\nNo deviations detected.")
 
-    controller = _make_controller(
-        repo_root=repo_root, codex_executable=codex_executable
-    )
+    controller = _make_controller(repo_root=repo_root, codex_executable=codex_executable)
     result = controller.accept_issue(issue_id, accepted_by=accepted_by)
     typer.echo(
         " ".join(
@@ -262,9 +258,7 @@ def review_issue(
     pi_executable: str = typer.Option("pi", "--pi-executable"),
 ) -> None:
     """Record review verdict for an existing issue run."""
-    controller = _make_controller(
-        repo_root=repo_root, codex_executable=codex_executable
-    )
+    controller = _make_controller(repo_root=repo_root, codex_executable=codex_executable)
     result = controller.review_issue(
         issue_id,
         verdict=verdict,
@@ -294,9 +288,7 @@ def rerun_issue(
     if Path(issue_id).name != issue_id:
         typer.echo(f"Invalid issue_id: {issue_id}")
         raise typer.Exit(1)
-    controller = _make_controller(
-        repo_root=repo_root, codex_executable=codex_executable
-    )
+    controller = _make_controller(repo_root=repo_root, codex_executable=codex_executable)
     result = controller.rerun_issue(issue_id)
     typer.echo(
         " ".join(
@@ -393,13 +385,8 @@ def _issue_sort_key(issue_id: str) -> list[int | str]:
     ]
 
 
-def _format_status_table_row(
-    values: tuple[str, ...], widths: list[int]
-) -> str:
-    return "  ".join(
-        value.ljust(width)
-        for value, width in zip(values, widths, strict=True)
-    )
+def _format_status_table_row(values: tuple[str, ...], widths: list[int]) -> str:
+    return "  ".join(value.ljust(width) for value, width in zip(values, widths, strict=True))
 
 
 @app.command("explain")
@@ -626,8 +613,7 @@ def spec_draft(
     existing = read_spec_snapshot(workspace)
     if existing is not None:
         typer.echo(
-            f"spec snapshot already exists (v{existing.version}, "
-            f"approved={existing.approved})"
+            f"spec snapshot already exists (v{existing.version}, approved={existing.approved})"
         )
         raise typer.Exit(1)
     issue_source = FixtureIssueSource(repo_root=Path(repo_root))
@@ -676,16 +662,25 @@ def run_full(
     codex_executable: str = typer.Option("codex", "--codex-executable"),
     live: bool = typer.Option(False, "--live"),
     source: str = typer.Option(
-        "fixture", "--source", "-s", help="Issue source: fixture or linear.",
+        "fixture",
+        "--source",
+        "-s",
+        help="Issue source: fixture or linear.",
     ),
     auto_pr: bool = typer.Option(
-        False, "--auto-pr", help="Automatically create a GitHub PR on completion.",
+        False,
+        "--auto-pr",
+        help="Automatically create a GitHub PR on completion.",
     ),
     auto_merge: bool = typer.Option(
-        False, "--auto-merge", help="Auto-merge if gate passes (implies --auto-pr).",
+        False,
+        "--auto-merge",
+        help="Auto-merge if gate passes (implies --auto-pr).",
     ),
     gate_profile: str = typer.Option(
-        "", "--gate-profile", help="Gate profile to apply (e.g. daemon, ci).",
+        "",
+        "--gate-profile",
+        help="Gate profile to apply (e.g. daemon, ci).",
     ),
     base: str = typer.Option("main", "--base", "-b", help="Base branch for PR."),
 ) -> None:
@@ -707,12 +702,14 @@ def run_full(
     typer.echo(f"running full pipeline for {issue_id}...")
     result = controller.advance_to_completion(issue_id)
     typer.echo(
-        " ".join([
-            f"issue={result.issue.issue_id}",
-            f"state={result.state.value}",
-            f"mergeable={result.gate.mergeable}",
-            f"blocked={','.join(result.gate.failed_conditions) or 'none'}",
-        ])
+        " ".join(
+            [
+                f"issue={result.issue.issue_id}",
+                f"state={result.state.value}",
+                f"mergeable={result.gate.mergeable}",
+                f"blocked={','.join(result.gate.failed_conditions) or 'none'}",
+            ]
+        )
     )
 
     if auto_pr and result.state == RunState.GATE_EVALUATED:
@@ -729,9 +726,7 @@ def run_full(
             f"**Mergeable**: {'yes' if result.gate.mergeable else 'no'}",
         ]
         if result.gate.failed_conditions:
-            body_lines.append(
-                f"**Blocked**: {', '.join(result.gate.failed_conditions)}"
-            )
+            body_lines.append(f"**Blocked**: {', '.join(result.gate.failed_conditions)}")
         explain_path = workspace / "explain.md"
         if explain_path.exists():
             text = explain_path.read_text().strip()
@@ -761,7 +756,11 @@ def run_full(
                         typer.echo("auto-merge: could not enable")
 
                 _linear_writeback_on_pr(
-                    issue_id, data, pr_url, gate_verdict, Path(repo_root),
+                    issue_id,
+                    data,
+                    pr_url,
+                    gate_verdict,
+                    Path(repo_root),
                 )
             else:
                 typer.echo("could not create PR (branch may be main)")
@@ -852,9 +851,7 @@ def daemon_start(
 
 @daemon_app.command("stop")
 def daemon_stop(
-    label: str = typer.Option(
-        "com.specorch.daemon", "--label", help="Service label."
-    ),
+    label: str = typer.Option("com.specorch.daemon", "--label", help="Service label."),
 ) -> None:
     """Stop the daemon system service."""
     from spec_orch.services.daemon_installer import stop_service
@@ -868,9 +865,7 @@ def daemon_stop(
 
 @daemon_app.command("status")
 def daemon_status(
-    label: str = typer.Option(
-        "com.specorch.daemon", "--label", help="Service label."
-    ),
+    label: str = typer.Option("com.specorch.daemon", "--label", help="Service label."),
     config: Path = typer.Option(
         "spec-orch.toml", "--config", "-c", help="Path to spec-orch.toml config file."
     ),
@@ -914,9 +909,7 @@ def daemon_install(
         "spec-orch.toml", "--config", "-c", help="Path to spec-orch.toml config file."
     ),
     repo_root: Path = typer.Option(".", "--repo-root", "-r", help="Repository root."),
-    label: str = typer.Option(
-        "com.specorch.daemon", "--label", help="Service label."
-    ),
+    label: str = typer.Option("com.specorch.daemon", "--label", help="Service label."),
 ) -> None:
     """Install the daemon as a system service (systemd/launchd)."""
     from spec_orch.services.daemon_installer import install_service
@@ -985,18 +978,25 @@ app.add_typer(compliance_app, name="compliance")
 @compliance_app.command("evaluate")
 def compliance_evaluate(
     events_file: Path = typer.Argument(
-        ..., help="Path to builder events JSONL or report.json.",
+        ...,
+        help="Path to builder events JSONL or report.json.",
     ),
     contracts: Path = typer.Option(
         "compliance.contracts.yaml",
-        "--contracts", "-c",
+        "--contracts",
+        "-c",
         help="Path to compliance contracts YAML.",
     ),
     output: Path | None = typer.Option(
-        None, "--output", "-o", help="Write compliance_report.json to this path.",
+        None,
+        "--output",
+        "-o",
+        help="Write compliance_report.json to this path.",
     ),
     json_output: bool = typer.Option(
-        False, "--json", help="Output as JSON.",
+        False,
+        "--json",
+        help="Output as JSON.",
     ),
 ) -> None:
     """Evaluate builder events against compliance contracts."""
@@ -1018,23 +1018,17 @@ def compliance_evaluate(
                 continue
             try:
                 raw = json.loads(line)
-                kind = (
-                    raw.get("kind")
-                    or raw.get("method")
-                    or raw.get("type", "")
-                )
-                text = (
-                    raw.get("text")
-                    or raw.get("excerpt")
-                    or ""
-                )
+                kind = raw.get("kind") or raw.get("method") or raw.get("type", "")
+                text = raw.get("text") or raw.get("excerpt") or ""
                 if not text and "item" in raw:
                     text = str(raw["item"])
-                events.append(BuilderEvent(
-                    timestamp=raw.get("timestamp", ""),
-                    kind=kind,
-                    text=text,
-                ))
+                events.append(
+                    BuilderEvent(
+                        timestamp=raw.get("timestamp", ""),
+                        kind=kind,
+                        text=text,
+                    )
+                )
             except json.JSONDecodeError:
                 skipped += 1
                 continue
@@ -1068,7 +1062,8 @@ def compliance_evaluate(
 def compliance_list_contracts(
     contracts: Path = typer.Option(
         "compliance.contracts.yaml",
-        "--contracts", "-c",
+        "--contracts",
+        "-c",
         help="Path to compliance contracts YAML.",
     ),
 ) -> None:
@@ -1091,9 +1086,7 @@ app.add_typer(gate_app, name="gate")
 
 @gate_app.command("evaluate")
 def gate_evaluate(
-    issue_id: str = typer.Argument(
-        default="", help="Issue ID to evaluate gate for."
-    ),
+    issue_id: str = typer.Argument(default="", help="Issue ID to evaluate gate for."),
     repo_root: Path = typer.Option(".", "--repo-root", "-r"),
     policy: Path = typer.Option(
         "gate.policy.yaml", "--policy", "-p", help="Path to gate.policy.yaml."
@@ -1104,9 +1097,7 @@ def gate_evaluate(
     report_file: Path | None = typer.Option(
         None, "--report", help="Path to report.json (overrides issue workspace)."
     ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output in JSON format."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output in JSON format."),
 ) -> None:
     """Evaluate the gate for an issue or report file."""
     from spec_orch.services.gate_service import GateService
@@ -1135,13 +1126,18 @@ def gate_evaluate(
     auto_merge = svc.should_auto_merge(gate_input)
 
     if output_json:
-        typer.echo(json.dumps({
-            "issue_id": issue_id or data.get("issue_id", ""),
-            "mergeable": verdict.mergeable,
-            "failed_conditions": verdict.failed_conditions,
-            "auto_merge": auto_merge,
-            "profile": profile or "default",
-        }, indent=2))
+        typer.echo(
+            json.dumps(
+                {
+                    "issue_id": issue_id or data.get("issue_id", ""),
+                    "mergeable": verdict.mergeable,
+                    "failed_conditions": verdict.failed_conditions,
+                    "auto_merge": auto_merge,
+                    "profile": profile or "default",
+                },
+                indent=2,
+            )
+        )
         return
 
     label = issue_id or result_file.parent.name
@@ -1160,9 +1156,7 @@ def gate_show_policy(
     policy: Path = typer.Option(
         "gate.policy.yaml", "--policy", "-p", help="Path to gate.policy.yaml."
     ),
-    profile: str = typer.Option(
-        "", "--profile", help="Apply a profile before showing."
-    ),
+    profile: str = typer.Option("", "--profile", help="Apply a profile before showing."),
     output_json: bool = typer.Option(False, "--json", help="Output in JSON format."),
 ) -> None:
     """Print the current gate policy."""
@@ -1221,7 +1215,8 @@ def gate_list_profiles(
 
 
 def _load_gate_policy(
-    policy_path: Path, profile: str,
+    policy_path: Path,
+    profile: str,
 ) -> Any:
     from spec_orch.services.gate_service import GatePolicy
 
@@ -1284,12 +1279,8 @@ def _build_gate_input_from_report(data: dict[str, Any]) -> Any:
 def watch_issue(
     issue_id: str,
     repo_root: Path = typer.Option(".", "--repo-root", "-r"),
-    follow: bool = typer.Option(
-        False, "--follow", "-f", help="Keep watching even after log ends."
-    ),
-    tail: int = typer.Option(
-        0, "--tail", "-n", help="Show last N lines only (0 = all)."
-    ),
+    follow: bool = typer.Option(False, "--follow", "-f", help="Keep watching even after log ends."),
+    tail: int = typer.Option(0, "--tail", "-n", help="Show last N lines only (0 = all)."),
 ) -> None:
     """Watch real-time activity log for an issue run."""
     ws = WorkspaceService(repo_root=Path(repo_root))
@@ -1339,9 +1330,7 @@ def logs_issue(
     events: bool = typer.Option(
         False, "--events", help="Print orchestrator events (events.jsonl)."
     ),
-    filter_type: str = typer.Option(
-        "", "--filter", help="Filter by event type substring."
-    ),
+    filter_type: str = typer.Option("", "--filter", help="Filter by event type substring."),
 ) -> None:
     """View complete activity logs for an issue run."""
     ws = WorkspaceService(repo_root=Path(repo_root))
@@ -1389,16 +1378,12 @@ def _print_check_report(results: list[Any]) -> None:
     for result in results:
         counts[result.status] = counts.get(result.status, 0) + 1
         typer.echo(f"[{result.status.upper()}] {result.name}: {result.message}")
-    typer.echo(
-        f"Summary: {counts['pass']} pass, {counts['warn']} warn, {counts['fail']} fail"
-    )
+    typer.echo(f"Summary: {counts['pass']} pass, {counts['warn']} warn, {counts['fail']} fail")
 
 
 @app.command("review-pr")
 def review_pr(
-    issue_id: str = typer.Argument(
-        default="", help="Issue ID (optional, auto-detects PR)."
-    ),
+    issue_id: str = typer.Argument(default="", help="Issue ID (optional, auto-detects PR)."),
     pr_number: int | None = typer.Option(None, "--pr", help="PR number."),
     repo_root: Path = typer.Option(".", "--repo-root", "-r"),
 ) -> None:
@@ -1565,7 +1550,9 @@ def run_plan(
     codex_executable: str = typer.Option("codex", "--codex-executable"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show plan without executing."),
     full_pipeline: bool = typer.Option(
-        False, "--full-pipeline", help="Run build → verify → gate per packet.",
+        False,
+        "--full-pipeline",
+        help="Run build → verify → gate per packet.",
     ),
 ) -> None:
     """Execute a Mission's plan with parallel wave execution."""
@@ -1605,17 +1592,22 @@ def run_plan(
     handler.install()
 
     try:
+        from spec_orch.domain.protocols import PacketExecutor
+
+        pkt_exec: PacketExecutor
         if full_pipeline:
             from spec_orch.services.packet_executor import FullPipelinePacketExecutor
 
             pkt_exec = FullPipelinePacketExecutor(
-                codex_bin=codex_executable, workspace=str(Path(repo_root).resolve()),
+                codex_bin=codex_executable,
+                workspace=str(Path(repo_root).resolve()),
             )
         else:
             from spec_orch.services.packet_executor import SubprocessPacketExecutor
 
-            pkt_exec = SubprocessPacketExecutor(  # type: ignore[assignment]
-                codex_bin=codex_executable, workspace=str(Path(repo_root).resolve()),
+            pkt_exec = SubprocessPacketExecutor(
+                codex_bin=codex_executable,
+                workspace=str(Path(repo_root).resolve()),
             )
 
         ctrl = ParallelRunController(
@@ -1634,13 +1626,11 @@ def run_plan(
         typer.echo(f"\nwave {wr.wave_id}: {status}")
         for pr in wr.packet_results:
             icon = "✓" if pr.exit_code == 0 else "✗"
-            typer.echo(
-                f"  {icon} {pr.packet_id} "
-                f"(exit={pr.exit_code}, {pr.duration_seconds:.1f}s)"
-            )
+            typer.echo(f"  {icon} {pr.packet_id} (exit={pr.exit_code}, {pr.duration_seconds:.1f}s)")
 
-    typer.echo(f"\ntotal: {result.total_duration:.1f}s | "
-               f"{'SUCCESS' if result.is_success() else 'FAILED'}")
+    typer.echo(
+        f"\ntotal: {result.total_duration:.1f}s | {'SUCCESS' if result.is_success() else 'FAILED'}"
+    )
 
     if not result.is_success():
         raise typer.Exit(1)
@@ -1689,15 +1679,9 @@ def plan_mission(
     save_plan(plan, plan_path)
 
     total_packets = sum(len(w.work_packets) for w in plan.waves)
-    typer.echo(
-        f"plan generated: {len(plan.waves)} waves, "
-        f"{total_packets} work packets"
-    )
+    typer.echo(f"plan generated: {len(plan.waves)} waves, {total_packets} work packets")
     for w in plan.waves:
-        typer.echo(
-            f"  wave {w.wave_number}: {w.description} "
-            f"({len(w.work_packets)} packets)"
-        )
+        typer.echo(f"  wave {w.wave_number}: {w.description} ({len(w.work_packets)} packets)")
     _show_next_step(mission_id, Path(repo_root))
 
 
@@ -1745,6 +1729,7 @@ def promote_plan(
     linear_token = os.environ.get("SPEC_ORCH_LINEAR_TOKEN")
     if linear_token:
         from spec_orch.services.linear_client import LinearClient
+
         linear_client = LinearClient(token=linear_token)
 
     try:
@@ -1840,29 +1825,26 @@ def retro_mission(
         state = data.get("state", "unknown")
         mergeable = data.get("mergeable", False)
         retro_lines.append(
-            f"- **{issue_id}**: {data.get('title', '')} "
-            f"| state={state} | mergeable={mergeable}"
+            f"- **{issue_id}**: {data.get('title', '')} | state={state} | mergeable={mergeable}"
         )
         deviations = load_deviations(issue_dir)
         if deviations:
             total_deviations += len(deviations)
             for d in deviations:
-                retro_lines.append(
-                    f"  - [{d.severity}] {d.description} ({d.resolution})"
-                )
+                retro_lines.append(f"  - [{d.severity}] {d.description} ({d.resolution})")
 
-    retro_lines.extend([
-        "",
-        "## Summary",
-        "",
-        f"- Total deviations: {total_deviations}",
-        f"- Issues processed: {issues_included}",
-    ])
+    retro_lines.extend(
+        [
+            "",
+            "## Summary",
+            "",
+            f"- Total deviations: {total_deviations}",
+            f"- Issues processed: {issues_included}",
+        ]
+    )
 
     retro_content = "\n".join(retro_lines) + "\n"
-    retro_path = (
-        Path(repo_root) / "docs/specs" / mission_id / "retrospective.md"
-    )
+    retro_path = Path(repo_root) / "docs/specs" / mission_id / "retrospective.md"
     retro_path.parent.mkdir(parents=True, exist_ok=True)
     retro_path.write_text(retro_content)
     typer.echo(f"retrospective written: {retro_path}")
@@ -2103,7 +2085,9 @@ def _load_conversation_planner(
 def discuss_tui(
     ctx: typer.Context,
     channel: str = typer.Option(
-        "cli", "--channel", "-c",
+        "cli",
+        "--channel",
+        "-c",
         help="Conversation channel: cli, slack, or linear.",
     ),
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),

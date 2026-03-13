@@ -1,4 +1,5 @@
 """Tests for configurable compliance engine."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -127,12 +128,18 @@ def test_report_compliant_with_warnings_only() -> None:
 def test_multiple_contracts() -> None:
     contracts = [
         ComplianceContract(
-            id="c1", name="C1", severity="error",
-            patterns=["error_pattern"], check_fields=["text"],
+            id="c1",
+            name="C1",
+            severity="error",
+            patterns=["error_pattern"],
+            check_fields=["text"],
         ),
         ComplianceContract(
-            id="c2", name="C2", severity="warning",
-            patterns=["warn_pattern"], check_fields=["text"],
+            id="c2",
+            name="C2",
+            severity="warning",
+            patterns=["warn_pattern"],
+            check_fields=["text"],
         ),
     ]
     engine = ConfigurableComplianceEngine(contracts=contracts)

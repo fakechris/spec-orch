@@ -20,47 +20,55 @@ def mission_with_plan(tmp_path: Path) -> tuple[Path, str]:
     specs = tmp_path / "docs" / "specs" / mission_id
     specs.mkdir(parents=True)
 
-    (specs / "mission.json").write_text(json.dumps({
-        "mission_id": mission_id,
-        "title": "Test Mission",
-        "status": "approved",
-        "spec_path": f"docs/specs/{mission_id}/spec.md",
-        "acceptance_criteria": [],
-        "constraints": [],
-        "interface_contracts": [],
-        "created_at": "2026-01-01T00:00:00+00:00",
-        "approved_at": "2026-01-01T00:00:00+00:00",
-        "completed_at": None,
-    }))
+    (specs / "mission.json").write_text(
+        json.dumps(
+            {
+                "mission_id": mission_id,
+                "title": "Test Mission",
+                "status": "approved",
+                "spec_path": f"docs/specs/{mission_id}/spec.md",
+                "acceptance_criteria": [],
+                "constraints": [],
+                "interface_contracts": [],
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "approved_at": "2026-01-01T00:00:00+00:00",
+                "completed_at": None,
+            }
+        )
+    )
 
     (specs / "spec.md").write_text("# Test\n")
 
-    (specs / "plan.json").write_text(json.dumps({
-        "plan_id": "plan-test",
-        "mission_id": mission_id,
-        "status": "executing",
-        "waves": [
+    (specs / "plan.json").write_text(
+        json.dumps(
             {
-                "wave_number": 0,
-                "description": "Scaffold",
-                "work_packets": [
+                "plan_id": "plan-test",
+                "mission_id": mission_id,
+                "status": "executing",
+                "waves": [
                     {
-                        "packet_id": "p1",
-                        "title": "Task A",
-                        "spec_section": "",
-                        "run_class": "feature",
-                        "files_in_scope": [],
-                        "files_out_of_scope": [],
-                        "depends_on": [],
-                        "acceptance_criteria": [],
-                        "verification_commands": {},
-                        "builder_prompt": "echo hello",
-                        "linear_issue_id": None,
+                        "wave_number": 0,
+                        "description": "Scaffold",
+                        "work_packets": [
+                            {
+                                "packet_id": "p1",
+                                "title": "Task A",
+                                "spec_section": "",
+                                "run_class": "feature",
+                                "files_in_scope": [],
+                                "files_out_of_scope": [],
+                                "depends_on": [],
+                                "acceptance_criteria": [],
+                                "verification_commands": {},
+                                "builder_prompt": "echo hello",
+                                "linear_issue_id": None,
+                            },
+                        ],
                     },
                 ],
-            },
-        ],
-    }))
+            }
+        )
+    )
     return tmp_path, mission_id
 
 

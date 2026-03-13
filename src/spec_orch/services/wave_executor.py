@@ -12,7 +12,7 @@ from spec_orch.domain.models import (
     WaveResult,
     WorkPacket,
 )
-from spec_orch.services.packet_executor import SubprocessPacketExecutor
+from spec_orch.domain.protocols import PacketExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class AsyncioWaveExecutor:
     """Executes wave packets concurrently using asyncio + Semaphore."""
 
-    def __init__(self, packet_executor: SubprocessPacketExecutor) -> None:
+    def __init__(self, packet_executor: PacketExecutor) -> None:
         self._packet_executor = packet_executor
 
     async def execute_wave(
@@ -47,7 +47,9 @@ class AsyncioWaveExecutor:
                 if cancel_event.is_set():
                     return
                 result = await self._packet_executor.execute_packet(
-                    pkt, wave_id, cancel_event,
+                    pkt,
+                    wave_id,
+                    cancel_event,
                 )
                 results.append(result)
                 if result.exit_code != 0:
@@ -99,7 +101,10 @@ class AsyncioWaveExecutor:
 
             wave_cancel = asyncio.Event()
             result = await self.execute_wave(
-                wave_packets, wave_id, config, wave_cancel,
+                wave_packets,
+                wave_id,
+                config,
+                wave_cancel,
             )
             wave_results.append(result)
 

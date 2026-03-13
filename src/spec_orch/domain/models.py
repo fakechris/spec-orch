@@ -32,9 +32,13 @@ _VALID_TRANSITIONS: dict[RunState, frozenset[RunState]] = {
     RunState.BUILDING: frozenset({RunState.VERIFYING, RunState.FAILED}),
     RunState.VERIFYING: frozenset({RunState.REVIEW_PENDING, RunState.FAILED}),
     RunState.REVIEW_PENDING: frozenset({RunState.GATE_EVALUATED, RunState.VERIFYING}),
-    RunState.GATE_EVALUATED: frozenset({
-        RunState.ACCEPTED, RunState.REVIEW_PENDING, RunState.VERIFYING,
-    }),
+    RunState.GATE_EVALUATED: frozenset(
+        {
+            RunState.ACCEPTED,
+            RunState.REVIEW_PENDING,
+            RunState.VERIFYING,
+        }
+    ),
     RunState.ACCEPTED: frozenset({RunState.MERGED}),
     RunState.MERGED: frozenset(),
     RunState.FAILED: frozenset({RunState.BUILDING, RunState.VERIFYING}),
@@ -165,12 +169,7 @@ class VerificationSummary:
 
     @property
     def all_passed(self) -> bool:
-        return (
-            self.lint_passed
-            and self.typecheck_passed
-            and self.test_passed
-            and self.build_passed
-        )
+        return self.lint_passed and self.typecheck_passed and self.test_passed and self.build_passed
 
 
 @dataclass(slots=True)
@@ -221,10 +220,9 @@ class ReviewMeta:
     @property
     def blocking_unresolved(self) -> list[Finding]:
         return [
-            f for f in self.findings
-            if f.severity == "blocking"
-            and not f.resolved
-            and f.scope == "in_spec"
+            f
+            for f in self.findings
+            if f.severity == "blocking" and not f.resolved and f.scope == "in_spec"
         ]
 
     @property

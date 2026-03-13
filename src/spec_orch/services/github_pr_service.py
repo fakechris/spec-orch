@@ -3,6 +3,7 @@ from __future__ import annotations
 import json as _json
 import subprocess
 from pathlib import Path
+from typing import Any, cast
 
 from spec_orch.domain.models import GateVerdict, RunResult
 
@@ -188,7 +189,10 @@ class GitHubPRService:
         self.mark_ready(workspace, pr_number)
 
         cmd = [
-            self.gh, "pr", "merge", str(pr_number),
+            self.gh,
+            "pr",
+            "merge",
+            str(pr_number),
             f"--{method}",
             "--auto",
         ]
@@ -220,16 +224,25 @@ class GitHubPRService:
             return None
 
     def list_open_prs(
-        self, workspace: Path, *, base: str = "main",
+        self,
+        workspace: Path,
+        *,
+        base: str = "main",
     ) -> list[dict]:
         """List open PRs created by SpecOrch (matching title prefix)."""
         result = subprocess.run(
             [
-                self.gh, "pr", "list",
-                "--state", "open",
-                "--base", base,
-                "--json", "number,title,headRefName,headRefOid",
-                "--search", "[SpecOrch]",
+                self.gh,
+                "pr",
+                "list",
+                "--state",
+                "open",
+                "--base",
+                base,
+                "--json",
+                "number,title,headRefName,headRefOid",
+                "--search",
+                "[SpecOrch]",
             ],
             cwd=workspace,
             capture_output=True,
@@ -239,12 +252,16 @@ class GitHubPRService:
         if result.returncode != 0:
             return []
         try:
-            return _json.loads(result.stdout)
+            return cast(list[dict[Any, Any]], _json.loads(result.stdout))
         except _json.JSONDecodeError:
             return []
 
     def check_mergeable(
-        self, workspace: Path, *, branch: str, base: str = "main",
+        self,
+        workspace: Path,
+        *,
+        branch: str,
+        base: str = "main",
     ) -> dict:
         """Dry-run merge to check for conflicts.
 
@@ -252,14 +269,20 @@ class GitHubPRService:
         """
         fetch = subprocess.run(
             ["git", "fetch", "origin", base],
-            cwd=workspace, capture_output=True, text=True, check=False,
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if fetch.returncode != 0:
             return {"mergeable": False, "conflicting_files": ["git fetch failed"]}
 
         merge_result = subprocess.run(
             ["git", "merge-tree", f"origin/{base}", branch],
-            cwd=workspace, capture_output=True, text=True, check=False,
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
         )
 
         if merge_result.returncode == 0:
@@ -272,30 +295,45 @@ class GitHubPRService:
         return {"mergeable": False, "conflicting_files": conflicts}
 
     def auto_rebase(
-        self, workspace: Path, *, base: str = "main",
+        self,
+        workspace: Path,
+        *,
+        base: str = "main",
     ) -> bool:
         """Attempt to rebase the current branch onto base. Returns True on success."""
         fetch = subprocess.run(
             ["git", "fetch", "origin", base],
-            cwd=workspace, capture_output=True, text=True, check=False,
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if fetch.returncode != 0:
             return False
 
         rebase = subprocess.run(
             ["git", "rebase", f"origin/{base}"],
-            cwd=workspace, capture_output=True, text=True, check=False,
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if rebase.returncode != 0:
             subprocess.run(
                 ["git", "rebase", "--abort"],
-                cwd=workspace, capture_output=True, text=True, check=False,
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             return False
 
         push = subprocess.run(
             ["git", "push", "--force-with-lease"],
-            cwd=workspace, capture_output=True, text=True, check=False,
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         return push.returncode == 0
 

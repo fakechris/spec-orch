@@ -23,8 +23,8 @@ def test_run_controller_creates_git_worktree_for_issue(tmp_path: Path) -> None:
                     "lint": ["{python}", "-c", "print('lint ok')"],
                     "typecheck": ["{python}", "-c", "print('type ok')"],
                     "test": ["{python}", "-c", "print('test ok')"],
-                    "build": ["{python}", "-c", "print('build ok')"]
-                }
+                    "build": ["{python}", "-c", "print('build ok')"],
+                },
             }
         )
     )
@@ -92,8 +92,8 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
                     "lint": ["{python}", "-c", "print('lint ok')"],
                     "typecheck": ["{python}", "-c", "print('type ok')"],
                     "test": ["{python}", "-c", "print('test ok')"],
-                    "build": ["{python}", "-c", "print('build ok')"]
-                }
+                    "build": ["{python}", "-c", "print('build ok')"],
+                },
             }
         )
     )
@@ -118,7 +118,9 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
     assert telemetry_dir.exists()
     assert (telemetry_dir / "events.jsonl").exists()
     assert (telemetry_dir / "incoming_events.jsonl").exists()
-    events = [json.loads(line) for line in (telemetry_dir / "events.jsonl").read_text().splitlines()]
+    events = [
+        json.loads(line) for line in (telemetry_dir / "events.jsonl").read_text().splitlines()
+    ]
     assert any(event["event_type"] == "builder_started" for event in events)
     assert any(event["event_type"] == "builder_completed" for event in events)
     assert any(

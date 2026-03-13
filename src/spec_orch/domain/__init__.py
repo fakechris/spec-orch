@@ -1,2 +1,1 @@
 """Domain models for SpecOrch."""
-

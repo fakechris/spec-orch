@@ -5,9 +5,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+from collections.abc import Callable
 from types import FrameType
+from typing import Any
 
 logger = logging.getLogger(__name__)
+
+_SignalHandler = Callable[[int, FrameType | None], Any] | int | None
 
 
 class CancellationHandler:
@@ -24,8 +28,8 @@ class CancellationHandler:
 
     def __init__(self, cancel_event: asyncio.Event) -> None:
         self._cancel_event = cancel_event
-        self._original_sigint: signal.Handlers | None = None
-        self._original_sigterm: signal.Handlers | None = None
+        self._original_sigint: _SignalHandler = None
+        self._original_sigterm: _SignalHandler = None
         self._signal_count = 0
 
     def install(self) -> None:

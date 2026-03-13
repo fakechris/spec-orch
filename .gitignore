@@ -16,7 +16,13 @@
 __pycache__/
 *.pyc
 
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
 # Local env
 .env
 .env.*
+!.env.example
 builder_report.json

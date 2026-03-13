@@ -52,18 +52,20 @@ def _gather_missions(repo_root: Path) -> list[dict[str, Any]]:
             for s in stages
         ]
 
-        results.append({
-            "mission_id": m.mission_id,
-            "title": m.title,
-            "status": m.status.value,
-            "created_at": m.created_at,
-            "approved_at": m.approved_at,
-            "completed_at": m.completed_at,
-            "plan": plan_info,
-            "pipeline": pipeline,
-            "pipeline_done": sum(1 for s in stages if s.status == "done"),
-            "pipeline_total": len(stages),
-        })
+        results.append(
+            {
+                "mission_id": m.mission_id,
+                "title": m.title,
+                "status": m.status.value,
+                "created_at": m.created_at,
+                "approved_at": m.approved_at,
+                "completed_at": m.completed_at,
+                "plan": plan_info,
+                "pipeline": pipeline,
+                "pipeline_done": sum(1 for s in stages if s.status == "done"),
+                "pipeline_total": len(stages),
+            }
+        )
     return results
 
 
@@ -176,15 +178,17 @@ def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
                 continue
             try:
                 data = json.loads(report.read_text())
-                runs.append({
-                    "issue_id": data.get("issue_id", ws.name),
-                    "title": data.get("title", ws.name),
-                    "state": data.get("state", "unknown"),
-                    "mergeable": data.get("mergeable", False),
-                    "failed_conditions": data.get("failed_conditions", []),
-                    "builder_adapter": data.get("builder", {}).get("adapter", ""),
-                    "builder_succeeded": data.get("builder", {}).get("succeeded", False),
-                })
+                runs.append(
+                    {
+                        "issue_id": data.get("issue_id", ws.name),
+                        "title": data.get("title", ws.name),
+                        "state": data.get("state", "unknown"),
+                        "mergeable": data.get("mergeable", False),
+                        "failed_conditions": data.get("failed_conditions", []),
+                        "builder_adapter": data.get("builder", {}).get("adapter", ""),
+                        "builder_succeeded": data.get("builder", {}).get("succeeded", False),
+                    }
+                )
             except (json.JSONDecodeError, OSError):
                 continue
     return runs
@@ -234,10 +238,12 @@ def create_app(repo_root: Path | None = None) -> Any:
 
     @app.get("/api/health")
     async def api_health() -> JSONResponse:
-        return JSONResponse({
-            "status": "ok",
-            "repo_root": str(root),
-            "missions": len(_gather_missions(root)),
-        })
+        return JSONResponse(
+            {
+                "status": "ok",
+                "repo_root": str(root),
+                "missions": len(_gather_missions(root)),
+            }
+        )
 
     return app

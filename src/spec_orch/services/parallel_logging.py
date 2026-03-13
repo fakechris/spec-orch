@@ -17,10 +17,21 @@ class ParallelJsonFormatter(logging.Formatter):
             "event": record.getMessage(),
             "logger": record.name,
         }
-        for field in ("wave_id", "packet_id", "packet_count",
-                      "concurrency_limit", "exit_code", "duration_seconds",
-                      "all_succeeded", "wave_count", "total_duration",
-                      "success", "signal", "count", "reason"):
+        for field in (
+            "wave_id",
+            "packet_id",
+            "packet_count",
+            "concurrency_limit",
+            "exit_code",
+            "duration_seconds",
+            "all_succeeded",
+            "wave_count",
+            "total_duration",
+            "success",
+            "signal",
+            "count",
+            "reason",
+        ):
             val = getattr(record, field, None)
             if val is not None:
                 entry[field] = val
@@ -35,11 +46,9 @@ def configure_parallel_logging(
     """Configure structured JSON logging for the parallel execution modules."""
     formatter = ParallelJsonFormatter()
 
-    handler: logging.Handler
-    if log_file:
-        handler = logging.FileHandler(log_file)
-    else:
-        handler = logging.StreamHandler()
+    handler: logging.Handler = (
+        logging.FileHandler(log_file) if log_file else logging.StreamHandler()
+    )
     handler.setFormatter(formatter)
 
     for module in (

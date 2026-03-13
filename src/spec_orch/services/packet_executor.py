@@ -64,7 +64,8 @@ class SubprocessPacketExecutor:
                         return b"", b"cancelled by cancel_event"
                     try:
                         out, err = await asyncio.wait_for(
-                            proc.communicate(), timeout=1.0,
+                            proc.communicate(),
+                            timeout=1.0,
                         )
                         return out, err
                     except TimeoutError:
@@ -135,14 +136,23 @@ class FullPipelinePacketExecutor:
 
         # Phase 1: Build (codex exec)
         build_exit, build_out, build_err = await self._run_subprocess(
-            [self._codex_bin, "exec", "--prompt",
-             packet.builder_prompt or f"Implement {packet.title}"],
+            [
+                self._codex_bin,
+                "exec",
+                "--prompt",
+                packet.builder_prompt or f"Implement {packet.title}",
+            ],
             cancel_event,
         )
 
         if cancel_event.is_set() or build_exit != 0:
             return self._make_result(
-                packet, wave_id, build_exit, build_out, build_err, start,
+                packet,
+                wave_id,
+                build_exit,
+                build_out,
+                build_err,
+                start,
             )
 
         # Phase 2: Verify
@@ -171,11 +181,18 @@ class FullPipelinePacketExecutor:
 
         final_exit = overall_exit if build_exit == 0 else build_exit
         return self._make_result(
-            packet, wave_id, final_exit, combined_out, combined_err, start,
+            packet,
+            wave_id,
+            final_exit,
+            combined_out,
+            combined_err,
+            start,
         )
 
     async def _run_subprocess(
-        self, cmd: list[str], cancel_event: asyncio.Event,
+        self,
+        cmd: list[str],
+        cancel_event: asyncio.Event,
     ) -> tuple[int, str, str]:
         try:
             proc = await asyncio.create_subprocess_exec(

@@ -5,15 +5,9 @@ import re
 from spec_orch.domain.models import Issue, IssueContext
 from spec_orch.services.linear_client import LinearClient
 
-BUILDER_PROMPT_SECTION = re.compile(
-    r"## Builder Prompt\s*\n(.*?)(?=\n## |\Z)", re.DOTALL
-)
-ACCEPTANCE_CRITERIA_SECTION = re.compile(
-    r"## Acceptance Criteria\s*\n(.*?)(?=\n## |\Z)", re.DOTALL
-)
-CONTEXT_SECTION = re.compile(
-    r"## Context\s*\n(.*?)(?=\n## |\Z)", re.DOTALL
-)
+BUILDER_PROMPT_SECTION = re.compile(r"## Builder Prompt\s*\n(.*?)(?=\n## |\Z)", re.DOTALL)
+ACCEPTANCE_CRITERIA_SECTION = re.compile(r"## Acceptance Criteria\s*\n(.*?)(?=\n## |\Z)", re.DOTALL)
+CONTEXT_SECTION = re.compile(r"## Context\s*\n(.*?)(?=\n## |\Z)", re.DOTALL)
 
 
 class LinearIssueSource:
