@@ -25,6 +25,7 @@ ALL_KNOWN_CONDITIONS = {
     "preview",
     "human_acceptance",
     "findings",
+    "compliance",
 }
 
 
