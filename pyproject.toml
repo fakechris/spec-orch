@@ -48,6 +48,7 @@ all = [
 dev = [
   "spec-orch[all]",
   "pytest>=8",
+  "pytest-asyncio>=0.23",
   "ruff>=0.9",
   "mypy>=1.14",
   "types-PyYAML>=6.0",
@@ -73,6 +74,7 @@ spec_orch = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 
 [tool.ruff]
 target-version = "py311"
