@@ -8,7 +8,7 @@ version = "0.2.0"
 description = "AI-powered specification orchestrator — from discussion to deployed code via LLM-driven planning, execution, and review."
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
+license = {text = "MIT"}
 authors = [
   {name = "fakechris"},
 ]

@@ -8,7 +8,7 @@ class SpecOrch < Formula
   license "MIT"
   head "https://github.com/fakechris/spec-orch.git", branch: "main"
 
-  depends_on "python@3.13"
+  depends_on "python@3.11"
 
   # Runtime dependencies — regenerate with:
   #   pip install homebrew-pypi-poet && poet spec-orch
