@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -11,8 +12,12 @@ from spec_orch.domain.models import (
     ExecutionPlan,
     Issue,
     Mission,
+    PacketResult,
+    ParallelConfig,
     PlannerResult,
     SpecSnapshot,
+    WaveResult,
+    WorkPacket,
 )
 
 
@@ -107,6 +112,31 @@ class ScoperAdapter(Protocol):
     ) -> ExecutionPlan:
         """Analyse the mission spec and produce a DAG of waves and work packets."""
         ...
+
+
+@runtime_checkable
+class PacketExecutor(Protocol):
+    """Executes a single WorkPacket as an async subprocess."""
+
+    async def execute_packet(
+        self,
+        packet: WorkPacket,
+        wave_id: int,
+        cancel_event: asyncio.Event,
+    ) -> PacketResult: ...
+
+
+@runtime_checkable
+class WaveExecutor(Protocol):
+    """Executes all packets in a wave with concurrency control."""
+
+    async def execute_wave(
+        self,
+        wave: list[WorkPacket],
+        wave_id: int,
+        config: ParallelConfig,
+        cancel_event: asyncio.Event,
+    ) -> WaveResult: ...
 
 
 @runtime_checkable

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -395,6 +396,54 @@ class SpecDeviation:
     resolution: str = DeviationResolution.PENDING
     detected_by: str = "gate"
     file_path: str | None = None
+
+
+@dataclass
+class ParallelConfig:
+    """Controls concurrency for parallel wave execution."""
+
+    max_concurrency: int = 3
+    max_concurrency_cap: int = 0
+
+    def effective_limit(self) -> int:
+        cap = self.max_concurrency_cap or os.cpu_count() or 4
+        return min(self.max_concurrency, cap)
+
+
+@dataclass
+class PacketResult:
+    """Outcome of executing a single WorkPacket."""
+
+    packet_id: str
+    wave_id: int
+    exit_code: int
+    stdout: str
+    stderr: str
+    duration_seconds: float
+
+
+@dataclass
+class WaveResult:
+    """Aggregate outcome of all packets in a single Wave."""
+
+    wave_id: int
+    packet_results: list[PacketResult]
+    all_succeeded: bool
+
+    @property
+    def failed_packets(self) -> list[PacketResult]:
+        return [r for r in self.packet_results if r.exit_code != 0]
+
+
+@dataclass
+class ExecutionPlanResult:
+    """Aggregate outcome of running an entire ExecutionPlan."""
+
+    wave_results: list[WaveResult]
+    total_duration: float
+
+    def is_success(self) -> bool:
+        return all(w.all_succeeded for w in self.wave_results)
 
 
 @dataclass(slots=True)
