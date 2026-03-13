@@ -18,6 +18,10 @@ dependencies = [
 planner = [
   "litellm>=1.60",
 ]
+dashboard = [
+  "fastapi>=0.115",
+  "uvicorn>=0.34",
+]
 slack = [
   "slack-bolt>=1.21",
 ]

@@ -34,6 +34,7 @@ class DaemonConfig:
 
         planner = raw.get("planner", {})
         self.planner_model: str | None = planner.get("model")
+        self.planner_api_type: str = planner.get("api_type", "anthropic")
         self.planner_api_key_env: str | None = planner.get("api_key_env")
         self.planner_api_base_env: str | None = planner.get("api_base_env")
         self.planner_token_command: str | None = planner.get("token_command")
@@ -117,6 +118,7 @@ class SpecOrchDaemon:
 
             return LiteLLMPlannerAdapter(
                 model=self.config.planner_model,
+                api_type=self.config.planner_api_type,
                 api_key=api_key,
                 api_base=api_base,
                 token_command=self.config.planner_token_command,
