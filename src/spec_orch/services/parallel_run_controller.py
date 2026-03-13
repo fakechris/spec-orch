@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from pathlib import Path
 
@@ -11,7 +10,6 @@ from spec_orch.domain.models import (
     ExecutionPlan,
     ExecutionPlanResult,
     ParallelConfig,
-    PlanStatus,
     WorkPacket,
 )
 from spec_orch.services.packet_executor import SubprocessPacketExecutor
@@ -62,13 +60,9 @@ class ParallelRunController:
     @staticmethod
     def load_plan(mission_id: str, repo_root: Path) -> ExecutionPlan:
         """Load an ExecutionPlan from the mission's specs directory."""
-        from spec_orch.services.mission_service import _specs_dir
+        from spec_orch.services.promotion_service import load_plan
 
-        plan_path = _specs_dir(repo_root, mission_id) / "plan.json"
+        plan_path = repo_root / "docs" / "specs" / mission_id / "plan.json"
         if not plan_path.exists():
             raise FileNotFoundError(f"No plan found for mission {mission_id}")
-
-        data = json.loads(plan_path.read_text())
-        from spec_orch.services.mission_service import _plan_from_dict
-
-        return _plan_from_dict(data)
+        return load_plan(plan_path)

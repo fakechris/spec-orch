@@ -97,6 +97,26 @@ def cli(
     _load_dotenv()
 
 
+@app.command("dashboard")
+def dashboard(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8420, "--port", "-p"),
+) -> None:
+    """Launch the web dashboard for pipeline visualization."""
+    try:
+        import uvicorn
+    except ImportError:
+        typer.echo("uvicorn not installed. Run: pip install fastapi uvicorn")
+        raise typer.Exit(1) from None
+
+    from spec_orch.dashboard import create_app
+
+    app = create_app(repo_root=Path(repo_root).resolve())
+    typer.echo(f"dashboard: http://{host}:{port}")
+    uvicorn.run(app, host=host, port=port, log_level="warning")
+
+
 @app.command("plan-to-spec")
 def plan_to_spec(
     plan_path: Path = typer.Argument(..., help="Path to the plan markdown file."),
@@ -839,7 +859,9 @@ def config_check(
         builder.get("codex_executable", "codex") if isinstance(builder, dict) else "codex"
     )
     planner_model = planner.get("model") if isinstance(planner, dict) else None
-    planner_api_type = planner.get("api_type", "anthropic") if isinstance(planner, dict) else "anthropic"
+    planner_api_type = (
+        planner.get("api_type", "anthropic") if isinstance(planner, dict) else "anthropic"
+    )
     planner_api_key_env = planner.get("api_key_env") if isinstance(planner, dict) else None
 
     results.extend(checker.check_linear(linear_token, linear_team_key))
@@ -1194,6 +1216,77 @@ def _linear_writeback_on_pr(
         typer.echo(f"linear writeback skipped: {exc}")
     finally:
         client.close()
+
+
+@app.command("run-plan")
+def run_plan(
+    mission_id: str = typer.Argument(..., help="Mission ID to execute."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+    max_concurrency: int = typer.Option(3, "--concurrency", "-j", help="Max parallel packets."),
+    codex_executable: str = typer.Option("codex", "--codex-executable"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show plan without executing."),
+) -> None:
+    """Execute a Mission's plan with parallel wave execution."""
+    from spec_orch.domain.models import ParallelConfig
+    from spec_orch.services.cancellation_handler import CancellationHandler
+    from spec_orch.services.parallel_logging import configure_parallel_logging
+    from spec_orch.services.parallel_run_controller import ParallelRunController
+    from spec_orch.services.promotion_service import load_plan
+
+    plan_path = Path(repo_root) / "docs/specs" / mission_id / "plan.json"
+    if not plan_path.exists():
+        typer.echo(f"no plan found for {mission_id}")
+        raise typer.Exit(1)
+
+    plan = load_plan(plan_path)
+    total = sum(len(w.work_packets) for w in plan.waves)
+    typer.echo(
+        f"plan: {plan.plan_id} | {len(plan.waves)} waves, "
+        f"{total} packets | concurrency={max_concurrency}"
+    )
+    for w in plan.waves:
+        typer.echo(f"  wave {w.wave_number}: {len(w.work_packets)} packets — {w.description}")
+        for p in w.work_packets:
+            typer.echo(f"    [{p.run_class}] {p.packet_id}: {p.title}")
+
+    if dry_run:
+        typer.echo("\n(dry run — not executing)")
+        return
+
+    config = ParallelConfig(max_concurrency=max_concurrency)
+    configure_parallel_logging()
+
+    import asyncio
+
+    cancel_event = asyncio.Event()
+    handler = CancellationHandler(cancel_event)
+    handler.install()
+
+    try:
+        ctrl = ParallelRunController(
+            repo_root=Path(repo_root),
+            config=config,
+            codex_bin=codex_executable,
+        )
+        result = ctrl.run_plan(plan, cancel_event=cancel_event)
+    finally:
+        handler.uninstall()
+
+    for wr in result.wave_results:
+        status = "ok" if wr.all_succeeded else "FAILED"
+        typer.echo(f"\nwave {wr.wave_id}: {status}")
+        for pr in wr.packet_results:
+            icon = "✓" if pr.exit_code == 0 else "✗"
+            typer.echo(
+                f"  {icon} {pr.packet_id} "
+                f"(exit={pr.exit_code}, {pr.duration_seconds:.1f}s)"
+            )
+
+    typer.echo(f"\ntotal: {result.total_duration:.1f}s | "
+               f"{'SUCCESS' if result.is_success() else 'FAILED'}")
+
+    if not result.is_success():
+        raise typer.Exit(1)
 
 
 @app.command("plan")
