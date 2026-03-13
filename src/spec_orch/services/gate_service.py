@@ -25,6 +25,7 @@ ALL_KNOWN_CONDITIONS = {
     "preview",
     "human_acceptance",
     "findings",
+    "compliance",
 }
 
 
@@ -138,6 +139,8 @@ class GateService:
             failed_conditions.append("human_acceptance")
         if "findings" in required and gate_input.review_meta.blocking_unresolved:
             failed_conditions.append("findings")
+        if "compliance" in required and not gate_input.compliance_passed:
+            failed_conditions.append("compliance")
 
         mergeable_internal = not failed_conditions
         return GateVerdict(

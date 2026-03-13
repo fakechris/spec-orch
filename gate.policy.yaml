@@ -35,6 +35,10 @@ conditions:
     required: false
     description: "No unresolved blocking findings"
 
+  compliance:
+    required: false
+    description: "All compliance contracts pass (no error-level violations)"
+
 auto_merge: false
 
 # Subset of conditions required before auto-merge triggers.
@@ -64,4 +68,5 @@ profiles:
     enable:
       - preview
       - findings
+      - compliance
     auto_merge: false

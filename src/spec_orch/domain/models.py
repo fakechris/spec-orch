@@ -254,6 +254,7 @@ class GateInput:
     preview_required: bool = False
     preview_passed: bool = False
     review_meta: ReviewMeta = field(default_factory=ReviewMeta)
+    compliance_passed: bool = True
 
 
 @dataclass(slots=True)

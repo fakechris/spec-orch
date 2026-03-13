@@ -978,6 +978,113 @@ def config_check(
         raise typer.Exit(1)
 
 
+compliance_app = typer.Typer(help="Compliance evaluation commands.")
+app.add_typer(compliance_app, name="compliance")
+
+
+@compliance_app.command("evaluate")
+def compliance_evaluate(
+    events_file: Path = typer.Argument(
+        ..., help="Path to builder events JSONL or report.json.",
+    ),
+    contracts: Path = typer.Option(
+        "compliance.contracts.yaml",
+        "--contracts", "-c",
+        help="Path to compliance contracts YAML.",
+    ),
+    output: Path | None = typer.Option(
+        None, "--output", "-o", help="Write compliance_report.json to this path.",
+    ),
+    json_output: bool = typer.Option(
+        False, "--json", help="Output as JSON.",
+    ),
+) -> None:
+    """Evaluate builder events against compliance contracts."""
+    from spec_orch.domain.models import BuilderEvent
+    from spec_orch.services.compliance_engine import (
+        ConfigurableComplianceEngine,
+    )
+
+    engine = ConfigurableComplianceEngine.from_yaml(contracts)
+
+    events: list[BuilderEvent] = []
+    if not events_file.exists():
+        typer.echo(f"Warning: events file not found: {events_file}", err=True)
+    else:
+        skipped = 0
+        for line in events_file.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                raw = json.loads(line)
+                kind = (
+                    raw.get("kind")
+                    or raw.get("method")
+                    or raw.get("type", "")
+                )
+                text = (
+                    raw.get("text")
+                    or raw.get("excerpt")
+                    or ""
+                )
+                if not text and "item" in raw:
+                    text = str(raw["item"])
+                events.append(BuilderEvent(
+                    timestamp=raw.get("timestamp", ""),
+                    kind=kind,
+                    text=text,
+                ))
+            except json.JSONDecodeError:
+                skipped += 1
+                continue
+        if skipped:
+            typer.echo(
+                f"Warning: {skipped} malformed line(s) skipped",
+                err=True,
+            )
+
+    report = engine.evaluate(events)
+
+    if output:
+        report.save(output)
+        typer.echo(f"Report saved to {output}")
+
+    if json_output:
+        typer.echo(json.dumps(report.to_dict(), indent=2))
+    else:
+        status = "COMPLIANT" if report.compliant else "NON-COMPLIANT"
+        typer.echo(f"Status: {status}")
+        typer.echo(f"Errors: {report.error_count}  Warnings: {report.warning_count}")
+        for r in report.results:
+            icon = "✅" if r.passed else ("❌" if r.severity == "error" else "⚠️")
+            typer.echo(f"  {icon} [{r.severity}] {r.contract_name}")
+            for v in r.violations[:3]:
+                excerpt = v.get("excerpt", v.get("text", ""))[:80]
+                typer.echo(f"     → {excerpt}")
+
+
+@compliance_app.command("list-contracts")
+def compliance_list_contracts(
+    contracts: Path = typer.Option(
+        "compliance.contracts.yaml",
+        "--contracts", "-c",
+        help="Path to compliance contracts YAML.",
+    ),
+) -> None:
+    """List all configured compliance contracts."""
+    from spec_orch.services.compliance_engine import load_contracts
+
+    loaded = load_contracts(contracts)
+    if not loaded:
+        typer.echo("No contracts found.")
+        return
+    for c in loaded:
+        typer.echo(f"  [{c.severity}] {c.id}: {c.name}")
+        if c.description:
+            typer.echo(f"    {c.description.strip()[:100]}")
+
+
 gate_app = typer.Typer(help="Gate evaluation commands.")
 app.add_typer(gate_app, name="gate")
 
