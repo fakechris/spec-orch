@@ -33,7 +33,7 @@ class CodexHarnessBuilderAdapter:
         "## FORBIDDEN BEFORE FIRST ACTION\n"
         "- No plan narration\n"
         "- No skill/process references\n"
-        "- No \"I will now...\" sentences\n"
+        '- No "I will now..." sentences\n'
         "Any output before exec_command_begin is non-compliant.\n\n"
         "## FIRST ACTION REQUIREMENT\n"
         "Your first output token must begin a concrete action:\n"
@@ -43,7 +43,7 @@ class CodexHarnessBuilderAdapter:
         "CRITICAL INSTRUCTIONS - FOLLOW EXACTLY:\n"
         "- DO NOT describe what you are about to do\n"
         "- DO NOT explain your plan or approach before acting\n"
-        "- DO NOT narrate steps like \"First I will read the repo, then I will...\"\n"
+        '- DO NOT narrate steps like "First I will read the repo, then I will..."\n'
         "- DO NOT reference skill docs or planning process\n"
         "- START with the first concrete action: a command, a code edit, or a test run\n"
         "- If you must explain, do it AFTER the action, in one sentence max\n\n"
@@ -64,12 +64,16 @@ class CodexHarnessBuilderAdapter:
         absolute_timeout_seconds: float = 1800.0,
     ) -> None:
         self.executable = executable
-        self.command = list(command) if command is not None else [
-            executable,
-            "app-server",
-            "--listen",
-            "stdio://",
-        ]
+        self.command = (
+            list(command)
+            if command is not None
+            else [
+                executable,
+                "app-server",
+                "--listen",
+                "stdio://",
+            ]
+        )
         self.request_timeout_seconds = request_timeout_seconds
         self.idle_timeout_seconds = idle_timeout_seconds
         self.stalled_timeout_seconds = stalled_timeout_seconds
@@ -354,9 +358,7 @@ class _CodexHarnessSession:
                 params = message["params"]
                 if params["threadId"] == thread_id and params["turnId"] == turn_id:
                     plan_items = [
-                        item.get("text", "")
-                        for item in params.get("items", [])
-                        if item.get("text")
+                        item.get("text", "") for item in params.get("items", []) if item.get("text")
                     ]
             elif message["method"] == "turn/completed":
                 params = message["params"]
@@ -792,11 +794,7 @@ class _CodexHarnessSession:
         if method == "item/commandExecution/outputDelta":
             return self._trim_excerpt(params.get("delta"))
         if method == "turn/plan/updated":
-            items = [
-                item.get("text", "")
-                for item in params.get("items", [])
-                if item.get("text")
-            ]
+            items = [item.get("text", "") for item in params.get("items", []) if item.get("text")]
             return self._trim_excerpt(" | ".join(items))
         if method == "item/started":
             item = params.get("item", {})

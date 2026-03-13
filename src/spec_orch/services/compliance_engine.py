@@ -3,6 +3,7 @@
 Extends the core ComplianceEngine with declarative contract definitions
 loaded from compliance.contracts.yaml.
 """
+
 from __future__ import annotations
 
 import json
@@ -104,15 +105,17 @@ def load_contracts(path: Path) -> list[ComplianceContract]:
         return []
     contracts: list[ComplianceContract] = []
     for entry in raw["contracts"]:
-        contracts.append(ComplianceContract(
-            id=entry["id"],
-            name=entry["name"],
-            description=entry.get("description", ""),
-            severity=entry.get("severity", "warning"),
-            builtin=entry.get("builtin", False),
-            patterns=entry.get("patterns", []),
-            check_fields=entry.get("check_fields", ["text"]),
-        ))
+        contracts.append(
+            ComplianceContract(
+                id=entry["id"],
+                name=entry["name"],
+                description=entry.get("description", ""),
+                severity=entry.get("severity", "warning"),
+                builtin=entry.get("builtin", False),
+                patterns=entry.get("patterns", []),
+                check_fields=entry.get("check_fields", ["text"]),
+            )
+        )
     return contracts
 
 
@@ -179,7 +182,9 @@ class ConfigurableComplianceEngine:
         )
 
     def _evaluate_pattern(
-        self, contract: ComplianceContract, events: list[BuilderEvent],
+        self,
+        contract: ComplianceContract,
+        events: list[BuilderEvent],
     ) -> ContractResult:
         compiled = self._compiled.get(contract.id, [])
         violations: list[dict[str, Any]] = []
@@ -191,13 +196,15 @@ class ConfigurableComplianceEngine:
                     continue
                 for pat in compiled:
                     if pat.search(value):
-                        violations.append({
-                            "timestamp": evt.timestamp,
-                            "kind": evt.kind,
-                            "field": fld,
-                            "match": pat.pattern,
-                            "excerpt": value[:200],
-                        })
+                        violations.append(
+                            {
+                                "timestamp": evt.timestamp,
+                                "kind": evt.kind,
+                                "field": fld,
+                                "match": pat.pattern,
+                                "excerpt": value[:200],
+                            }
+                        )
 
         return ContractResult(
             contract_id=contract.id,

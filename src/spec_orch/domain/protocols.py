@@ -47,7 +47,8 @@ class BuilderAdapter(Protocol):
         return []
 
     def map_events(
-        self, raw_events: list[dict[str, Any]],
+        self,
+        raw_events: list[dict[str, Any]],
     ) -> list[BuilderEvent]:
         """Map vendor-specific raw events to BuilderEvent.
 

@@ -53,7 +53,9 @@ class ParallelRunController:
     ) -> ExecutionPlanResult:
         waves: list[list[WorkPacket]] = [w.work_packets for w in plan.waves]
         result = await self._wave_executor.execute_plan(
-            waves, self.config, cancel_event,
+            waves,
+            self.config,
+            cancel_event,
         )
         return result
 

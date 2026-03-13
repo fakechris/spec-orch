@@ -21,8 +21,9 @@ def _make_client(mock_httpx: MagicMock) -> LinearClient:
 
 
 def test_client_requires_token():
-    with patch.dict("os.environ", {}, clear=True), pytest.raises(
-        ValueError, match="Linear API token required"
+    with (
+        patch.dict("os.environ", {}, clear=True),
+        pytest.raises(ValueError, match="Linear API token required"),
     ):
         LinearClient(token_env="NONEXISTENT_VAR")
 

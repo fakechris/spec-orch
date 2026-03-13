@@ -263,7 +263,8 @@ def test_gate_command_shows_issue_verdict(tmp_path) -> None:
     runner.invoke(app, ["run-issue", "SPC-G", "--repo-root", str(tmp_path)])
 
     result = runner.invoke(
-        app, ["gate", "evaluate", "SPC-G", "--repo-root", str(tmp_path)],
+        app,
+        ["gate", "evaluate", "SPC-G", "--repo-root", str(tmp_path)],
     )
 
     assert result.exit_code == 0, result.stdout + (result.stderr or "")
@@ -290,13 +291,9 @@ def test_rerun_command_re_runs_verification(tmp_path) -> None:
         )
     )
     runner = CliRunner()
-    runner.invoke(
-        app, ["run-issue", "SPC-RR", "--repo-root", str(tmp_path)]
-    )
+    runner.invoke(app, ["run-issue", "SPC-RR", "--repo-root", str(tmp_path)])
 
-    result = runner.invoke(
-        app, ["rerun", "SPC-RR", "--repo-root", str(tmp_path)]
-    )
+    result = runner.invoke(app, ["rerun", "SPC-RR", "--repo-root", str(tmp_path)])
 
     assert result.exit_code == 0
     assert "SPC-RR" in result.stdout
@@ -407,22 +404,15 @@ def test_watch_command_shows_activity_log(tmp_path) -> None:
     runner = CliRunner()
     runner.invoke(app, ["run-issue", "SPC-W", "--repo-root", str(tmp_path)])
 
-    result = runner.invoke(
-        app, ["watch", "SPC-W", "--repo-root", str(tmp_path)]
-    )
+    result = runner.invoke(app, ["watch", "SPC-W", "--repo-root", str(tmp_path)])
 
     assert result.exit_code == 0
-    assert any(
-        tag in result.stdout
-        for tag in ("RUN", "BUILDER", "VERIFY", "GATE")
-    )
+    assert any(tag in result.stdout for tag in ("RUN", "BUILDER", "VERIFY", "GATE"))
 
 
 def test_watch_command_reports_missing_log(tmp_path) -> None:
     runner = CliRunner()
-    result = runner.invoke(
-        app, ["watch", "SPC-NONE", "--repo-root", str(tmp_path)]
-    )
+    result = runner.invoke(app, ["watch", "SPC-NONE", "--repo-root", str(tmp_path)])
     assert result.exit_code == 1
     assert "no activity log" in result.stdout
 
@@ -446,16 +436,16 @@ def test_watch_command_keeps_lines_appended_during_initial_read(tmp_path) -> Non
         (workspace / "report.json").write_text("{}", encoding="utf-8")
 
     runner = CliRunner()
-    with patch.object(
-        __import__("pathlib").Path,
-        "read_text",
-        autospec=True,
-        side_effect=racing_read_text,
+    with (
+        patch.object(
+            __import__("pathlib").Path,
+            "read_text",
+            autospec=True,
+            side_effect=racing_read_text,
+        ),
+        patch("spec_orch.cli.time.sleep", side_effect=finish_watch),
     ):
-        with patch("spec_orch.cli.time.sleep", side_effect=finish_watch):
-            result = runner.invoke(
-                app, ["watch", "SPC-RACE", "--repo-root", str(tmp_path)]
-            )
+        result = runner.invoke(app, ["watch", "SPC-RACE", "--repo-root", str(tmp_path)])
 
     assert result.exit_code == 0
     assert "existing line" in result.stdout
@@ -477,15 +467,10 @@ def test_logs_command_shows_activity_log(tmp_path) -> None:
     runner = CliRunner()
     runner.invoke(app, ["run-issue", "SPC-L", "--repo-root", str(tmp_path)])
 
-    result = runner.invoke(
-        app, ["logs", "SPC-L", "--repo-root", str(tmp_path)]
-    )
+    result = runner.invoke(app, ["logs", "SPC-L", "--repo-root", str(tmp_path)])
 
     assert result.exit_code == 0
-    assert any(
-        tag in result.stdout
-        for tag in ("RUN", "BUILDER", "VERIFY", "GATE")
-    )
+    assert any(tag in result.stdout for tag in ("RUN", "BUILDER", "VERIFY", "GATE"))
 
 
 def test_logs_command_filter(tmp_path) -> None:
@@ -528,9 +513,7 @@ def test_logs_command_raw_mode(tmp_path) -> None:
     runner = CliRunner()
     runner.invoke(app, ["run-issue", "SPC-LR", "--repo-root", str(tmp_path)])
 
-    result = runner.invoke(
-        app, ["logs", "SPC-LR", "--repo-root", str(tmp_path), "--raw"]
-    )
+    result = runner.invoke(app, ["logs", "SPC-LR", "--repo-root", str(tmp_path), "--raw"])
 
     if result.exit_code == 0:
         pass
@@ -553,9 +536,7 @@ def test_logs_command_events_mode(tmp_path) -> None:
     runner = CliRunner()
     runner.invoke(app, ["run-issue", "SPC-LE", "--repo-root", str(tmp_path)])
 
-    result = runner.invoke(
-        app, ["logs", "SPC-LE", "--repo-root", str(tmp_path), "--events"]
-    )
+    result = runner.invoke(app, ["logs", "SPC-LE", "--repo-root", str(tmp_path), "--events"])
 
     assert result.exit_code == 0
     assert "run_started" in result.stdout or "event_type" in result.stdout
@@ -672,20 +653,22 @@ def test_plan_to_spec_edit_uses_shell_style_editor_splitting(tmp_path) -> None:
         return Result()
 
     runner = CliRunner()
-    with patch.dict("os.environ", {"EDITOR": 'python -c "print(\'ok\')"'}):
-        with patch("spec_orch.cli.subprocess.run", side_effect=fake_run):
-            result = runner.invoke(
-                app,
-                [
-                    "plan-to-spec",
-                    str(fixture_path),
-                    "--issue-id",
-                    "SPC-EDIT",
-                    "--output",
-                    str(tmp_path / "fixture.json"),
-                    "--edit",
-                ],
-            )
+    with (
+        patch.dict("os.environ", {"EDITOR": "python -c \"print('ok')\""}),
+        patch("spec_orch.cli.subprocess.run", side_effect=fake_run),
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "plan-to-spec",
+                str(fixture_path),
+                "--issue-id",
+                "SPC-EDIT",
+                "--output",
+                str(tmp_path / "fixture.json"),
+                "--edit",
+            ],
+        )
 
     assert result.exit_code == 0
     assert invoked["command"][:3] == ["python", "-c", "print('ok')"]
@@ -711,9 +694,7 @@ def test_create_pr_triggers_linear_writeback(tmp_path: Path) -> None:
     from spec_orch.domain.models import GateVerdict
 
     config = tmp_path / "spec-orch.toml"
-    config.write_text(
-        '[linear]\ntoken_env = "TEST_LINEAR_TOKEN"\nteam_key = "SON"\n'
-    )
+    config.write_text('[linear]\ntoken_env = "TEST_LINEAR_TOKEN"\nteam_key = "SON"\n')
 
     report = {"state": "gate_evaluated", "title": "Test issue"}
     gate = GateVerdict(mergeable=False, failed_conditions=["review"])
@@ -726,7 +707,11 @@ def test_create_pr_triggers_linear_writeback(tmp_path: Path) -> None:
         patch("spec_orch.services.linear_client.LinearClient", return_value=fake_client),
     ):
         _linear_writeback_on_pr(
-            "SON-99", report, "https://github.com/pr/1", gate, tmp_path,
+            "SON-99",
+            report,
+            "https://github.com/pr/1",
+            gate,
+            tmp_path,
         )
 
     fake_client.add_comment.assert_called_once()

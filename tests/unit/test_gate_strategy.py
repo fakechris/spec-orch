@@ -1,4 +1,5 @@
 """Tests for gate strategy features: profiles, auto-merge, CLI helpers."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -24,8 +25,10 @@ def _passing_input(**overrides: object) -> GateInput:
         within_boundaries=True,
         builder_succeeded=True,
         verification=VerificationSummary(
-            lint_passed=True, typecheck_passed=True,
-            test_passed=True, build_passed=True,
+            lint_passed=True,
+            typecheck_passed=True,
+            test_passed=True,
+            build_passed=True,
         ),
         review=ReviewSummary(verdict="pass", reviewed_by="bot"),
         human_acceptance=True,
@@ -261,7 +264,9 @@ profiles:
 # ── GitHubPRService merge/ready ──
 
 
-def test_github_pr_service_merge_pr_calls_gh(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_github_pr_service_merge_pr_calls_gh(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     import subprocess
 
     calls: list[list[str]] = []

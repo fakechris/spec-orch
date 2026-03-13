@@ -51,7 +51,8 @@ class DaemonConfig:
         self.consume_state: str = daemon.get("consume_state", "Ready")
         self.require_labels: list[str] = daemon.get("require_labels", [])
         self.exclude_labels: list[str] = daemon.get(
-            "exclude_labels", ["blocked", "needs-clarification"],
+            "exclude_labels",
+            ["blocked", "needs-clarification"],
         )
         self.skip_parents: bool = daemon.get("skip_parents", True)
 
@@ -123,7 +124,8 @@ class SpecOrchDaemon:
             planner_adapter=planner,
         )
 
-        print(f"[daemon] started, polling {self.config.team_key} every {self.config.poll_interval_seconds}s")  # noqa: E501
+        interval = self.config.poll_interval_seconds
+        print(f"[daemon] started, polling {self.config.team_key} every {interval}s")
         if planner:
             print(f"[daemon] planner: {planner.ADAPTER_NAME}")
         try:
@@ -210,11 +212,17 @@ class SpecOrchDaemon:
             mission_id = self._detect_mission(issue_id, raw_issue)
             if mission_id:
                 self._execute_mission(
-                    issue_id, mission_id, raw_issue, client,
+                    issue_id,
+                    mission_id,
+                    raw_issue,
+                    client,
                 )
             else:
                 self._execute_single(
-                    issue_id, raw_issue, client, controller,
+                    issue_id,
+                    raw_issue,
+                    client,
+                    controller,
                 )
 
     @staticmethod
@@ -223,7 +231,9 @@ class SpecOrchDaemon:
         return re.sub(r"[/\\.\s]+", "-", raw_id).strip("-")
 
     def _detect_mission(
-        self, issue_id: str, raw_issue: dict[str, Any],
+        self,
+        issue_id: str,
+        raw_issue: dict[str, Any],
     ) -> str | None:
         """Check if the issue references a mission plan.json.
 
@@ -264,19 +274,14 @@ class SpecOrchDaemon:
             mergeable = result.gate.mergeable
             blocked = ",".join(result.gate.failed_conditions) or "none"
             print(
-                f"[daemon] {issue_id}: state={state.value} "
-                f"mergeable={mergeable} blocked={blocked}"
+                f"[daemon] {issue_id}: state={state.value} mergeable={mergeable} blocked={blocked}"
             )
             if state in TERMINAL_STATES or state == RunState.GATE_EVALUATED:
                 self._notify(issue_id, mergeable)
                 pr_created = self._auto_create_pr(issue_id, result)
 
                 gate_policy = self._load_gate_policy()
-                auto_merged = (
-                    pr_created
-                    and gate_policy.auto_merge
-                    and mergeable
-                )
+                auto_merged = pr_created and gate_policy.auto_merge and mergeable
 
                 if pr_created and linear_uid:
                     try:
@@ -338,13 +343,10 @@ class SpecOrchDaemon:
             for wr in plan_result.wave_results:
                 status = "✅" if wr.all_succeeded else "❌"
                 summary_lines.append(
-                    f"- Wave {wr.wave_id}: {status} "
-                    f"({len(wr.packet_results)} packets)"
+                    f"- Wave {wr.wave_id}: {status} ({len(wr.packet_results)} packets)"
                 )
                 for pr in wr.failed_packets:
-                    summary_lines.append(
-                        f"  - ❌ {pr.packet_id}: exit={pr.exit_code}"
-                    )
+                    summary_lines.append(f"  - ❌ {pr.packet_id}: exit={pr.exit_code}")
             summary = "\n".join(summary_lines)
 
             if linear_uid:
@@ -379,7 +381,9 @@ class SpecOrchDaemon:
             self._release(issue_id)
 
     def _auto_create_pr(
-        self, issue_id: str, result: RunResult,
+        self,
+        issue_id: str,
+        result: RunResult,
     ) -> bool:
         """Automatically create a GitHub PR when gate is evaluated.
 
@@ -401,19 +405,21 @@ class SpecOrchDaemon:
             branch = gh_svc._current_branch(workspace)
             if branch and branch != self.config.base_branch:
                 check = gh_svc.check_mergeable(
-                    workspace, branch=branch, base=self.config.base_branch,
+                    workspace,
+                    branch=branch,
+                    base=self.config.base_branch,
                 )
                 if not check["mergeable"]:
                     print(f"[daemon] {issue_id}: conflicts detected, attempting rebase")
                     rebased = gh_svc.auto_rebase(
-                        workspace, base=self.config.base_branch,
+                        workspace,
+                        base=self.config.base_branch,
                     )
                     if rebased:
                         print(f"[daemon] {issue_id}: rebase succeeded")
                     else:
                         print(
-                            f"[daemon] {issue_id}: rebase failed, "
-                            "PR will be created with conflicts"
+                            f"[daemon] {issue_id}: rebase failed, PR will be created with conflicts"
                         )
 
             title = f"[SpecOrch] {issue_id}: {result.issue.title}"
@@ -423,9 +429,7 @@ class SpecOrchDaemon:
                 f"**Mergeable**: {'yes' if result.gate.mergeable else 'no'}",
             ]
             if result.gate.failed_conditions:
-                body_lines.append(
-                    f"**Blocked**: {', '.join(result.gate.failed_conditions)}"
-                )
+                body_lines.append(f"**Blocked**: {', '.join(result.gate.failed_conditions)}")
             body_lines.extend(["", f"Closes {issue_id}"])
 
             pr_url = gh_svc.create_pr(
@@ -467,7 +471,9 @@ class SpecOrchDaemon:
         return base_policy.with_profile("daemon")
 
     def _triage_issue(
-        self, client: LinearClient, raw_issue: dict[str, Any],
+        self,
+        client: LinearClient,
+        raw_issue: dict[str, Any],
     ) -> bool:
         """Check issue readiness before execution.
 
@@ -542,9 +548,8 @@ class SpecOrchDaemon:
                 continue
 
             has_reply = any(
-                c.get("body", "")
-                and "SpecOrch: Clarification Needed" not in c.get("body", "")
-                for c in comments[bot_comment_idx + 1:]
+                c.get("body", "") and "SpecOrch: Clarification Needed" not in c.get("body", "")
+                for c in comments[bot_comment_idx + 1 :]
             )
 
             if has_reply:
@@ -608,7 +613,8 @@ class SpecOrchDaemon:
                     for raw in issues:
                         if raw.get("identifier") == issue_id:
                             client.update_issue_state(
-                                raw["id"], self.config.consume_state,
+                                raw["id"],
+                                self.config.consume_state,
                             )
                             print(f"[daemon] {issue_id} → {self.config.consume_state}")
                             break
@@ -637,7 +643,9 @@ class SpecOrchDaemon:
         self._running = False
 
     def _write_back_result(
-        self, raw_issue: dict[str, Any], result: RunResult,
+        self,
+        raw_issue: dict[str, Any],
+        result: RunResult,
     ) -> None:
         """Post a run summary back to Linear as a comment and move to Done."""
         import httpx

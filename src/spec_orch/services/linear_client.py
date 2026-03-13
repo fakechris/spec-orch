@@ -83,14 +83,10 @@ class LinearClient:
             filter_parts.append("{ assignee: { isMe: { eq: true } } }")
         if filter_labels:
             label_list = ", ".join(f'"{lb}"' for lb in filter_labels)
-            filter_parts.append(
-                f'{{ labels: {{ some: {{ name: {{ in: [{label_list}] }} }} }} }}'
-            )
+            filter_parts.append(f"{{ labels: {{ some: {{ name: {{ in: [{label_list}] }} }} }} }}")
         if exclude_labels:
             excl_list = ", ".join(f'"{lb}"' for lb in exclude_labels)
-            filter_parts.append(
-                f'{{ labels: {{ every: {{ name: {{ nin: [{excl_list}] }} }} }} }}'
-            )
+            filter_parts.append(f"{{ labels: {{ every: {{ name: {{ nin: [{excl_list}] }} }} }} }}")
 
         child_fields = ""
         if exclude_parents:
@@ -117,10 +113,7 @@ class LinearClient:
         nodes: list[dict[str, Any]] = result.get("issues", {}).get("nodes", [])
 
         if exclude_parents:
-            nodes = [
-                n for n in nodes
-                if not n.get("children", {}).get("nodes")
-            ]
+            nodes = [n for n in nodes if not n.get("children", {}).get("nodes")]
 
         return nodes
 
@@ -210,9 +203,7 @@ class LinearClient:
         issue = result.get("issue")
         if not issue:
             return []
-        nodes: list[dict[str, Any]] = (
-            issue.get("comments", {}).get("nodes", [])
-        )
+        nodes: list[dict[str, Any]] = issue.get("comments", {}).get("nodes", [])
         return nodes
 
     def resolve_state_id(self, issue_id: str, state_name: str) -> str:
@@ -229,25 +220,17 @@ class LinearClient:
             """,
             variables={"issueId": issue_id},
         )
-        states = (
-            team_result.get("issue", {})
-            .get("team", {})
-            .get("states", {})
-            .get("nodes", [])
-        )
+        states = team_result.get("issue", {}).get("team", {}).get("states", {}).get("nodes", [])
         for state in states:
             if state.get("name") == state_name:
                 state_id: str = state["id"]
                 return state_id
         available = [s.get("name", "") for s in states]
         raise ValueError(
-            f"State '{state_name}' not found for issue {issue_id}. "
-            f"Available states: {available}"
+            f"State '{state_name}' not found for issue {issue_id}. Available states: {available}"
         )
 
-    def update_issue_state(
-        self, issue_id: str, state_name: str
-    ) -> dict[str, Any]:
+    def update_issue_state(self, issue_id: str, state_name: str) -> dict[str, Any]:
         state_id = self.resolve_state_id(issue_id, state_name)
         result = self.query(
             """
@@ -267,15 +250,10 @@ class LinearClient:
         """Add a label to an issue by name. Resolves label ID automatically."""
         label_id = self._resolve_label_id(label_name)
         issue = self.get_issue(issue_id)
-        existing = [
-            n["name"]
-            for n in issue.get("labels", {}).get("nodes", [])
-        ]
+        existing = [n["name"] for n in issue.get("labels", {}).get("nodes", [])]
         if label_name in existing:
             return
-        all_label_ids = [
-            self._resolve_label_id(n) for n in existing
-        ]
+        all_label_ids = [self._resolve_label_id(n) for n in existing]
         all_label_ids.append(label_id)
         self.query(
             """
@@ -291,17 +269,10 @@ class LinearClient:
     def remove_label(self, issue_id: str, label_name: str) -> None:
         """Remove a label from an issue by name."""
         issue = self.get_issue(issue_id)
-        existing = [
-            n["name"]
-            for n in issue.get("labels", {}).get("nodes", [])
-        ]
+        existing = [n["name"] for n in issue.get("labels", {}).get("nodes", [])]
         if label_name not in existing:
             return
-        remaining_ids = [
-            self._resolve_label_id(n)
-            for n in existing
-            if n != label_name
-        ]
+        remaining_ids = [self._resolve_label_id(n) for n in existing if n != label_name]
         self.query(
             """
             mutation($id: String!, $labelIds: [String!]!) {

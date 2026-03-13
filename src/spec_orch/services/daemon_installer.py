@@ -1,4 +1,5 @@
 """Generate and install systemd / launchd service definitions for the daemon."""
+
 from __future__ import annotations
 
 import os
@@ -147,12 +148,14 @@ def start_service(label: str = "com.specorch.daemon") -> bool:
             plist = Path.home() / "Library" / "LaunchAgents" / f"{label}.plist"
             subprocess.run(
                 ["launchctl", "load", str(plist)],
-                check=True, capture_output=True,
+                check=True,
+                capture_output=True,
             )
         else:
             subprocess.run(
                 ["systemctl", "--user", "start", label],
-                check=True, capture_output=True,
+                check=True,
+                capture_output=True,
             )
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -167,12 +170,14 @@ def stop_service(label: str = "com.specorch.daemon") -> bool:
             plist = Path.home() / "Library" / "LaunchAgents" / f"{label}.plist"
             subprocess.run(
                 ["launchctl", "unload", str(plist)],
-                check=True, capture_output=True,
+                check=True,
+                capture_output=True,
             )
         else:
             subprocess.run(
                 ["systemctl", "--user", "stop", label],
-                check=True, capture_output=True,
+                check=True,
+                capture_output=True,
             )
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -190,7 +195,8 @@ def service_status(label: str = "com.specorch.daemon") -> dict[str, str]:
         try:
             proc = subprocess.run(
                 ["launchctl", "list", label],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             result["running"] = "yes" if proc.returncode == 0 else "no"
         except FileNotFoundError:
@@ -201,7 +207,8 @@ def service_status(label: str = "com.specorch.daemon") -> dict[str, str]:
         try:
             proc = subprocess.run(
                 ["systemctl", "--user", "is-active", label],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             result["running"] = "yes" if proc.stdout.strip() == "active" else "no"
         except FileNotFoundError:

@@ -33,15 +33,17 @@ def detect_deviations(
         changed_files = _get_changed_files(workspace)
         for f in changed_files:
             if not any(f.startswith(scope) for scope in files_in_scope):
-                deviations.append(SpecDeviation(
-                    deviation_id=f"dev-{uuid.uuid4().hex[:8]}",
-                    issue_id=issue_id,
-                    mission_id=issue.mission_id or "",
-                    description=f"File changed outside scope: {f}",
-                    severity="minor",
-                    detected_by="gate/scope_check",
-                    file_path=f,
-                ))
+                deviations.append(
+                    SpecDeviation(
+                        deviation_id=f"dev-{uuid.uuid4().hex[:8]}",
+                        issue_id=issue_id,
+                        mission_id=issue.mission_id or "",
+                        description=f"File changed outside scope: {f}",
+                        severity="minor",
+                        detected_by="gate/scope_check",
+                        file_path=f,
+                    )
+                )
 
     return deviations
 
@@ -68,16 +70,21 @@ def write_deviations(workspace: Path, deviations: list[SpecDeviation]) -> Path:
     path = workspace / "deviations.jsonl"
     with path.open("a") as f:
         for d in deviations:
-            f.write(json.dumps({
-                "deviation_id": d.deviation_id,
-                "issue_id": d.issue_id,
-                "mission_id": d.mission_id,
-                "description": d.description,
-                "severity": d.severity,
-                "resolution": d.resolution,
-                "detected_by": d.detected_by,
-                "file_path": d.file_path,
-            }) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "deviation_id": d.deviation_id,
+                        "issue_id": d.issue_id,
+                        "mission_id": d.mission_id,
+                        "description": d.description,
+                        "severity": d.severity,
+                        "resolution": d.resolution,
+                        "detected_by": d.detected_by,
+                        "file_path": d.file_path,
+                    }
+                )
+                + "\n"
+            )
     return path
 
 

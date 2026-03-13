@@ -47,7 +47,9 @@ class AsyncioWaveExecutor:
                 if cancel_event.is_set():
                     return
                 result = await self._packet_executor.execute_packet(
-                    pkt, wave_id, cancel_event,
+                    pkt,
+                    wave_id,
+                    cancel_event,
                 )
                 results.append(result)
                 if result.exit_code != 0:
@@ -99,7 +101,10 @@ class AsyncioWaveExecutor:
 
             wave_cancel = asyncio.Event()
             result = await self.execute_wave(
-                wave_packets, wave_id, config, wave_cancel,
+                wave_packets,
+                wave_id,
+                config,
+                wave_cancel,
             )
             wave_results.append(result)
 

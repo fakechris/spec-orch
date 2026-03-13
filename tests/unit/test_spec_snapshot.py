@@ -144,11 +144,13 @@ def test_run_issue_creates_spec_snapshot(tmp_path: Path) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)
     (fixtures_dir / "SPC-SNAP-RUN.json").write_text(
-        json.dumps({
-            "issue_id": "SPC-SNAP-RUN",
-            "title": "Snapshot in run",
-            "summary": "Verify run_issue creates snapshot.",
-        })
+        json.dumps(
+            {
+                "issue_id": "SPC-SNAP-RUN",
+                "title": "Snapshot in run",
+                "summary": "Verify run_issue creates snapshot.",
+            }
+        )
     )
     controller = RunController(repo_root=tmp_path)
     result = controller.run_issue("SPC-SNAP-RUN")

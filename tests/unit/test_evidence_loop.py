@@ -97,16 +97,21 @@ def test_retro_cli(tmp_path: Path):
 
     runs_dir = tmp_path / ".spec_orch_runs" / "TEST-1"
     runs_dir.mkdir(parents=True)
-    (runs_dir / "report.json").write_text(json.dumps({
-        "issue_id": "TEST-1",
-        "title": "Test Issue",
-        "state": "gate_evaluated",
-        "mergeable": True,
-    }))
+    (runs_dir / "report.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "TEST-1",
+                "title": "Test Issue",
+                "state": "gate_evaluated",
+                "mergeable": True,
+            }
+        )
+    )
 
     runner = CliRunner()
     result = runner.invoke(
-        app, ["retro", "test-feat", "--repo-root", str(tmp_path)],
+        app,
+        ["retro", "test-feat", "--repo-root", str(tmp_path)],
     )
     assert result.exit_code == 0
     assert "Retrospective" in result.output
@@ -124,24 +129,32 @@ def test_retro_cli_with_deviations(tmp_path: Path):
 
     runs_dir = tmp_path / ".spec_orch_runs" / "TEST-2"
     runs_dir.mkdir(parents=True)
-    (runs_dir / "report.json").write_text(json.dumps({
-        "issue_id": "TEST-2",
-        "title": "Deviated",
-        "state": "gate_evaluated",
-        "mergeable": False,
-    }))
-    write_deviations(runs_dir, [
-        SpecDeviation(
-            deviation_id="d-1",
-            issue_id="TEST-2",
-            description="Out of scope file changed",
-            severity="major",
-        ),
-    ])
+    (runs_dir / "report.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "TEST-2",
+                "title": "Deviated",
+                "state": "gate_evaluated",
+                "mergeable": False,
+            }
+        )
+    )
+    write_deviations(
+        runs_dir,
+        [
+            SpecDeviation(
+                deviation_id="d-1",
+                issue_id="TEST-2",
+                description="Out of scope file changed",
+                severity="major",
+            ),
+        ],
+    )
 
     runner = CliRunner()
     result = runner.invoke(
-        app, ["retro", "test-dev", "--repo-root", str(tmp_path)],
+        app,
+        ["retro", "test-dev", "--repo-root", str(tmp_path)],
     )
     assert result.exit_code == 0
     assert "major" in result.output

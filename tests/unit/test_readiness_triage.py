@@ -1,4 +1,5 @@
 """Tests for readiness triage: ReadinessChecker, daemon triage, reply detection."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -194,8 +195,7 @@ def test_llm_check_ready() -> None:
 def test_llm_check_questions() -> None:
     planner = MagicMock()
     planner.brainstorm.return_value = (
-        "1. What error handling is expected?\n"
-        "2. Should this support concurrent access?"
+        "1. What error handling is expected?\n2. Should this support concurrent access?"
     )
     checker = ReadinessChecker(planner=planner)
     result = checker.check(COMPLETE_DESCRIPTION)
@@ -227,12 +227,14 @@ def test_daemon_config_defaults_no_require_labels() -> None:
 def test_daemon_config_custom_labels() -> None:
     from spec_orch.services.daemon import DaemonConfig
 
-    config = DaemonConfig({
-        "daemon": {
-            "require_labels": ["agent-ready"],
-            "exclude_labels": ["blocked"],
+    config = DaemonConfig(
+        {
+            "daemon": {
+                "require_labels": ["agent-ready"],
+                "exclude_labels": ["blocked"],
+            }
         }
-    })
+    )
     assert config.require_labels == ["agent-ready"]
     assert config.exclude_labels == ["blocked"]
 

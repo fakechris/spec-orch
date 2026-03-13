@@ -74,7 +74,8 @@ class TestLinearClientFiltering:
         assert "nin" in query
 
     def test_exclude_parents_filters_out_issues_with_children(
-        self, mock_httpx: MagicMock,
+        self,
+        mock_httpx: MagicMock,
     ) -> None:
         client = _make_client(mock_httpx)
         mock_httpx.post.return_value = MagicMock(
@@ -83,11 +84,15 @@ class TestLinearClientFiltering:
                     "issues": {
                         "nodes": [
                             {
-                                "id": "1", "identifier": "SON-1", "title": "Epic",
+                                "id": "1",
+                                "identifier": "SON-1",
+                                "title": "Epic",
                                 "children": {"nodes": [{"id": "child-1"}]},
                             },
                             {
-                                "id": "2", "identifier": "SON-2", "title": "Task",
+                                "id": "2",
+                                "identifier": "SON-2",
+                                "title": "Task",
                                 "children": {"nodes": []},
                             },
                         ]
@@ -151,14 +156,16 @@ class TestDaemonConfigConvention:
         assert cfg.skip_parents is True
 
     def test_custom_values(self) -> None:
-        cfg = DaemonConfig({
-            "daemon": {
-                "consume_state": "Todo",
-                "require_labels": ["custom-ready"],
-                "exclude_labels": ["wontfix"],
-                "skip_parents": False,
-            },
-        })
+        cfg = DaemonConfig(
+            {
+                "daemon": {
+                    "consume_state": "Todo",
+                    "require_labels": ["custom-ready"],
+                    "exclude_labels": ["wontfix"],
+                    "skip_parents": False,
+                },
+            }
+        )
         assert cfg.consume_state == "Todo"
         assert cfg.require_labels == ["custom-ready"]
         assert cfg.exclude_labels == ["wontfix"]
@@ -167,11 +174,11 @@ class TestDaemonConfigConvention:
     def test_from_toml(self, tmp_path: Path) -> None:
         toml_file = tmp_path / "spec-orch.toml"
         toml_file.write_text(
-            '[daemon]\n'
+            "[daemon]\n"
             'consume_state = "Ready"\n'
             'require_labels = ["agent-ready"]\n'
             'exclude_labels = ["blocked"]\n'
-            'skip_parents = true\n'
+            "skip_parents = true\n"
         )
         cfg = DaemonConfig.from_toml(toml_file)
         assert cfg.consume_state == "Ready"
@@ -184,15 +191,17 @@ class TestDaemonConfigConvention:
 
 class TestDaemonExecutionQualification:
     def test_polls_with_convention_filters(self, tmp_path: Path) -> None:
-        cfg = DaemonConfig({
-            "daemon": {
-                "lockfile_dir": str(tmp_path / "locks"),
-                "consume_state": "Ready",
-                "require_labels": ["agent-ready"],
-                "exclude_labels": ["blocked"],
-                "skip_parents": True,
-            },
-        })
+        cfg = DaemonConfig(
+            {
+                "daemon": {
+                    "lockfile_dir": str(tmp_path / "locks"),
+                    "consume_state": "Ready",
+                    "require_labels": ["agent-ready"],
+                    "exclude_labels": ["blocked"],
+                    "skip_parents": True,
+                },
+            }
+        )
         daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
         daemon._write_back = MagicMock()
         daemon._readiness_checker = ReadinessChecker()
@@ -297,11 +306,14 @@ class TestDaemonExecutionQualification:
 class TestPromotionServiceConvention:
     def test_promote_to_linear_adds_labels(self) -> None:
         wp = WorkPacket(
-            packet_id="wp-1", title="Task",
-            builder_prompt="Do it", acceptance_criteria=["Done"],
+            packet_id="wp-1",
+            title="Task",
+            builder_prompt="Do it",
+            acceptance_criteria=["Done"],
         )
         plan = ExecutionPlan(
-            plan_id="p-1", mission_id="test",
+            plan_id="p-1",
+            mission_id="test",
             waves=[Wave(wave_number=0, description="W0", work_packets=[wp])],
         )
 
@@ -320,7 +332,8 @@ class TestPromotionServiceConvention:
 
     def test_issue_description_includes_template_sections(self) -> None:
         wp = WorkPacket(
-            packet_id="wp-1", title="Add auth",
+            packet_id="wp-1",
+            title="Add auth",
             builder_prompt="Implement JWT auth",
             acceptance_criteria=["Login works", "Token valid"],
             files_in_scope=["src/auth.py"],

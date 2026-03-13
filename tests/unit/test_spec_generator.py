@@ -81,31 +81,22 @@ def test_generate_fixture_with_empty_plan() -> None:
 def test_generate_builder_prompt_converts_new_file_instructions() -> None:
     prompt = generate_builder_prompt(
         PlanData(
-            file_changes=[
-                "Create `src/spec_orch/services/plan_parser.py` with parsing logic."
-            ]
+            file_changes=["Create `src/spec_orch/services/plan_parser.py` with parsing logic."]
         )
     )
 
-    assert (
-        "1. Create `src/spec_orch/services/plan_parser.py` with parsing logic."
-        in prompt
-    )
+    assert "1. Create `src/spec_orch/services/plan_parser.py` with parsing logic." in prompt
 
 
 def test_generate_builder_prompt_converts_modify_instructions() -> None:
     prompt = generate_builder_prompt(
-        PlanData(
-            file_changes=["Modify `src/spec_orch/cli.py` to add the plan-to-spec command."]
-        )
+        PlanData(file_changes=["Modify `src/spec_orch/cli.py` to add the plan-to-spec command."])
     )
 
     assert "1. In `src/spec_orch/cli.py`, add the plan-to-spec command." in prompt
 
 
 def test_instruction_from_change_does_not_rewrite_in_bullets() -> None:
-    instruction = _instruction_from_change(
-        "Add unit tests in `tests/test_x.py` for the parser."
-    )
+    instruction = _instruction_from_change("Add unit tests in `tests/test_x.py` for the parser.")
 
     assert instruction == "Add unit tests in `tests/test_x.py` for the parser."

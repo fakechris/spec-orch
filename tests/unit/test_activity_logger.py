@@ -7,13 +7,15 @@ def test_activity_logger_writes_to_file(tmp_path) -> None:
     log_path = tmp_path / "telemetry" / "activity.log"
     logger = ActivityLogger(log_path)
 
-    logger.log({
-        "event_type": "builder_started",
-        "component": "builder",
-        "message": "Started builder adapter.",
-        "data": {},
-        "timestamp": "2026-03-10T14:32:01+00:00",
-    })
+    logger.log(
+        {
+            "event_type": "builder_started",
+            "component": "builder",
+            "message": "Started builder adapter.",
+            "data": {},
+            "timestamp": "2026-03-10T14:32:01+00:00",
+        }
+    )
     logger.close()
 
     content = log_path.read_text()
@@ -26,13 +28,15 @@ def test_activity_logger_writes_to_live_stream(tmp_path) -> None:
     stream = io.StringIO()
     logger = ActivityLogger(log_path, live_stream=stream)
 
-    logger.log({
-        "event_type": "gate_evaluated",
-        "component": "gate",
-        "message": "Evaluated gate verdict.",
-        "data": {"mergeable": True, "failed_conditions": []},
-        "timestamp": "2026-03-10T14:32:36+00:00",
-    })
+    logger.log(
+        {
+            "event_type": "gate_evaluated",
+            "component": "gate",
+            "message": "Evaluated gate verdict.",
+            "data": {"mergeable": True, "failed_conditions": []},
+            "timestamp": "2026-03-10T14:32:36+00:00",
+        }
+    )
     logger.close()
 
     file_content = log_path.read_text()
@@ -57,13 +61,15 @@ def test_activity_logger_skips_unformattable_events(tmp_path) -> None:
 def test_activity_logger_context_manager(tmp_path) -> None:
     log_path = tmp_path / "telemetry" / "activity.log"
     with ActivityLogger(log_path) as logger:
-        logger.log({
-            "event_type": "run_started",
-            "component": "run_controller",
-            "message": "Started issue run.",
-            "data": {},
-            "timestamp": "2026-03-10T14:32:00+00:00",
-        })
+        logger.log(
+            {
+                "event_type": "run_started",
+                "component": "run_controller",
+                "message": "Started issue run.",
+                "data": {},
+                "timestamp": "2026-03-10T14:32:00+00:00",
+            }
+        )
 
     content = log_path.read_text()
     assert "RUN" in content
@@ -79,20 +85,24 @@ def test_multiple_events_appended(tmp_path) -> None:
     log_path = tmp_path / "telemetry" / "activity.log"
     logger = ActivityLogger(log_path)
 
-    logger.log({
-        "event_type": "builder_started",
-        "component": "builder",
-        "message": "Started builder adapter.",
-        "data": {},
-        "timestamp": "2026-03-10T14:32:01+00:00",
-    })
-    logger.log({
-        "event_type": "verification_step_completed",
-        "component": "verification",
-        "message": "lint",
-        "data": {"step": "lint", "exit_code": 0},
-        "timestamp": "2026-03-10T14:32:25+00:00",
-    })
+    logger.log(
+        {
+            "event_type": "builder_started",
+            "component": "builder",
+            "message": "Started builder adapter.",
+            "data": {},
+            "timestamp": "2026-03-10T14:32:01+00:00",
+        }
+    )
+    logger.log(
+        {
+            "event_type": "verification_step_completed",
+            "component": "verification",
+            "message": "lint",
+            "data": {"step": "lint", "exit_code": 0},
+            "timestamp": "2026-03-10T14:32:25+00:00",
+        }
+    )
     logger.close()
 
     lines = [ln for ln in log_path.read_text().splitlines() if ln.strip()]

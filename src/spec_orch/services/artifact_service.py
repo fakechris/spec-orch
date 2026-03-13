@@ -192,9 +192,7 @@ class ArtifactService:
                 if not passed:
                     focus.append(f"Verification step '{step}' failed")
         if not compliance.get("compliant", True):
-            focus.append(
-                f"Builder contract violations: {len(compliance.get('violations', []))}"
-            )
+            focus.append(f"Builder contract violations: {len(compliance.get('violations', []))}")
         return focus
 
     def _git_diff_stat(self, workspace: Path) -> str:

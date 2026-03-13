@@ -76,13 +76,15 @@ def test_gate_verdict_dual_mergeability() -> None:
     from spec_orch.services.gate_service import GateService
 
     svc = GateService()
-    verdict = svc.evaluate(GateInput(
-        spec_exists=True,
-        spec_approved=True,
-        within_boundaries=True,
-        builder_succeeded=True,
-        human_acceptance=True,
-    ))
+    verdict = svc.evaluate(
+        GateInput(
+            spec_exists=True,
+            spec_approved=True,
+            within_boundaries=True,
+            builder_succeeded=True,
+            human_acceptance=True,
+        )
+    )
     assert verdict.mergeable_internal is not None
     assert verdict.mergeable_external is True
     assert verdict.mergeable == verdict.mergeable_internal

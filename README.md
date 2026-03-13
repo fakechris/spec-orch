@@ -240,36 +240,7 @@ What is still intentionally incomplete:
 
 ## Installation
 
-### From PyPI (pip / uv)
-
-```bash
-# pip
-pip install spec-orch
-
-# uv (recommended — faster)
-uv pip install spec-orch
-
-# With optional features
-pip install "spec-orch[planner]"      # LLM planning via LiteLLM
-pip install "spec-orch[dashboard]"    # Web dashboard (FastAPI)
-pip install "spec-orch[all]"          # Everything
-```
-
-### pipx (isolated global install)
-
-```bash
-pipx install spec-orch
-pipx install "spec-orch[all]"
-```
-
-### Homebrew (macOS)
-
-```bash
-brew tap fakechris/spec-orch
-brew install spec-orch
-```
-
-### From source
+### From source (recommended for now)
 
 ```bash
 git clone https://github.com/fakechris/spec-orch.git
@@ -277,6 +248,40 @@ cd spec-orch
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ```
+
+### From GitHub via pip / uv
+
+```bash
+# pip — install directly from the repository
+pip install "spec-orch @ git+https://github.com/fakechris/spec-orch.git"
+
+# uv
+uv pip install "spec-orch @ git+https://github.com/fakechris/spec-orch.git"
+
+# With optional features
+pip install "spec-orch[planner] @ git+https://github.com/fakechris/spec-orch.git"
+pip install "spec-orch[all] @ git+https://github.com/fakechris/spec-orch.git"
+```
+
+### From PyPI (after first release)
+
+```bash
+pip install spec-orch
+pip install "spec-orch[all]"
+# or with pipx for isolated global install
+pipx install "spec-orch[all]"
+```
+
+> PyPI publishing is configured via GitHub Actions — a release tag (`v0.2.0`) triggers automatic upload.
+
+### Homebrew (macOS, after first release)
+
+```bash
+brew tap fakechris/spec-orch
+brew install spec-orch
+```
+
+> Requires the `homebrew-spec-orch` tap repository. See `homebrew/spec-orch.rb` for the formula template.
 
 ### Verify
 
@@ -287,11 +292,21 @@ spec-orch config check
 
 ### Requirements
 
-- **Python 3.11+** (3.11, 3.12, 3.13 tested)
+- **Python 3.11+** (3.11, 3.12, 3.13 tested on Ubuntu and macOS)
 - **Git** (for worktree-based isolation)
 - **Codex CLI** (`codex exec --json`) — builder adapter
 - **Linear API token** (optional, for issue tracking integration)
 - **LLM API key** (optional, for `discuss` / `plan` / readiness triage)
+
+### Optional extras
+
+| Extra | Packages | Use case |
+|-------|----------|----------|
+| `planner` | litellm | `discuss`, `plan`, readiness triage |
+| `dashboard` | fastapi, uvicorn | `spec-orch dashboard` |
+| `slack` | slack-bolt | Slack discussion adapter |
+| `all` | all of the above | Full feature set |
+| `dev` | all + pytest, ruff, mypy, build, twine | Development |
 
 ### Quick Start
 

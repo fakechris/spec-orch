@@ -71,9 +71,7 @@ class LiteLLMScoperAdapter:
         token_command: str | None = None,
     ) -> None:
         if api_type not in self.VALID_API_TYPES:
-            raise ValueError(
-                f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}"
-            )
+            raise ValueError(f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}")
         self.api_type = api_type
         if "/" in model:
             self.model = model
@@ -88,7 +86,8 @@ class LiteLLMScoperAdapter:
     def api_key(self) -> str | None:
         if self._token_command:
             return subprocess.check_output(
-                shlex.split(self._token_command), text=True,
+                shlex.split(self._token_command),
+                text=True,
             ).strip()
         return self._static_api_key
 
@@ -101,9 +100,7 @@ class LiteLLMScoperAdapter:
         try:
             import litellm
         except ImportError as exc:
-            raise ImportError(
-                "litellm is required for LiteLLMScoperAdapter."
-            ) from exc
+            raise ImportError("litellm is required for LiteLLMScoperAdapter.") from exc
 
         spec_content = codebase_context.get("spec_content", "")
         file_tree = codebase_context.get("file_tree", "")
@@ -135,7 +132,9 @@ class LiteLLMScoperAdapter:
         return self._parse_response(response, mission)
 
     def _parse_response(
-        self, response: Any, mission: Mission,
+        self,
+        response: Any,
+        mission: Mission,
     ) -> ExecutionPlan:
         content = response.choices[0].message.content or ""
 
@@ -143,6 +142,7 @@ class LiteLLMScoperAdapter:
             parsed = json.loads(content)
         except json.JSONDecodeError:
             import re
+
             match = re.search(r"\{.*\}", content, re.DOTALL)
             parsed = json.loads(match.group()) if match else {"waves": []}
 
@@ -150,24 +150,29 @@ class LiteLLMScoperAdapter:
         for w in parsed.get("waves", []):
             packets = []
             for p in w.get("work_packets", []):
-                packets.append(WorkPacket(
-                    packet_id=p.get(
-                        "packet_id", f"wp-{uuid.uuid4().hex[:8]}",
-                    ),
-                    title=p.get("title", "Untitled"),
-                    spec_section=p.get("spec_section", ""),
-                    run_class=p.get("run_class", "feature"),
-                    files_in_scope=p.get("files_in_scope", []),
-                    files_out_of_scope=p.get("files_out_of_scope", []),
-                    depends_on=p.get("depends_on", []),
-                    acceptance_criteria=p.get("acceptance_criteria", []),
-                    builder_prompt=p.get("builder_prompt", ""),
-                ))
-            waves.append(Wave(
-                wave_number=w.get("wave_number", len(waves)),
-                description=w.get("description", ""),
-                work_packets=packets,
-            ))
+                packets.append(
+                    WorkPacket(
+                        packet_id=p.get(
+                            "packet_id",
+                            f"wp-{uuid.uuid4().hex[:8]}",
+                        ),
+                        title=p.get("title", "Untitled"),
+                        spec_section=p.get("spec_section", ""),
+                        run_class=p.get("run_class", "feature"),
+                        files_in_scope=p.get("files_in_scope", []),
+                        files_out_of_scope=p.get("files_out_of_scope", []),
+                        depends_on=p.get("depends_on", []),
+                        acceptance_criteria=p.get("acceptance_criteria", []),
+                        builder_prompt=p.get("builder_prompt", ""),
+                    )
+                )
+            waves.append(
+                Wave(
+                    wave_number=w.get("wave_number", len(waves)),
+                    description=w.get("description", ""),
+                    work_packets=packets,
+                )
+            )
 
         return ExecutionPlan(
             plan_id=f"plan-{uuid.uuid4().hex[:8]}",

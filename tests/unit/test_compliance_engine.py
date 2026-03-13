@@ -63,10 +63,7 @@ def test_engine_file_change_as_first_action() -> None:
 
 def test_engine_custom_rule() -> None:
     def no_errors_rule(events):
-        return [
-            {"kind": e.kind, "text": e.text}
-            for e in events if e.kind == "error"
-        ]
+        return [{"kind": e.kind, "text": e.text} for e in events if e.kind == "error"]
 
     engine = ComplianceEngine(rules=[no_errors_rule])
     events = [_evt("error", "something broke")]

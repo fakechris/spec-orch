@@ -88,7 +88,5 @@ def test_preview_condition_only_blocks_when_required_and_needed() -> None:
     assert not result_required_not_passed.mergeable
     assert "preview" in result_required_not_passed.failed_conditions
 
-    result_required_passed = svc.evaluate(
-        GateInput(preview_required=True, preview_passed=True)
-    )
+    result_required_passed = svc.evaluate(GateInput(preview_required=True, preview_passed=True))
     assert result_required_passed.mergeable

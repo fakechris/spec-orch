@@ -32,7 +32,10 @@ class GitHubReviewAdapter:
         self._gh = gh_executable
 
     def fetch_pr_reviews(
-        self, *, workspace: Path, pr_number: int | None = None,
+        self,
+        *,
+        workspace: Path,
+        pr_number: int | None = None,
     ) -> list[dict]:
         """Fetch all review comments for a PR."""
         pr = pr_number or self._detect_pr(workspace)
@@ -60,7 +63,10 @@ class GitHubReviewAdapter:
         return reviews + comments
 
     def reviews_to_findings(
-        self, reviews: list[dict], *, workspace: Path,
+        self,
+        reviews: list[dict],
+        *,
+        workspace: Path,
     ) -> list[Finding]:
         """Map raw review data to structured Finding objects."""
         findings: list[Finding] = []
@@ -93,7 +99,10 @@ class GitHubReviewAdapter:
         return findings
 
     def auto_review(
-        self, *, workspace: Path, pr_number: int | None = None,
+        self,
+        *,
+        workspace: Path,
+        pr_number: int | None = None,
     ) -> tuple[ReviewSummary, ReviewMeta]:
         """Full auto-review: fetch → findings → verdict."""
         raw = self.fetch_pr_reviews(workspace=workspace, pr_number=pr_number)
@@ -151,7 +160,10 @@ class GitHubReviewAdapter:
         return "human"
 
     def _infer_severity(
-        self, body: str, source: str, raw: dict,
+        self,
+        body: str,
+        source: str,
+        raw: dict,
     ) -> str:
         lowered = body.lower()
         for pattern, sev in self.BOT_SEVERITY_PATTERNS:

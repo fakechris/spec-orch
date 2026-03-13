@@ -103,9 +103,7 @@ class LiteLLMPlannerAdapter:
         token_command: str | None = None,
     ) -> None:
         if api_type not in self.VALID_API_TYPES:
-            raise ValueError(
-                f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}"
-            )
+            raise ValueError(f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}")
         self.api_type = api_type
         if "/" in model:
             self.model = model
@@ -121,7 +119,8 @@ class LiteLLMPlannerAdapter:
         """Resolve API key dynamically when token_command is configured."""
         if self._token_command:
             return subprocess.check_output(
-                shlex.split(self._token_command), text=True,
+                shlex.split(self._token_command),
+                text=True,
             ).strip()
         return self._static_api_key
 
@@ -231,10 +230,7 @@ class LiteLLMPlannerAdapter:
         issue: Issue,
     ) -> SpecSnapshot:
         """Use the LLM to autonomously answer unresolved blocking questions."""
-        unanswered = [
-            q for q in snapshot.questions
-            if q.blocking and q.answer is None
-        ]
+        unanswered = [q for q in snapshot.questions if q.blocking and q.answer is None]
         if not unanswered:
             return snapshot
 
@@ -246,9 +242,7 @@ class LiteLLMPlannerAdapter:
                 "Install with: pip install spec-orch[planner]"
             ) from exc
 
-        q_list = "\n".join(
-            f"- [{q.category}] (id={q.id}) {q.text}" for q in unanswered
-        )
+        q_list = "\n".join(f"- [{q.category}] (id={q.id}) {q.text}" for q in unanswered)
         user_msg = (
             "You previously analysed this issue and asked clarifying questions.\n"
             "Now answer each question yourself based on the issue context and "
@@ -284,6 +278,7 @@ class LiteLLMPlannerAdapter:
             parsed = json.loads(content)
         except json.JSONDecodeError:
             import re
+
             match = re.search(r"\{.*\}", content, re.DOTALL)
             parsed = json.loads(match.group()) if match else {"answers": []}
 
@@ -294,12 +289,14 @@ class LiteLLMPlannerAdapter:
             if q.id in answer_map:
                 q.answer = answer_map[q.id]
                 q.answered_by = "planner/auto"
-                snapshot.decisions.append(Decision(
-                    question_id=q.id,
-                    answer=answer_map[q.id],
-                    decided_by="planner/auto",
-                    timestamp=now,
-                ))
+                snapshot.decisions.append(
+                    Decision(
+                        question_id=q.id,
+                        answer=answer_map[q.id],
+                        decided_by="planner/auto",
+                        timestamp=now,
+                    )
+                )
 
         return snapshot
 
@@ -332,10 +329,7 @@ class LiteLLMPlannerAdapter:
             "the conclusions into a formal spec."
         )
         if codebase_context:
-            system_msg += (
-                "\n\nHere is relevant codebase context:\n"
-                f"```\n{codebase_context}\n```"
-            )
+            system_msg += f"\n\nHere is relevant codebase context:\n```\n{codebase_context}\n```"
 
         messages: list[dict[str, str]] = [
             {"role": "system", "content": system_msg},

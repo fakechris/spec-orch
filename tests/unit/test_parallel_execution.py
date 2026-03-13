@@ -5,16 +5,13 @@ from __future__ import annotations
 import asyncio
 import os
 import signal
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from spec_orch.domain.models import (
-    ExecutionPlan,
     ExecutionPlanResult,
     PacketResult,
     ParallelConfig,
-    Wave,
     WaveResult,
     WorkPacket,
 )
@@ -57,8 +54,12 @@ class TestParallelConfig:
 class TestPacketResult:
     def test_create(self) -> None:
         r = PacketResult(
-            packet_id="p1", wave_id=0, exit_code=0,
-            stdout="ok", stderr="", duration_seconds=1.5,
+            packet_id="p1",
+            wave_id=0,
+            exit_code=0,
+            stdout="ok",
+            stderr="",
+            duration_seconds=1.5,
         )
         assert r.packet_id == "p1"
         assert r.duration_seconds == 1.5
@@ -134,7 +135,8 @@ class TestSubprocessPacketExecutor:
     @pytest.mark.asyncio
     async def test_execute_missing_binary(self) -> None:
         executor = SubprocessPacketExecutor(
-            codex_bin="nonexistent_binary_xyz", workspace="/tmp",
+            codex_bin="nonexistent_binary_xyz",
+            workspace="/tmp",
         )
         pkt = _make_packet("p1")
         cancel = asyncio.Event()
@@ -297,9 +299,13 @@ class TestParallelJsonFormatter:
 
         fmt = ParallelJsonFormatter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO,
-            pathname="", lineno=0, msg="packet_started",
-            args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="packet_started",
+            args=(),
+            exc_info=None,
         )
         record.wave_id = 0  # type: ignore[attr-defined]
         record.packet_id = "p1"  # type: ignore[attr-defined]

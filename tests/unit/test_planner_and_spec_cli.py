@@ -67,8 +67,12 @@ def test_planner_result_defaults():
 
 def test_planner_result_with_questions():
     q = Question(
-        id="q-1", asked_by="planner", target="user",
-        category="requirement", blocking=True, text="What API?",
+        id="q-1",
+        asked_by="planner",
+        target="user",
+        category="requirement",
+        blocking=True,
+        text="What API?",
     )
     pr = PlannerResult(questions=[q], raw_response='{"questions": []}')
     assert len(pr.questions) == 1
@@ -85,8 +89,11 @@ class FakePlannerAdapter:
         return PlannerResult(
             questions=[
                 Question(
-                    id="q-auto-1", asked_by="planner", target="user",
-                    category="requirement", blocking=True,
+                    id="q-auto-1",
+                    asked_by="planner",
+                    target="user",
+                    category="requirement",
+                    blocking=True,
                     text="Which database should we use?",
                 ),
             ],
@@ -124,14 +131,19 @@ def test_advance_spec_drafting_rejects_unresolved_blocking(tmp_path):
     snapshot = create_initial_snapshot(issue)
     snapshot.questions.append(
         Question(
-            id="q-block", asked_by="planner", target="user",
-            category="requirement", blocking=True, text="Blocking Q",
+            id="q-block",
+            asked_by="planner",
+            target="user",
+            category="requirement",
+            blocking=True,
+            text="Blocking Q",
         )
     )
     write_spec_snapshot(workspace, snapshot)
     (workspace / "report.json").write_text(
-        json.dumps({"state": "spec_drafting", "run_id": "r-1",
-                     "issue_id": "SPC-TEST-1", "title": "Test"})
+        json.dumps(
+            {"state": "spec_drafting", "run_id": "r-1", "issue_id": "SPC-TEST-1", "title": "Test"}
+        )
     )
 
     controller = RunController(repo_root=repo)
@@ -148,8 +160,9 @@ def test_advance_spec_drafting_approves_when_all_answered(tmp_path):
     snapshot = create_initial_snapshot(issue)
     write_spec_snapshot(workspace, snapshot)
     (workspace / "report.json").write_text(
-        json.dumps({"state": "spec_drafting", "run_id": "r-1",
-                     "issue_id": "SPC-TEST-1", "title": "Test"})
+        json.dumps(
+            {"state": "spec_drafting", "run_id": "r-1", "issue_id": "SPC-TEST-1", "title": "Test"}
+        )
     )
 
     controller = RunController(repo_root=repo)
@@ -178,9 +191,14 @@ def test_run_issue_preserves_approved_snapshot(tmp_path):
     snapshot.version = 3
     snapshot.questions.append(
         Question(
-            id="q-kept", asked_by="planner", target="user",
-            category="requirement", blocking=False, text="Preserved?",
-            answer="yes", answered_by="user",
+            id="q-kept",
+            asked_by="planner",
+            target="user",
+            category="requirement",
+            blocking=False,
+            text="Preserved?",
+            answer="yes",
+            answered_by="user",
         )
     )
     write_spec_snapshot(workspace, snapshot)
@@ -189,9 +207,13 @@ def test_run_issue_preserves_approved_snapshot(tmp_path):
     fake_builder.ADAPTER_NAME = "fake"
     fake_builder.AGENT_NAME = "fake"
     fake_builder.run.return_value = BuilderResult(
-        succeeded=True, command=[], stdout="", stderr="",
+        succeeded=True,
+        command=[],
+        stdout="",
+        stderr="",
         report_path=workspace / "builder_report.json",
-        adapter="fake", agent="fake",
+        adapter="fake",
+        agent="fake",
     )
 
     controller = RunController(repo_root=repo, builder_adapter=fake_builder)
@@ -214,9 +236,13 @@ def test_run_issue_creates_snapshot_when_none_exists(tmp_path):
     fake_builder.ADAPTER_NAME = "fake"
     fake_builder.AGENT_NAME = "fake"
     fake_builder.run.return_value = BuilderResult(
-        succeeded=True, command=[], stdout="", stderr="",
+        succeeded=True,
+        command=[],
+        stdout="",
+        stderr="",
         report_path=tmp_path / "builder_report.json",
-        adapter="fake", agent="fake",
+        adapter="fake",
+        agent="fake",
     )
 
     controller = RunController(repo_root=repo, builder_adapter=fake_builder)
@@ -254,20 +280,34 @@ def test_questions_add_and_list(tmp_path):
     write_spec_snapshot(workspace, snapshot)
 
     runner = CliRunner()
-    result = runner.invoke(app, [
-        "questions", "add", "SPC-TEST-1",
-        "--text", "What framework?",
-        "--category", "architecture",
-        "--blocking",
-        "--repo-root", str(repo),
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "questions",
+            "add",
+            "SPC-TEST-1",
+            "--text",
+            "What framework?",
+            "--category",
+            "architecture",
+            "--blocking",
+            "--repo-root",
+            str(repo),
+        ],
+    )
     assert result.exit_code == 0
     assert "added question" in result.stdout
 
-    result = runner.invoke(app, [
-        "questions", "list", "SPC-TEST-1",
-        "--repo-root", str(repo),
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "questions",
+            "list",
+            "SPC-TEST-1",
+            "--repo-root",
+            str(repo),
+        ],
+    )
     assert result.exit_code == 0
     assert "What framework?" in result.stdout
     assert "[architecture]" in result.stdout
@@ -282,19 +322,32 @@ def test_questions_answer(tmp_path):
     snapshot = create_initial_snapshot(issue)
     snapshot.questions.append(
         Question(
-            id="q-1", asked_by="user", target="user",
-            category="requirement", blocking=True, text="Question?",
+            id="q-1",
+            asked_by="user",
+            target="user",
+            category="requirement",
+            blocking=True,
+            text="Question?",
         )
     )
     write_spec_snapshot(workspace, snapshot)
 
     runner = CliRunner()
-    result = runner.invoke(app, [
-        "questions", "answer", "SPC-TEST-1", "q-1",
-        "--answer", "Use React",
-        "--decided-by", "chris",
-        "--repo-root", str(repo),
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "questions",
+            "answer",
+            "SPC-TEST-1",
+            "q-1",
+            "--answer",
+            "Use React",
+            "--decided-by",
+            "chris",
+            "--repo-root",
+            str(repo),
+        ],
+    )
     assert result.exit_code == 0
     assert "answered q-1" in result.stdout
 
@@ -312,17 +365,29 @@ def test_spec_draft_and_show(tmp_path):
     workspace.mkdir(parents=True)
 
     runner = CliRunner()
-    result = runner.invoke(app, [
-        "spec", "draft", "SPC-TEST-1",
-        "--repo-root", str(repo),
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "spec",
+            "draft",
+            "SPC-TEST-1",
+            "--repo-root",
+            str(repo),
+        ],
+    )
     assert result.exit_code == 0
     assert "created draft spec v1" in result.stdout
 
-    result = runner.invoke(app, [
-        "spec", "show", "SPC-TEST-1",
-        "--repo-root", str(repo),
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "spec",
+            "show",
+            "SPC-TEST-1",
+            "--repo-root",
+            str(repo),
+        ],
+    )
     assert result.exit_code == 0
     assert "version=1" in result.stdout
     assert "approved=False" in result.stdout
@@ -337,11 +402,18 @@ def test_spec_approve(tmp_path):
     write_spec_snapshot(workspace, snapshot)
 
     runner = CliRunner()
-    result = runner.invoke(app, [
-        "spec", "approve", "SPC-TEST-1",
-        "--approved-by", "chris",
-        "--repo-root", str(repo),
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "spec",
+            "approve",
+            "SPC-TEST-1",
+            "--approved-by",
+            "chris",
+            "--repo-root",
+            str(repo),
+        ],
+    )
     assert result.exit_code == 0
     assert "spec approved" in result.stdout
 
@@ -358,17 +430,27 @@ def test_spec_approve_blocked_by_unresolved_questions(tmp_path):
     snapshot = create_initial_snapshot(issue)
     snapshot.questions.append(
         Question(
-            id="q-b", asked_by="planner", target="user",
-            category="risk", blocking=True, text="Risk?",
+            id="q-b",
+            asked_by="planner",
+            target="user",
+            category="risk",
+            blocking=True,
+            text="Risk?",
         )
     )
     write_spec_snapshot(workspace, snapshot)
 
     runner = CliRunner()
-    result = runner.invoke(app, [
-        "spec", "approve", "SPC-TEST-1",
-        "--repo-root", str(repo),
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "spec",
+            "approve",
+            "SPC-TEST-1",
+            "--repo-root",
+            str(repo),
+        ],
+    )
     assert result.exit_code == 1
     assert "unresolved blocking" in result.stdout
 
@@ -379,10 +461,15 @@ def test_spec_approve_blocked_by_unresolved_questions(tmp_path):
 def test_advance_cli_command(tmp_path):
     repo = _make_fixture(tmp_path)
     runner = CliRunner()
-    result = runner.invoke(app, [
-        "advance", "SPC-TEST-1",
-        "--repo-root", str(repo),
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "advance",
+            "SPC-TEST-1",
+            "--repo-root",
+            str(repo),
+        ],
+    )
     assert result.exit_code == 0
     assert "state=spec_drafting" in result.stdout
 
@@ -397,13 +484,15 @@ def test_litellm_planner_adapter_parse_response():
     issue = _make_issue()
 
     mock_tool_call = MagicMock()
-    mock_tool_call.function.arguments = json.dumps({
-        "questions": [
-            {"id": "q-1", "category": "requirement", "blocking": True, "text": "Which DB?"},
-            {"id": "q-2", "category": "architecture", "blocking": False, "text": "Scaling?"},
-        ],
-        "spec_summary": None,
-    })
+    mock_tool_call.function.arguments = json.dumps(
+        {
+            "questions": [
+                {"id": "q-1", "category": "requirement", "blocking": True, "text": "Which DB?"},
+                {"id": "q-2", "category": "architecture", "blocking": False, "text": "Scaling?"},
+            ],
+            "spec_summary": None,
+        }
+    )
 
     mock_message = MagicMock()
     mock_message.tool_calls = [mock_tool_call]
@@ -430,10 +519,12 @@ def test_litellm_planner_adapter_parse_response_with_spec_summary():
     issue = _make_issue()
 
     mock_tool_call = MagicMock()
-    mock_tool_call.function.arguments = json.dumps({
-        "questions": [],
-        "spec_summary": "Implement pagination with cursor tokens.",
-    })
+    mock_tool_call.function.arguments = json.dumps(
+        {
+            "questions": [],
+            "spec_summary": "Implement pagination with cursor tokens.",
+        }
+    )
     mock_message = MagicMock()
     mock_message.tool_calls = [mock_tool_call]
     mock_message.content = None
@@ -466,8 +557,9 @@ def test_litellm_planner_adapter_raises_without_litellm():
     adapter = LiteLLMPlannerAdapter(model="test/model")
     issue = _make_issue()
 
-    with patch.dict("sys.modules", {"litellm": None}), pytest.raises(
-        ImportError, match="litellm is required"
+    with (
+        patch.dict("sys.modules", {"litellm": None}),
+        pytest.raises(ImportError, match="litellm is required"),
     ):
         adapter.plan(issue=issue, workspace=Path("/tmp"))
 
@@ -482,8 +574,11 @@ class FakePlannerWithSelfAnswer:
         return PlannerResult(
             questions=[
                 Question(
-                    id="q-block-1", asked_by="planner", target="user",
-                    category="requirement", blocking=True,
+                    id="q-block-1",
+                    asked_by="planner",
+                    target="user",
+                    category="requirement",
+                    blocking=True,
                     text="Which database?",
                 ),
             ],
@@ -496,12 +591,14 @@ class FakePlannerWithSelfAnswer:
             if q.blocking and q.answer is None:
                 q.answer = "PostgreSQL"
                 q.answered_by = "planner/auto"
-                snapshot.decisions.append(Decision(
-                    question_id=q.id,
-                    answer="PostgreSQL",
-                    decided_by="planner/auto",
-                    timestamp="2026-01-01T00:00:00",
-                ))
+                snapshot.decisions.append(
+                    Decision(
+                        question_id=q.id,
+                        answer="PostgreSQL",
+                        decided_by="planner/auto",
+                        timestamp="2026-01-01T00:00:00",
+                    )
+                )
         return snapshot
 
 
@@ -564,16 +661,22 @@ def test_answer_questions_fills_answers():
     snapshot = create_initial_snapshot(issue)
     snapshot.questions.append(
         Question(
-            id="q-1", asked_by="planner", target="user",
-            category="requirement", blocking=True, text="Which DB?",
+            id="q-1",
+            asked_by="planner",
+            target="user",
+            category="requirement",
+            blocking=True,
+            text="Which DB?",
         )
     )
     assert snapshot.has_unresolved_blocking_questions()
 
     mock_message = MagicMock()
-    mock_message.content = json.dumps({
-        "answers": [{"id": "q-1", "answer": "PostgreSQL"}],
-    })
+    mock_message.content = json.dumps(
+        {
+            "answers": [{"id": "q-1", "answer": "PostgreSQL"}],
+        }
+    )
     mock_choice = MagicMock()
     mock_choice.message = mock_message
     mock_response = MagicMock()

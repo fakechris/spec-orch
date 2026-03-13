@@ -139,7 +139,9 @@ def test_daemon_poll_and_run_processes_new_issue(tmp_path: Path) -> None:
     daemon._write_back = MagicMock()
 
     mock_client = MagicMock()
-    mock_client.list_issues.return_value = [{"id": "uuid-11", "identifier": "SPC-11", "description": _COMPLETE_DESC}]
+    mock_client.list_issues.return_value = [
+        {"id": "uuid-11", "identifier": "SPC-11", "description": _COMPLETE_DESC}
+    ]
 
     mock_gate = MagicMock()
     mock_gate.mergeable = True
@@ -166,7 +168,9 @@ def test_daemon_poll_and_run_releases_non_terminal(tmp_path: Path) -> None:
     daemon._write_back = MagicMock()
 
     mock_client = MagicMock()
-    mock_client.list_issues.return_value = [{"id": "uuid-12", "identifier": "SPC-12", "description": _COMPLETE_DESC}]
+    mock_client.list_issues.return_value = [
+        {"id": "uuid-12", "identifier": "SPC-12", "description": _COMPLETE_DESC}
+    ]
 
     mock_gate = MagicMock()
     mock_gate.mergeable = False
@@ -192,7 +196,9 @@ def test_daemon_poll_and_run_marks_gate_evaluated_as_processed(tmp_path: Path) -
     daemon._write_back = MagicMock()
 
     mock_client = MagicMock()
-    mock_client.list_issues.return_value = [{"id": "uuid-13", "identifier": "SPC-13", "description": _COMPLETE_DESC}]
+    mock_client.list_issues.return_value = [
+        {"id": "uuid-13", "identifier": "SPC-13", "description": _COMPLETE_DESC}
+    ]
 
     mock_gate = MagicMock()
     mock_gate.mergeable = False
@@ -226,9 +232,7 @@ def test_daemon_auto_create_pr(tmp_path: Path) -> None:
     mock_result.issue.issue_id = "SPC-20"
     mock_result.workspace = tmp_path
 
-    with patch(
-        "spec_orch.services.daemon.GitHubPRService"
-    ) as MockGH:
+    with patch("spec_orch.services.daemon.GitHubPRService") as MockGH:
         mock_gh = MockGH.return_value
         mock_gh._current_branch.return_value = "feat/spc-20"
         mock_gh.check_mergeable.return_value = {"mergeable": True, "conflicting_files": []}

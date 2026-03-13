@@ -4,6 +4,7 @@ Evaluates whether an issue description is complete enough for an agent
 to execute autonomously.  Uses rule-based checks first, optionally
 followed by an LLM assessment that generates targeted questions.
 """
+
 from __future__ import annotations
 
 import re
@@ -123,8 +124,7 @@ class ReadinessChecker:
         templates = {
             "Goal": "What is the specific goal of this task?",
             "Acceptance Criteria": (
-                "What are the acceptance criteria? "
-                "Please add at least one `- [ ] ...` checkbox."
+                "What are the acceptance criteria? Please add at least one `- [ ] ...` checkbox."
             ),
             "Files in Scope": (
                 "Which files should be modified? "
