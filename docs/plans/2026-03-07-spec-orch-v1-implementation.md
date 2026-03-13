@@ -1,5 +1,11 @@
 # SpecOrch v1 Implementation Plan
 
+> **Historical Document (2026-03-07).** This was the initial implementation
+> plan. The directory structure (`adapters/`, `workflows/`, `storage/`)
+> and tooling (`codex app-server`) described here were superseded during
+> development. See [README](../../README.md) for the current project
+> structure and CLI commands.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build the first working SpecOrch loop that can pick a Linear issue, create an isolated workspace, prepare task artifacts, run builder and reviewer adapters, aggregate verification results, and compute `Mergeable`.

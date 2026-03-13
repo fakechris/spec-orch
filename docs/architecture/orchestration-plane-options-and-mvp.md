@@ -1,5 +1,15 @@
 # Orchestration Plane Options and MVP Dogfooding
 
+> **Historical Document (2026-03-07).** This was an early options analysis
+> for the orchestration plane. The chosen approach (Python CLI + daemon)
+> has since evolved significantly. See
+> [Pipeline Roles and Stages](pipeline-roles-and-stages.md) for the
+> current architecture and [README](../../README.md) for the current CLI.
+>
+> Key changes: `task.spec` / `progress.md` replaced by `spec.md` /
+> `report.json` / `explain.md`. MVP Mermaid diagrams remain useful as
+> historical context for design decisions.
+
 ## 1. Goal
 
 This document narrows the orchestration choice for SpecOrch and defines the fastest path to a runnable prototype that can start developing SpecOrch with SpecOrch.

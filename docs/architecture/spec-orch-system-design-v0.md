@@ -1,5 +1,15 @@
 # SpecOrch System Design v0
 
+> **Historical Document (2026-03-07).** This was the initial system design.
+> The current authoritative architecture is documented in:
+> - [Pipeline Roles and Stages](pipeline-roles-and-stages.md)
+> - [Change Management Policy](change-management-policy.md)
+> - [Linear API Surface](linear-api-surface.md)
+>
+> Key changes since v0: `task.spec` replaced by `spec.md` + `report.json`,
+> `codex app-server` replaced by `codex exec`, review routing moved to
+> GitHub bots (Devin, Gemini, CodeRabbit, Codex).
+
 ## 1. Purpose
 
 SpecOrch is an AI-native software delivery orchestration system for individuals and small teams. Its purpose is to let engineers spend most of their time defining tasks, boundaries, and acceptance criteria while controlled coding agents handle the bulk of implementation, verification, preview, and review.
