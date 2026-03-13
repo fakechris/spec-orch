@@ -871,6 +871,9 @@ def daemon_status(
     label: str = typer.Option(
         "com.specorch.daemon", "--label", help="Service label."
     ),
+    config: Path = typer.Option(
+        "spec-orch.toml", "--config", "-c", help="Path to spec-orch.toml config file."
+    ),
     repo_root: Path = typer.Option(".", "--repo-root", "-r", help="Repository root."),
 ) -> None:
     """Show daemon status (service + persisted state)."""
@@ -881,11 +884,23 @@ def daemon_status(
     typer.echo(f"Installed: {info['installed']}")
     typer.echo(f"Running:   {info['running']}")
 
-    state_path = repo_root.resolve() / ".spec_orch_locks" / "daemon_state.json"
+    from spec_orch.services.daemon import DaemonConfig
+
+    try:
+        cfg = DaemonConfig.from_toml(config)
+        lockfile_dir = cfg.lockfile_dir
+    except Exception:
+        lockfile_dir = ".spec_orch_locks/"
+
+    state_path = repo_root.resolve() / lockfile_dir / "daemon_state.json"
     if state_path.exists():
         import json as _json
 
-        data = _json.loads(state_path.read_text())
+        try:
+            data = _json.loads(state_path.read_text())
+        except (_json.JSONDecodeError, OSError) as exc:
+            typer.echo(f"State:     corrupt state file ({exc})")
+            return
         typer.echo(f"Last poll: {data.get('last_poll', 'unknown')}")
         typer.echo(f"Processed: {len(data.get('processed', []))} issues")
         typer.echo(f"Triaged:   {len(data.get('triaged', []))} issues")
@@ -912,8 +927,11 @@ def daemon_install(
         label=label,
     )
     typer.echo(f"Service installed: {path}")
-    typer.echo("Start with: spec-orch daemon start --config spec-orch.toml")
-    typer.echo("Or via service manager: launchctl load / systemctl --user start")
+    typer.echo(f"Start with: spec-orch daemon start --config {config}")
+    if "LaunchAgents" in path:
+        typer.echo(f"Or via service manager: launchctl load {path}")
+    else:
+        typer.echo(f"Or via service manager: systemctl --user start {label}")
 
 
 @config_app.command("check")

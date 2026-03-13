@@ -17,9 +17,7 @@ _LAUNCHD_PLIST = """\
   <string>{label}</string>
   <key>ProgramArguments</key>
   <array>
-    <string>{python}</string>
-    <string>-m</string>
-    <string>spec_orch</string>
+    <string>{entry_point}</string>
     <string>daemon</string>
     <string>start</string>
     <string>--config</string>
@@ -53,7 +51,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart={python} -m spec_orch daemon start --config {config} --repo-root {repo_root}
+ExecStart={entry_point} daemon start --config {config} --repo-root {repo_root}
 WorkingDirectory={repo_root}
 Restart=on-failure
 RestartSec=30
@@ -69,6 +67,19 @@ def _detect_platform() -> str:
     return "darwin" if platform.system() == "Darwin" else "linux"
 
 
+def _find_entry_point() -> str:
+    """Find the ``spec-orch`` console_scripts entry point."""
+    import shutil
+
+    ep = shutil.which("spec-orch")
+    if ep:
+        return ep
+    venv_bin = Path(sys.executable).parent / "spec-orch"
+    if venv_bin.exists():
+        return str(venv_bin)
+    return f"{sys.executable} -m spec_orch.cli"
+
+
 def generate_service_file(
     *,
     repo_root: Path,
@@ -77,7 +88,7 @@ def generate_service_file(
 ) -> tuple[str, str]:
     """Return (content, target_path) for the service definition."""
     plat = _detect_platform()
-    python = sys.executable
+    entry_point = _find_entry_point()
     config_abs = str(config_path.resolve())
     repo_abs = str(repo_root.resolve())
 
@@ -85,7 +96,7 @@ def generate_service_file(
         log_dir = Path.home() / "Library" / "Logs" / "spec-orch"
         content = _LAUNCHD_PLIST.format(
             label=label,
-            python=python,
+            entry_point=entry_point,
             config=config_abs,
             repo_root=repo_abs,
             log_dir=str(log_dir),
@@ -95,12 +106,12 @@ def generate_service_file(
         return content, target
     else:
         content = _SYSTEMD_UNIT.format(
-            python=python,
+            entry_point=entry_point,
             config=config_abs,
             repo_root=repo_abs,
         )
         user_dir = Path.home() / ".config" / "systemd" / "user"
-        target = str(user_dir / "spec-orch-daemon.service")
+        target = str(user_dir / f"{label}.service")
         return content, target
 
 
@@ -140,7 +151,7 @@ def start_service(label: str = "com.specorch.daemon") -> bool:
             )
         else:
             subprocess.run(
-                ["systemctl", "--user", "start", "spec-orch-daemon"],
+                ["systemctl", "--user", "start", label],
                 check=True, capture_output=True,
             )
         return True
@@ -160,7 +171,7 @@ def stop_service(label: str = "com.specorch.daemon") -> bool:
             )
         else:
             subprocess.run(
-                ["systemctl", "--user", "stop", "spec-orch-daemon"],
+                ["systemctl", "--user", "stop", label],
                 check=True, capture_output=True,
             )
         return True
@@ -185,11 +196,11 @@ def service_status(label: str = "com.specorch.daemon") -> dict[str, str]:
         except FileNotFoundError:
             result["running"] = "unknown"
     else:
-        unit = Path.home() / ".config" / "systemd" / "user" / "spec-orch-daemon.service"
+        unit = Path.home() / ".config" / "systemd" / "user" / f"{label}.service"
         result["installed"] = "yes" if unit.exists() else "no"
         try:
             proc = subprocess.run(
-                ["systemctl", "--user", "is-active", "spec-orch-daemon"],
+                ["systemctl", "--user", "is-active", label],
                 capture_output=True, text=True,
             )
             result["running"] = "yes" if proc.stdout.strip() == "active" else "no"

@@ -82,8 +82,8 @@ class SpecOrchDaemon:
         if self._state_path.exists():
             try:
                 return _json.loads(self._state_path.read_text())
-            except (_json.JSONDecodeError, OSError):
-                pass
+            except (_json.JSONDecodeError, OSError) as exc:
+                print(f"[daemon] failed to load state: {exc}")
         return {}
 
     def _save_state(self) -> None:
