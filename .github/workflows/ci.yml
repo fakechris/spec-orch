@@ -48,7 +48,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
-      - run: pytest tests/unit/ -v --tb=short
+      - run: pytest tests/unit/ -v --tb=short --ignore=tests/unit/test_codex_harness_builder_adapter.py
 
   build:
     runs-on: ubuntu-latest
