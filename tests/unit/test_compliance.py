@@ -166,3 +166,32 @@ def test_gate_policy_compliance_condition() -> None:
     from spec_orch.services.gate_service import ALL_KNOWN_CONDITIONS
 
     assert "compliance" in ALL_KNOWN_CONDITIONS
+
+
+def test_gate_evaluates_compliance_condition() -> None:
+    from spec_orch.domain.models import GateInput
+    from spec_orch.services.gate_service import GatePolicy, GateService
+
+    policy = GatePolicy(required_conditions={"compliance"})
+    svc = GateService(policy=policy)
+
+    passing = GateInput(compliance_passed=True)
+    assert svc.evaluate(passing).mergeable
+
+    failing = GateInput(compliance_passed=False)
+    verdict = svc.evaluate(failing)
+    assert not verdict.mergeable
+    assert "compliance" in verdict.failed_conditions
+
+
+def test_unknown_builtin_fails() -> None:
+    contract = ComplianceContract(
+        id="nonexistent-builtin",
+        name="Unknown",
+        severity="error",
+        builtin=True,
+    )
+    engine = ConfigurableComplianceEngine(contracts=[contract])
+    report = engine.evaluate([])
+    assert not report.compliant
+    assert report.error_count == 1

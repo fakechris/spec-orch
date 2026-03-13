@@ -1008,22 +1008,41 @@ def compliance_evaluate(
     engine = ConfigurableComplianceEngine.from_yaml(contracts)
 
     events: list[BuilderEvent] = []
-    if events_file.exists():
-        import json as _json
-
+    if not events_file.exists():
+        typer.echo(f"Warning: events file not found: {events_file}", err=True)
+    else:
+        skipped = 0
         for line in events_file.read_text().splitlines():
             line = line.strip()
             if not line:
                 continue
             try:
-                raw = _json.loads(line)
+                raw = json.loads(line)
+                kind = (
+                    raw.get("kind")
+                    or raw.get("method")
+                    or raw.get("type", "")
+                )
+                text = (
+                    raw.get("text")
+                    or raw.get("excerpt")
+                    or ""
+                )
+                if not text and "item" in raw:
+                    text = str(raw["item"])
                 events.append(BuilderEvent(
                     timestamp=raw.get("timestamp", ""),
-                    kind=raw.get("kind", raw.get("method", "")),
-                    text=raw.get("text", raw.get("excerpt", "")),
+                    kind=kind,
+                    text=text,
                 ))
-            except _json.JSONDecodeError:
+            except json.JSONDecodeError:
+                skipped += 1
                 continue
+        if skipped:
+            typer.echo(
+                f"Warning: {skipped} malformed line(s) skipped",
+                err=True,
+            )
 
     report = engine.evaluate(events)
 
@@ -1032,9 +1051,7 @@ def compliance_evaluate(
         typer.echo(f"Report saved to {output}")
 
     if json_output:
-        import json as _json
-
-        typer.echo(_json.dumps(report.to_dict(), indent=2))
+        typer.echo(json.dumps(report.to_dict(), indent=2))
     else:
         status = "COMPLIANT" if report.compliant else "NON-COMPLIANT"
         typer.echo(f"Status: {status}")

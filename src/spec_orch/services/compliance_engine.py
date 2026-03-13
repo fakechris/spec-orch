@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -115,11 +116,28 @@ def load_contracts(path: Path) -> list[ComplianceContract]:
     return contracts
 
 
+BuiltinRule = Any  # Callable[[Sequence[BuilderEvent]], list[dict]]
+
+_BUILTIN_DISPATCH: dict[str, BuiltinRule] = {}
+
+
+def _load_builtin_dispatch() -> dict[str, BuiltinRule]:
+    if not _BUILTIN_DISPATCH:
+        from spec_orch.domain.compliance import pre_action_narration_rule
+
+        _BUILTIN_DISPATCH["pre-action-narration"] = pre_action_narration_rule
+    return _BUILTIN_DISPATCH
+
+
 class ConfigurableComplianceEngine:
     """Evaluate builder events against YAML-configured contracts."""
 
     def __init__(self, contracts: list[ComplianceContract] | None = None) -> None:
         self._contracts = contracts or []
+        self._compiled: dict[str, list[re.Pattern[str]]] = {}
+        for c in self._contracts:
+            if c.patterns:
+                self._compiled[c.id] = [re.compile(p) for p in c.patterns]
 
     @classmethod
     def from_yaml(cls, path: Path) -> ConfigurableComplianceEngine:
@@ -136,30 +154,34 @@ class ConfigurableComplianceEngine:
         return ComplianceReport(results=results)
 
     def _evaluate_builtin(
-        self, contract: ComplianceContract, events: list[BuilderEvent],
+        self,
+        contract: ComplianceContract,
+        events: Sequence[BuilderEvent],
     ) -> ContractResult:
-        if contract.id == "pre-action-narration":
-            from spec_orch.domain.compliance import pre_action_narration_rule
-
-            violations = pre_action_narration_rule(events)
+        dispatch = _load_builtin_dispatch()
+        rule_fn = dispatch.get(contract.id)
+        if rule_fn is None:
+            print(f"[compliance] unknown builtin contract: {contract.id}")
             return ContractResult(
                 contract_id=contract.id,
                 contract_name=contract.name,
                 severity=contract.severity,
-                passed=len(violations) == 0,
-                violations=violations,
+                passed=False,
+                violations=[{"error": f"Unknown builtin: {contract.id}"}],
             )
+        violations = rule_fn(events)
         return ContractResult(
             contract_id=contract.id,
             contract_name=contract.name,
             severity=contract.severity,
-            passed=True,
+            passed=len(violations) == 0,
+            violations=violations,
         )
 
     def _evaluate_pattern(
         self, contract: ComplianceContract, events: list[BuilderEvent],
     ) -> ContractResult:
-        compiled = [re.compile(p) for p in contract.patterns]
+        compiled = self._compiled.get(contract.id, [])
         violations: list[dict[str, Any]] = []
 
         for evt in events:
