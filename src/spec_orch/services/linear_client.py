@@ -72,24 +72,24 @@ class LinearClient:
         first: int = 50,
     ) -> list[dict[str, Any]]:
         variables: dict[str, Any] = {"first": first, "teamKey": team_key}
-        filter_parts = ["team: { key: { eq: $teamKey } }"]
+        filter_parts = ["{ team: { key: { eq: $teamKey } } }"]
         var_defs = "$first: Int!, $teamKey: String!"
 
         if filter_state:
             variables["filterState"] = filter_state
-            filter_parts.append("state: { name: { eq: $filterState } }")
+            filter_parts.append("{ state: { name: { eq: $filterState } } }")
             var_defs += ", $filterState: String!"
         if assigned_to_me:
-            filter_parts.append("assignee: { isMe: { eq: true } }")
+            filter_parts.append("{ assignee: { isMe: { eq: true } } }")
         if filter_labels:
             label_list = ", ".join(f'"{lb}"' for lb in filter_labels)
             filter_parts.append(
-                f"labels: {{ some: {{ name: {{ in: [{label_list}] }} }} }}"
+                f'{{ labels: {{ some: {{ name: {{ in: [{label_list}] }} }} }} }}'
             )
         if exclude_labels:
             excl_list = ", ".join(f'"{lb}"' for lb in exclude_labels)
             filter_parts.append(
-                f"labels: {{ every: {{ name: {{ nin: [{excl_list}] }} }} }}"
+                f'{{ labels: {{ every: {{ name: {{ nin: [{excl_list}] }} }} }} }}'
             )
 
         child_fields = ""
@@ -99,7 +99,7 @@ class LinearClient:
         filter_str = ", ".join(filter_parts)
         query = (
             f"query({var_defs}) {{\n"
-            f"  issues(filter: {{ {filter_str} }}, first: $first) {{\n"
+            f"  issues(filter: {{ and: [{filter_str}] }}, first: $first) {{\n"
             "    nodes {\n"
             "      id\n"
             "      identifier\n"

@@ -18,6 +18,20 @@ from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.promotion_service import PromotionService
 
+_COMPLETE_DESC = """\
+## Goal
+
+Implement the widget.
+
+## Acceptance Criteria
+
+- [ ] Widget works
+
+## Files in Scope
+
+- `src/widget.py`
+"""
+
 
 # ── LinearClient: filter_labels ─────────────────────────────────
 
@@ -130,8 +144,9 @@ class TestDaemonConfigConvention:
     def test_defaults(self) -> None:
         cfg = DaemonConfig({})
         assert cfg.consume_state == "Ready"
-        assert cfg.require_labels == ["agent-ready"]
-        assert cfg.exclude_labels == ["blocked"]
+        assert cfg.require_labels == []
+        assert "blocked" in cfg.exclude_labels
+        assert "needs-clarification" in cfg.exclude_labels
         assert cfg.skip_parents is True
 
     def test_custom_values(self) -> None:
@@ -200,7 +215,7 @@ class TestDaemonExecutionQualification:
 
         mock_client = MagicMock()
         mock_client.list_issues.return_value = [
-            {"id": "uuid-1", "identifier": "SON-99"},
+            {"id": "uuid-1", "identifier": "SON-99", "description": _COMPLETE_DESC},
         ]
 
         mock_gate = MagicMock()
@@ -224,7 +239,7 @@ class TestDaemonExecutionQualification:
 
         mock_client = MagicMock()
         mock_client.list_issues.return_value = [
-            {"id": "uuid-2", "identifier": "SON-100"},
+            {"id": "uuid-2", "identifier": "SON-100", "description": _COMPLETE_DESC},
         ]
 
         mock_gate = MagicMock()

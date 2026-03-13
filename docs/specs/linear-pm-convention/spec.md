@@ -77,18 +77,19 @@ Backlog → Ready → In Progress → In Review → Done
 
 | Label | Color | Meaning |
 |-------|-------|---------|
-| `agent-ready` | green | Issue is eligible for AI agent consumption |
+| `agent-ready` | green | Optional — explicitly marks an issue as agent-eligible (set automatically by PromotionService) |
 | `blocked` | red | Issue is blocked, do not consume |
-| `needs-clarification` | amber | Missing context, requires human input |
+| `needs-clarification` | amber | Daemon posted questions, awaiting human reply |
 
 ### Rules
 
-- An issue enters the agent queue only when **all** conditions are met:
+- An issue enters the agent queue when **all** conditions are met:
   1. `state == Ready`
-  2. Has label `agent-ready`
-  3. Does **not** have label `blocked`
+  2. Does **not** have label `blocked`
+  3. Does **not** have label `needs-clarification`
   4. Is **not** a parent issue (has no children)
-  5. Description meets minimum template (Section 5)
+- The `agent-ready` label is **not required** for consumption. Dragging an issue to Ready is sufficient user intent.
+- The daemon runs a **readiness triage** on each candidate (see Section 4) before execution.
 
 ## 4. Daemon Consumption Protocol
 
@@ -97,30 +98,52 @@ Backlog → Ready → In Progress → In Review → Done
 ```toml
 [daemon]
 consume_state = "Ready"
-require_labels = ["agent-ready"]
-exclude_labels = ["blocked"]
+require_labels = []
+exclude_labels = ["blocked", "needs-clarification"]
 skip_parents = true
 ```
 
 ### Poll Logic
 
 ```
-1. Query Linear: state=Ready, labels include agent-ready,
-   labels exclude blocked, no children
+0. Check needs-clarification issues for user replies:
+   - If user replied → remove needs-clarification label → re-enter pool
+1. Query Linear: state=Ready, labels exclude blocked and
+   needs-clarification, no children
 2. For each qualifying issue:
    a. Claim (lockfile)
-   b. Move state → In Progress
-   c. Execute build pipeline
-   d. On success: create PR, move → In Review
-   e. On gate pass + merge: move → Done
-   f. On failure: leave In Progress, add comment with error
+   b. Readiness triage (see Section 4a)
+      - If NOT ready → post clarification comment, add
+        needs-clarification label, release lock, skip
+   c. Move state → In Progress
+   d. Execute build pipeline
+   e. On success: create PR, move → In Review
+   f. On gate pass + merge: move → Done
+   g. On failure: leave In Progress, add comment with error
 ```
+
+### 4a. Readiness Triage
+
+Before executing, the daemon evaluates the issue description:
+
+1. **Rule check**: Goal, Acceptance Criteria, Files in Scope must be present.
+2. **LLM check** (optional, when planner is configured): Assesses whether the description is unambiguous enough for autonomous execution.
+
+If the check fails:
+- A structured comment is posted to the issue listing missing fields and questions.
+- The `needs-clarification` label is applied.
+- The issue is skipped until the user replies.
+
+When the user replies (any comment after the bot's clarification request):
+- The `needs-clarification` label is automatically removed.
+- The issue re-enters the candidate pool on the next poll cycle.
+- A second triage runs; if still incomplete, the cycle repeats.
 
 ### What the Daemon Must NOT Do
 
 - Must not consume parent/epic issues.
 - Must not set Done unless gate + merge confirmed.
-- Must not bypass `agent-ready` label check.
+- Must not execute issues with `needs-clarification` label.
 - Must not rely on board position or UI layout for decisions.
 
 ## 5. Issue Description Template

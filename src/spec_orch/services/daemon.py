@@ -46,8 +46,10 @@ class DaemonConfig:
         self.max_concurrent: int = daemon.get("max_concurrent", 1)
         self.lockfile_dir: str = daemon.get("lockfile_dir", ".spec_orch_locks/")
         self.consume_state: str = daemon.get("consume_state", "Ready")
-        self.require_labels: list[str] = daemon.get("require_labels", ["agent-ready"])
-        self.exclude_labels: list[str] = daemon.get("exclude_labels", ["blocked"])
+        self.require_labels: list[str] = daemon.get("require_labels", [])
+        self.exclude_labels: list[str] = daemon.get(
+            "exclude_labels", ["blocked", "needs-clarification"],
+        )
         self.skip_parents: bool = daemon.get("skip_parents", True)
 
     @classmethod
@@ -65,8 +67,13 @@ class SpecOrchDaemon:
         self.repo_root = repo_root
         self._running = True
         self._processed: set[str] = set()
+        self._triaged: set[str] = set()
         self._lockdir = repo_root / config.lockfile_dir
         self._lockdir.mkdir(parents=True, exist_ok=True)
+
+        from spec_orch.services.readiness_checker import ReadinessChecker
+
+        self._readiness_checker = ReadinessChecker()
 
     def run(self) -> None:
         signal.signal(signal.SIGINT, self._handle_signal)
@@ -78,6 +85,11 @@ class SpecOrchDaemon:
         self._write_back = LinearWriteBackService(client=client)
 
         planner = self._build_planner()
+
+        if planner:
+            from spec_orch.services.readiness_checker import ReadinessChecker
+
+            self._readiness_checker = ReadinessChecker(planner=planner)
 
         controller = RunController(
             repo_root=self.repo_root,
@@ -91,6 +103,7 @@ class SpecOrchDaemon:
             print(f"[daemon] planner: {planner.ADAPTER_NAME}")
         try:
             while self._running:
+                self._check_clarification_replies(client)
                 self._poll_and_run(client, controller)
                 self._sleep(self.config.poll_interval_seconds)
         finally:
@@ -154,6 +167,11 @@ class SpecOrchDaemon:
                 continue
 
             self._claim(issue_id)
+
+            if not self._triage_issue(client, raw_issue):
+                self._release(issue_id)
+                continue
+
             print(f"[daemon] processing {issue_id} (full pipeline)")
 
             # Ready → In Progress
@@ -265,6 +283,94 @@ class SpecOrchDaemon:
         else:
             base_policy = GatePolicy.default()
         return base_policy.with_profile("daemon")
+
+    def _triage_issue(
+        self, client: LinearClient, raw_issue: dict[str, Any],
+    ) -> bool:
+        """Check issue readiness before execution.
+
+        Returns True if the issue is ready to execute, False if it
+        needs clarification (comment posted, label applied).
+        """
+        issue_id = raw_issue.get("identifier", "")
+        linear_uid = raw_issue.get("id", "")
+        description = raw_issue.get("description", "") or ""
+
+        if issue_id in self._triaged:
+            return True
+
+        result = self._readiness_checker.check(description)
+        if result.ready:
+            return True
+
+        print(f"[daemon] {issue_id}: needs clarification ({result.missing_fields})")
+
+        if linear_uid:
+            try:
+                comment = result.format_comment()
+                client.add_comment(linear_uid, comment)
+                print(f"[daemon] {issue_id}: posted clarification request")
+            except Exception as exc:
+                print(f"[daemon] {issue_id}: comment failed: {exc}")
+
+            try:
+                client.add_label(linear_uid, "needs-clarification")
+            except Exception as exc:
+                print(f"[daemon] {issue_id}: add label failed: {exc}")
+
+        self._triaged.add(issue_id)
+        return False
+
+    def _check_clarification_replies(self, client: LinearClient) -> None:
+        """Check for user replies on issues waiting for clarification.
+
+        When a user replies, remove the needs-clarification label so the
+        issue re-enters the Ready candidate pool on the next poll.
+        """
+        try:
+            waiting = client.list_issues(
+                team_key=self.config.team_key,
+                filter_state=self.config.consume_state,
+                filter_labels=["needs-clarification"],
+                exclude_parents=self.config.skip_parents,
+            )
+        except Exception as exc:
+            print(f"[daemon] clarification check error: {exc}")
+            return
+
+        for raw_issue in waiting:
+            issue_id = raw_issue.get("identifier", "")
+            linear_uid = raw_issue.get("id", "")
+            if not linear_uid:
+                continue
+
+            try:
+                comments = client.list_comments(linear_uid)
+            except Exception:
+                continue
+
+            bot_comment_idx = -1
+            for idx, c in enumerate(comments):
+                body = c.get("body", "")
+                if "SpecOrch: Clarification Needed" in body:
+                    bot_comment_idx = idx
+
+            if bot_comment_idx < 0:
+                continue
+
+            has_reply = any(
+                c.get("body", "")
+                and "SpecOrch: Clarification Needed" not in c.get("body", "")
+                for c in comments[bot_comment_idx + 1:]
+            )
+
+            if has_reply:
+                print(f"[daemon] {issue_id}: user replied, re-entering pool")
+                try:
+                    client.remove_label(linear_uid, "needs-clarification")
+                except Exception as exc:
+                    print(f"[daemon] {issue_id}: remove label failed: {exc}")
+                self._triaged.discard(issue_id)
 
     def _is_locked(self, issue_id: str) -> bool:
         return (self._lockdir / f"{issue_id}.lock").exists()

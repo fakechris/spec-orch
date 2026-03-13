@@ -9,6 +9,11 @@ import pytest
 from spec_orch.domain.models import RunState
 from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
 
+_COMPLETE_DESC = (
+    "## Goal\nDo something.\n\n## Acceptance Criteria\n"
+    "- [ ] Done\n\n## Files in Scope\n- `src/x.py`\n"
+)
+
 
 def test_daemon_config_from_toml(tmp_path: Path) -> None:
     toml_file = tmp_path / "spec-orch.toml"
@@ -111,7 +116,7 @@ def test_daemon_poll_and_run_skips_locked(tmp_path: Path) -> None:
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
 
     mock_client = MagicMock()
-    mock_client.list_issues.return_value = [{"identifier": "SPC-10"}]
+    mock_client.list_issues.return_value = [{"identifier": "SPC-10", "description": _COMPLETE_DESC}]
     mock_controller = MagicMock()
 
     daemon._claim("SPC-10")
@@ -126,7 +131,7 @@ def test_daemon_poll_and_run_processes_new_issue(tmp_path: Path) -> None:
     daemon._write_back = MagicMock()
 
     mock_client = MagicMock()
-    mock_client.list_issues.return_value = [{"id": "uuid-11", "identifier": "SPC-11"}]
+    mock_client.list_issues.return_value = [{"id": "uuid-11", "identifier": "SPC-11", "description": _COMPLETE_DESC}]
 
     mock_gate = MagicMock()
     mock_gate.mergeable = True
@@ -152,7 +157,7 @@ def test_daemon_poll_and_run_releases_non_terminal(tmp_path: Path) -> None:
     daemon._write_back = MagicMock()
 
     mock_client = MagicMock()
-    mock_client.list_issues.return_value = [{"id": "uuid-12", "identifier": "SPC-12"}]
+    mock_client.list_issues.return_value = [{"id": "uuid-12", "identifier": "SPC-12", "description": _COMPLETE_DESC}]
 
     mock_gate = MagicMock()
     mock_gate.mergeable = False
@@ -177,7 +182,7 @@ def test_daemon_poll_and_run_marks_gate_evaluated_as_processed(tmp_path: Path) -
     daemon._write_back = MagicMock()
 
     mock_client = MagicMock()
-    mock_client.list_issues.return_value = [{"id": "uuid-13", "identifier": "SPC-13"}]
+    mock_client.list_issues.return_value = [{"id": "uuid-13", "identifier": "SPC-13", "description": _COMPLETE_DESC}]
 
     mock_gate = MagicMock()
     mock_gate.mergeable = False
