@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json as _json
 import subprocess
 from pathlib import Path
 
@@ -222,8 +223,6 @@ class GitHubPRService:
         self, workspace: Path, *, base: str = "main",
     ) -> list[dict]:
         """List open PRs created by SpecOrch (matching title prefix)."""
-        import json as _json
-
         result = subprocess.run(
             [
                 self.gh, "pr", "list",
@@ -251,10 +250,12 @@ class GitHubPRService:
 
         Returns {"mergeable": bool, "conflicting_files": list[str]}.
         """
-        subprocess.run(
+        fetch = subprocess.run(
             ["git", "fetch", "origin", base],
             cwd=workspace, capture_output=True, text=True, check=False,
         )
+        if fetch.returncode != 0:
+            return {"mergeable": False, "conflicting_files": ["git fetch failed"]}
 
         merge_result = subprocess.run(
             ["git", "merge-tree", f"origin/{base}", branch],

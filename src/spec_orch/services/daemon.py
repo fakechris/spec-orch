@@ -13,12 +13,14 @@ from typing import Any
 from spec_orch.domain.models import TERMINAL_STATES, RunResult, RunState
 from spec_orch.domain.protocols import PlannerAdapter
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
+from spec_orch.services.github_pr_service import GitHubPRService
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
 from spec_orch.services.linear_write_back import LinearWriteBackService
 from spec_orch.services.run_controller import RunController
 
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+_PR_ISSUE_ID_RE = re.compile(r"\[SpecOrch\]\s+([A-Za-z0-9_-]+):")
 
 
 class DaemonConfig:
@@ -390,8 +392,6 @@ class SpecOrchDaemon:
         if result.state != RunState.GATE_EVALUATED:
             return False
         try:
-            from spec_orch.services.github_pr_service import GitHubPRService
-
             gate_policy = self._load_gate_policy()
             should_auto = gate_policy.auto_merge and result.gate.mergeable
 
@@ -566,32 +566,27 @@ class SpecOrchDaemon:
             return
 
         try:
-            from spec_orch.services.github_pr_service import GitHubPRService
-
             gh = GitHubPRService()
             open_prs = gh.list_open_prs(self.repo_root, base=self.config.base_branch)
         except Exception as exc:
             print(f"[daemon] review-update check error: {exc}")
             return
 
-        pr_by_sha: dict[str, str] = {}
+        pr_by_issue: dict[str, str] = {}
         for pr in open_prs:
             sha = pr.get("headRefOid", "")
             title = pr.get("title", "")
             if sha and title:
-                pr_by_sha[title] = sha
+                match = _PR_ISSUE_ID_RE.search(title)
+                if match:
+                    pr_by_issue[match.group(1)] = sha
 
         for issue_id in list(self._pr_commits):
             if issue_id not in self._processed:
                 continue
 
             stored_sha = self._pr_commits[issue_id]
-
-            current_sha = None
-            for title, sha in pr_by_sha.items():
-                if issue_id in title:
-                    current_sha = sha
-                    break
+            current_sha = pr_by_issue.get(issue_id)
 
             if current_sha is None:
                 continue

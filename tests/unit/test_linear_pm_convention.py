@@ -259,8 +259,10 @@ class TestDaemonExecutionQualification:
         mock_controller = MagicMock()
         mock_controller.advance_to_completion.return_value = mock_result
 
-        with patch("spec_orch.services.github_pr_service.GitHubPRService") as MockGH:
+        with patch("spec_orch.services.daemon.GitHubPRService") as MockGH:
             mock_gh = MockGH.return_value
+            mock_gh._current_branch.return_value = "feat/son-100"
+            mock_gh.check_mergeable.return_value = {"mergeable": True, "conflicting_files": []}
             mock_gh.create_pr.return_value = "https://github.com/pr/1"
 
             daemon._poll_and_run(mock_client, mock_controller)
@@ -281,8 +283,10 @@ class TestDaemonExecutionQualification:
         mock_result.issue.title = "T"
         mock_result.workspace = tmp_path
 
-        with patch("spec_orch.services.github_pr_service.GitHubPRService") as MockGH:
+        with patch("spec_orch.services.daemon.GitHubPRService") as MockGH:
             mock_gh = MockGH.return_value
+            mock_gh._current_branch.return_value = "feat/y"
+            mock_gh.check_mergeable.return_value = {"mergeable": True, "conflicting_files": []}
             mock_gh.create_pr.return_value = "https://github.com/pr/2"
             assert daemon._auto_create_pr("Y", mock_result) is True
 

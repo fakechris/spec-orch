@@ -89,6 +89,44 @@ def test_check_review_updates_no_pr_commits(tmp_path: Path) -> None:
     client.list_issues.assert_not_called()
 
 
+def test_check_review_updates_no_substring_false_match(tmp_path: Path) -> None:
+    """SPC-5 must NOT match a PR titled '[SpecOrch] SPC-50: ...'."""
+    daemon = _make_daemon(tmp_path)
+    daemon._processed.add("SPC-5")
+    daemon._pr_commits["SPC-5"] = "old_sha"
+
+    client = MagicMock()
+
+    mock_prs = [
+        {
+            "number": 12,
+            "title": "[SpecOrch] SPC-50: unrelated feature",
+            "headRefName": "feat/spc-50",
+            "headRefOid": "new_sha",
+        },
+    ]
+
+    with patch(
+        "spec_orch.services.github_pr_service.GitHubPRService.list_open_prs",
+        return_value=mock_prs,
+    ):
+        daemon._check_review_updates(client)
+
+    assert "SPC-5" in daemon._processed
+    client.update_issue_state.assert_not_called()
+
+
+def test_check_mergeable_fetch_failure(tmp_path: Path) -> None:
+    from spec_orch.services.github_pr_service import GitHubPRService
+
+    svc = GitHubPRService()
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=1, stderr="network error")
+        result = svc.check_mergeable(tmp_path, branch="feat/x")
+        assert result["mergeable"] is False
+        assert "git fetch failed" in result["conflicting_files"]
+
+
 def test_github_pr_list_open_prs(tmp_path: Path) -> None:
     from spec_orch.services.github_pr_service import GitHubPRService
 
