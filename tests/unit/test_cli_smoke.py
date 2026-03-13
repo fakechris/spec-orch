@@ -263,10 +263,10 @@ def test_gate_command_shows_issue_verdict(tmp_path) -> None:
     runner.invoke(app, ["run-issue", "SPC-G", "--repo-root", str(tmp_path)])
 
     result = runner.invoke(
-        app, ["gate", "SPC-G", "--repo-root", str(tmp_path)]
+        app, ["gate", "evaluate", "SPC-G", "--repo-root", str(tmp_path)],
     )
 
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.stdout + (result.stderr or "")
     assert "SPC-G" in result.stdout
     assert "mergeable=" in result.stdout
 
@@ -305,7 +305,7 @@ def test_rerun_command_re_runs_verification(tmp_path) -> None:
 
 def test_gate_show_policy() -> None:
     runner = CliRunner()
-    result = runner.invoke(app, ["gate", "--show-policy"])
+    result = runner.invoke(app, ["gate", "show-policy"])
     assert result.exit_code == 0
     assert "Gate Policy" in result.stdout
 

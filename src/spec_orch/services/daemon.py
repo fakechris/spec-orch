@@ -175,12 +175,21 @@ class SpecOrchDaemon:
                 if state in TERMINAL_STATES or state == RunState.GATE_EVALUATED:
                     self._notify(issue_id, mergeable)
                     pr_created = self._auto_create_pr(issue_id, result)
-                    # In Progress → In Review (after PR)
+
+                    gate_policy = self._load_gate_policy()
+                    auto_merged = (
+                        pr_created
+                        and gate_policy.auto_merge
+                        and mergeable
+                    )
+
                     if pr_created and linear_uid:
                         try:
-                            client.update_issue_state(linear_uid, "In Review")
+                            target_state = "Done" if auto_merged else "In Review"
+                            client.update_issue_state(linear_uid, target_state)
+                            print(f"[daemon] {issue_id} → {target_state}")
                         except Exception as exc:
-                            print(f"[daemon] state→InReview failed: {exc}")
+                            print(f"[daemon] state update failed: {exc}")
                     self._write_back_result(raw_issue, result)
                     self._processed.add(issue_id)
                 else:
@@ -194,12 +203,19 @@ class SpecOrchDaemon:
     ) -> bool:
         """Automatically create a GitHub PR when gate is evaluated.
 
+        When the gate policy's daemon profile allows auto-merge and
+        all auto-merge conditions pass, the PR is created as non-draft
+        and auto-merge is enabled.
+
         Returns True if a PR was successfully created.
         """
         if result.state != RunState.GATE_EVALUATED:
             return False
         try:
             from spec_orch.services.github_pr_service import GitHubPRService
+
+            gate_policy = self._load_gate_policy()
+            should_auto = gate_policy.auto_merge and result.gate.mergeable
 
             workspace = result.workspace
             gh_svc = GitHubPRService()
@@ -220,17 +236,35 @@ class SpecOrchDaemon:
                 title=title,
                 body="\n".join(body_lines),
                 base=self.config.base_branch,
-                draft=True,
+                draft=not should_auto,
             )
             if pr_url:
                 print(f"[daemon] PR created: {pr_url}")
                 gh_svc.set_gate_status(workspace=workspace, gate=result.gate)
+
+                if should_auto:
+                    merged = gh_svc.merge_pr(workspace, method="squash")
+                    if merged:
+                        print(f"[daemon] auto-merged PR for {issue_id}")
+                    else:
+                        print("[daemon] auto-merge requested (waiting for checks)")
                 return True
             print(f"[daemon] could not create PR for {issue_id}")
             return False
         except (RuntimeError, OSError, FileNotFoundError) as exc:
             print(f"[daemon] auto-PR failed for {issue_id}: {exc}")
             return False
+
+    def _load_gate_policy(self) -> Any:
+        """Load gate policy with daemon profile applied."""
+        from spec_orch.services.gate_service import GatePolicy
+
+        policy_path = self.repo_root / "gate.policy.yaml"
+        if policy_path.exists():
+            base_policy = GatePolicy.from_yaml(policy_path)
+        else:
+            base_policy = GatePolicy.default()
+        return base_policy.with_profile("daemon")
 
     def _is_locked(self, issue_id: str) -> bool:
         return (self._lockdir / f"{issue_id}.lock").exists()

@@ -15,17 +15,39 @@ DEFAULT_REQUIRED = {
     "human_acceptance",
 }
 
+ALL_KNOWN_CONDITIONS = {
+    "spec_exists",
+    "spec_approved",
+    "within_boundaries",
+    "builder",
+    "verification",
+    "review",
+    "preview",
+    "human_acceptance",
+    "findings",
+}
+
 
 class GatePolicy:
+    """Configurable gate policy with profile support.
+
+    Profiles allow different condition sets for different contexts
+    (e.g. ``daemon`` skips ``human_acceptance``, ``ci`` is stricter).
+    """
+
     def __init__(
         self,
         *,
         required_conditions: set[str] | None = None,
         auto_merge: bool = False,
+        auto_merge_conditions: set[str] | None = None,
+        profiles: dict[str, dict[str, Any]] | None = None,
         raw: dict[str, Any] | None = None,
     ) -> None:
         self.required_conditions = required_conditions or DEFAULT_REQUIRED
         self.auto_merge = auto_merge
+        self.auto_merge_conditions = auto_merge_conditions
+        self.profiles = profiles or {}
         self.raw = raw or {}
 
     @classmethod
@@ -40,15 +62,54 @@ class GatePolicy:
             for name, cfg in conditions.items()
             if isinstance(cfg, dict) and cfg.get("required", True)
         }
+
+        auto_merge_conds: set[str] | None = None
+        am_raw = data.get("auto_merge_conditions")
+        if isinstance(am_raw, list):
+            auto_merge_conds = set(am_raw)
+
+        profiles: dict[str, dict[str, Any]] = {}
+        for pname, pcfg in data.get("profiles", {}).items():
+            if isinstance(pcfg, dict):
+                profiles[pname] = pcfg
+
         return cls(
             required_conditions=required,
             auto_merge=data.get("auto_merge", False),
+            auto_merge_conditions=auto_merge_conds,
+            profiles=profiles,
             raw=data,
         )
 
     @classmethod
     def default(cls) -> GatePolicy:
         return cls()
+
+    def with_profile(self, profile_name: str) -> GatePolicy:
+        """Return a new GatePolicy with profile overrides applied."""
+        pcfg = self.profiles.get(profile_name)
+        if not pcfg:
+            return self
+
+        new_required = set(self.required_conditions)
+        for cond in pcfg.get("disable", []):
+            new_required.discard(cond)
+        for cond in pcfg.get("enable", []):
+            if cond in ALL_KNOWN_CONDITIONS:
+                new_required.add(cond)
+
+        new_auto = pcfg.get("auto_merge", self.auto_merge)
+
+        return GatePolicy(
+            required_conditions=new_required,
+            auto_merge=new_auto,
+            auto_merge_conditions=self.auto_merge_conditions,
+            profiles=self.profiles,
+            raw=self.raw,
+        )
+
+    def available_profiles(self) -> list[str]:
+        return sorted(self.profiles.keys())
 
 
 class GateService:
@@ -86,6 +147,20 @@ class GateService:
             mergeable_external=True,
         )
 
+    def should_auto_merge(self, gate_input: GateInput) -> bool:
+        """Check whether auto-merge should trigger.
+
+        Returns True only when the policy allows auto-merge AND all
+        auto-merge conditions (or all required conditions) pass.
+        """
+        if not self.policy.auto_merge:
+            return False
+        check_set = self.policy.auto_merge_conditions or self.policy.required_conditions
+        temp_policy = GatePolicy(required_conditions=check_set)
+        temp_svc = GateService(policy=temp_policy)
+        verdict = temp_svc.evaluate(gate_input)
+        return verdict.mergeable
+
     def describe_policy(self) -> str:
         lines = ["Gate Policy:"]
         conditions = self.policy.raw.get("conditions", {})
@@ -93,9 +168,39 @@ class GateService:
             for name, cfg in conditions.items():
                 req = "required" if cfg.get("required", True) else "optional"
                 desc = cfg.get("description", "")
-                lines.append(f"  {name}: [{req}] {desc}")
+                status = "enabled" if name in self.policy.required_conditions else "disabled"
+                lines.append(f"  {name}: [{req}] ({status}) {desc}")
         else:
             for cond in sorted(self.policy.required_conditions):
-                lines.append(f"  {cond}: [required]")
+                lines.append(f"  {cond}: [required] (enabled)")
         lines.append(f"  auto_merge: {self.policy.auto_merge}")
+        if self.policy.auto_merge_conditions:
+            lines.append(
+                f"  auto_merge_conditions: {', '.join(sorted(self.policy.auto_merge_conditions))}"
+            )
+        if self.policy.profiles:
+            lines.append(f"  profiles: {', '.join(sorted(self.policy.profiles))}")
         return "\n".join(lines)
+
+    def describe_as_dict(self) -> dict[str, Any]:
+        """Machine-readable policy description."""
+        conditions: dict[str, dict[str, Any]] = {}
+        raw_conds = self.policy.raw.get("conditions", {})
+        if raw_conds:
+            for name, cfg in raw_conds.items():
+                conditions[name] = {
+                    "required": cfg.get("required", True),
+                    "enabled": name in self.policy.required_conditions,
+                    "description": cfg.get("description", ""),
+                }
+        else:
+            for cond in sorted(self.policy.required_conditions):
+                conditions[cond] = {"required": True, "enabled": True, "description": ""}
+        return {
+            "conditions": conditions,
+            "auto_merge": self.policy.auto_merge,
+            "auto_merge_conditions": sorted(self.policy.auto_merge_conditions)
+            if self.policy.auto_merge_conditions
+            else None,
+            "profiles": list(self.policy.profiles.keys()),
+        }
