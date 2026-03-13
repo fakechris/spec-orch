@@ -2,6 +2,10 @@
 
 > 本文档是 [pipeline-roles-and-stages.md](pipeline-roles-and-stages.md) 的中文翻译。以英文版为准。
 
+> **相关文档：** 并非所有变更都需要完整流水线。参见
+> [变更管理策略](change-management-policy.md) 了解三级模型
+>（Full / Standard / Hotfix）。
+
 ## 角色定义
 
 | 角色 | 身份 | 工具 / 实现 |
