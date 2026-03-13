@@ -1082,6 +1082,33 @@ def _print_check_report(results: list[Any]) -> None:
     )
 
 
+@app.command("review-pr")
+def review_pr(
+    issue_id: str = typer.Argument(
+        default="", help="Issue ID (optional, auto-detects PR)."
+    ),
+    pr_number: int | None = typer.Option(None, "--pr", help="PR number."),
+    repo_root: Path = typer.Option(".", "--repo-root", "-r"),
+) -> None:
+    """Auto-review a PR: fetch review comments, map to Findings, evaluate gate."""
+    from spec_orch.services.github_review_adapter import GitHubReviewAdapter
+
+    ws = WorkspaceService(repo_root=Path(repo_root))
+    workspace = ws.issue_workspace_path(issue_id) if issue_id else Path(repo_root)
+
+    adapter = GitHubReviewAdapter()
+    summary, meta = adapter.auto_review(workspace=workspace, pr_number=pr_number)
+
+    typer.echo(f"verdict: {summary.verdict}")
+    typer.echo(f"reviewed_by: {summary.reviewed_by}")
+    typer.echo(f"findings: {len(meta.findings)} total, {len(meta.blocking_unresolved)} blocking")
+
+    for f in meta.findings:
+        icon = "!" if f.severity == "blocking" else "~"
+        loc = f"{f.file_path}:{f.line}" if f.file_path else "(general)"
+        typer.echo(f"  [{icon}] [{f.source}] {loc}: {f.description[:80]}")
+
+
 @app.command("create-pr")
 def create_pr(
     issue_id: str,
@@ -1225,6 +1252,9 @@ def run_plan(
     max_concurrency: int = typer.Option(3, "--concurrency", "-j", help="Max parallel packets."),
     codex_executable: str = typer.Option("codex", "--codex-executable"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show plan without executing."),
+    full_pipeline: bool = typer.Option(
+        False, "--full-pipeline", help="Run build → verify → gate per packet.",
+    ),
 ) -> None:
     """Execute a Mission's plan with parallel wave execution."""
     from spec_orch.domain.models import ParallelConfig
@@ -1263,11 +1293,26 @@ def run_plan(
     handler.install()
 
     try:
+        if full_pipeline:
+            from spec_orch.services.packet_executor import FullPipelinePacketExecutor
+
+            pkt_exec = FullPipelinePacketExecutor(
+                codex_bin=codex_executable, workspace=str(Path(repo_root).resolve()),
+            )
+        else:
+            from spec_orch.services.packet_executor import SubprocessPacketExecutor
+
+            pkt_exec = SubprocessPacketExecutor(  # type: ignore[assignment]
+                codex_bin=codex_executable, workspace=str(Path(repo_root).resolve()),
+            )
+
         ctrl = ParallelRunController(
             repo_root=Path(repo_root),
             config=config,
             codex_bin=codex_executable,
         )
+        ctrl._packet_executor = pkt_exec
+        ctrl._wave_executor._packet_executor = pkt_exec
         result = ctrl.run_plan(plan, cancel_event=cancel_event)
     finally:
         handler.uninstall()

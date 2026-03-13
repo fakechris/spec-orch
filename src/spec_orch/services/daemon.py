@@ -229,7 +229,7 @@ class SpecOrchDaemon:
     def _write_back_result(
         self, raw_issue: dict[str, Any], result: RunResult,
     ) -> None:
-        """Post a run summary back to Linear as a comment."""
+        """Post a run summary back to Linear as a comment and move to Done."""
         import httpx
 
         linear_id = raw_issue.get("id", "")
@@ -240,6 +240,14 @@ class SpecOrchDaemon:
             print(f"[daemon] wrote summary to Linear for {result.issue.issue_id}")
         except (httpx.HTTPError, RuntimeError, OSError) as exc:
             print(f"[daemon] write-back failed: {exc}")
+
+        if result.gate.mergeable:
+            try:
+                client: LinearClient = self._write_back._client  # type: ignore[attr-defined]
+                client.update_issue_state(linear_id, "Done")
+                print(f"[daemon] moved {result.issue.issue_id} to Done")
+            except Exception as exc:
+                print(f"[daemon] state update failed: {exc}")
 
     def _notify(self, issue_id: str, mergeable: bool) -> None:
         status = "mergeable=true" if mergeable else "mergeable=false"
