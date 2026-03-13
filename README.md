@@ -98,14 +98,15 @@ spec-orch daemon start --config spec-orch.toml --repo-root .
 ```
 
 The daemon continuously:
-1. Polls Linear for issues in **Ready** state
-2. Runs **readiness triage** — a rule-based + LLM check on issue completeness; posts clarification questions on Linear if the issue is underspecified
-3. Moves the issue to **In Progress** and executes the build pipeline
-4. Runs verification (lint, typecheck, tests) and gate evaluation
-5. Checks merge readiness (`git merge-tree` dry-run), auto-rebases if needed
-6. Creates a GitHub PR and moves the issue to **In Review**
-7. Monitors for review fixes (**review loop**) — when new commits are pushed, re-runs verification and gate
-8. On merge, Linear auto-closes the issue to **Done**
+1. Polls Linear for issues in **Ready** state (configurable via `consume_state`)
+2. Runs **readiness triage** — rule-based + LLM check on issue completeness; if underspecified, posts clarification questions on Linear and adds `needs-clarification` label
+3. Moves to **In Progress** on pickup
+4. Executes the build pipeline (Codex build → verification → review → gate)
+5. Checks **merge readiness** (`git merge-tree` dry-run, auto-rebase if needed)
+6. On success: creates PR, moves to **In Review**
+7. **Review loop**: monitors PRs for new commits; when fixes are pushed, re-runs verification + gate
+8. On merge: Linear-GitHub App auto-closes the issue to **Done**
+9. On failure: adds comment with error details, leaves in **In Progress** for triage
 
 **Mission mode** — execute a full plan:
 
@@ -272,7 +273,7 @@ spec-orch pipeline <mission-id>       # Show EODF pipeline progress (11 stages)
 ### Code Layer — Execution
 
 ```bash
-spec-orch run <id> --source linear    # Full one-shot pipeline
+spec-orch run <id> --source linear [--auto-pr]  # Full one-shot pipeline
 spec-orch run-plan <mission-id>       # Execute plan with parallel waves
 spec-orch run-issue <id>              # Build + verify + gate
 spec-orch advance <id> --source linear  # Single state transition
@@ -282,7 +283,7 @@ spec-orch rerun <id>                  # Re-run verification + gate
 ### Code Layer — Daemon
 
 ```bash
-spec-orch daemon start --config spec-orch.toml  # Start daemon (foreground)
+spec-orch daemon start --config spec-orch.toml --repo-root .  # Start daemon
 spec-orch daemon stop                 # Stop system service
 spec-orch daemon status               # Show service + state info
 spec-orch daemon install              # Install as systemd/launchd service
