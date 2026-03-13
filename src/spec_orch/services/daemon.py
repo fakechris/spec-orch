@@ -212,6 +212,11 @@ class SpecOrchDaemon:
                     issue_id, raw_issue, client, controller,
                 )
 
+    @staticmethod
+    def _sanitize_id(raw_id: str) -> str:
+        """Strip path-traversal characters from a mission/issue ID."""
+        return re.sub(r"[/\\.\s]+", "-", raw_id).strip("-")
+
     def _detect_mission(
         self, issue_id: str, raw_issue: dict[str, Any],
     ) -> str | None:
@@ -220,16 +225,22 @@ class SpecOrchDaemon:
         Returns the mission_id if a plan.json exists, else None.
         """
         desc = raw_issue.get("description", "") or ""
-        match = re.search(r"plan\.json|mission[:\s]+(\S+)", desc, re.IGNORECASE)
-        if match:
-            mid = match.group(1) if match.group(1) else issue_id
-            plan_path = self.repo_root / "docs" / "specs" / mid / "plan.json"
-            if plan_path.exists():
+        specs_dir = self.repo_root / "docs" / "specs"
+
+        mission_match = re.search(r"mission[:\s]+(\S+)", desc, re.IGNORECASE)
+        if mission_match:
+            mid = self._sanitize_id(mission_match.group(1))
+            if (specs_dir / mid / "plan.json").exists():
                 return mid
 
-        plan_path = self.repo_root / "docs" / "specs" / issue_id / "plan.json"
-        if plan_path.exists():
-            return issue_id
+        if re.search(r"plan\.json", desc, re.IGNORECASE):
+            safe_id = self._sanitize_id(issue_id)
+            if (specs_dir / safe_id / "plan.json").exists():
+                return safe_id
+
+        safe_id = self._sanitize_id(issue_id)
+        if (specs_dir / safe_id / "plan.json").exists():
+            return safe_id
         return None
 
     def _execute_single(
@@ -285,14 +296,14 @@ class SpecOrchDaemon:
         client: LinearClient,
     ) -> None:
         """Execute a mission-level plan with parallel wave execution."""
+        from spec_orch.services.parallel_run_controller import (
+            ParallelRunController,
+        )
+
         linear_uid = raw_issue.get("id", "")
         print(f"[daemon] processing {issue_id} (mission: {mission_id})")
 
         try:
-            from spec_orch.services.parallel_run_controller import (
-                ParallelRunController,
-            )
-
             plan = ParallelRunController.load_plan(mission_id, self.repo_root)
             prc = ParallelRunController(
                 repo_root=self.repo_root,
@@ -347,6 +358,12 @@ class SpecOrchDaemon:
                 self._processed.add(issue_id)
             else:
                 print(f"[daemon] {issue_id}: mission failed")
+                if linear_uid:
+                    try:
+                        client.update_issue_state(linear_uid, "Ready")
+                        print(f"[daemon] {issue_id} → Ready (for retry)")
+                    except Exception as exc:
+                        print(f"[daemon] state reset failed: {exc}")
                 self._release(issue_id)
 
         except FileNotFoundError as exc:

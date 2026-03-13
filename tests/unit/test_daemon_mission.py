@@ -134,7 +134,7 @@ def test_execute_mission_failure(tmp_path: Path) -> None:
         daemon._execute_mission("SPC-31", "SPC-31", {"id": "uid-31"}, client)
 
     assert "SPC-31" not in daemon._processed
-    client.update_issue_state.assert_not_called()
+    client.update_issue_state.assert_called_once_with("uid-31", "Ready")
 
 
 def test_poll_routes_to_mission_when_plan_exists(tmp_path: Path) -> None:
