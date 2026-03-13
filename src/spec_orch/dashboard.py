@@ -162,10 +162,45 @@ setInterval(load,10000);
 """
 
 
+def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
+    """Scan workspace directories for run reports."""
+    import json
+
+    runs: list[dict[str, Any]] = []
+    for base in [repo_root / ".worktrees", repo_root / ".spec_orch_runs"]:
+        if not base.exists():
+            continue
+        for ws in sorted(base.iterdir()):
+            report = ws / "report.json"
+            if not report.exists():
+                continue
+            try:
+                data = json.loads(report.read_text())
+                runs.append({
+                    "issue_id": data.get("issue_id", ws.name),
+                    "title": data.get("title", ws.name),
+                    "state": data.get("state", "unknown"),
+                    "mergeable": data.get("mergeable", False),
+                    "failed_conditions": data.get("failed_conditions", []),
+                    "builder_adapter": data.get("builder", {}).get("adapter", ""),
+                    "builder_succeeded": data.get("builder", {}).get("succeeded", False),
+                })
+            except (json.JSONDecodeError, OSError):
+                continue
+    return runs
+
+
+def _get_spec_content(repo_root: Path, mission_id: str) -> str | None:
+    spec_path = repo_root / "docs" / "specs" / mission_id / "spec.md"
+    if spec_path.exists():
+        return spec_path.read_text()
+    return None
+
+
 def create_app(repo_root: Path | None = None) -> Any:
     """Create the FastAPI app. Requires ``pip install fastapi uvicorn``."""
     from fastapi import FastAPI
-    from fastapi.responses import HTMLResponse, JSONResponse
+    from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
     root = repo_root or Path(".")
     app = FastAPI(title="spec-orch dashboard")
@@ -185,5 +220,24 @@ def create_app(repo_root: Path | None = None) -> Any:
             if m["mission_id"] == mission_id:
                 return JSONResponse(m)
         return JSONResponse({"error": "not found"}, status_code=404)
+
+    @app.get("/api/missions/{mission_id}/spec")
+    async def api_mission_spec(mission_id: str) -> PlainTextResponse:
+        content = _get_spec_content(root, mission_id)
+        if content is None:
+            return PlainTextResponse("not found", status_code=404)
+        return PlainTextResponse(content)
+
+    @app.get("/api/runs")
+    async def api_runs() -> JSONResponse:
+        return JSONResponse(_gather_run_history(root))
+
+    @app.get("/api/health")
+    async def api_health() -> JSONResponse:
+        return JSONResponse({
+            "status": "ok",
+            "repo_root": str(root),
+            "missions": len(_gather_missions(root)),
+        })
 
     return app
