@@ -195,8 +195,6 @@ class SpecOrchDaemon:
                 self._release(issue_id)
                 continue
 
-            print(f"[daemon] processing {issue_id} (full pipeline)")
-
             # Ready → In Progress
             if linear_uid:
                 try:
@@ -204,40 +202,176 @@ class SpecOrchDaemon:
                 except Exception as exc:
                     print(f"[daemon] state→InProgress failed: {exc}")
 
-            try:
-                result = controller.advance_to_completion(issue_id)
-                state = result.state
-                mergeable = result.gate.mergeable
-                blocked = ",".join(result.gate.failed_conditions) or "none"
-                print(
-                    f"[daemon] {issue_id}: state={state.value} "
-                    f"mergeable={mergeable} blocked={blocked}"
+            mission_id = self._detect_mission(issue_id, raw_issue)
+            if mission_id:
+                self._execute_mission(
+                    issue_id, mission_id, raw_issue, client,
                 )
-                if state in TERMINAL_STATES or state == RunState.GATE_EVALUATED:
-                    self._notify(issue_id, mergeable)
-                    pr_created = self._auto_create_pr(issue_id, result)
+            else:
+                self._execute_single(
+                    issue_id, raw_issue, client, controller,
+                )
 
-                    gate_policy = self._load_gate_policy()
-                    auto_merged = (
-                        pr_created
-                        and gate_policy.auto_merge
-                        and mergeable
-                    )
+    @staticmethod
+    def _sanitize_id(raw_id: str) -> str:
+        """Strip path-traversal characters from a mission/issue ID."""
+        return re.sub(r"[/\\.\s]+", "-", raw_id).strip("-")
 
-                    if pr_created and linear_uid:
-                        try:
-                            target_state = "Done" if auto_merged else "In Review"
-                            client.update_issue_state(linear_uid, target_state)
-                            print(f"[daemon] {issue_id} → {target_state}")
-                        except Exception as exc:
-                            print(f"[daemon] state update failed: {exc}")
-                    self._write_back_result(raw_issue, result)
-                    self._processed.add(issue_id)
-                else:
-                    self._release(issue_id)
-            except Exception as exc:
-                print(f"[daemon] {issue_id} failed: {exc}")
+    def _detect_mission(
+        self, issue_id: str, raw_issue: dict[str, Any],
+    ) -> str | None:
+        """Check if the issue references a mission plan.json.
+
+        Returns the mission_id if a plan.json exists, else None.
+        """
+        desc = raw_issue.get("description", "") or ""
+        specs_dir = self.repo_root / "docs" / "specs"
+
+        mission_match = re.search(r"mission[:\s]+(\S+)", desc, re.IGNORECASE)
+        if mission_match:
+            mid = self._sanitize_id(mission_match.group(1))
+            if (specs_dir / mid / "plan.json").exists():
+                return mid
+
+        if re.search(r"plan\.json", desc, re.IGNORECASE):
+            safe_id = self._sanitize_id(issue_id)
+            if (specs_dir / safe_id / "plan.json").exists():
+                return safe_id
+
+        safe_id = self._sanitize_id(issue_id)
+        if (specs_dir / safe_id / "plan.json").exists():
+            return safe_id
+        return None
+
+    def _execute_single(
+        self,
+        issue_id: str,
+        raw_issue: dict[str, Any],
+        client: LinearClient,
+        controller: RunController,
+    ) -> None:
+        """Execute a single issue through the standard pipeline."""
+        linear_uid = raw_issue.get("id", "")
+        print(f"[daemon] processing {issue_id} (single issue pipeline)")
+        try:
+            result = controller.advance_to_completion(issue_id)
+            state = result.state
+            mergeable = result.gate.mergeable
+            blocked = ",".join(result.gate.failed_conditions) or "none"
+            print(
+                f"[daemon] {issue_id}: state={state.value} "
+                f"mergeable={mergeable} blocked={blocked}"
+            )
+            if state in TERMINAL_STATES or state == RunState.GATE_EVALUATED:
+                self._notify(issue_id, mergeable)
+                pr_created = self._auto_create_pr(issue_id, result)
+
+                gate_policy = self._load_gate_policy()
+                auto_merged = (
+                    pr_created
+                    and gate_policy.auto_merge
+                    and mergeable
+                )
+
+                if pr_created and linear_uid:
+                    try:
+                        target_state = "Done" if auto_merged else "In Review"
+                        client.update_issue_state(linear_uid, target_state)
+                        print(f"[daemon] {issue_id} → {target_state}")
+                    except Exception as exc:
+                        print(f"[daemon] state update failed: {exc}")
+                self._write_back_result(raw_issue, result)
+                self._processed.add(issue_id)
+            else:
                 self._release(issue_id)
+        except Exception as exc:
+            print(f"[daemon] {issue_id} failed: {exc}")
+            self._release(issue_id)
+
+    def _execute_mission(
+        self,
+        issue_id: str,
+        mission_id: str,
+        raw_issue: dict[str, Any],
+        client: LinearClient,
+    ) -> None:
+        """Execute a mission-level plan with parallel wave execution."""
+        from spec_orch.services.parallel_run_controller import (
+            ParallelRunController,
+        )
+
+        linear_uid = raw_issue.get("id", "")
+        print(f"[daemon] processing {issue_id} (mission: {mission_id})")
+
+        try:
+            plan = ParallelRunController.load_plan(mission_id, self.repo_root)
+            prc = ParallelRunController(
+                repo_root=self.repo_root,
+                codex_bin=self.config.codex_executable,
+            )
+
+            for wave in plan.waves:
+                if linear_uid:
+                    try:
+                        wave_msg = (
+                            f"🔄 Wave {wave.wave_number}: "
+                            f"{len(wave.work_packets)} packets — {wave.description}"
+                        )
+                        client.add_comment(linear_uid, wave_msg)
+                    except Exception as exc:
+                        print(f"[daemon] wave comment failed: {exc}")
+
+            plan_result = prc.run_plan(plan)
+
+            summary_lines = [
+                f"## Mission Execution: {mission_id}",
+                "",
+                f"**Duration**: {plan_result.total_duration:.1f}s",
+                f"**Result**: {'✅ Success' if plan_result.is_success() else '❌ Failed'}",
+                "",
+            ]
+            for wr in plan_result.wave_results:
+                status = "✅" if wr.all_succeeded else "❌"
+                summary_lines.append(
+                    f"- Wave {wr.wave_id}: {status} "
+                    f"({len(wr.packet_results)} packets)"
+                )
+                for pr in wr.failed_packets:
+                    summary_lines.append(
+                        f"  - ❌ {pr.packet_id}: exit={pr.exit_code}"
+                    )
+            summary = "\n".join(summary_lines)
+
+            if linear_uid:
+                try:
+                    client.add_comment(linear_uid, summary)
+                except Exception as exc:
+                    print(f"[daemon] summary comment failed: {exc}")
+
+            if plan_result.is_success():
+                print(f"[daemon] {issue_id}: mission succeeded")
+                if linear_uid:
+                    try:
+                        client.update_issue_state(linear_uid, "In Review")
+                    except Exception as exc:
+                        print(f"[daemon] state update failed: {exc}")
+                self._processed.add(issue_id)
+            else:
+                print(f"[daemon] {issue_id}: mission failed")
+                if linear_uid:
+                    try:
+                        client.update_issue_state(linear_uid, "Ready")
+                        print(f"[daemon] {issue_id} → Ready (for retry)")
+                    except Exception as exc:
+                        print(f"[daemon] state reset failed: {exc}")
+                self._release(issue_id)
+
+        except FileNotFoundError as exc:
+            print(f"[daemon] {issue_id}: plan not found: {exc}")
+            self._release(issue_id)
+        except Exception as exc:
+            print(f"[daemon] {issue_id}: mission execution failed: {exc}")
+            self._release(issue_id)
 
     def _auto_create_pr(
         self, issue_id: str, result: RunResult,
