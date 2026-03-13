@@ -13,12 +13,14 @@ from typing import Any
 from spec_orch.domain.models import TERMINAL_STATES, RunResult, RunState
 from spec_orch.domain.protocols import PlannerAdapter
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
+from spec_orch.services.github_pr_service import GitHubPRService
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
 from spec_orch.services.linear_write_back import LinearWriteBackService
 from spec_orch.services.run_controller import RunController
 
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+_PR_ISSUE_ID_RE = re.compile(r"\[SpecOrch\]\s+([A-Za-z0-9_-]+):")
 
 
 class DaemonConfig:
@@ -77,6 +79,7 @@ class SpecOrchDaemon:
         self._processed: set[str] = set(saved.get("processed", []))
         self._triaged: set[str] = set(saved.get("triaged", []))
         self._last_poll: str = saved.get("last_poll", "")
+        self._pr_commits: dict[str, str] = dict(saved.get("pr_commits", {}))
 
     def _load_state(self) -> dict[str, Any]:
         if self._state_path.exists():
@@ -90,6 +93,7 @@ class SpecOrchDaemon:
         data = {
             "processed": sorted(self._processed),
             "triaged": sorted(self._triaged),
+            "pr_commits": self._pr_commits,
             "last_poll": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
         try:
@@ -125,6 +129,7 @@ class SpecOrchDaemon:
         try:
             while self._running:
                 self._check_clarification_replies(client)
+                self._check_review_updates(client)
                 self._poll_and_run(client, controller)
                 self._save_state()
                 self._sleep(self.config.poll_interval_seconds)
@@ -387,13 +392,30 @@ class SpecOrchDaemon:
         if result.state != RunState.GATE_EVALUATED:
             return False
         try:
-            from spec_orch.services.github_pr_service import GitHubPRService
-
             gate_policy = self._load_gate_policy()
             should_auto = gate_policy.auto_merge and result.gate.mergeable
 
             workspace = result.workspace
             gh_svc = GitHubPRService()
+
+            branch = gh_svc._current_branch(workspace)
+            if branch and branch != self.config.base_branch:
+                check = gh_svc.check_mergeable(
+                    workspace, branch=branch, base=self.config.base_branch,
+                )
+                if not check["mergeable"]:
+                    print(f"[daemon] {issue_id}: conflicts detected, attempting rebase")
+                    rebased = gh_svc.auto_rebase(
+                        workspace, base=self.config.base_branch,
+                    )
+                    if rebased:
+                        print(f"[daemon] {issue_id}: rebase succeeded")
+                    else:
+                        print(
+                            f"[daemon] {issue_id}: rebase failed, "
+                            "PR will be created with conflicts"
+                        )
+
             title = f"[SpecOrch] {issue_id}: {result.issue.title}"
             body_lines = [
                 f"## SpecOrch: {issue_id}",
@@ -416,6 +438,9 @@ class SpecOrchDaemon:
             if pr_url:
                 print(f"[daemon] PR created: {pr_url}")
                 gh_svc.set_gate_status(workspace=workspace, gate=result.gate)
+                head_sha = gh_svc._head_sha(workspace)
+                if head_sha:
+                    self._pr_commits[issue_id] = head_sha
 
                 if should_auto:
                     merged = gh_svc.merge_pr(workspace, method="squash")
@@ -529,6 +554,66 @@ class SpecOrchDaemon:
                 except Exception as exc:
                     print(f"[daemon] {issue_id}: remove label failed: {exc}")
                 self._triaged.discard(issue_id)
+
+    def _check_review_updates(self, client: LinearClient) -> None:
+        """Poll In Review PRs for new commits pushed after review fixes.
+
+        When a PR has a new HEAD commit compared to the stored hash,
+        the issue is moved from _processed back to the Ready pool so
+        the daemon re-evaluates verification + gate on the next cycle.
+        """
+        if not self._pr_commits:
+            return
+
+        try:
+            gh = GitHubPRService()
+            open_prs = gh.list_open_prs(self.repo_root, base=self.config.base_branch)
+        except Exception as exc:
+            print(f"[daemon] review-update check error: {exc}")
+            return
+
+        pr_by_issue: dict[str, str] = {}
+        for pr in open_prs:
+            sha = pr.get("headRefOid", "")
+            title = pr.get("title", "")
+            if sha and title:
+                match = _PR_ISSUE_ID_RE.search(title)
+                if match:
+                    pr_by_issue[match.group(1)] = sha
+
+        for issue_id in list(self._pr_commits):
+            if issue_id not in self._processed:
+                continue
+
+            stored_sha = self._pr_commits[issue_id]
+            current_sha = pr_by_issue.get(issue_id)
+
+            if current_sha is None:
+                continue
+
+            if current_sha != stored_sha:
+                print(
+                    f"[daemon] {issue_id}: new commit detected "
+                    f"({stored_sha[:8]} → {current_sha[:8]}), "
+                    "re-entering review loop"
+                )
+                self._processed.discard(issue_id)
+                self._pr_commits[issue_id] = current_sha
+
+                try:
+                    issues = client.list_issues(
+                        team_key=self.config.team_key,
+                        filter_state="In Review",
+                    )
+                    for raw in issues:
+                        if raw.get("identifier") == issue_id:
+                            client.update_issue_state(
+                                raw["id"], self.config.consume_state,
+                            )
+                            print(f"[daemon] {issue_id} → {self.config.consume_state}")
+                            break
+                except Exception as exc:
+                    print(f"[daemon] {issue_id}: state reset failed: {exc}")
 
     def _is_locked(self, issue_id: str) -> bool:
         return (self._lockdir / f"{issue_id}.lock").exists()

@@ -227,9 +227,11 @@ def test_daemon_auto_create_pr(tmp_path: Path) -> None:
     mock_result.workspace = tmp_path
 
     with patch(
-        "spec_orch.services.github_pr_service.GitHubPRService"
+        "spec_orch.services.daemon.GitHubPRService"
     ) as MockGH:
         mock_gh = MockGH.return_value
+        mock_gh._current_branch.return_value = "feat/spc-20"
+        mock_gh.check_mergeable.return_value = {"mergeable": True, "conflicting_files": []}
         mock_gh.create_pr.return_value = "https://github.com/pr/99"
         daemon._auto_create_pr("SPC-20", mock_result)
         mock_gh.create_pr.assert_called_once()

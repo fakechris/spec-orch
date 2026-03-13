@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json as _json
 import subprocess
 from pathlib import Path
 
@@ -217,6 +218,86 @@ class GitHubPRService:
             return int(result.stdout.strip())
         except ValueError:
             return None
+
+    def list_open_prs(
+        self, workspace: Path, *, base: str = "main",
+    ) -> list[dict]:
+        """List open PRs created by SpecOrch (matching title prefix)."""
+        result = subprocess.run(
+            [
+                self.gh, "pr", "list",
+                "--state", "open",
+                "--base", base,
+                "--json", "number,title,headRefName,headRefOid",
+                "--search", "[SpecOrch]",
+            ],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return []
+        try:
+            return _json.loads(result.stdout)
+        except _json.JSONDecodeError:
+            return []
+
+    def check_mergeable(
+        self, workspace: Path, *, branch: str, base: str = "main",
+    ) -> dict:
+        """Dry-run merge to check for conflicts.
+
+        Returns {"mergeable": bool, "conflicting_files": list[str]}.
+        """
+        fetch = subprocess.run(
+            ["git", "fetch", "origin", base],
+            cwd=workspace, capture_output=True, text=True, check=False,
+        )
+        if fetch.returncode != 0:
+            return {"mergeable": False, "conflicting_files": ["git fetch failed"]}
+
+        merge_result = subprocess.run(
+            ["git", "merge-tree", f"origin/{base}", branch],
+            cwd=workspace, capture_output=True, text=True, check=False,
+        )
+
+        if merge_result.returncode == 0:
+            return {"mergeable": True, "conflicting_files": []}
+
+        conflicts: list[str] = []
+        for line in merge_result.stdout.splitlines():
+            if line.startswith("CONFLICT"):
+                conflicts.append(line)
+        return {"mergeable": False, "conflicting_files": conflicts}
+
+    def auto_rebase(
+        self, workspace: Path, *, base: str = "main",
+    ) -> bool:
+        """Attempt to rebase the current branch onto base. Returns True on success."""
+        fetch = subprocess.run(
+            ["git", "fetch", "origin", base],
+            cwd=workspace, capture_output=True, text=True, check=False,
+        )
+        if fetch.returncode != 0:
+            return False
+
+        rebase = subprocess.run(
+            ["git", "rebase", f"origin/{base}"],
+            cwd=workspace, capture_output=True, text=True, check=False,
+        )
+        if rebase.returncode != 0:
+            subprocess.run(
+                ["git", "rebase", "--abort"],
+                cwd=workspace, capture_output=True, text=True, check=False,
+            )
+            return False
+
+        push = subprocess.run(
+            ["git", "push", "--force-with-lease"],
+            cwd=workspace, capture_output=True, text=True, check=False,
+        )
+        return push.returncode == 0
 
     def _ensure_remote_branch(self, workspace: Path, branch: str) -> None:
         subprocess.run(
