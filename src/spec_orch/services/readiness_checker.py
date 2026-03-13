@@ -87,10 +87,9 @@ class ReadinessChecker:
         headings = {h.strip().lower() for h in _HEADING_RE.findall(description)}
         missing: list[str] = []
 
-        if "goal" not in headings:
-            goal_section = self._extract_section(description, "goal")
-            if not goal_section or not goal_section.strip():
-                missing.append("Goal")
+        goal_section = self._extract_section(description, "goal")
+        if not goal_section.strip():
+            missing.append("Goal")
 
         has_ac = (
             "acceptance criteria" in headings
@@ -151,7 +150,9 @@ class ReadinessChecker:
             f"Issue description:\n---\n{description}\n---"
         )
         try:
-            raw = self._planner.brainstorm(prompt)
+            raw = self._planner.brainstorm(
+                conversation_history=[{"role": "user", "content": prompt}],
+            )
             text = raw.strip() if isinstance(raw, str) else str(raw)
             if text.upper().startswith("READY"):
                 return ReadinessResult(ready=True)
@@ -166,5 +167,6 @@ class ReadinessChecker:
                 ready=False,
                 questions=questions,
             )
-        except Exception:
+        except Exception as exc:
+            print(f"[readiness_checker] LLM check failed, defaulting to ready: {exc}")
             return ReadinessResult(ready=True)

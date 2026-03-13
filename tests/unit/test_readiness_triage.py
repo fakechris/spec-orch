@@ -121,6 +121,25 @@ Do something important.
     assert "Files in Scope" in result.missing_fields
 
 
+def test_empty_goal_section_fails() -> None:
+    """Goal heading present but with no content should still fail."""
+    desc = """\
+## Goal
+
+## Acceptance Criteria
+
+- [ ] Something works
+
+## Files in Scope
+
+- `src/foo.py`
+"""
+    checker = ReadinessChecker()
+    result = checker.check(desc)
+    assert not result.ready
+    assert "Goal" in result.missing_fields
+
+
 def test_bullet_backtick_counts_as_files() -> None:
     """Backtick-quoted bullet items count as Files in Scope even without heading."""
     desc = """\
@@ -167,6 +186,9 @@ def test_llm_check_ready() -> None:
     checker = ReadinessChecker(planner=planner)
     result = checker.check(COMPLETE_DESCRIPTION)
     assert result.ready
+    planner.brainstorm.assert_called_once()
+    call_kwargs = planner.brainstorm.call_args[1]
+    assert "conversation_history" in call_kwargs
 
 
 def test_llm_check_questions() -> None:
@@ -269,7 +291,7 @@ def test_daemon_triage_passes_complete_issue(tmp_path: Path) -> None:
     client.add_label.assert_not_called()
 
 
-def test_daemon_triage_skips_already_triaged(tmp_path: Path) -> None:
+def test_daemon_triage_skips_already_triaged_without_reposting(tmp_path: Path) -> None:
     from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
 
     config = DaemonConfig({})
@@ -288,7 +310,8 @@ def test_daemon_triage_skips_already_triaged(tmp_path: Path) -> None:
     }
 
     result = daemon._triage_issue(client, raw_issue)
-    assert result is True
+    assert result is False
+    client.add_comment.assert_not_called()
 
 
 # ── Reply detection ──

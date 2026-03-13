@@ -105,7 +105,7 @@ skip_parents = true
 
 ### Poll Logic
 
-```
+```text
 0. Check needs-clarification issues for user replies:
    - If user replied → remove needs-clarification label → re-enter pool
 1. Query Linear: state=Ready, labels exclude blocked and

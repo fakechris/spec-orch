@@ -8,11 +8,18 @@ import pytest
 
 from spec_orch.domain.models import RunState
 from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
+from spec_orch.services.readiness_checker import ReadinessChecker
 
 _COMPLETE_DESC = (
     "## Goal\nDo something.\n\n## Acceptance Criteria\n"
     "- [ ] Done\n\n## Files in Scope\n- `src/x.py`\n"
 )
+
+
+def _init_checker(daemon: SpecOrchDaemon) -> None:
+    """Ensure daemon has a ReadinessChecker for tests that call _poll_and_run."""
+    if daemon._readiness_checker is None:
+        daemon._readiness_checker = ReadinessChecker()
 
 
 def test_daemon_config_from_toml(tmp_path: Path) -> None:
@@ -119,6 +126,7 @@ def test_daemon_poll_and_run_skips_locked(tmp_path: Path) -> None:
     mock_client.list_issues.return_value = [{"identifier": "SPC-10", "description": _COMPLETE_DESC}]
     mock_controller = MagicMock()
 
+    _init_checker(daemon)
     daemon._claim("SPC-10")
     daemon._poll_and_run(mock_client, mock_controller)
 
@@ -143,6 +151,7 @@ def test_daemon_poll_and_run_processes_new_issue(tmp_path: Path) -> None:
     mock_controller = MagicMock()
     mock_controller.advance_to_completion.return_value = mock_result
 
+    _init_checker(daemon)
     daemon._poll_and_run(mock_client, mock_controller)
 
     mock_controller.advance_to_completion.assert_called_once_with("SPC-11")
@@ -169,6 +178,7 @@ def test_daemon_poll_and_run_releases_non_terminal(tmp_path: Path) -> None:
     mock_controller = MagicMock()
     mock_controller.advance_to_completion.return_value = mock_result
 
+    _init_checker(daemon)
     daemon._poll_and_run(mock_client, mock_controller)
 
     mock_controller.advance_to_completion.assert_called_once_with("SPC-12")
@@ -194,6 +204,7 @@ def test_daemon_poll_and_run_marks_gate_evaluated_as_processed(tmp_path: Path) -
     mock_controller = MagicMock()
     mock_controller.advance_to_completion.return_value = mock_result
 
+    _init_checker(daemon)
     daemon._poll_and_run(mock_client, mock_controller)
 
     mock_controller.advance_to_completion.assert_called_once_with("SPC-13")

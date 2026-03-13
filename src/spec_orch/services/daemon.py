@@ -68,12 +68,9 @@ class SpecOrchDaemon:
         self._running = True
         self._processed: set[str] = set()
         self._triaged: set[str] = set()
+        self._readiness_checker: Any = None
         self._lockdir = repo_root / config.lockfile_dir
         self._lockdir.mkdir(parents=True, exist_ok=True)
-
-        from spec_orch.services.readiness_checker import ReadinessChecker
-
-        self._readiness_checker = ReadinessChecker()
 
     def run(self) -> None:
         signal.signal(signal.SIGINT, self._handle_signal)
@@ -86,10 +83,9 @@ class SpecOrchDaemon:
 
         planner = self._build_planner()
 
-        if planner:
-            from spec_orch.services.readiness_checker import ReadinessChecker
+        from spec_orch.services.readiness_checker import ReadinessChecker
 
-            self._readiness_checker = ReadinessChecker(planner=planner)
+        self._readiness_checker = ReadinessChecker(planner=planner)
 
         controller = RunController(
             repo_root=self.repo_root,
@@ -296,12 +292,12 @@ class SpecOrchDaemon:
         linear_uid = raw_issue.get("id", "")
         description = raw_issue.get("description", "") or ""
 
-        if issue_id in self._triaged:
-            return True
-
         result = self._readiness_checker.check(description)
         if result.ready:
             return True
+
+        if issue_id in self._triaged:
+            return False
 
         print(f"[daemon] {issue_id}: needs clarification ({result.missing_fields})")
 
@@ -346,7 +342,8 @@ class SpecOrchDaemon:
 
             try:
                 comments = client.list_comments(linear_uid)
-            except Exception:
+            except Exception as exc:
+                print(f"[daemon] {issue_id}: failed to list comments: {exc}")
                 continue
 
             bot_comment_idx = -1

@@ -17,6 +17,7 @@ from spec_orch.domain.models import (
 from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.promotion_service import PromotionService
+from spec_orch.services.readiness_checker import ReadinessChecker
 
 _COMPLETE_DESC = """\
 ## Goal
@@ -194,6 +195,7 @@ class TestDaemonExecutionQualification:
         })
         daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
         daemon._write_back = MagicMock()
+        daemon._readiness_checker = ReadinessChecker()
 
         mock_client = MagicMock()
         mock_client.list_issues.return_value = []
@@ -212,6 +214,7 @@ class TestDaemonExecutionQualification:
         cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
         daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
         daemon._write_back = MagicMock()
+        daemon._readiness_checker = ReadinessChecker()
 
         mock_client = MagicMock()
         mock_client.list_issues.return_value = [
@@ -236,6 +239,7 @@ class TestDaemonExecutionQualification:
         cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
         daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
         daemon._write_back = MagicMock()
+        daemon._readiness_checker = ReadinessChecker()
 
         mock_client = MagicMock()
         mock_client.list_issues.return_value = [
