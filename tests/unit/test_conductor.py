@@ -10,6 +10,7 @@ from spec_orch.services.conductor.types import (
     ConversationMode,
     FormalizationProposal,
     IntentCategory,
+    IntentSignal,
 )
 
 
@@ -62,26 +63,43 @@ class TestExploreMode:
 
 class TestCrystallization:
     def test_high_confidence_feature_proposes(self, conductor: Conductor):
+        """Pre-seed actionable intent history (simulating LLM-level confidence)
+        then send one more actionable message to trigger crystallization."""
         thread = _thread()
-        msgs = [
-            _msg("We need to implement a comprehensive authentication system for our application"),
-            _msg("The auth system should support OAuth2 and SAML for enterprise customers"),
-            _msg("We need to build a complete user management module with roles and permissions"),
+        state = conductor._get_or_create_state("t-1")
+        state.intent_history = [
+            IntentSignal(
+                category=IntentCategory.FEATURE,
+                confidence=0.8,
+                summary="Need auth module",
+                suggested_title="Add auth",
+            ),
+            IntentSignal(
+                category=IntentCategory.FEATURE,
+                confidence=0.75,
+                summary="OAuth2 support needed",
+                suggested_title="Add OAuth2",
+            ),
         ]
-        resp = None
-        for m in msgs:
-            thread.messages.append(m)
-            resp = conductor.process_message(m, thread)
-            if resp.action == "propose":
-                break
+        state.topic_anchors = ["auth module", "OAuth2 support"]
+        conductor._persist_state(state)
 
-        if resp and resp.action == "propose":
-            assert resp.proposal is not None
-            assert resp.conductor_message is not None
-            assert "@spec-orch approve" in resp.conductor_message
-            state = conductor.get_state("t-1")
-            assert state is not None
-            assert state.mode == ConversationMode.CRYSTALLIZE
+        msg = _msg("We need to build a complete user management module with roles and permissions")
+        thread.messages.append(msg)
+
+        # The rule-based classifier gives 0.55 confidence for features,
+        # below the 0.6 actionable threshold. Directly test _maybe_propose
+        # with an LLM-grade signal.
+        high_signal = IntentSignal(
+            category=IntentCategory.FEATURE,
+            confidence=0.85,
+            summary="User management with roles",
+            suggested_title="Add user management",
+        )
+        proposal = conductor._maybe_propose(state, high_signal)
+        assert proposal is not None, "Expected crystallization proposal"
+        assert proposal.proposal_type in ("issue", "epic")
+        assert proposal.title
 
     def test_low_confidence_does_not_propose(self, conductor: Conductor):
         msg = _msg("hmm yeah ok")
@@ -141,7 +159,7 @@ class TestDriftDetection:
         state = conductor.get_state("t-1")
         assert state is not None
         drift_signals = [s for s in state.intent_history if s.category == IntentCategory.DRIFT]
-        assert len(drift_signals) >= 0  # drift detection is heuristic
+        assert len(drift_signals) > 0, "Expected drift to be detected for unrelated topic"
 
     def test_no_drift_on_related_topic(self, conductor: Conductor):
         thread = _thread()
@@ -161,6 +179,13 @@ class TestStatePersistence:
         state = c1._get_or_create_state("persist-test")
         state.mode = ConversationMode.CRYSTALLIZE
         state.formalized_issues = ["SON-99"]
+        state.pending_proposal = FormalizationProposal(
+            proposal_type="issue",
+            title="Test proposal persistence",
+            description="Ensure proposals survive restarts",
+            intent_category=IntentCategory.FEATURE,
+            confidence=0.9,
+        )
         c1._persist_state(state)
 
         c2 = Conductor(repo_root=tmp_path)
@@ -168,3 +193,18 @@ class TestStatePersistence:
         assert loaded is not None
         assert loaded.mode == ConversationMode.CRYSTALLIZE
         assert loaded.formalized_issues == ["SON-99"]
+        assert loaded.pending_proposal is not None
+        assert loaded.pending_proposal.title == "Test proposal persistence"
+        assert loaded.pending_proposal.intent_category == IntentCategory.FEATURE
+        assert loaded.pending_proposal.confidence == 0.9
+
+    def test_state_without_proposal_loads_cleanly(self, tmp_path: Path):
+        c1 = Conductor(repo_root=tmp_path)
+        state = c1._get_or_create_state("no-proposal")
+        state.mode = ConversationMode.EXPLORE
+        c1._persist_state(state)
+
+        c2 = Conductor(repo_root=tmp_path)
+        loaded = c2.get_state("no-proposal")
+        assert loaded is not None
+        assert loaded.pending_proposal is None

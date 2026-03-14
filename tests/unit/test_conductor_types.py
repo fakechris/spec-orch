@@ -72,6 +72,31 @@ class TestConductorState:
         assert restored.intent_history[0].category == IntentCategory.FEATURE
         assert restored.topic_anchors == ["auth", "login"]
         assert restored.formalized_issues == ["SON-10"]
+        assert restored.pending_proposal is None
+
+    def test_roundtrip_with_pending_proposal(self):
+        proposal = FormalizationProposal(
+            proposal_type="epic",
+            title="Refactor auth",
+            description="Full auth overhaul",
+            intent_category=IntentCategory.FEATURE,
+            confidence=0.92,
+        )
+        state = ConductorState(
+            thread_id="t-2",
+            mode=ConversationMode.CRYSTALLIZE,
+            pending_proposal=proposal,
+        )
+        d = state.to_dict()
+        assert "pending_proposal" in d
+        assert d["pending_proposal"]["title"] == "Refactor auth"
+
+        restored = ConductorState.from_dict(d)
+        assert restored.pending_proposal is not None
+        assert restored.pending_proposal.title == "Refactor auth"
+        assert restored.pending_proposal.proposal_type == "epic"
+        assert restored.pending_proposal.intent_category == IntentCategory.FEATURE
+        assert restored.pending_proposal.confidence == 0.92
 
 
 class TestFormalizationProposal:

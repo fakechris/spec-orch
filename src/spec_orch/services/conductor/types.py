@@ -27,7 +27,6 @@ class IntentCategory(StrEnum):
     DRIFT = "drift"
 
 
-# Categories that signal actionable work (triggers crystallization consideration)
 ACTIONABLE_INTENTS = frozenset(
     {
         IntentCategory.QUICK_FIX,
@@ -35,6 +34,8 @@ ACTIONABLE_INTENTS = frozenset(
         IntentCategory.BUG,
     }
 )
+
+ACTIONABLE_CONFIDENCE_THRESHOLD = 0.6
 
 
 @dataclass
@@ -48,7 +49,10 @@ class IntentSignal:
     reasoning: str = ""
 
     def is_actionable(self) -> bool:
-        return self.category in ACTIONABLE_INTENTS and self.confidence >= 0.6
+        return (
+            self.category in ACTIONABLE_INTENTS
+            and self.confidence >= ACTIONABLE_CONFIDENCE_THRESHOLD
+        )
 
 
 @dataclass
@@ -68,7 +72,7 @@ class ConductorState:
     updated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result: dict[str, Any] = {
             "thread_id": self.thread_id,
             "mode": self.mode.value,
             "intent_history": [
@@ -84,6 +88,15 @@ class ConductorState:
             "formalized_issues": self.formalized_issues,
             "updated_at": self.updated_at,
         }
+        if self.pending_proposal is not None:
+            result["pending_proposal"] = {
+                "proposal_type": self.pending_proposal.proposal_type,
+                "title": self.pending_proposal.title,
+                "description": self.pending_proposal.description,
+                "intent_category": self.pending_proposal.intent_category.value,
+                "confidence": self.pending_proposal.confidence,
+            }
+        return result
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ConductorState:
@@ -96,11 +109,22 @@ class ConductorState:
             )
             for s in data.get("intent_history", [])
         ]
+        proposal: FormalizationProposal | None = None
+        raw_proposal = data.get("pending_proposal")
+        if raw_proposal is not None:
+            proposal = FormalizationProposal(
+                proposal_type=raw_proposal["proposal_type"],
+                title=raw_proposal["title"],
+                description=raw_proposal.get("description", ""),
+                intent_category=IntentCategory(raw_proposal.get("intent_category", "feature")),
+                confidence=raw_proposal.get("confidence", 0.5),
+            )
         return cls(
             thread_id=data["thread_id"],
             mode=ConversationMode(data.get("mode", "explore")),
             intent_history=signals,
             topic_anchors=data.get("topic_anchors", []),
+            pending_proposal=proposal,
             formalized_issues=data.get("formalized_issues", []),
             updated_at=data.get("updated_at", datetime.now(UTC).isoformat()),
         )

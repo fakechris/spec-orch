@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from spec_orch.domain.models import ConversationMessage, ConversationThread
 from spec_orch.services.conductor.intent_classifier import classify_intent
@@ -33,7 +34,8 @@ logger = logging.getLogger(__name__)
 
 _STATE_DIR = ".spec_orch_conductor"
 _CRYSTALLIZE_THRESHOLD = 3
-_APPROVE_RE_PATTERN = r"@?spec[_-]?orch\s+approve"
+APPROVE_RE_PATTERN = r"@?spec[_-]?orch\s+approve"
+_DRIFT_JACCARD_THRESHOLD = 0.15
 
 
 class Conductor:
@@ -70,12 +72,9 @@ class Conductor:
         Returns a ``ConductorResponse`` telling the caller what to do:
         pass-through to brainstorm, present a proposal, or execute.
         """
-        import re
-
         state = self._get_or_create_state(msg.thread_id)
 
-        # Check for approval command
-        if re.search(_APPROVE_RE_PATTERN, msg.content, re.IGNORECASE):
+        if re.search(APPROVE_RE_PATTERN, msg.content, re.IGNORECASE):
             return self._handle_approve(state, thread)
 
         # Classify intent
@@ -180,17 +179,24 @@ class Conductor:
                 mission = svc.create_mission(proposal.title)
                 state.formalized_issues.append(mission.mission_id)
                 spec_path = self._repo_root / mission.spec_path
-                spec_path.write_text(
-                    f"# {proposal.title}\n\n{proposal.description}\n",
-                    encoding="utf-8",
-                )
+                existing = spec_path.read_text(encoding="utf-8") if spec_path.exists() else ""
+                if existing.strip():
+                    spec_path.write_text(
+                        existing.rstrip() + f"\n\n## Description\n\n{proposal.description}\n",
+                        encoding="utf-8",
+                    )
+                else:
+                    spec_path.write_text(
+                        f"# {proposal.title}\n\n{proposal.description}\n",
+                        encoding="utf-8",
+                    )
                 return (
                     f"Epic created as Mission **{mission.mission_id}**.\n"
                     f"Spec: `{mission.spec_path}`\n"
                     f"Run `spec-orch mission approve {mission.mission_id}` to start planning."
                 )
-            except Exception:
-                logger.warning("Failed to create mission, falling back", exc_info=True)
+            except (ImportError, OSError, ValueError) as exc:
+                logger.warning("Failed to create mission, falling back: %s", exc)
 
         issue_id = f"conductor-{uuid.uuid4().hex[:8]}"
         state.formalized_issues.append(issue_id)
@@ -261,7 +267,7 @@ class Conductor:
         if not all_words:
             return False
         jaccard = len(shared_words) / len(all_words)
-        return jaccard < 0.15
+        return jaccard < _DRIFT_JACCARD_THRESHOLD
 
     def _record_to_memory(
         self,
@@ -334,18 +340,21 @@ class Conductor:
             return ConductorState(thread_id=path.stem)
 
 
+ConductorAction = Literal["passthrough", "propose", "formalized"]
+
+
 class ConductorResponse:
     """What the Conductor tells the caller to do after processing a message."""
 
     def __init__(
         self,
         *,
-        action: str,
+        action: ConductorAction,
         intent: IntentSignal | None = None,
         proposal: FormalizationProposal | None = None,
         conductor_message: str | None = None,
     ) -> None:
-        self.action = action  # "passthrough" | "propose" | "formalized"
+        self.action = action
         self.intent = intent
         self.proposal = proposal
         self.conductor_message = conductor_message

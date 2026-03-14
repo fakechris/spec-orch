@@ -26,7 +26,6 @@ _COMMAND_RE = re.compile(
     r"(freeze|status|mission\s+create\s+.+)",
     re.IGNORECASE,
 )
-_APPROVE_RE = re.compile(r"@?spec[_-]?orch\s+approve", re.IGNORECASE)
 
 
 class ConversationService:
@@ -71,12 +70,15 @@ class ConversationService:
         self._persist_thread(thread)
 
         # Route approve to Conductor before legacy command handling
-        if self._conductor is not None and _APPROVE_RE.search(msg.content):
-            response = self._conductor.process_message(msg, thread)
-            result: str = response.conductor_message or "Nothing to approve."
-            if response.action == "formalized":
-                self._emit_conductor_event("formalized", thread.thread_id, response.intent)
-            return result
+        if self._conductor is not None:
+            from spec_orch.services.conductor.conductor import APPROVE_RE_PATTERN
+
+            if re.search(APPROVE_RE_PATTERN, msg.content, re.IGNORECASE):
+                response = self._conductor.process_message(msg, thread)
+                result: str = response.conductor_message or "Nothing to approve."
+                if response.action == "formalized":
+                    self._emit_conductor_event("formalized", thread.thread_id, response.intent)
+                return result
 
         cmd_match = _COMMAND_RE.search(msg.content)
         if cmd_match:
@@ -85,24 +87,20 @@ class ConversationService:
         # Run through Conductor for intent analysis
         if self._conductor is not None:
             response = self._conductor.process_message(msg, thread)
-            if response.action == "propose":
-                self._emit_conductor_event(
-                    "crystallize",
-                    thread.thread_id,
-                    response.intent,
-                )
-                brainstorm = self._brainstorm_reply(thread)
-                return f"{brainstorm}\n\n---\n\n{response.conductor_message}"
-            if response.action == "formalized":
-                self._emit_conductor_event(
-                    "formalized",
-                    thread.thread_id,
-                    response.intent,
-                )
-                formalised_msg: str = response.conductor_message or ""
-                return formalised_msg
+            if response.action in ("propose", "formalized"):
+                return self._handle_conductor_response(response, thread)
 
         return self._brainstorm_reply(thread)
+
+    def _handle_conductor_response(self, response: Any, thread: ConversationThread) -> str:
+        """Consolidate Conductor propose/formalized handling."""
+        if response.action == "propose":
+            self._emit_conductor_event("crystallize", thread.thread_id, response.intent)
+            brainstorm = self._brainstorm_reply(thread)
+            return f"{brainstorm}\n\n---\n\n{response.conductor_message}"
+        self._emit_conductor_event("formalized", thread.thread_id, response.intent)
+        msg_text: str = response.conductor_message or ""
+        return msg_text
 
     def _emit_conductor_event(
         self,
@@ -118,7 +116,8 @@ class ConversationService:
                 "thread_id": thread_id,
             }
             if intent is not None:
-                payload["intent_category"] = getattr(intent, "category", "unknown")
+                cat = getattr(intent, "category", "unknown")
+                payload["intent_category"] = cat.value if hasattr(cat, "value") else str(cat)
                 payload["confidence"] = getattr(intent, "confidence", 0)
             get_event_bus().publish(
                 Event(
