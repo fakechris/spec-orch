@@ -15,6 +15,7 @@ from typing import IO, Any
 from uuid import uuid4
 
 import typer
+import yaml
 
 from spec_orch.domain.models import Decision, Finding, Question, RunState
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
@@ -48,6 +49,8 @@ discuss_app = typer.Typer()
 app.add_typer(discuss_app, name="discuss")
 evidence_app = typer.Typer(help="Evidence analysis commands.")
 app.add_typer(evidence_app, name="evidence")
+harness_app = typer.Typer(help="Harness synthesis and rule management commands.")
+app.add_typer(harness_app, name="harness")
 
 
 def _resolve_version() -> str:
@@ -2261,6 +2264,112 @@ def evidence_summary(
     analyzer = EvidenceAnalyzer(repo_root)
     summary = analyzer.analyze()
     typer.echo(analyzer.format_summary(summary))
+
+
+@harness_app.command("synthesize")
+def harness_synthesize(
+    last_n: int = typer.Option(20, "--last-n", "-n", help="Number of recent runs to analyse."),
+    output: Path | None = typer.Option(
+        None, "--output", "-o", help="Write candidates YAML to file."
+    ),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Synthesize candidate compliance rules from recent failure patterns."""
+    from spec_orch.services.harness_synthesizer import HarnessSynthesizer
+
+    planner = _build_planner_from_toml(repo_root)
+
+    synth = HarnessSynthesizer(repo_root, planner=planner)
+    candidates = synth.synthesize(last_n=last_n)
+
+    if not candidates:
+        typer.echo("No candidate rules generated.")
+        return
+
+    yaml_str = synth.format_candidates_yaml(candidates)
+    typer.echo(yaml_str)
+
+    if output:
+        output.write_text(yaml_str)
+        typer.echo(f"Candidates written to {output}")
+
+
+def _load_candidate_rules(input_file: Path) -> list[Any]:
+    """Load CandidateRule objects from a YAML file."""
+    from spec_orch.services.harness_synthesizer import CandidateRule
+
+    raw = yaml.safe_load(input_file.read_text())
+    if not isinstance(raw, dict) or not isinstance(raw.get("contracts"), list):
+        typer.echo("No valid contracts list found in input file.", err=True)
+        raise typer.Exit(1)
+
+    candidates: list[CandidateRule] = []
+    for c in raw["contracts"]:
+        if not isinstance(c, dict) or "id" not in c or "name" not in c:
+            typer.echo(f"Skipping malformed entry: {c!r}", err=True)
+            continue
+        candidates.append(
+            CandidateRule(
+                id=c["id"],
+                name=c["name"],
+                description=c.get("description", ""),
+                severity=c.get("severity", "warning"),
+                patterns=c.get("patterns", []),
+                check_fields=c.get("check_fields", ["text"]),
+            )
+        )
+    return candidates
+
+
+@harness_app.command("validate")
+def harness_validate(
+    input_file: Path = typer.Option(..., "--input", "-i", help="Path to candidates YAML file."),
+    threshold: float = typer.Option(0.1, "--threshold", "-t", help="Max false positive rate."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Validate candidate rules from a YAML file against historical data."""
+    from spec_orch.services.harness_synthesizer import RuleValidator
+
+    candidates = _load_candidate_rules(input_file)
+    validator = RuleValidator(repo_root)
+    accepted, rejected = validator.validate(candidates, max_false_positive_rate=threshold)
+
+    if accepted:
+        typer.echo(f"Accepted ({len(accepted)}):")
+        for r in accepted:
+            typer.echo(f"  [{r.severity}] {r.id}: {r.name}")
+    if rejected:
+        typer.echo(f"Rejected ({len(rejected)}):")
+        for r in rejected:
+            typer.echo(f"  [{r.severity}] {r.id}: {r.name}")
+
+    if not accepted and not rejected:
+        typer.echo("No candidates to validate.")
+
+
+@harness_app.command("apply")
+def harness_apply(
+    input_file: Path = typer.Option(..., "--input", "-i", help="Path to candidates YAML file."),
+    contracts: Path = typer.Option(
+        "compliance.contracts.yaml", "--contracts", "-c", help="Path to contracts YAML."
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without modifying."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Apply validated rules to compliance.contracts.yaml."""
+    from spec_orch.services.harness_synthesizer import RuleValidator
+
+    candidates = _load_candidate_rules(input_file)
+
+    validator = RuleValidator(repo_root)
+    accepted, rejected = validator.validate(candidates)
+    if rejected:
+        typer.echo(f"Skipping {len(rejected)} invalid rule(s):", err=True)
+        for r in rejected:
+            typer.echo(f"  {r.id}: {r.name}", err=True)
+
+    summary = validator.apply(accepted, contracts, dry_run=dry_run)
+    typer.echo(summary)
 
 
 def main() -> None:
