@@ -128,6 +128,37 @@ def dashboard(
     uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
+@app.command("tui")
+def tui(
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8420, "--port", "-p"),
+) -> None:
+    """Launch the rich terminal UI (requires Node.js)."""
+    import shutil
+    import subprocess
+
+    tui_dir = Path(__file__).resolve().parent.parent.parent / "packages" / "tui"
+    npx = shutil.which("npx")
+
+    if tui_dir.exists() and (tui_dir / "dist" / "index.js").exists():
+        node = shutil.which("node")
+        if not node:
+            typer.echo("Node.js not found. Install it to use the TUI.")
+            raise typer.Exit(1)
+        subprocess.run(
+            [node, str(tui_dir / "dist" / "index.js"), "--host", host, "--port", str(port)],
+            check=False,
+        )
+    elif npx:
+        subprocess.run(
+            [npx, "@spec-orch/tui", "--host", host, "--port", str(port)],
+            check=False,
+        )
+    else:
+        typer.echo("TUI not found. Build with: cd packages/tui && npm install && npm run build")
+        raise typer.Exit(1)
+
+
 @app.command("plan-to-spec")
 def plan_to_spec(
     plan_path: Path = typer.Argument(..., help="Path to the plan markdown file."),
