@@ -70,6 +70,7 @@ class LiteLLMScoperAdapter:
         temperature: float = 0.3,
         token_command: str | None = None,
         evidence_context: str | None = None,
+        scoper_hints: str | None = None,
     ) -> None:
         if api_type not in self.VALID_API_TYPES:
             raise ValueError(f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}")
@@ -83,6 +84,7 @@ class LiteLLMScoperAdapter:
         self.temperature = temperature
         self._token_command = token_command
         self._evidence_context = evidence_context
+        self._scoper_hints = scoper_hints
 
     @property
     def api_key(self) -> str | None:
@@ -124,6 +126,11 @@ class LiteLLMScoperAdapter:
                 "your decomposition decisions (e.g. isolate files that "
                 "frequently cause deviations, allocate extra waves for "
                 "areas with high failure rates):\n\n" + self._evidence_context
+            )
+        if self._scoper_hints:
+            system_prompt += (
+                "\n\nFollow these learned planning hints from historical "
+                "analysis:\n\n" + self._scoper_hints
             )
 
         kwargs: dict[str, Any] = {
