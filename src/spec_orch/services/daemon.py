@@ -82,6 +82,16 @@ class SpecOrchDaemon:
         self._last_poll: str = saved.get("last_poll", "")
         self._pr_commits: dict[str, str] = dict(saved.get("pr_commits", {}))
 
+        from spec_orch.services.event_bus import get_event_bus
+
+        self._event_bus = get_event_bus()
+
+        from spec_orch.services.lifecycle_manager import MissionLifecycleManager
+
+        self._lifecycle_manager = MissionLifecycleManager(
+            repo_root=repo_root, event_bus=self._event_bus
+        )
+
     def _load_state(self) -> dict[str, Any]:
         if self._state_path.exists():
             try:
@@ -137,6 +147,7 @@ class SpecOrchDaemon:
             print(f"[daemon] planner: {planner.ADAPTER_NAME}")
         try:
             while self._running:
+                self._tick_missions()
                 self._check_clarification_replies(client)
                 self._check_review_updates(client)
                 self._poll_and_run(client, controller)
@@ -180,6 +191,42 @@ class SpecOrchDaemon:
         except ImportError:
             print("[daemon] litellm not installed, planner disabled")
             return None
+
+    def _tick_missions(self) -> None:
+        """Advance mission lifecycles on each daemon tick."""
+        try:
+            from spec_orch.services.mission_service import MissionService
+
+            ms = MissionService(self.repo_root)
+            missions = ms.list_missions()
+        except Exception as exc:
+            print(f"[daemon] mission tick error: {exc}")
+            return
+
+        for mission in missions:
+            if mission.status.value not in ("approved", "in_progress"):
+                continue
+
+            state = self._lifecycle_manager.get_state(mission.mission_id)
+            if state is None:
+                print(f"[daemon] tracking mission {mission.mission_id}")
+                self._lifecycle_manager.begin_tracking(mission.mission_id)
+
+            try:
+                self._lifecycle_manager.auto_advance(mission.mission_id)
+            except Exception as exc:
+                print(f"[daemon] mission {mission.mission_id} advance error: {exc}")
+
+    def _find_mission_for_issue(self, issue_id: str) -> str | None:
+        """Return the mission_id that owns *issue_id*, if any."""
+        for mid, state in self._lifecycle_manager.all_states().items():
+            if issue_id in state.issue_ids and issue_id not in state.completed_issues:
+                return mid
+        return None
+
+    def handle_btw(self, issue_id: str, message: str, channel: str) -> bool:
+        """Inject /btw context into a running issue via the lifecycle manager."""
+        return self._lifecycle_manager.inject_btw(issue_id, message, channel)
 
     def _poll_and_run(self, client: LinearClient, controller: RunController) -> None:
         try:
@@ -275,6 +322,7 @@ class SpecOrchDaemon:
         """Execute a single issue through the standard pipeline."""
         linear_uid = raw_issue.get("id", "")
         print(f"[daemon] processing {issue_id} (single issue pipeline)")
+        self._event_bus.emit_issue_state(issue_id, "building")
         try:
             result = controller.advance_to_completion(issue_id)
             state = result.state
@@ -284,6 +332,11 @@ class SpecOrchDaemon:
                 f"[daemon] {issue_id}: state={state.value} mergeable={mergeable} blocked={blocked}"
             )
             if state in TERMINAL_STATES or state == RunState.GATE_EVALUATED:
+                self._event_bus.emit_issue_state(issue_id, "completed", mergeable=mergeable)
+                mission_id = self._find_mission_for_issue(issue_id)
+                if mission_id:
+                    self._lifecycle_manager.mark_issue_done(mission_id, issue_id)
+
                 self._notify(issue_id, mergeable)
                 pr_created = self._auto_create_pr(issue_id, result)
 
@@ -319,6 +372,7 @@ class SpecOrchDaemon:
 
         linear_uid = raw_issue.get("id", "")
         print(f"[daemon] processing {issue_id} (mission: {mission_id})")
+        self._event_bus.emit_issue_state(issue_id, "building")
 
         try:
             plan = ParallelRunController.load_plan(mission_id, self.repo_root)
@@ -363,6 +417,7 @@ class SpecOrchDaemon:
                     print(f"[daemon] summary comment failed: {exc}")
 
             if plan_result.is_success():
+                self._event_bus.emit_issue_state(issue_id, "completed", mergeable=True)
                 print(f"[daemon] {issue_id}: mission succeeded")
                 if linear_uid:
                     try:
@@ -371,6 +426,7 @@ class SpecOrchDaemon:
                         print(f"[daemon] state update failed: {exc}")
                 self._processed.add(issue_id)
             else:
+                self._event_bus.emit_issue_state(issue_id, "completed", mergeable=False)
                 print(f"[daemon] {issue_id}: mission failed")
                 if linear_uid:
                     try:

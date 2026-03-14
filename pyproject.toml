@@ -87,6 +87,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 "src/spec_orch/cli.py" = ["B008"]
 "src/spec_orch/services/_archived/*.py" = ["E501", "SIM102"]
 "src/spec_orch/services/codex_exec_builder_adapter.py" = ["E501"]
+"src/spec_orch/dashboard.py" = ["E501"]
 "tests/**" = ["E501"]
 
 [tool.mypy]
