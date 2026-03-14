@@ -46,6 +46,8 @@ mission_app = typer.Typer()
 app.add_typer(mission_app, name="mission")
 discuss_app = typer.Typer()
 app.add_typer(discuss_app, name="discuss")
+evidence_app = typer.Typer(help="Evidence analysis commands.")
+app.add_typer(evidence_app, name="evidence")
 
 
 def _resolve_version() -> str:
@@ -1659,12 +1661,25 @@ def plan_mission(
             tree_lines.append(str(p.relative_to(repo_root)))
 
     planner_cfg = _load_planner_config(Path(repo_root))
+
+    evidence_ctx: str | None = None
+    try:
+        from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
+
+        analyzer = EvidenceAnalyzer(Path(repo_root))
+        summary = analyzer.analyze()
+        if summary.total_runs > 0:
+            evidence_ctx = analyzer.format_as_llm_context(summary)
+    except (OSError, ValueError) as exc:
+        typer.echo(f"[plan] evidence analysis skipped: {exc}", err=True)
+
     scoper = LiteLLMScoperAdapter(
         model=planner_cfg.get("model", "claude-sonnet-4-20250514"),
         api_type=planner_cfg.get("api_type", "anthropic"),
         api_key=planner_cfg.get("api_key"),
         api_base=planner_cfg.get("api_base"),
         token_command=planner_cfg.get("token_command"),
+        evidence_context=evidence_ctx,
     )
 
     plan = scoper.scope(
@@ -2234,6 +2249,18 @@ def discuss_freeze(
     result = svc.handle_message(msg)
     if result:
         typer.echo(result)
+
+
+@evidence_app.command("summary")
+def evidence_summary(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Show aggregate pattern summary from historical run data."""
+    from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
+
+    analyzer = EvidenceAnalyzer(repo_root)
+    summary = analyzer.analyze()
+    typer.echo(analyzer.format_summary(summary))
 
 
 def main() -> None:

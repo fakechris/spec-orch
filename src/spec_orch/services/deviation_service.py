@@ -65,6 +65,29 @@ def _get_changed_files(workspace: Path) -> list[str]:
     return []
 
 
+def overwrite_deviations(workspace: Path, deviations: list[SpecDeviation]) -> Path:
+    """Write deviations to the workspace, replacing any previous content."""
+    path = workspace / "deviations.jsonl"
+    with path.open("w") as f:
+        for d in deviations:
+            f.write(
+                json.dumps(
+                    {
+                        "deviation_id": d.deviation_id,
+                        "issue_id": d.issue_id,
+                        "mission_id": d.mission_id,
+                        "description": d.description,
+                        "severity": d.severity,
+                        "resolution": d.resolution,
+                        "detected_by": d.detected_by,
+                        "file_path": d.file_path,
+                    }
+                )
+                + "\n"
+            )
+    return path
+
+
 def write_deviations(workspace: Path, deviations: list[SpecDeviation]) -> Path:
     """Append deviations to the workspace's deviations.jsonl."""
     path = workspace / "deviations.jsonl"

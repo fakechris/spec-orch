@@ -69,6 +69,7 @@ class LiteLLMScoperAdapter:
         api_base: str | None = None,
         temperature: float = 0.3,
         token_command: str | None = None,
+        evidence_context: str | None = None,
     ) -> None:
         if api_type not in self.VALID_API_TYPES:
             raise ValueError(f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}")
@@ -81,6 +82,7 @@ class LiteLLMScoperAdapter:
         self.api_base = api_base or os.environ.get("SPEC_ORCH_LLM_API_BASE")
         self.temperature = temperature
         self._token_command = token_command
+        self._evidence_context = evidence_context
 
     @property
     def api_key(self) -> str | None:
@@ -115,10 +117,19 @@ class LiteLLMScoperAdapter:
             + f"\n\n### Codebase Structure\n```\n{file_tree}\n```"
         )
 
+        system_prompt = _SCOPER_SYSTEM_PROMPT
+        if self._evidence_context:
+            system_prompt += (
+                "\n\nUse the following historical evidence to inform "
+                "your decomposition decisions (e.g. isolate files that "
+                "frequently cause deviations, allocate extra waves for "
+                "areas with high failure rates):\n\n" + self._evidence_context
+            )
+
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": _SCOPER_SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_msg},
             ],
             "temperature": self.temperature,

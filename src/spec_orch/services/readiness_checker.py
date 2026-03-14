@@ -58,8 +58,14 @@ _BULLET_RE = re.compile(r"^-\s+`[^`]+`", re.MULTILINE)
 class ReadinessChecker:
     """Check whether an issue description meets minimum completeness."""
 
-    def __init__(self, *, planner: Any | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        planner: Any | None = None,
+        evidence_context: str | None = None,
+    ) -> None:
         self._planner = planner
+        self._evidence_context = evidence_context
 
     def check(self, description: str | None) -> ReadinessResult:
         """Run rule-based checks, optionally followed by LLM assessment."""
@@ -135,6 +141,15 @@ class ReadinessChecker:
 
     def _llm_check(self, description: str) -> ReadinessResult:
         """Use the planner LLM to assess description completeness."""
+        evidence_block = ""
+        if self._evidence_context:
+            evidence_block = (
+                "\n\nUse the following historical evidence to calibrate "
+                "your assessment. For example, issues in areas with high "
+                "failure rates may need more explicit acceptance criteria "
+                "or scope constraints:\n\n" + self._evidence_context + "\n\n"
+            )
+
         prompt = (
             "You are a triage assistant. Evaluate whether the following issue "
             "description is clear and complete enough for an AI coding agent "
@@ -144,7 +159,8 @@ class ReadinessChecker:
             "2. Acceptance criteria (how to verify success)\n"
             "3. Scope (which files or areas are affected)\n"
             "4. Any ambiguities that would block execution\n\n"
-            "If the description is sufficient, respond with exactly: READY\n"
+            + evidence_block
+            + "If the description is sufficient, respond with exactly: READY\n"
             "If not, respond with a numbered list of specific questions "
             "the agent needs answered before it can proceed.\n\n"
             f"Issue description:\n---\n{description}\n---"

@@ -113,9 +113,16 @@ class SpecOrchDaemon:
 
         planner = self._build_planner()
 
+        from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
+
+        self._evidence_analyzer = EvidenceAnalyzer(self.repo_root)
+
         from spec_orch.services.readiness_checker import ReadinessChecker
 
-        self._readiness_checker = ReadinessChecker(planner=planner)
+        self._readiness_checker = ReadinessChecker(
+            planner=planner,
+            evidence_context=self._get_evidence_context(),
+        )
 
         controller = RunController(
             repo_root=self.repo_root,
@@ -637,6 +644,16 @@ class SpecOrchDaemon:
             if not self._running:
                 break
             time.sleep(1)
+
+    def _get_evidence_context(self) -> str | None:
+        """Build LLM context from historical evidence, refreshed each call."""
+        try:
+            summary = self._evidence_analyzer.analyze()
+            if summary.total_runs > 0:
+                return self._evidence_analyzer.format_as_llm_context(summary)
+        except (OSError, ValueError) as exc:
+            print(f"[daemon] evidence analysis skipped: {exc}")
+        return None
 
     def _handle_signal(self, signum: int, _frame: Any) -> None:
         print(f"\n[daemon] received signal {signum}, shutting down gracefully...")
