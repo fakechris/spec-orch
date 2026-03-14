@@ -2693,6 +2693,115 @@ def prompt_auto_promote(
         typer.echo(f"Active variant is now: {active.variant_id}")
 
 
+# ---------------------------------------------------------------------------
+# Memory commands
+# ---------------------------------------------------------------------------
+
+memory_app = typer.Typer(help="Memory subsystem — unified knowledge store.")
+app.add_typer(memory_app, name="memory")
+
+
+@memory_app.command("list")
+def memory_list(
+    layer: str = typer.Option("", help="Filter by layer (working/episodic/semantic/procedural)"),
+    tag: str = typer.Option("", help="Filter by tag"),
+    limit: int = typer.Option(50, help="Max entries to show"),
+    repo_root: str = typer.Option(".", help="Repository root"),
+) -> None:
+    """List memory entry keys."""
+    from spec_orch.services.memory.service import get_memory_service
+
+    svc = get_memory_service(repo_root=Path(repo_root).resolve())
+    tag_list = [tag] if tag else None
+    summaries = svc.list_summaries(layer=layer or None, tags=tag_list, limit=limit)
+    if not summaries:
+        typer.echo("No entries found.")
+        return
+    for s in summaries:
+        tags_str = ", ".join(s.get("tags", [])) or "-"
+        typer.echo(f"  [{s['layer']:11s}] {s['key']}  ({tags_str})")
+
+
+@memory_app.command("show")
+def memory_show(
+    key: str = typer.Argument(..., help="Entry key to display"),
+    repo_root: str = typer.Option(".", help="Repository root"),
+) -> None:
+    """Display a single memory entry."""
+    from spec_orch.services.memory.service import get_memory_service
+
+    svc = get_memory_service(repo_root=Path(repo_root).resolve())
+    entry = svc.get(key)
+    if entry is None:
+        typer.echo(f"Entry '{key}' not found.", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"Key:       {entry.key}")
+    typer.echo(f"Layer:     {entry.layer.value}")
+    typer.echo(f"Tags:      {', '.join(entry.tags) or '-'}")
+    typer.echo(f"Created:   {entry.created_at}")
+    typer.echo(f"Updated:   {entry.updated_at}")
+    if entry.metadata:
+        typer.echo(f"Metadata:  {entry.metadata}")
+    typer.echo(f"\n{entry.content}")
+
+
+@memory_app.command("search")
+def memory_search(
+    query: str = typer.Argument(..., help="Search text"),
+    layer: str = typer.Option("", help="Filter by layer"),
+    limit: int = typer.Option(10, help="Max results"),
+    repo_root: str = typer.Option(".", help="Repository root"),
+) -> None:
+    """Search memory entries by keyword."""
+    from spec_orch.services.memory.service import get_memory_service
+    from spec_orch.services.memory.types import MemoryLayer, MemoryQuery
+
+    svc = get_memory_service(repo_root=Path(repo_root).resolve())
+    q = MemoryQuery(text=query, top_k=limit)
+    if layer:
+        q.layer = MemoryLayer(layer)
+    results = svc.recall(q)
+    if not results:
+        typer.echo("No results.")
+        return
+    for entry in results:
+        snippet = entry.content[:120].replace("\n", " ")
+        typer.echo(f"  [{entry.layer.value:11s}] {entry.key}")
+        typer.echo(f"    {snippet}{'…' if len(entry.content) > 120 else ''}")
+
+
+@memory_app.command("import")
+def memory_import(
+    repo_root: str = typer.Option(".", help="Repository root"),
+) -> None:
+    """Import existing implicit memory (prompt history, hints, reports, policies)."""
+    from spec_orch.services.memory.migration import import_all
+    from spec_orch.services.memory.service import get_memory_service
+
+    root = Path(repo_root).resolve()
+    svc = get_memory_service(repo_root=root)
+    counts = import_all(svc.provider, root)
+    total = sum(counts.values())
+    typer.echo(f"Imported {total} entries:")
+    for cat, n in counts.items():
+        typer.echo(f"  {cat}: {n}")
+
+
+@memory_app.command("forget")
+def memory_forget(
+    key: str = typer.Argument(..., help="Entry key to delete"),
+    repo_root: str = typer.Option(".", help="Repository root"),
+) -> None:
+    """Delete a memory entry."""
+    from spec_orch.services.memory.service import get_memory_service
+
+    svc = get_memory_service(repo_root=Path(repo_root).resolve())
+    if svc.forget(key):
+        typer.echo(f"Deleted: {key}")
+    else:
+        typer.echo(f"Not found: {key}")
+
+
 def main() -> None:
     app()
 
