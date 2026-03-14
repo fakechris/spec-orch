@@ -202,6 +202,8 @@ Evolution ─────────── "What to improve" (rules, prompts, h
 | **LinearClient** | GraphQL client for issue CRUD, comments, state transitions, labels |
 | **PromotionService** | Creates Linear issues from an ExecutionPlan's work packets |
 | **ConversationService** | Transport-agnostic brainstorming engine (TUI, Linear, Slack) |
+| **Conductor** | Progressive formalization: intent classification → crystallization → approval |
+| **MemoryService** | Cross-session knowledge continuity (working, episodic, semantic, procedural layers) |
 | **DaemonInstaller** | Generates systemd/launchd service files for daemon process management |
 | **ParallelRunController** | Executes multi-wave plans with concurrent packet execution |
 | **EvidenceAnalyzer** | Aggregates historical run data into pattern summaries for LLM context |
@@ -257,6 +259,9 @@ What works on `main`:
 - **Prompt evolution**: A/B tested builder prompt variants with auto-promotion
 - **Scoper hints**: learned decomposition strategies from historical plan outcomes
 - **Policy distillation**: recurring tasks converted to deterministic scripts (zero LLM cost)
+- **Mission Control Center**: EventBus, MissionLifecycleManager, interactive Web Dashboard, Rich TUI (TypeScript/React/Ink)
+- **Memory subsystem**: cross-session knowledge continuity with file-backed storage, migration from legacy formats
+- **Conductor agent**: progressive formalization layer — intent classification, crystallization proposals, `@spec-orch approve`
 
 What is still intentionally incomplete:
 
@@ -529,6 +534,10 @@ src/spec_orch/
     linear_client.py     Linear GraphQL API client
     promotion_service.py ExecutionPlan → Linear issues
     conversation_service.py  Transport-agnostic brainstorming engine
+    conductor/           Progressive formalization (intent → crystallize → execute)
+    memory/              Cross-session knowledge (MemoryProvider, FileSystem, migration)
+    event_bus.py         Pub/sub event bus for real-time updates
+    lifecycle_manager.py Mission-level state machine
     daemon_installer.py  systemd/launchd service file generation
     parallel_run_controller.py  Multi-wave concurrent execution
     codex_exec_builder_adapter.py  Codex exec integration
@@ -538,7 +547,8 @@ src/spec_orch/
     prompt_evolver.py        Versioned prompts with A/B testing
     plan_strategy_evolver.py Scoper hints from plan outcome analysis
     policy_distiller.py      Deterministic code policies for recurring tasks
-tests/                   Unit and integration tests (470+)
+packages/tui/            Rich TUI (TypeScript + React/Ink)
+tests/                   Unit and integration tests (620+)
 fixtures/issues/         Local issue fixtures
 docs/specs/              Canonical specs per mission
 docs/architecture/       System design and policy documents
@@ -564,6 +574,8 @@ policies/                Distilled deterministic scripts (auto-generated)
 - [Linear API Surface](docs/architecture/linear-api-surface.md) — compatibility contract for Linear replacement
 - [Linear PM Convention](docs/specs/linear-pm-convention/spec.md) — daemon consumption protocol
 - [Competitive Analysis & Roadmap](docs/plans/2026-03-10-competitive-analysis-and-roadmap.md)
+- [SDD Industry Landscape & Positioning](docs/architecture/sdd-landscape-and-positioning.md) — Spec vs Skill analysis, industry benchmarking
+- [Skill-Driven vs Spec-Driven Orchestration](docs/architecture/skill-driven-vs-spec-driven.md) — hybrid architecture proposal
 
 ### Historical (early design, kept as decision records)
 

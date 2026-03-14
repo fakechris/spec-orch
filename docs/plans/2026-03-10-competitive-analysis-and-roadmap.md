@@ -275,6 +275,38 @@ spec-orch daemon / CLI
 | Phase 4 | 第 6-7 周 | Gate 独立化，compliance 框架 | ✅ 完成 |
 | Phase 5 | 第 8-9 周 | Linear + GitHub write-back 闭环 | ✅ 完成 |
 | **Phase 6** | **第 10 周** | **自进化：AutoHarness 闭环改进 (Epic SON-74, 8 issues)** | **✅ 完成** |
+| **Phase 7** | **第 11-13 周** | **Mission Control Center (Epic SON-83)** | **🔄 进行中** |
+| **Phase 8** | **第 14-16 周** | **混合架构: Talk Freely, Execute Strictly (Epic SON-100)** | **📋 计划中** |
+
+#### Phase 7: Mission Control Center (SON-83)
+
+交互可视化与自主编排能力。
+
+| 编号 | 任务 | 状态 |
+|------|------|------|
+| SON-84 | EventBus: pub/sub 事件总线 | ✅ |
+| SON-85 | MissionLifecycleManager: Mission 级状态机 | ✅ |
+| SON-86 | Daemon 接入 LifecycleManager | ✅ |
+| SON-87 | Dashboard WebSocket 实时推送 + 操作按钮 | ✅ |
+| SON-88 | Dashboard 多渠道 Discuss + Linear 增强 | ✅ |
+| SON-89 | Evolution 看板可视化 | ✅ |
+| SON-90 | Memory 子系统 (MemoryProvider + FileSystem + Migration) | ✅ |
+| SON-91 | Rich TUI: TypeScript + React/Ink | ✅ |
+| SON-99 | Conductor Agent: Progressive Formalization Layer | ✅ |
+| SON-83 | Epic 完成验收 + 集成测试 | 🔄 |
+
+#### Phase 8: 混合架构 — "Talk Freely, Execute Strictly" (SON-100)
+
+基于 SDD 行业分析（Spec Kit / Kiro / Tessl / agent-spec）和实战反思，将 spec-orch 定位为
+**灵活交互 + 结构化执行 + 闭环进化**的三层架构。
+
+| 编号 | 任务 | 说明 |
+|------|------|------|
+| SON-101 | Spec 模板库 | 模板化已有 spec，支持路径 2（模板填空发现 spec） |
+| SON-102 | Conductor → DMA 全生命周期集成 | 在任意阶段识别用户意图并分流（SON-98 升级） |
+| SON-103 | 流程检查 Skill 化 | Gate 前置检查从硬编码改为 Skill 描述 + LLM 编排 |
+| SON-104 | 示例反推 Spec | 路径 4: "我要类似这个" → AI 反推 spec（高价值方向） |
+| SON-105 | 行业 Spec 格式兼容 | 支持 Spec Kit / Kiro EARS / Tessl 格式的 spec 导入 |
 
 每个 Phase 结束时的检查点：
 - 所有测试通过
@@ -293,6 +325,8 @@ spec-orch daemon / CLI
 | 先 daemon 后 write-back | daemon 是"真正编排器"的前提；有了 daemon，write-back 才有真实使用场景 | 先 write-back | write-back 没有 daemon 支撑只是一次性脚本 |
 | 不做消息平台桥接 | cc-connect 已覆盖 9 个平台，这不是 SpecOrch 的价值 | 添加 Slack/Discord 集成 | 市场已有成熟方案 |
 | Protocol 抽象优先于功能新增 | 当前 God Object 结构会让每个新功能的开发成本递增 | 直接开发 Linear 集成 | 在 God Object 上堆叠功能会加速技术债 |
+| **混合架构取代纯 Spec-Driven** | 实战暴露纯 pipeline 的僵化问题；SDD 行业趋势验证灵活交互的必要性 | 继续硬编码 pipeline | 流程变化需改代码，DMA 无法动态分流 |
+| **不自创 spec 格式** | Spec Kit (76K stars) / Kiro / Tessl 已有行业标准 | 自定义 spec DSL | 重复造轮子，降低互操作性 |
 
 ---
 
