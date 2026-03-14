@@ -17,6 +17,7 @@
 | **Verifier** | 自动化验证器 | lint, typecheck, test, build (subprocess) |
 | **Reviewer** | 代码审查器 | GitHub review bots (Devin, Gemini, CodeRabbit, Codex) |
 | **Gate** | 合并判定引擎 | GateService + GatePolicy |
+| **进化引擎** | 闭环自我改进 | EvidenceAnalyzer, HarnessSynthesizer, PromptEvolver, PlanStrategyEvolver, PolicyDistiller |
 | **Git/GitHub** | 版本控制 + PR 平台 | git CLI, gh CLI |
 | **Linear** | 任务控制平面 | Linear GraphQL API |
 
@@ -61,6 +62,15 @@ flowchart TD
         RT1["Orchestrator: 回顾"]
     end
 
+    subgraph phase6 ["阶段 6：进化"]
+        EA1["EvidenceAnalyzer: 模式汇总"]
+        HS1["HarnessSynthesizer: 候选规则"]
+        RV2["RuleValidator: 回测 + 合并"]
+        PE1["PromptEvolver: A/B 测试 + 晋升"]
+        SE1["PlanStrategyEvolver: Scoper 提示"]
+        PD1["PolicyDistiller: 零 LLM 脚本"]
+    end
+
     H1 --> P1 --> F1 --> M1 --> H2 --> P2 --> H3
     H3 --> O1 --> B1 --> V1 --> R1 --> G1
     G1 --> MR1
@@ -75,6 +85,15 @@ flowchart TD
     FIX1 --> RL1
     RL1 -->|"检测到新 commit"| V1
     MG1 --> LN1 --> RT1
+    RT1 --> EA1
+    EA1 --> HS1 --> RV2
+    EA1 --> PE1
+    EA1 --> SE1
+    EA1 --> PD1
+    SE1 -.->|"提示反馈至"| P2
+    PE1 -.->|"进化后的 prompt"| B1
+    RV2 -.->|"新规则"| G1
+    PD1 -.->|"代码策略替代 LLM"| B1
 ```
 
 ## 各阶段详解
@@ -124,6 +143,17 @@ flowchart TD
 | 合并 PR | **Gate** + **GitHub** | gate pass | 已合并代码 | auto-merge 或手动 |
 | 关闭 Issue | **Linear** | PR merged | issue → Done | Linear-GitHub App 自动 |
 | 回顾 | **Orchestrator** | run artifacts | retrospective.md | `spec-orch retro` |
+
+### 阶段 6：进化（Evolution — 闭环自我改进）
+
+| 步骤 | 核心角色 | 输入 | 输出 | 命令 |
+|------|---------|------|------|------|
+| 证据分析 | **进化引擎** | `.spec_orch_runs/*/report.json` | 模式汇总（成功率、高频失败、偏差文件） | `spec-orch evidence summary` |
+| 约束合成 | **进化引擎** | 失败模式 | 候选合规规则 (YAML) | `spec-orch harness synthesize` |
+| 规则验证 | **进化引擎** | 候选规则 + 历史事件 | 通过验证的规则合并至 `compliance.contracts.yaml` | `spec-orch harness validate` + `apply` |
+| 提示进化 | **进化引擎** | 当前 prompt + 成功率 | 新候选 prompt 变体（A/B 测试） | `spec-orch prompt evolve` |
+| 策略分析 | **进化引擎** | 计划结果 | 注入规划 LLM 的 scoper 提示 | `spec-orch strategy analyze` |
+| 策略蒸馏 | **进化引擎** | 重复任务模式 | 确定性 Python 脚本（零 LLM 开销） | `spec-orch policy distill` |
 
 ## 冲突解决决策树
 

@@ -12,7 +12,7 @@
 
 | 维度 | SpecOrch | Cyrus | cc-connect | Remodex |
 |------|----------|-------|------------|---------|
-| **核心定位** | Issue-driven 交付编排 + Gate 层 | Issue-driven agent 执行器 | Agent ↔ 消息平台桥接 | Codex 移动端遥控 |
+| **核心定位** | 自进化交付编排 + Gate 层 + 闭环改进 | Issue-driven agent 执行器 | Agent ↔ 消息平台桥接 | Codex 移动端遥控 |
 | **语言** | Python 3.13 | TypeScript (monorepo) | Go | Swift + JS |
 | **Stars** | — | 411 | 756 | 199 |
 | **成熟度** | 原型 (29 commits) | 生产级 (1,127 commits, 25 releases) | 生产级 (226 commits, 17 releases) | 早期 (17 commits) |
@@ -266,14 +266,15 @@ spec-orch daemon / CLI
 
 ## 五、执行节奏
 
-| 阶段 | 时间 | 里程碑 |
-|------|------|--------|
-| Phase 0 | 第 1 周 | 技术债清零，建立 ruff + mypy 基线 |
-| Phase 1 | 第 2 周 | `codex exec` builder 上线，941 行 → 150 行 |
-| Phase 2 | 第 3-4 周 | Linear issue 拉取工作 |
-| Phase 3 | 第 5 周 | daemon 模式，SpecOrch 成为持久服务 |
-| Phase 4 | 第 6-7 周 | Gate 独立化，compliance 框架 |
-| Phase 5 | 第 8-9 周 | Linear + GitHub write-back 闭环 |
+| 阶段 | 时间 | 里程碑 | 状态 |
+|------|------|--------|------|
+| Phase 0 | 第 1 周 | 技术债清零，建立 ruff + mypy 基线 | ✅ 完成 |
+| Phase 1 | 第 2 周 | `codex exec` builder 上线，941 行 → 150 行 | ✅ 完成 |
+| Phase 2 | 第 3-4 周 | Linear issue 拉取工作 | ✅ 完成 |
+| Phase 3 | 第 5 周 | daemon 模式，SpecOrch 成为持久服务 | ✅ 完成 |
+| Phase 4 | 第 6-7 周 | Gate 独立化，compliance 框架 | ✅ 完成 |
+| Phase 5 | 第 8-9 周 | Linear + GitHub write-back 闭环 | ✅ 完成 |
+| **Phase 6** | **第 10 周** | **自进化：AutoHarness 闭环改进 (Epic SON-74, 8 issues)** | **✅ 完成** |
 
 每个 Phase 结束时的检查点：
 - 所有测试通过

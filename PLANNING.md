@@ -30,8 +30,10 @@ Issues →  Linear (SON-xx)                  (kanban tracking, authoritative)
 Code + PR + Done                           (writeback to Linear)
 ```
 
-The flow is **unidirectional**: Repo → Linear. Status flows back only as
-`completed_at` timestamps on `mission.json`.
+The flow is **bidirectional**: Repo → Linear for planning and status, and
+Evidence → Repo for self-evolution (evolved prompts, synthesized rules,
+scoper hints, distilled policies). `completed_at` timestamps on
+`mission.json` capture mission-level state.
 
 ## Linear Structure
 
@@ -41,7 +43,8 @@ Project: spec-orch
  ├── Epic: EODF 自动化闭环 (SON-41)
  ├── Epic: Daemon & 持续运行 (SON-44)
  ├── Epic: 开发者体验 (SON-48)
- └── Epic: 多渠道讨论 & 远程协作 (SON-52)
+ ├── Epic: 多渠道讨论 & 远程协作 (SON-52)
+ └── Epic: Self-Evolution 闭环改进 (SON-74) ✅
 ```
 
 Each Epic is a parent issue. Feature issues are children of their Epic.
