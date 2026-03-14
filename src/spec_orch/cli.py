@@ -51,6 +51,12 @@ evidence_app = typer.Typer(help="Evidence analysis commands.")
 app.add_typer(evidence_app, name="evidence")
 harness_app = typer.Typer(help="Harness synthesis and rule management commands.")
 app.add_typer(harness_app, name="harness")
+prompt_app = typer.Typer(help="Prompt evolution and A/B testing commands.")
+app.add_typer(prompt_app, name="prompt")
+strategy_app = typer.Typer(help="Plan strategy evolution and scoper hints.")
+app.add_typer(strategy_app, name="strategy")
+policy_app = typer.Typer(help="Policy distiller — deterministic code policies.")
+app.add_typer(policy_app, name="policy")
 
 
 def _resolve_version() -> str:
@@ -1676,6 +1682,15 @@ def plan_mission(
     except (OSError, ValueError) as exc:
         typer.echo(f"[plan] evidence analysis skipped: {exc}", err=True)
 
+    hints_ctx: str | None = None
+    try:
+        from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
+
+        strategy_evolver = PlanStrategyEvolver(Path(repo_root))
+        hints_ctx = strategy_evolver.format_hints_for_prompt() or None
+    except (OSError, ValueError) as exc:
+        typer.echo(f"[plan] scoper hints skipped: {exc}", err=True)
+
     scoper = LiteLLMScoperAdapter(
         model=planner_cfg.get("model", "claude-sonnet-4-20250514"),
         api_type=planner_cfg.get("api_type", "anthropic"),
@@ -1683,6 +1698,7 @@ def plan_mission(
         api_base=planner_cfg.get("api_base"),
         token_command=planner_cfg.get("token_command"),
         evidence_context=evidence_ctx,
+        scoper_hints=hints_ctx,
     )
 
     plan = scoper.scope(
@@ -2370,6 +2386,280 @@ def harness_apply(
 
     summary = validator.apply(accepted, contracts, dry_run=dry_run)
     typer.echo(summary)
+
+
+@strategy_app.command("status")
+def strategy_status(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Show current scoper hints."""
+    from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
+
+    evolver = PlanStrategyEvolver(repo_root)
+    hint_set = evolver.load_hints()
+
+    if not hint_set.hints:
+        typer.echo("No scoper hints found. Run 'spec-orch strategy analyze' to generate.")
+        return
+
+    if hint_set.analysis_summary:
+        typer.echo(f"Summary: {hint_set.analysis_summary}")
+    typer.echo(f"Hints ({len(hint_set.hints)}):")
+    for h in hint_set.hints:
+        active = " [active]" if h.is_active else " [inactive]"
+        typer.echo(f"  {h.hint_id}{active} [{h.confidence}]: {h.text}")
+        if h.evidence:
+            typer.echo(f"    evidence: {h.evidence}")
+
+
+@strategy_app.command("analyze")
+def strategy_analyze(
+    last_n: int = typer.Option(20, "--last-n", "-n", help="Number of recent runs to analyse."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Use LLM to analyze plan outcomes and generate scoper hints."""
+    from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
+
+    planner = _build_planner_from_toml(repo_root)
+    evolver = PlanStrategyEvolver(repo_root, planner=planner)
+    result = evolver.analyze(last_n=last_n)
+
+    if result is None:
+        typer.echo("Could not generate hints. Check planner config and run data.")
+        return
+
+    typer.echo(f"Generated {len(result.hints)} hint(s):")
+    for h in result.hints:
+        typer.echo(f"  [{h.confidence}] {h.hint_id}: {h.text}")
+    if result.analysis_summary:
+        typer.echo(f"\nSummary: {result.analysis_summary}")
+
+
+@strategy_app.command("inject-preview")
+def strategy_inject_preview(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Preview the text that would be injected into the scoper prompt."""
+    from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
+
+    evolver = PlanStrategyEvolver(repo_root)
+    text = evolver.format_hints_for_prompt()
+
+    if not text:
+        typer.echo("No active hints to inject.")
+        return
+
+    typer.echo(text)
+
+
+@policy_app.command("list")
+def policy_list(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """List all registered policies."""
+    from spec_orch.services.policy_distiller import PolicyDistiller
+
+    distiller = PolicyDistiller(repo_root)
+    policies = distiller.load_policies()
+
+    if not policies:
+        typer.echo("No policies found. Run 'spec-orch policy distill' to create one.")
+        return
+
+    for p in policies:
+        active = " [active]" if p.is_active else " [inactive]"
+        rate = f"{p.success_rate:.0%}" if p.total_executions > 0 else "n/a"
+        typer.echo(f"  {p.policy_id}{active}: {p.name} ({p.total_executions} runs, {rate})")
+        if p.description:
+            typer.echo(f"    {p.description}")
+
+
+@policy_app.command("candidates")
+def policy_candidates(
+    min_occurrences: int = typer.Option(3, "--min", "-m", help="Minimum occurrences."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Identify recurring task patterns that could become policies."""
+    from spec_orch.services.policy_distiller import PolicyDistiller
+
+    distiller = PolicyDistiller(repo_root)
+    candidates = distiller.identify_candidates(min_occurrences=min_occurrences)
+
+    if not candidates:
+        typer.echo("No recurring patterns found.")
+        return
+
+    for c in candidates:
+        typer.echo(f"  {c['pattern']}: {c['occurrences']} occurrences")
+        if c.get("examples"):
+            for ex in c["examples"]:
+                typer.echo(f"    example: {ex}")
+
+
+@policy_app.command("distill")
+def policy_distill(
+    task: str | None = typer.Option(None, "--task", "-t", help="Task description to distill."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Generate a deterministic policy for a recurring task."""
+    from spec_orch.services.policy_distiller import PolicyDistiller
+
+    planner = _build_planner_from_toml(repo_root)
+    distiller = PolicyDistiller(repo_root, planner=planner)
+    policy = distiller.distill(task_description=task)
+
+    if policy is None:
+        typer.echo("Could not generate a policy. Check planner config and task description.")
+        return
+
+    typer.echo(f"Created policy: {policy.policy_id}")
+    typer.echo(f"  Name: {policy.name}")
+    typer.echo(f"  Script: {policy.script_path}")
+    if policy.estimated_savings:
+        typer.echo(f"  Estimated savings: {policy.estimated_savings}")
+
+
+@policy_app.command("run")
+def policy_run(
+    policy_id: str = typer.Option(..., "--policy", "-p", help="Policy ID to execute."),
+    workspace: Path | None = typer.Option(None, "--workspace", "-w", help="Workspace directory."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Execute a policy script."""
+    from spec_orch.services.policy_distiller import PolicyDistiller
+
+    distiller = PolicyDistiller(repo_root)
+    result = distiller.execute(policy_id, workspace=workspace)
+
+    if result.get("succeeded"):
+        typer.echo(f"Policy {policy_id} executed successfully.")
+        if result.get("stdout"):
+            typer.echo(result["stdout"])
+    else:
+        typer.echo(f"Policy {policy_id} failed: {result.get('error', 'unknown')}", err=True)
+        if result.get("stderr"):
+            typer.echo(result["stderr"], err=True)
+        raise typer.Exit(1)
+
+
+@prompt_app.command("init")
+def prompt_init(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Initialize prompt history with the current builder prompt as v0."""
+    from spec_orch.services.codex_exec_builder_adapter import PREAMBLE
+    from spec_orch.services.prompt_evolver import PromptEvolver
+
+    evolver = PromptEvolver(repo_root)
+    v0 = evolver.initialize_from_current(PREAMBLE)
+    typer.echo(f"Initialized prompt history with {v0.variant_id}")
+
+
+@prompt_app.command("status")
+def prompt_status(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Show current prompt variant status and history."""
+    from spec_orch.services.prompt_evolver import PromptEvolver
+
+    evolver = PromptEvolver(repo_root)
+    history = evolver.load_history()
+    if not history:
+        typer.echo("No prompt history found. Run 'spec-orch prompt init' first.")
+        return
+
+    for v in history:
+        marker = " [ACTIVE]" if v.is_active else " [CANDIDATE]" if v.is_candidate else ""
+        rate = f"{v.success_rate:.0%}" if v.total_runs > 0 else "n/a"
+        typer.echo(f"  {v.variant_id}{marker}: {v.total_runs} runs, {rate} success")
+        if v.rationale:
+            typer.echo(f"    rationale: {v.rationale}")
+
+
+@prompt_app.command("evolve")
+def prompt_evolve(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Use LLM to propose an improved builder prompt variant."""
+    from spec_orch.services.prompt_evolver import PromptEvolver
+
+    planner = _build_planner_from_toml(repo_root)
+    evolver = PromptEvolver(repo_root, planner=planner)
+    new_variant = evolver.evolve()
+
+    if new_variant is None:
+        typer.echo("Could not generate a new variant. Check planner config and prompt history.")
+        return
+
+    typer.echo(f"New candidate: {new_variant.variant_id}")
+    typer.echo(f"Rationale: {new_variant.rationale}")
+    if new_variant.target_improvements:
+        typer.echo("Target improvements:")
+        for imp in new_variant.target_improvements:
+            typer.echo(f"  - {imp}")
+
+
+@prompt_app.command("compare")
+def prompt_compare(
+    variant_a: str = typer.Option(..., "--a", help="First variant ID."),
+    variant_b: str = typer.Option(..., "--b", help="Second variant ID."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Compare two prompt variants' performance."""
+    from spec_orch.services.prompt_evolver import PromptEvolver
+
+    evolver = PromptEvolver(repo_root)
+    result = evolver.compare_variants(variant_a, variant_b)
+
+    if result is None:
+        typer.echo("Cannot compare: variants not found or insufficient run data.")
+        return
+
+    typer.echo(
+        f"Winner: {result.winner_id} "
+        f"({result.winner_success_rate:.0%} over {result.winner_runs} runs)"
+    )
+    typer.echo(
+        f"Loser:  {result.loser_id} ({result.loser_success_rate:.0%} over {result.loser_runs} runs)"
+    )
+    typer.echo(f"Confidence: {result.confidence}")
+
+
+@prompt_app.command("promote")
+def prompt_promote(
+    variant_id: str = typer.Option(..., "--variant", "-v", help="Variant ID to promote."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Promote a prompt variant to active."""
+    from spec_orch.services.prompt_evolver import PromptEvolver
+
+    evolver = PromptEvolver(repo_root)
+    if evolver.promote(variant_id):
+        typer.echo(f"Promoted {variant_id} to active.")
+    else:
+        typer.echo(f"Variant {variant_id} not found.", err=True)
+        raise typer.Exit(1)
+
+
+@prompt_app.command("auto-promote")
+def prompt_auto_promote(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Auto-promote candidate if it outperforms the active variant."""
+    from spec_orch.services.prompt_evolver import PromptEvolver
+
+    evolver = PromptEvolver(repo_root)
+    result = evolver.auto_promote_if_ready()
+
+    if result is None:
+        typer.echo("No candidate ready for comparison or no active variant.")
+        return
+
+    typer.echo(f"Winner: {result.winner_id} ({result.winner_success_rate:.0%})")
+    typer.echo(f"Loser:  {result.loser_id} ({result.loser_success_rate:.0%})")
+    active = evolver.get_active_prompt()
+    if active:
+        typer.echo(f"Active variant is now: {active.variant_id}")
 
 
 def main() -> None:

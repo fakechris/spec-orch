@@ -320,20 +320,28 @@ class LiteLLMPlannerAdapter:
                 "Install with: pip install spec-orch[planner]"
             ) from exc
 
-        system_msg = (
-            "You are a senior software architect helping brainstorm "
-            "requirements and design for a development project.\n"
-            "Be concise, ask clarifying questions when the user's intent is "
-            "ambiguous, and suggest concrete approaches.\n"
-            "When the discussion has converged, say so and offer to freeze "
-            "the conclusions into a formal spec."
-        )
+        has_system = conversation_history and conversation_history[0].get("role") == "system"
+
+        if has_system:
+            system_msg = conversation_history[0]["content"]
+            remaining = conversation_history[1:]
+        else:
+            system_msg = (
+                "You are a senior software architect helping brainstorm "
+                "requirements and design for a development project.\n"
+                "Be concise, ask clarifying questions when the user's intent "
+                "is ambiguous, and suggest concrete approaches.\n"
+                "When the discussion has converged, say so and offer to "
+                "freeze the conclusions into a formal spec."
+            )
+            remaining = conversation_history
+
         if codebase_context:
             system_msg += f"\n\nHere is relevant codebase context:\n```\n{codebase_context}\n```"
 
         messages: list[dict[str, str]] = [
             {"role": "system", "content": system_msg},
-            *conversation_history,
+            *remaining,
         ]
 
         kwargs: dict[str, Any] = {
