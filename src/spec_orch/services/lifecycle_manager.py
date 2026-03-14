@@ -283,9 +283,7 @@ class MissionLifecycleManager:
         svc = PromotionService()
         promoted = svc.promote(plan)
         return [
-            wp.linear_issue_id or wp.title
-            for wave in promoted.waves
-            for wp in wave.work_packets
+            wp.linear_issue_id or wp.title for wave in promoted.waves for wp in wave.work_packets
         ]
 
     def _run_retrospective(self, mission_id: str) -> None:
