@@ -292,6 +292,51 @@ def test_apply_skips_duplicate_ids(tmp_path: Path) -> None:
     assert "already exist" in summary
 
 
+def test_validate_rejects_non_string_pattern(tmp_path: Path) -> None:
+    validator = RuleValidator(tmp_path)
+    candidates = [_make_candidate(patterns=[123, None])]
+    accepted, rejected = validator.validate(candidates)
+    assert len(accepted) == 0
+    assert len(rejected) == 1
+
+
+def test_parse_response_non_string(tmp_path: Path) -> None:
+    synth = HarnessSynthesizer(tmp_path)
+    result = synth._parse_response(None, [])
+    assert result == []
+
+
+def test_to_contract_dict_preserves_provenance() -> None:
+    c = _make_candidate(
+        id="prov-test",
+        name="Prov Test",
+        generated_at="2026-03-10T00:00:00Z",
+        source_runs=["RUN-1", "RUN-2"],
+    )
+    d = c.to_contract_dict()
+    assert d["source"] == "harness-synthesizer"
+    assert d["generated_at"] == "2026-03-10T00:00:00Z"
+    assert d["source_runs"] == ["RUN-1", "RUN-2"]
+
+
+def test_synthesize_sends_system_prompt(tmp_path: Path) -> None:
+    rd = tmp_path / ".spec_orch_runs" / "SP-1"
+    _write_report(rd, {"mergeable": False, "failed_conditions": ["verification"]})
+    (tmp_path / "compliance.contracts.yaml").write_text(yaml.dump({"contracts": []}))
+
+    planner = MagicMock()
+    planner.brainstorm.return_value = "[]"
+
+    synth = HarnessSynthesizer(tmp_path, planner=planner)
+    synth.synthesize()
+
+    call_args = planner.brainstorm.call_args
+    history = call_args.kwargs["conversation_history"]
+    assert history[0]["role"] == "system"
+    assert "compliance-rule engineer" in history[0]["content"]
+    assert history[1]["role"] == "user"
+
+
 # ------------------------------------------------------------------
 # CLI smoke tests
 # ------------------------------------------------------------------

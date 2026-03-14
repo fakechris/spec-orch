@@ -2277,13 +2277,7 @@ def harness_synthesize(
     """Synthesize candidate compliance rules from recent failure patterns."""
     from spec_orch.services.harness_synthesizer import HarnessSynthesizer
 
-    planner = None
-    try:
-        from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
-
-        planner = LiteLLMPlannerAdapter()
-    except Exception:
-        pass
+    planner = _build_planner_from_toml(repo_root)
 
     synth = HarnessSynthesizer(repo_root, planner=planner)
     candidates = synth.synthesize(last_n=last_n)
@@ -2300,6 +2294,33 @@ def harness_synthesize(
         typer.echo(f"Candidates written to {output}")
 
 
+def _load_candidate_rules(input_file: Path) -> list[Any]:
+    """Load CandidateRule objects from a YAML file."""
+    from spec_orch.services.harness_synthesizer import CandidateRule
+
+    raw = yaml.safe_load(input_file.read_text())
+    if not isinstance(raw, dict) or not isinstance(raw.get("contracts"), list):
+        typer.echo("No valid contracts list found in input file.", err=True)
+        raise typer.Exit(1)
+
+    candidates: list[CandidateRule] = []
+    for c in raw["contracts"]:
+        if not isinstance(c, dict) or "id" not in c or "name" not in c:
+            typer.echo(f"Skipping malformed entry: {c!r}", err=True)
+            continue
+        candidates.append(
+            CandidateRule(
+                id=c["id"],
+                name=c["name"],
+                description=c.get("description", ""),
+                severity=c.get("severity", "warning"),
+                patterns=c.get("patterns", []),
+                check_fields=c.get("check_fields", ["text"]),
+            )
+        )
+    return candidates
+
+
 @harness_app.command("validate")
 def harness_validate(
     input_file: Path = typer.Option(..., "--input", "-i", help="Path to candidates YAML file."),
@@ -2307,25 +2328,9 @@ def harness_validate(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
 ) -> None:
     """Validate candidate rules from a YAML file against historical data."""
-    from spec_orch.services.harness_synthesizer import CandidateRule, RuleValidator
+    from spec_orch.services.harness_synthesizer import RuleValidator
 
-    raw = yaml.safe_load(input_file.read_text())
-    if not raw or "contracts" not in raw:
-        typer.echo("No contracts found in input file.", err=True)
-        raise typer.Exit(1)
-
-    candidates = [
-        CandidateRule(
-            id=c["id"],
-            name=c["name"],
-            description=c.get("description", ""),
-            severity=c.get("severity", "warning"),
-            patterns=c.get("patterns", []),
-            check_fields=c.get("check_fields", ["text"]),
-        )
-        for c in raw["contracts"]
-    ]
-
+    candidates = _load_candidate_rules(input_file)
     validator = RuleValidator(repo_root)
     accepted, rejected = validator.validate(candidates, max_false_positive_rate=threshold)
 
@@ -2352,26 +2357,17 @@ def harness_apply(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
 ) -> None:
     """Apply validated rules to compliance.contracts.yaml."""
-    from spec_orch.services.harness_synthesizer import CandidateRule, RuleValidator
+    from spec_orch.services.harness_synthesizer import RuleValidator
 
-    raw = yaml.safe_load(input_file.read_text())
-    if not raw or "contracts" not in raw:
-        typer.echo("No contracts found in input file.", err=True)
-        raise typer.Exit(1)
-
-    accepted = [
-        CandidateRule(
-            id=c["id"],
-            name=c["name"],
-            description=c.get("description", ""),
-            severity=c.get("severity", "warning"),
-            patterns=c.get("patterns", []),
-            check_fields=c.get("check_fields", ["text"]),
-        )
-        for c in raw["contracts"]
-    ]
+    candidates = _load_candidate_rules(input_file)
 
     validator = RuleValidator(repo_root)
+    accepted, rejected = validator.validate(candidates)
+    if rejected:
+        typer.echo(f"Skipping {len(rejected)} invalid rule(s):", err=True)
+        for r in rejected:
+            typer.echo(f"  {r.id}: {r.name}", err=True)
+
     summary = validator.apply(accepted, contracts, dry_run=dry_run)
     typer.echo(summary)
 

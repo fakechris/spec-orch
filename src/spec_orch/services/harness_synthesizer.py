@@ -84,6 +84,12 @@ class CandidateRule:
             d["patterns"] = self.patterns
         if self.check_fields:
             d["check_fields"] = self.check_fields
+        if self.source:
+            d["source"] = self.source
+        if self.generated_at:
+            d["generated_at"] = self.generated_at
+        if self.source_runs:
+            d["source_runs"] = self.source_runs
         return d
 
 
@@ -173,7 +179,10 @@ class HarnessSynthesizer:
 
         try:
             response = self._planner.brainstorm(
-                conversation_history=[{"role": "user", "content": user_msg}],
+                conversation_history=[
+                    {"role": "system", "content": _SYNTHESIZER_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_msg},
+                ],
                 codebase_context="",
             )
         except Exception:
@@ -182,8 +191,11 @@ class HarnessSynthesizer:
 
         return self._parse_response(response, failure_data.get("run_ids", []))
 
-    def _parse_response(self, response: str, run_ids: list[str]) -> list[CandidateRule]:
+    def _parse_response(self, response: Any, run_ids: list[str]) -> list[CandidateRule]:
         """Parse LLM JSON response into CandidateRule objects."""
+        if not isinstance(response, str):
+            logger.warning("Non-string LLM response: %s", type(response).__name__)
+            return []
         text = response.strip()
         start = text.find("[")
         end = text.rfind("]")
@@ -262,8 +274,10 @@ class RuleValidator:
             valid = True
             for pattern in candidate.patterns:
                 try:
+                    if not isinstance(pattern, str):
+                        raise TypeError(f"Non-string pattern: {pattern!r}")
                     compiled.append(re.compile(pattern))
-                except re.error:
+                except (re.error, TypeError):
                     logger.warning("Invalid regex in candidate %s: %s", candidate.id, pattern)
                     valid = False
                     break
@@ -341,7 +355,7 @@ class RuleValidator:
         existing_data: dict[str, Any] = {"contracts": []}
         if contracts_path.exists():
             raw = yaml.safe_load(contracts_path.read_text())
-            if isinstance(raw, dict) and "contracts" in raw:
+            if isinstance(raw, dict) and isinstance(raw.get("contracts"), list):
                 existing_data = raw
 
         existing_ids = {c["id"] for c in existing_data["contracts"]}
