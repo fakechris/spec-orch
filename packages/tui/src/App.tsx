@@ -8,6 +8,7 @@ import { RunnerView } from "./components/RunnerView.js";
 import { PipelineBar } from "./components/PipelineBar.js";
 import { BtwInput } from "./components/BtwInput.js";
 import { StatusBar } from "./components/StatusBar.js";
+import { EvolutionPanel } from "./components/EvolutionPanel.js";
 
 interface AppProps {
   apiUrl: string;
@@ -116,6 +117,7 @@ export function App({ apiUrl, wsUrl }: AppProps) {
             height={Math.max(height - 10, 8)}
           />
           <PipelineBar lifecycle={selectedLc} runs={api.runs} />
+          <EvolutionPanel apiUrl={apiUrl} />
         </Box>
       </Box>
 
