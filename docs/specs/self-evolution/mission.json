@@ -1,0 +1,25 @@
+{
+  "mission_id": "self-evolution",
+  "title": "Self-Evolution: AutoHarness-Inspired Closed-Loop Improvement",
+  "status": "approved",
+  "spec_path": "docs/specs/self-evolution/spec.md",
+  "acceptance_criteria": [
+    "EvidenceAnalyzer service reads historical run data and produces pattern summaries",
+    "within_boundaries connects deviation detection to gate evaluation",
+    "Evidence context is injected into Scoper and ReadinessChecker LLM prompts",
+    "HarnessSynthesizer generates candidate compliance rules from failure patterns",
+    "Rule Validator back-tests candidates and auto-merges surviving rules",
+    "Prompt Evolver maintains versioned prompts and A/B tests variants",
+    "Plan Strategy Evolver generates scoper hints from historical outcomes",
+    "Policy Distiller encodes routine tasks as deterministic code (long-term)"
+  ],
+  "constraints": [
+    "Phases are sequential: Phase 1 before Phase 2 before Phase 3",
+    "No new required dependencies; LLM calls via existing LiteLLMPlannerAdapter",
+    "All auto-generated rules and prompt variants must be human-reviewable"
+  ],
+  "interface_contracts": [],
+  "created_at": "2026-03-14T10:00:00+00:00",
+  "approved_at": "2026-03-14T10:00:00+00:00",
+  "completed_at": null
+}
