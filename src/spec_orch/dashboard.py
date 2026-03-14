@@ -115,6 +115,11 @@ def _gather_evolution_metrics(repo_root: Path) -> dict[str, Any]:
         "scoper_hints": 0,
         "policies": 0,
         "success_rate": 0.0,
+        "total_runs": 0,
+        "successful_runs": 0,
+        "variants": [],
+        "hint_categories": {},
+        "run_trend": [],
     }
     try:
         evo_dir = repo_root / ".spec_orch_runs" / "evolution"
@@ -128,6 +133,10 @@ def _gather_evolution_metrics(repo_root: Path) -> dict[str, Any]:
                 metrics["scoper_hints"] = (
                     len(hints) if isinstance(hints, list) else len(hints.keys())
                 )
+                if isinstance(hints, dict):
+                    metrics["hint_categories"] = {
+                        k: len(v) if isinstance(v, list) else 1 for k, v in hints.items()
+                    }
             policies_path = evo_dir / "policies.json"
             if policies_path.exists():
                 policies = json.loads(policies_path.read_text())
@@ -135,23 +144,68 @@ def _gather_evolution_metrics(repo_root: Path) -> dict[str, Any]:
                     len(policies) if isinstance(policies, list) else len(policies.keys())
                 )
 
-        runs_dir = repo_root / ".spec_orch_runs"
-        if runs_dir.exists():
-            total = 0
-            success = 0
-            for report in runs_dir.glob("*/report.json"):
-                try:
-                    data = json.loads(report.read_text())
-                    total += 1
-                    if data.get("state") == "merged" or data.get("mergeable"):
-                        success += 1
-                except (json.JSONDecodeError, OSError):
-                    pass
-            if total > 0:
-                metrics["success_rate"] = round(success / total * 100, 1)
+        _load_prompt_variant_metrics(repo_root, metrics)
+        _load_run_trend(repo_root, metrics)
     except Exception:
         logger.warning("Failed to gather evolution metrics", exc_info=True)
     return metrics
+
+
+def _load_prompt_variant_metrics(repo_root: Path, metrics: dict[str, Any]) -> None:
+    try:
+        from spec_orch.services.prompt_evolver import PromptEvolver
+
+        evolver = PromptEvolver(repo_root)
+        history = evolver.load_history()
+        variants = []
+        for v in history:
+            variants.append(
+                {
+                    "variant_id": v.variant_id,
+                    "total_runs": v.total_runs,
+                    "successful_runs": v.successful_runs,
+                    "success_rate": round(v.success_rate * 100, 1),
+                    "is_active": v.is_active,
+                    "is_candidate": v.is_candidate,
+                    "rationale": v.rationale[:120] if v.rationale else "",
+                    "created_at": v.created_at,
+                }
+            )
+        metrics["variants"] = variants
+        if variants:
+            metrics["prompt_variants"] = len(variants)
+    except ImportError:
+        pass
+
+
+def _load_run_trend(repo_root: Path, metrics: dict[str, Any]) -> None:
+    runs_dir = repo_root / ".spec_orch_runs"
+    if not runs_dir.exists():
+        return
+    total = 0
+    success = 0
+    trend: list[dict[str, Any]] = []
+    for report in sorted(runs_dir.glob("*/report.json")):
+        try:
+            data = json.loads(report.read_text())
+            total += 1
+            ok = data.get("state") == "merged" or data.get("mergeable")
+            if ok:
+                success += 1
+            trend.append(
+                {
+                    "run": report.parent.name,
+                    "ok": bool(ok),
+                    "cumulative_rate": round(success / total * 100, 1),
+                }
+            )
+        except (json.JSONDecodeError, OSError):
+            logger.debug("Skipping malformed report: %s", report)
+    metrics["total_runs"] = total
+    metrics["successful_runs"] = success
+    if total > 0:
+        metrics["success_rate"] = round(success / total * 100, 1)
+    metrics["run_trend"] = trend[-30:]
 
 
 def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
@@ -364,15 +418,30 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
   </div>
 </div>
 
-<!-- ===== BOTTOM BAR ===== -->
-<div class="bottom-bar" id="bottom-bar">
+<!-- ===== EVOLUTION PANEL ===== -->
+<div class="bottom-bar" id="bottom-bar" style="cursor:pointer" onclick="toggleEvoPanel()">
   <div class="metric"><span class="metric-label">Prompts:</span><span class="metric-value" id="m-prompts">—</span></div>
   <div class="metric"><span class="metric-label">Hints:</span><span class="metric-value" id="m-hints">—</span></div>
   <div class="metric"><span class="metric-label">Policies:</span><span class="metric-value" id="m-policies">—</span></div>
   <div class="metric"><span class="metric-label">Success:</span><span class="metric-value" id="m-success">—</span></div>
+  <div class="metric"><span class="metric-label">Runs:</span><span class="metric-value" id="m-runs">—</span></div>
   <div style="flex:1"></div>
-  <span id="event-log" style="font-size:.7rem;color:var(--dim);max-width:40%;overflow:hidden;
-    text-overflow:ellipsis;white-space:nowrap"></span>
+  <span style="font-size:.7rem;color:var(--dim)">▼ Evolution Details</span>
+  <span id="event-log" style="font-size:.7rem;color:var(--dim);max-width:30%;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;margin-left:.5rem"></span>
+</div>
+<div id="evo-panel" style="display:none;background:var(--card);border-top:1px solid var(--border);padding:1rem;max-height:50vh;overflow-y:auto">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+    <div>
+      <h3 style="margin:0 0 .5rem;color:var(--accent);font-size:.9rem">Prompt Variants</h3>
+      <div id="evo-variants" style="font-size:.8rem"></div>
+    </div>
+    <div>
+      <h3 style="margin:0 0 .5rem;color:var(--accent);font-size:.9rem">Success Rate Trend</h3>
+      <div id="evo-trend" style="height:80px;display:flex;align-items:flex-end;gap:2px"></div>
+      <div id="evo-trend-labels" style="font-size:.65rem;color:var(--dim);margin-top:.25rem"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -401,6 +470,12 @@ async function load() {
   }
 }
 
+let evoPanelOpen = false;
+function toggleEvoPanel() {
+  evoPanelOpen = !evoPanelOpen;
+  document.getElementById('evo-panel').style.display = evoPanelOpen ? 'block' : 'none';
+}
+
 async function loadEvolution() {
   try {
     const r = await fetch('/api/evolution');
@@ -410,7 +485,43 @@ async function loadEvolution() {
     document.getElementById('m-hints').textContent = d.scoper_hints ?? '—';
     document.getElementById('m-policies').textContent = d.policies ?? '—';
     document.getElementById('m-success').textContent = d.success_rate != null ? d.success_rate + '%' : '—';
+    document.getElementById('m-runs').textContent = d.total_runs ?? '—';
+    renderEvoVariants(d.variants || []);
+    renderEvoTrend(d.run_trend || []);
   } catch(e) {}
+}
+
+function renderEvoVariants(variants) {
+  const el = document.getElementById('evo-variants');
+  if (!el) return;
+  if (variants.length === 0) { el.innerHTML = '<span style="color:var(--dim)">No prompt variants yet</span>'; return; }
+  el.innerHTML = variants.map(v => {
+    const vid = escHtml(v.variant_id);
+    const rat = escHtml(v.rationale || '');
+    const badge = v.is_active ? '<span style="color:#4ade80;font-weight:bold">● active</span>' : v.is_candidate ? '<span style="color:#facc15">◎ candidate</span>' : '<span style="color:var(--dim)">○</span>';
+    const pct = Number(v.success_rate) || 0;
+    const bar = v.total_runs > 0 ? `<div style="display:inline-block;width:60px;height:8px;background:var(--border);border-radius:4px;overflow:hidden;vertical-align:middle"><div style="width:${pct}%;height:100%;background:${pct>=70?'#4ade80':pct>=40?'#facc15':'#f87171'}"></div></div>` : '';
+    const ratSnip = rat.length > 50 ? rat.slice(0,50) + '…' : rat;
+    return `<div style="padding:.25rem 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem">${badge} <strong>${vid}</strong> ${bar} <span>${pct}%</span> <span style="color:var(--dim)">(${Number(v.successful_runs)||0}/${Number(v.total_runs)||0})</span>${rat ? `<span style="color:var(--dim);font-size:.7rem;margin-left:auto" title="${rat}">${ratSnip}</span>` : ''}</div>`;
+  }).join('');
+}
+
+function renderEvoTrend(trend) {
+  const el = document.getElementById('evo-trend');
+  const labels = document.getElementById('evo-trend-labels');
+  if (!el) return;
+  if (trend.length === 0) { el.innerHTML = '<span style="color:var(--dim);font-size:.8rem">No run data yet</span>'; return; }
+  const maxH = 70;
+  el.innerHTML = trend.map(t => {
+    const h = Math.max(3, (t.cumulative_rate / 100) * maxH);
+    const color = t.ok ? '#4ade80' : '#f87171';
+    const runName = escHtml(t.run);
+    return `<div title="${runName}: ${t.cumulative_rate}%" style="width:${Math.max(4, Math.floor(200/trend.length))}px;height:${h}px;background:${color};border-radius:2px 2px 0 0;transition:height .3s"></div>`;
+  }).join('');
+  if (labels && trend.length > 0) {
+    const last = trend[trend.length - 1];
+    labels.textContent = `${trend.length} runs | latest: ${last.cumulative_rate}% cumulative`;
+  }
 }
 
 /* ===== RENDER ===== */
