@@ -92,6 +92,11 @@ class SpecOrchDaemon:
             repo_root=repo_root, event_bus=self._event_bus
         )
 
+        from spec_orch.services.memory.service import get_memory_service
+
+        self._memory_service = get_memory_service(repo_root=repo_root)
+        self._memory_service.subscribe_to_event_bus()
+
     def _load_state(self) -> dict[str, Any]:
         if self._state_path.exists():
             try:
