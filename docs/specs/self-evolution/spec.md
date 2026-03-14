@@ -1,5 +1,8 @@
 # Self-Evolution: AutoHarness-Inspired Closed-Loop Improvement
 
+> **Status: COMPLETED** — All three phases implemented in Epic SON-74 (8 issues).
+> Merged to `main` in v0.3.0 on 2026-03-14.
+
 ## 1. Vision
 
 SpecOrch is not just an orchestrator that dispatches tasks to coding agents.
@@ -8,19 +11,20 @@ one that learns from every execution, automatically tightens its own
 constraints, and progressively reduces both cost and failure rate without
 human intervention.
 
-Today (v0.2) the system is **open-loop**: it produces rich evidence
+At v0.2 the system was **open-loop**: it produced rich evidence
 (retrospectives, deviation logs, gate reports) but none of that evidence
-flows back to influence future planning, building, or gating. Every run
-starts from the same static prompts and hand-written compliance rules.
+flowed back to influence future planning, building, or gating. Every run
+started from the same static prompts and hand-written compliance rules.
 
-The self-evolution roadmap closes this loop in three stages:
+As of v0.3 (this spec), the loop is **closed** across all three stages:
 
 ```
-v0.2  Open-loop — manual constraints, fixed prompts        (current)
-v0.3  Closed-loop — evidence feeds back to planner/readiness
-v0.4  Auto-synthesis — LLM generates compliance rules from failures
-v0.5  Recursive — prompts and plan strategies evolve automatically
-v1.0  Code-as-policy — routine tasks run with zero LLM cost
+v0.2  Open-loop — manual constraints, fixed prompts        ✅ shipped
+v0.3  Closed-loop + Auto-synthesis + Recursive + Policy    ✅ shipped (this spec)
+      ├── Evidence feeds back to planner/readiness
+      ├── LLM generates compliance rules from failures
+      ├── Prompts and plan strategies evolve automatically
+      └── Recurring tasks distilled to zero-LLM code policies
 ```
 
 ### Theoretical Foundation

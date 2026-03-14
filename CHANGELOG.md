@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-03-14
+
+### Added
+
+- **Self-Evolution Architecture**: Closed-loop improvement inspired by the AutoHarness paper
+- **EvidenceAnalyzer**: Aggregates historical run data (success rates, failure patterns, deviation files) into pattern summaries
+- **Evidence injection**: Historical context automatically injected into Scoper and ReadinessChecker LLM prompts
+- **Dynamic `within_boundaries`**: Gate condition now reflects actual deviation detection (no longer hard-coded)
+- **HarnessSynthesizer**: LLM-driven generation of candidate compliance rules from observed failure patterns
+- **RuleValidator**: Back-tests candidate rules against historical builder events; auto-merges survivors into `compliance.contracts.yaml`
+- **PromptEvolver**: Versioned builder prompt history with A/B testing framework and auto-promotion
+- **PlanStrategyEvolver**: Analyzes plan outcomes to generate evidence-based scoper hints for better mission decomposition
+- **PolicyDistiller**: Converts recurring tasks into deterministic Python scripts that execute without LLM calls
+- **16 new CLI commands**: `evidence summary`, `harness {synthesize,validate,apply}`, `prompt {init,status,evolve,compare,promote,auto-promote}`, `strategy {status,analyze,inject-preview}`, `policy {list,candidates,distill,run}`
+
+### Changed
+
+- `brainstorm()` now respects caller-provided system prompts instead of always prepending a default
+- `EvidenceAnalyzer` exposes public methods (`collect_run_dirs`, `read_report`, `read_deviations`)
+- `LiteLLMScoperAdapter` accepts `scoper_hints` parameter alongside `evidence_context`
+- `deviation_service` provides `overwrite_deviations()` for idempotent persistence
+- Project description updated to "Self-evolving AI software delivery orchestration"
+
 ## [0.2.0] - 2026-03-10
 
 ### Added
@@ -51,5 +74,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spec deviation tracking
 - Retrospective generation
 
+[0.3.0]: https://github.com/fakechris/spec-orch/releases/tag/v0.3.0
 [0.2.0]: https://github.com/fakechris/spec-orch/releases/tag/v0.2.0
 [0.1.0]: https://github.com/fakechris/spec-orch/releases/tag/v0.1.0

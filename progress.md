@@ -190,3 +190,29 @@
 - **ruff**: All checks passed
 - **mypy**: No issues found
 - **pytest**: 47/47 tests passed
+
+## Session: 2026-03-14
+
+### Self-Evolution Epic (SON-74) — Complete
+
+- **Status:** complete
+- **Scope:** AutoHarness-inspired closed-loop improvement — 3 phases, 8 issues
+
+| Phase | Issues | Description | Status |
+|-------|--------|-------------|--------|
+| 1: Evidence Consumption | SON-75, SON-76, SON-77 | Dynamic gate enforcement, evidence analysis, context injection | ✅ complete |
+| 2: Auto-Harness Synthesis | SON-78, SON-79 | LLM-driven compliance rule generation + back-test validation | ✅ complete |
+| 3: Recursive Self-Improvement | SON-80, SON-81, SON-82 | Prompt evolution, plan strategy hints, policy distillation | ✅ complete |
+
+### New Capabilities (v0.3.0)
+- **EvidenceAnalyzer**: Aggregates run data into pattern summaries
+- **HarnessSynthesizer + RuleValidator**: Compliance rules auto-generated from failures
+- **PromptEvolver**: Versioned builder prompts with A/B testing
+- **PlanStrategyEvolver**: Scoper hints from historical plan outcomes
+- **PolicyDistiller**: Recurring tasks as deterministic Python scripts
+- **16 new CLI commands** across `evidence`, `harness`, `prompt`, `strategy`, `policy`
+
+### Verification
+- **ruff**: All checks passed
+- **mypy**: No issues found
+- **pytest**: 470+ tests passed (72 new tests for self-evolution)

@@ -1,9 +1,9 @@
 class SpecOrch < Formula
   include Language::Python::Virtualenv
 
-  desc "AI-powered specification orchestrator — from discussion to deployed code"
+  desc "Self-evolving AI software delivery orchestration"
   homepage "https://github.com/fakechris/spec-orch"
-  url "https://github.com/fakechris/spec-orch/archive/refs/tags/v0.2.0.tar.gz"
+  url "https://github.com/fakechris/spec-orch/archive/refs/tags/v0.3.0.tar.gz"
   sha256 "PLACEHOLDER"
   license "MIT"
   head "https://github.com/fakechris/spec-orch.git", branch: "main"

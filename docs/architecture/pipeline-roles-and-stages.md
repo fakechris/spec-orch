@@ -15,6 +15,7 @@
 | **Verifier** | Automated validation runner | lint, typecheck, test, build (subprocess) |
 | **Reviewer** | Code review engine | GitHub review bots (Devin, Gemini, CodeRabbit, Codex) |
 | **Gate** | Merge-readiness evaluator | GateService + GatePolicy |
+| **Evolution Engine** | Closed-loop self-improvement | EvidenceAnalyzer, HarnessSynthesizer, PromptEvolver, PlanStrategyEvolver, PolicyDistiller |
 | **Git/GitHub** | Version control + PR platform | git CLI, gh CLI |
 | **Linear** | Task control plane | Linear GraphQL API |
 
@@ -59,6 +60,15 @@ flowchart TD
         RT1["Orchestrator: Retrospective"]
     end
 
+    subgraph phase6 ["Phase 6: Evolution"]
+        EA1["EvidenceAnalyzer: Pattern summary"]
+        HS1["HarnessSynthesizer: Candidate rules"]
+        RV2["RuleValidator: Back-test + merge"]
+        PE1["PromptEvolver: A/B test + promote"]
+        SE1["PlanStrategyEvolver: Scoper hints"]
+        PD1["PolicyDistiller: Zero-LLM scripts"]
+    end
+
     H1 --> P1 --> F1 --> M1 --> H2 --> P2 --> H3
     H3 --> O1 --> B1 --> V1 --> R1 --> G1
     G1 --> MR1
@@ -73,6 +83,15 @@ flowchart TD
     FIX1 --> RL1
     RL1 -->|"New commit detected"| V1
     MG1 --> LN1 --> RT1
+    RT1 --> EA1
+    EA1 --> HS1 --> RV2
+    EA1 --> PE1
+    EA1 --> SE1
+    EA1 --> PD1
+    SE1 -.->|"hints feed back"| P2
+    PE1 -.->|"evolved prompts"| B1
+    RV2 -.->|"new rules"| G1
+    PD1 -.->|"code policies replace LLM"| B1
 ```
 
 ## Stage Details
@@ -122,6 +141,17 @@ flowchart TD
 | Merge PR | **Gate** + **GitHub** | gate pass | merged code | auto-merge or manual |
 | Close issue | **Linear** | PR merged | issue → Done | Linear-GitHub App |
 | Retrospective | **Orchestrator** | run artifacts | retrospective.md | `spec-orch retro` |
+
+### Phase 6: Evolution (closed-loop self-improvement)
+
+| Step | Primary Role | Input | Output | Command |
+|------|-------------|-------|--------|---------|
+| Evidence analysis | **Evolution Engine** | `.spec_orch_runs/*/report.json` | Pattern summary (success rates, top failures, deviation files) | `spec-orch evidence summary` |
+| Harness synthesis | **Evolution Engine** | Failure patterns | Candidate compliance rules (YAML) | `spec-orch harness synthesize` |
+| Rule validation | **Evolution Engine** | Candidates + historical events | Accepted rules merged into `compliance.contracts.yaml` | `spec-orch harness validate` + `apply` |
+| Prompt evolution | **Evolution Engine** | Active prompt + success rates | New candidate prompt variant (A/B tested) | `spec-orch prompt evolve` |
+| Strategy analysis | **Evolution Engine** | Plan outcomes | Scoper hints injected into planning LLM | `spec-orch strategy analyze` |
+| Policy distillation | **Evolution Engine** | Recurring task patterns | Deterministic Python scripts (zero-LLM cost) | `spec-orch policy distill` |
 
 ## Conflict Resolution Decision Tree
 

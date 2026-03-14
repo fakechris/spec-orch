@@ -5,15 +5,17 @@
 [![Python 3.11+](https://img.shields.io/pypi/pyversions/spec-orch)](https://pypi.org/project/spec-orch/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**AI-native software delivery orchestration for individuals and small teams.**
+**Self-evolving AI software delivery orchestration.**
 
-SpecOrch solves a core problem in agent-heavy development: when you have many coding agents working in parallel, the bottleneck is no longer writing code — it's **decision bandwidth**, **interface stability**, and **verifiable completion**. SpecOrch provides the missing layers between "I have an idea" and "it's safely merged."
+SpecOrch is a system that orchestrates AI coding agents — and then **learns from every run to get better at orchestrating**. It solves the core bottleneck in agent-heavy development: not writing code, but **decision bandwidth**, **interface stability**, and **verifiable completion**.
 
-## Philosophy: Five Layers, Not a Linear Pipeline
+What sets SpecOrch apart: after each execution cycle, the system consumes its own evidence (success rates, failure patterns, deviations), synthesizes new compliance rules, evolves its own prompts, and distills recurring tasks into zero-LLM code policies. Every run makes the next one cheaper and more reliable.
+
+## Philosophy: Five Layers + Closed-Loop Evolution
 
 Traditional dev flows are linear: requirement → issue → code → PR → merge.
 
-In multi-agent development, this breaks down. SpecOrch separates the process into five distinct layers:
+In multi-agent development, this breaks down. SpecOrch separates the process into five distinct layers — and then closes the loop so the system improves itself:
 
 | Layer | Purpose | Where it lives |
 |-------|---------|---------------|
@@ -22,11 +24,13 @@ In multi-agent development, this breaks down. SpecOrch separates the process int
 | **Execution** | Break into waves, assign to agents, track dependencies | Linear issues + ExecutionPlan DAG |
 | **Code** | Build, verify, review in isolated worktrees | Git worktrees + Codex/Claude agents |
 | **Evidence** | Prove completion — gate, deviations, retrospective | `report.json` / `explain.md` / `deviations.jsonl` |
+| **Evolution** | Learn from evidence → improve rules, prompts, strategies | `prompt_history.json` / `scoper_hints.json` / `policies/` |
 
-The key insight:
+The key insights:
 
 > **Issue is not the requirement — Spec is the requirement.**
 > **Merge is not done — Gate is done.**
+> **Orchestration is not static — it evolves with every run.**
 
 ## User Story: From Idea to Merged Code
 
@@ -143,8 +147,8 @@ Generates `retrospective.md`: all deviations, failed attempts, key decisions. Kn
 ## Architecture
 
 ```
-Five-Layer Architecture
-═══════════════════════
+Five-Layer Architecture + Closed-Loop Evolution
+════════════════════════════════════════════════
 
 Discussion ─── CLI TUI / Slack / Linear comments
      │
@@ -153,12 +157,21 @@ Contract ───── docs/specs/<mission>/spec.md + mission.json
      │
      ▼
 Execution ──── ExecutionPlan (DAG/Wave) → Linear Issues
+     │           ▲                          ▲
+     ▼           │ scoper hints             │ compliance rules
+Code ───────── RunController → Codex → Verify → Review
+     │           ▲ evolved prompts
+     ▼           │
+Evidence ───── Gate → report.json → deviations.jsonl
      │
      ▼
-Code ───────── RunController → Codex Builder → Verification → Review
-     │
-     ▼
-Evidence ───── Gate → report.json → explain.md → deviations.jsonl → Linear write-back
+Evolution ──── EvidenceAnalyzer → HarnessSynthesizer → PromptEvolver
+               │                  │                     │
+               │                  ▼                     ▼
+               │                  compliance.contracts  prompt_history.json
+               ▼
+               PlanStrategyEvolver → scoper_hints.json
+               PolicyDistiller ───→ policies/*.py (zero-LLM execution)
 ```
 
 ### Object Model
@@ -171,6 +184,8 @@ ExecutionPlan / DAG ── "How to split" (waves, work packets, dependencies)
 WorkPacket / Issue ─── "Atomic task" (one agent, one worktree, one PR)
     │
 Run / Evidence ─────── "What happened" (build, verify, review, gate, deviations)
+    │
+Evolution ─────────── "What to improve" (rules, prompts, hints, policies)
 ```
 
 ### Key Components
@@ -189,6 +204,12 @@ Run / Evidence ─────── "What happened" (build, verify, review, gat
 | **ConversationService** | Transport-agnostic brainstorming engine (TUI, Linear, Slack) |
 | **DaemonInstaller** | Generates systemd/launchd service files for daemon process management |
 | **ParallelRunController** | Executes multi-wave plans with concurrent packet execution |
+| **EvidenceAnalyzer** | Aggregates historical run data into pattern summaries for LLM context |
+| **HarnessSynthesizer** | LLM-driven generation of compliance rules from failure patterns |
+| **RuleValidator** | Back-tests candidate rules against historical data, auto-merges survivors |
+| **PromptEvolver** | Versioned builder prompts with A/B testing and auto-promotion |
+| **PlanStrategyEvolver** | Generates scoper hints from historical plan outcomes |
+| **PolicyDistiller** | Converts recurring tasks into deterministic Python scripts (zero-LLM) |
 
 ### Key Roles
 
@@ -198,15 +219,17 @@ Run / Evidence ─────── "What happened" (build, verify, review, gat
 | **Linear** | Execution graph + delegation surface + status truth |
 | **Orchestrator** | Claim issue → triage → worktree → builder → verification → gate → PR |
 | **Gate** | Prove completion — the *only* merge authority |
+| **Evolution Engine** | Learn from evidence — improve rules, prompts, strategies each cycle |
 | **Human** | Final acceptance — verifies results, not diffs |
 
 ## Status
 
-SpecOrch is in **dogfood-first (EODF)** mode — the system is used to develop itself.
+SpecOrch is in **dogfood-first (EODF)** mode — the system is used to develop itself, and now **the system also improves itself**.
 
 What works on `main`:
 
 - Five-layer architecture: Discussion → Contract → Execution → Code → Evidence
+- **Closed-loop self-evolution**: Evidence → Harness Synthesis → Prompt Evolution → Policy Distillation
 - `Mission` model with canonical specs in `docs/specs/`
 - `ExecutionPlan` / `Wave` / `WorkPacket` DAG with LLM-based scoping
 - Interactive brainstorming via `spec-orch discuss` with `@freeze` to spec
@@ -224,14 +247,20 @@ What works on `main`:
 - Daemon merge readiness: `git merge-tree` dry-run + auto-rebase before PR creation
 - Daemon process management: systemd/launchd install, state persistence across restarts
 - GitHub PR auto-creation + Gate as commit status check
-- Spec deviation tracking (`deviations.jsonl`)
+- Spec deviation tracking (`deviations.jsonl`) with dynamic gate enforcement
 - Retrospective generation (`spec-orch retro`)
 - Enhanced acceptance with spec compliance checklist
 - Three-tier change management: Full / Standard / Hotfix
 - Web dashboard for pipeline visualization
+- **Evidence analysis**: historical run patterns injected into LLM planning and triage prompts
+- **Auto-harness synthesis**: LLM generates compliance rules from failure patterns, back-tested before merge
+- **Prompt evolution**: A/B tested builder prompt variants with auto-promotion
+- **Scoper hints**: learned decomposition strategies from historical plan outcomes
+- **Policy distillation**: recurring tasks converted to deterministic scripts (zero LLM cost)
 
 What is still intentionally incomplete:
 
+- Wire active prompt variant into builder runtime path (prompt evolution infrastructure is ready)
 - Real Obsidian sync (knowledge plane connector)
 - AI-assisted merge conflict resolution (SON-68)
 - Daemon hotfix mode with priority queue and minimal gate (SON-72)
@@ -286,7 +315,7 @@ brew install spec-orch
 ### Verify
 
 ```bash
-spec-orch --version   # 0.2.0
+spec-orch --version   # 0.3.0
 spec-orch config check
 ```
 
@@ -319,7 +348,7 @@ spec-orch plan my-first-feature
 spec-orch run-plan my-first-feature
 ```
 
-## CLI Reference (49 commands)
+## CLI Reference (65+ commands)
 
 ### Discussion Layer
 
@@ -414,6 +443,37 @@ spec-orch findings add <id>           # Add a finding
 spec-orch findings resolve <id>       # Resolve a finding
 ```
 
+### Evolution Layer — Self-Improvement
+
+```bash
+# Evidence analysis
+spec-orch evidence summary            # Aggregate patterns from historical runs
+
+# Harness synthesis — auto-generate compliance rules
+spec-orch harness synthesize          # LLM proposes rules from failure patterns
+spec-orch harness validate -i f.yaml  # Back-test candidates against history
+spec-orch harness apply -i f.yaml     # Merge surviving rules into contracts
+
+# Prompt evolution — A/B tested builder prompts
+spec-orch prompt init                 # Bootstrap with current builder prompt
+spec-orch prompt status               # Show variant history and success rates
+spec-orch prompt evolve               # LLM proposes improved prompt variant
+spec-orch prompt compare --a v0 --b v1  # Compare two variants
+spec-orch prompt promote --variant v1 # Promote a variant to active
+spec-orch prompt auto-promote         # Auto-promote if candidate outperforms
+
+# Plan strategy — learned scoper hints
+spec-orch strategy status             # Show current scoper hints
+spec-orch strategy analyze            # LLM generates hints from plan outcomes
+spec-orch strategy inject-preview     # Preview hint text for scoper prompt
+
+# Policy distillation — zero-LLM execution
+spec-orch policy list                 # List registered policies
+spec-orch policy candidates           # Identify recurring task patterns
+spec-orch policy distill              # LLM generates deterministic script
+spec-orch policy run --policy <id>    # Execute a policy (no LLM needed)
+```
+
 ### Configuration
 
 ```bash
@@ -455,7 +515,7 @@ Environment variables are loaded automatically from `.env` in the project root.
 
 ```
 src/spec_orch/
-  cli.py                 CLI entry point (49 commands)
+  cli.py                 CLI entry point (65+ commands)
   domain/
     models.py            Core domain models (Mission, ExecutionPlan, Run, Gate, etc.)
     protocols.py         Adapter protocols (Builder, Planner, IssueSource, etc.)
@@ -473,14 +533,22 @@ src/spec_orch/
     parallel_run_controller.py  Multi-wave concurrent execution
     codex_exec_builder_adapter.py  Codex exec integration
     verification_service.py  Lint, typecheck, test runner
-tests/                   Unit and integration tests (396+)
+    evidence_analyzer.py     Historical run pattern aggregation
+    harness_synthesizer.py   LLM-driven compliance rule generation + validation
+    prompt_evolver.py        Versioned prompts with A/B testing
+    plan_strategy_evolver.py Scoper hints from plan outcome analysis
+    policy_distiller.py      Deterministic code policies for recurring tasks
+tests/                   Unit and integration tests (470+)
 fixtures/issues/         Local issue fixtures
 docs/specs/              Canonical specs per mission
 docs/architecture/       System design and policy documents
 docs/plans/              Implementation plans and roadmaps
 gate.policy.yaml         Gate policy: conditions, profiles, auto-merge rules
-compliance.contracts.yaml  Compliance rules for agent behaviour
+compliance.contracts.yaml  Compliance rules for agent behaviour (auto-evolving)
 spec-orch.toml           Daemon, planner, and Linear configuration
+prompt_history.json      Versioned builder prompt variants (auto-generated)
+scoper_hints.json        Learned planning hints (auto-generated)
+policies/                Distilled deterministic scripts (auto-generated)
 .env                     API tokens (gitignored)
 .spec_orch_runs/         Per-issue run artifacts (gitignored)
 .worktrees/              Isolated git worktrees (gitignored)
@@ -490,6 +558,7 @@ spec-orch.toml           Daemon, planner, and Linear configuration
 
 ### Current (authoritative)
 
+- [Self-Evolution Architecture](docs/specs/self-evolution/spec.md) — AutoHarness-inspired closed-loop improvement (3-phase roadmap, completed)
 - [Pipeline Roles and Stages](docs/architecture/pipeline-roles-and-stages.md) — end-to-end flow with roles
 - [Change Management Policy](docs/architecture/change-management-policy.md) — three-tier workflow (Full/Standard/Hotfix)
 - [Linear API Surface](docs/architecture/linear-api-surface.md) — compatibility contract for Linear replacement
