@@ -113,9 +113,24 @@ class SpecOrchDaemon:
 
         planner = self._build_planner()
 
+        evidence_ctx: str | None = None
+        try:
+            from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
+
+            summary = EvidenceAnalyzer(self.repo_root).analyze()
+            if summary.total_runs > 0:
+                evidence_ctx = EvidenceAnalyzer(self.repo_root).format_as_llm_context(
+                    summary
+                )
+        except Exception:
+            pass
+
         from spec_orch.services.readiness_checker import ReadinessChecker
 
-        self._readiness_checker = ReadinessChecker(planner=planner)
+        self._readiness_checker = ReadinessChecker(
+            planner=planner,
+            evidence_context=evidence_ctx,
+        )
 
         controller = RunController(
             repo_root=self.repo_root,

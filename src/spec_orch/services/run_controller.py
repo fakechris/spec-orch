@@ -24,6 +24,10 @@ from spec_orch.domain.protocols import BuilderAdapter, IssueSource, PlannerAdapt
 from spec_orch.services.activity_logger import ActivityLogger
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
+from spec_orch.services.deviation_service import (
+    detect_deviations,
+    write_deviations,
+)
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
 from spec_orch.services.gate_service import GateService
 from spec_orch.services.review_adapter import LocalReviewAdapter
@@ -710,11 +714,16 @@ class RunController:
         spec_exists = snapshot is not None
         spec_approved = snapshot.approved if snapshot else False
 
+        deviations = detect_deviations(workspace=workspace, snapshot=snapshot)
+        if deviations:
+            write_deviations(workspace, deviations)
+        within_boundaries = len(deviations) == 0
+
         gate = self.gate_service.evaluate(
             GateInput(
                 spec_exists=spec_exists,
                 spec_approved=spec_approved,
-                within_boundaries=True,
+                within_boundaries=within_boundaries,
                 builder_succeeded=builder.succeeded,
                 verification=verification,
                 review=review,
