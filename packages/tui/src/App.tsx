@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import { useScreenSize } from "fullscreen-ink";
 import { useApi } from "./hooks/useApi.js";
@@ -30,13 +30,13 @@ export function App({ apiUrl, wsUrl }: AppProps) {
     ? api.lifecycle[selectedMission.mission_id]
     : undefined;
 
-  const activeIssueId = (() => {
+  const activeIssueId = useMemo(() => {
     if (!selectedLc) return null;
     const running = selectedLc.issue_ids.find(
       (id) => !selectedLc.completed_issues.includes(id),
     );
     return running ?? null;
-  })();
+  }, [selectedLc]);
 
   const handleBtwSubmit = useCallback(
     async (issueId: string, message: string) => {
@@ -58,7 +58,7 @@ export function App({ apiUrl, wsUrl }: AppProps) {
       if (key.upArrow) {
         setSelectedIndex((i) => Math.max(0, i - 1));
       }
-      if (key.downArrow) {
+      if (key.downArrow && api.missions.length > 0) {
         setSelectedIndex((i) => Math.min(api.missions.length - 1, i + 1));
       }
 
@@ -76,7 +76,6 @@ export function App({ apiUrl, wsUrl }: AppProps) {
   );
 
   const sidebarWidth = Math.min(Math.max(Math.floor(width * 0.3), 24), 40);
-  const mainHeight = height - 6;
 
   return (
     <Box flexDirection="column" width={width} height={height}>
@@ -86,6 +85,7 @@ export function App({ apiUrl, wsUrl }: AppProps) {
         borderColor="cyan"
         paddingX={1}
         justifyContent="space-between"
+        flexShrink={0}
       >
         <Box gap={1}>
           <StatusBar
@@ -97,7 +97,7 @@ export function App({ apiUrl, wsUrl }: AppProps) {
       </Box>
 
       {/* Main content */}
-      <Box flexGrow={1} height={mainHeight}>
+      <Box flexGrow={1}>
         {/* Left: Mission list */}
         <MissionList
           missions={api.missions}
@@ -113,7 +113,7 @@ export function App({ apiUrl, wsUrl }: AppProps) {
             lifecycle={selectedLc}
             runs={api.runs}
             events={events}
-            height={mainHeight - 5}
+            height={Math.max(height - 10, 8)}
           />
           <PipelineBar lifecycle={selectedLc} runs={api.runs} />
         </Box>

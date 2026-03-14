@@ -3,7 +3,7 @@ import React from "react";
 import { withFullScreen } from "fullscreen-ink";
 import { App } from "./App.js";
 
-const DEFAULT_PORT = 8765;
+const DEFAULT_PORT = 8420;
 
 function parseArgs(): { apiUrl: string; wsUrl: string } {
   const args = process.argv.slice(2);
@@ -12,7 +12,8 @@ function parseArgs(): { apiUrl: string; wsUrl: string } {
 
   for (let i = 0; i < args.length; i++) {
     if ((args[i] === "--port" || args[i] === "-p") && args[i + 1]) {
-      port = parseInt(args[i + 1]!, 10);
+      const parsed = parseInt(args[i + 1]!, 10);
+      if (!Number.isNaN(parsed)) port = parsed;
       i++;
     }
     if ((args[i] === "--host" || args[i] === "-h") && args[i + 1]) {

@@ -18,7 +18,10 @@ export function RunnerView({
   events,
   height,
 }: Props) {
-  const issueIds = new Set(lifecycle?.issue_ids ?? []);
+  const issueIds = useMemo(
+    () => new Set(lifecycle?.issue_ids ?? []),
+    [lifecycle?.issue_ids],
+  );
 
   const relevantEvents = useMemo(() => {
     return events.filter((e) => {
