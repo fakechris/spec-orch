@@ -200,7 +200,7 @@ def _load_run_trend(repo_root: Path, metrics: dict[str, Any]) -> None:
                 }
             )
         except (json.JSONDecodeError, OSError):
-            pass
+            logger.debug("Skipping malformed report: %s", report)
     metrics["total_runs"] = total
     metrics["successful_runs"] = success
     if total > 0:
@@ -430,7 +430,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
   <span id="event-log" style="font-size:.7rem;color:var(--dim);max-width:30%;overflow:hidden;
     text-overflow:ellipsis;white-space:nowrap;margin-left:.5rem"></span>
 </div>
-<div id="evo-panel" style="display:none;background:var(--card-bg);border-top:1px solid var(--border);padding:1rem;max-height:50vh;overflow-y:auto">
+<div id="evo-panel" style="display:none;background:var(--card);border-top:1px solid var(--border);padding:1rem;max-height:50vh;overflow-y:auto">
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
     <div>
       <h3 style="margin:0 0 .5rem;color:var(--accent);font-size:.9rem">Prompt Variants</h3>
@@ -496,9 +496,13 @@ function renderEvoVariants(variants) {
   if (!el) return;
   if (variants.length === 0) { el.innerHTML = '<span style="color:var(--dim)">No prompt variants yet</span>'; return; }
   el.innerHTML = variants.map(v => {
+    const vid = escHtml(v.variant_id);
+    const rat = escHtml(v.rationale || '');
     const badge = v.is_active ? '<span style="color:#4ade80;font-weight:bold">● active</span>' : v.is_candidate ? '<span style="color:#facc15">◎ candidate</span>' : '<span style="color:var(--dim)">○</span>';
-    const bar = v.total_runs > 0 ? `<div style="display:inline-block;width:60px;height:8px;background:var(--border);border-radius:4px;overflow:hidden;vertical-align:middle"><div style="width:${v.success_rate}%;height:100%;background:${v.success_rate>=70?'#4ade80':v.success_rate>=40?'#facc15':'#f87171'}"></div></div>` : '';
-    return `<div style="padding:.25rem 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem">${badge} <strong>${v.variant_id}</strong> ${bar} <span>${v.success_rate}%</span> <span style="color:var(--dim)">(${v.successful_runs}/${v.total_runs})</span>${v.rationale ? `<span style="color:var(--dim);font-size:.7rem;margin-left:auto" title="${v.rationale}">${v.rationale.slice(0,50)}${v.rationale.length>50?'…':''}</span>` : ''}</div>`;
+    const pct = Number(v.success_rate) || 0;
+    const bar = v.total_runs > 0 ? `<div style="display:inline-block;width:60px;height:8px;background:var(--border);border-radius:4px;overflow:hidden;vertical-align:middle"><div style="width:${pct}%;height:100%;background:${pct>=70?'#4ade80':pct>=40?'#facc15':'#f87171'}"></div></div>` : '';
+    const ratSnip = rat.length > 50 ? rat.slice(0,50) + '…' : rat;
+    return `<div style="padding:.25rem 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem">${badge} <strong>${vid}</strong> ${bar} <span>${pct}%</span> <span style="color:var(--dim)">(${Number(v.successful_runs)||0}/${Number(v.total_runs)||0})</span>${rat ? `<span style="color:var(--dim);font-size:.7rem;margin-left:auto" title="${rat}">${ratSnip}</span>` : ''}</div>`;
   }).join('');
 }
 
@@ -511,7 +515,8 @@ function renderEvoTrend(trend) {
   el.innerHTML = trend.map(t => {
     const h = Math.max(3, (t.cumulative_rate / 100) * maxH);
     const color = t.ok ? '#4ade80' : '#f87171';
-    return `<div title="${t.run}: ${t.cumulative_rate}%" style="width:${Math.max(4, Math.floor(200/trend.length))}px;height:${h}px;background:${color};border-radius:2px 2px 0 0;transition:height .3s"></div>`;
+    const runName = escHtml(t.run);
+    return `<div title="${runName}: ${t.cumulative_rate}%" style="width:${Math.max(4, Math.floor(200/trend.length))}px;height:${h}px;background:${color};border-radius:2px 2px 0 0;transition:height .3s"></div>`;
   }).join('');
   if (labels && trend.length > 0) {
     const last = trend[trend.length - 1];

@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import http from "node:http";
 import https from "node:https";
 
-function httpFetch(
+export function httpFetch(
   url: string,
   options: { method?: string; body?: string } = {},
 ): Promise<{ status: number; data: unknown }> {

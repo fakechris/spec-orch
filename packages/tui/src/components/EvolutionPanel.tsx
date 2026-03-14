@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Box, Text } from "ink";
+import { httpFetch } from "../hooks/useApi.js";
 
 interface VariantInfo {
   variant_id: string;
@@ -27,23 +28,17 @@ interface Props {
 
 export function EvolutionPanel({ apiUrl }: Props) {
   const [data, setData] = useState<EvolutionData | null>(null);
+  const [error, setError] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const http = await import("node:http");
-      const url = new URL(`${apiUrl}/api/evolution`);
-      const res = await new Promise<string>((resolve, reject) => {
-        http
-          .get(url, (r) => {
-            let body = "";
-            r.on("data", (chunk: Buffer) => (body += chunk.toString()));
-            r.on("end", () => resolve(body));
-          })
-          .on("error", reject);
-      });
-      setData(JSON.parse(res));
+      const res = await httpFetch(`${apiUrl}/api/evolution`);
+      if (res.status === 200) {
+        setData(res.data as EvolutionData);
+        setError(false);
+      }
     } catch {
-      /* daemon unreachable */
+      setError(true);
     }
   }, [apiUrl]);
 
@@ -59,7 +54,7 @@ export function EvolutionPanel({ apiUrl }: Props) {
         <Text bold color="magenta">
           Evolution
         </Text>
-        <Text dimColor>Loading...</Text>
+        <Text dimColor>{error ? "Daemon unreachable" : "Loading..."}</Text>
       </Box>
     );
   }
