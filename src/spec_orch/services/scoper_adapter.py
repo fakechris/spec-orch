@@ -123,8 +123,7 @@ class LiteLLMScoperAdapter:
                 "\n\nUse the following historical evidence to inform "
                 "your decomposition decisions (e.g. isolate files that "
                 "frequently cause deviations, allocate extra waves for "
-                "areas with high failure rates):\n\n"
-                + self._evidence_context
+                "areas with high failure rates):\n\n" + self._evidence_context
             )
 
         kwargs: dict[str, Any] = {

@@ -228,9 +228,7 @@ def test_malformed_report_skipped(tmp_path: Path) -> None:
 def test_malformed_deviation_line_skipped(tmp_path: Path) -> None:
     rd = tmp_path / ".spec_orch_runs" / "MIXED"
     _write_report(rd, {"mergeable": True, "failed_conditions": []})
-    (rd / "deviations.jsonl").write_text(
-        '{"file_path": "a.py"}\nBAD LINE\n{"file_path": "b.py"}\n'
-    )
+    (rd / "deviations.jsonl").write_text('{"file_path": "a.py"}\nBAD LINE\n{"file_path": "b.py"}\n')
 
     summary = EvidenceAnalyzer(tmp_path).analyze()
     assert summary.total_deviations == 2

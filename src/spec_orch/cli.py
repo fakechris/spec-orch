@@ -1666,11 +1666,12 @@ def plan_mission(
     try:
         from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
 
-        summary = EvidenceAnalyzer(Path(repo_root)).analyze()
+        analyzer = EvidenceAnalyzer(Path(repo_root))
+        summary = analyzer.analyze()
         if summary.total_runs > 0:
-            evidence_ctx = EvidenceAnalyzer(Path(repo_root)).format_as_llm_context(summary)
-    except Exception:
-        pass
+            evidence_ctx = analyzer.format_as_llm_context(summary)
+    except (OSError, ValueError) as exc:
+        typer.echo(f"[plan] evidence analysis skipped: {exc}", err=True)
 
     scoper = LiteLLMScoperAdapter(
         model=planner_cfg.get("model", "claude-sonnet-4-20250514"),

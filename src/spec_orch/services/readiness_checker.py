@@ -147,9 +147,7 @@ class ReadinessChecker:
                 "\n\nUse the following historical evidence to calibrate "
                 "your assessment. For example, issues in areas with high "
                 "failure rates may need more explicit acceptance criteria "
-                "or scope constraints:\n\n"
-                + self._evidence_context
-                + "\n\n"
+                "or scope constraints:\n\n" + self._evidence_context + "\n\n"
             )
 
         prompt = (

@@ -71,18 +71,10 @@ class EvidenceAnalyzer:
 
         failed = total - successful
         success_rate = successful / total if total > 0 else 0.0
-        avg_vpr = (
-            sum(verification_rates) / len(verification_rates)
-            if verification_rates
-            else 0.0
-        )
+        avg_vpr = sum(verification_rates) / len(verification_rates) if verification_rates else 0.0
 
-        top_failures = sorted(failure_counts.items(), key=lambda x: x[1], reverse=True)[
-            :5
-        ]
-        top_devs = sorted(
-            deviation_file_counts.items(), key=lambda x: x[1], reverse=True
-        )[:10]
+        top_failures = sorted(failure_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        top_devs = sorted(deviation_file_counts.items(), key=lambda x: x[1], reverse=True)[:10]
 
         return PatternSummary(
             total_runs=total,
@@ -136,9 +128,7 @@ class EvidenceAnalyzer:
         ]
 
         if summary.top_failure_reasons:
-            reasons = ", ".join(
-                f"{r} ({c}x)" for r, c in summary.top_failure_reasons
-            )
+            reasons = ", ".join(f"{r} ({c}x)" for r, c in summary.top_failure_reasons)
             parts.append(f"Common failures: {reasons}.")
 
         if summary.top_deviation_files:
@@ -174,7 +164,11 @@ class EvidenceAnalyzer:
         if not report_path.exists():
             return None
         try:
-            return json.loads(report_path.read_text())  # type: ignore[no-any-return]
+            data = json.loads(report_path.read_text())
+            if not isinstance(data, dict):
+                logger.warning("Skipping non-object report %s", report_path)
+                return None
+            return data
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Skipping malformed report %s: %s", report_path, exc)
             return None
@@ -190,11 +184,11 @@ class EvidenceAnalyzer:
                 if not line:
                     continue
                 try:
-                    results.append(json.loads(line))
+                    obj = json.loads(line)
+                    if isinstance(obj, dict):
+                        results.append(obj)
                 except json.JSONDecodeError as exc:
-                    logger.warning(
-                        "Skipping malformed deviation line in %s: %s", dev_path, exc
-                    )
+                    logger.warning("Skipping malformed deviation line in %s: %s", dev_path, exc)
         except OSError as exc:
             logger.warning("Could not read deviations %s: %s", dev_path, exc)
         return results

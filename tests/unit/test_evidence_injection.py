@@ -30,7 +30,9 @@ class TestScoperEvidenceInjection:
         mock_response.choices[0].message.content = '{"waves": []}'
         mock_litellm.completion.return_value = mock_response
 
-        evidence = "<evidence>5 runs, 60% success rate. Common failures: verification (3x).</evidence>"
+        evidence = (
+            "<evidence>5 runs, 60% success rate. Common failures: verification (3x).</evidence>"
+        )
         scoper = LiteLLMScoperAdapter(evidence_context=evidence)
 
         mission = Mission(
@@ -40,7 +42,9 @@ class TestScoperEvidenceInjection:
             constraints=[],
         )
         with patch.dict(sys.modules, {"litellm": mock_litellm}):
-            scoper.scope(mission=mission, codebase_context={"spec_content": "spec", "file_tree": ""})
+            scoper.scope(
+                mission=mission, codebase_context={"spec_content": "spec", "file_tree": ""}
+            )
 
         call_kwargs = mock_litellm.completion.call_args[1]
         system_msg = call_kwargs["messages"][0]["content"]
@@ -124,11 +128,13 @@ class TestReadinessCheckerEvidenceInjection:
         assert "historical evidence" not in prompt
 
     def test_rule_check_skips_llm_regardless_of_evidence(self) -> None:
-        """Rule check failure returns immediately, evidence doesn't matter."""
+        """Rule check failure returns immediately, LLM is never called."""
+        mock_planner = MagicMock()
         checker = ReadinessChecker(
-            planner=MagicMock(),
+            planner=mock_planner,
             evidence_context="<evidence>stuff</evidence>",
         )
         result = checker.check("No proper sections here.")
         assert result.ready is False
         assert len(result.missing_fields) > 0
+        mock_planner.brainstorm.assert_not_called()

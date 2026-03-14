@@ -128,3 +128,20 @@ class TestDeviationsWrittenToDisk:
     def test_no_deviations_file_returns_empty(self, tmp_path: Path) -> None:
         loaded = load_deviations(tmp_path)
         assert loaded == []
+
+    def test_overwrite_replaces_previous(self, tmp_path: Path) -> None:
+        from spec_orch.services.deviation_service import overwrite_deviations
+
+        overwrite_deviations(tmp_path, [_make_deviation(file_path="old.py")])
+        overwrite_deviations(tmp_path, [_make_deviation(file_path="new.py")])
+        loaded = load_deviations(tmp_path)
+        assert len(loaded) == 1
+        assert loaded[0].file_path == "new.py"
+
+    def test_overwrite_empty_clears_file(self, tmp_path: Path) -> None:
+        from spec_orch.services.deviation_service import overwrite_deviations
+
+        overwrite_deviations(tmp_path, [_make_deviation(file_path="old.py")])
+        overwrite_deviations(tmp_path, [])
+        loaded = load_deviations(tmp_path)
+        assert loaded == []
