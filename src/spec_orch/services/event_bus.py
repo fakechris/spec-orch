@@ -25,6 +25,7 @@ class EventTopic(enum.StrEnum):
     GATE_RESULT = "gate.result"
     EVOLUTION = "evolution"
     BTW_INJECTED = "btw.injected"
+    CONDUCTOR = "conductor"
     MEMORY = "memory"
     SYSTEM = "system"
 
