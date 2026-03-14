@@ -87,7 +87,7 @@ class MissionLifecycleManager:
                 data = json.loads(path.read_text())
                 for mid, sd in data.items():
                     self._states[mid] = MissionState.from_dict(sd)
-            except (json.JSONDecodeError, KeyError):
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
                 logger.warning("Failed to load lifecycle state, starting fresh")
 
     def _save_state(self) -> None:
@@ -181,6 +181,10 @@ class MissionLifecycleManager:
     def mark_failed(self, mission_id: str, error: str) -> MissionState:
         return self._transition(mission_id, MissionPhase.FAILED, error=error)
 
+    def retry(self, mission_id: str) -> MissionState:
+        """Reset a mission to APPROVED so it can be re-advanced."""
+        return self._transition(mission_id, MissionPhase.APPROVED)
+
     def auto_advance(self, mission_id: str) -> MissionState | None:
         """Attempt to advance a mission through automated phases.
 
@@ -205,7 +209,8 @@ class MissionLifecycleManager:
             plan_result = self._run_plan(mission_id)
             issue_ids = [
                 wp.get("title", f"packet-{i}")
-                for i, wp in enumerate(plan_result.get("packets", []))
+                for w in plan_result.get("waves", [])
+                for i, wp in enumerate(w.get("work_packets", []))
             ]
             return self.plan_complete(mission_id, issue_ids)
         except Exception as exc:
@@ -242,21 +247,29 @@ class MissionLifecycleManager:
         spec_path = self.repo_root / mission.spec_path
         spec_text = spec_path.read_text() if spec_path.exists() else ""
 
-        planner = self._build_planner()
-        if planner is None:
+        cfg = self._load_planner_config()
+        if cfg is None:
             raise RuntimeError("No planner configured — cannot auto-plan")
 
         evidence_ctx = self._gather_evidence()
         scoper = LiteLLMScoperAdapter(
-            planner=planner,
+            model=cfg["model"],
+            api_type=cfg.get("api_type", "anthropic"),
+            api_key=cfg.get("api_key"),
+            api_base=cfg.get("api_base"),
+            token_command=cfg.get("token_command"),
             evidence_context=evidence_ctx,
         )
-        plan = scoper.scope(spec_text, str(self.repo_root))
+        plan = scoper.scope(
+            mission=mission,
+            codebase_context={"spec_content": spec_text, "file_tree": ""},
+        )
         plan_dir = self.repo_root / "docs" / "specs" / mission_id
         plan_dir.mkdir(parents=True, exist_ok=True)
         plan_path = plan_dir / "plan.json"
-        plan_path.write_text(json.dumps(plan, indent=2))
-        return plan
+        plan_dict = asdict(plan)
+        plan_path.write_text(json.dumps(plan_dict, indent=2, default=str))
+        return plan_dict
 
     def _run_promote(self, mission_id: str) -> list[str]:
         """Create Linear issues from plan."""
@@ -267,9 +280,13 @@ class MissionLifecycleManager:
 
         plan_path = self.repo_root / "docs" / "specs" / mission_id / "plan.json"
         plan = load_plan(plan_path)
-        svc = PromotionService(self.repo_root)
-        issue_ids = svc.promote(plan, mission_id)
-        return issue_ids
+        svc = PromotionService()
+        promoted = svc.promote(plan)
+        return [
+            wp.linear_issue_id or wp.title
+            for wave in promoted.waves
+            for wp in wave.work_packets
+        ]
 
     def _run_retrospective(self, mission_id: str) -> None:
         logger.info("Running retrospective for %s", mission_id)
@@ -284,22 +301,31 @@ class MissionLifecycleManager:
             logger.info(
                 "Evidence summary for %s: %d runs analyzed",
                 mission_id,
-                summary.get("total_runs", 0) if isinstance(summary, dict) else 0,
+                summary.total_runs,
             )
         except Exception:
             logger.warning("Evidence analysis skipped", exc_info=True)
 
-    def _build_planner(self) -> Any:
+    def _load_planner_config(self) -> dict[str, Any] | None:
         config_path = self.repo_root / "spec-orch.toml"
         if not config_path.exists():
             return None
         try:
-            from spec_orch.services.litellm_planner_adapter import (
-                LiteLLMPlannerAdapter,
-            )
+            import os
+            import tomllib
 
-            return LiteLLMPlannerAdapter.from_toml(config_path)
+            with config_path.open("rb") as f:
+                raw = tomllib.load(f)
+            cfg: dict[str, Any] = raw.get("planner", {})
+            if not cfg.get("model"):
+                return None
+            if env := cfg.get("api_key_env"):
+                cfg["api_key"] = os.environ.get(env)
+            if env := cfg.get("api_base_env"):
+                cfg["api_base"] = os.environ.get(env)
+            return cfg
         except Exception:
+            logger.exception("Failed to load planner config")
             return None
 
     def _gather_evidence(self) -> str | None:
@@ -307,8 +333,10 @@ class MissionLifecycleManager:
             from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
 
             analyzer = EvidenceAnalyzer(self.repo_root)
-            return analyzer.format_for_prompt()
+            summary = analyzer.analyze()
+            return analyzer.format_as_llm_context(summary)
         except Exception:
+            logger.exception("Failed to gather evidence")
             return None
 
     def inject_btw(self, issue_id: str, message: str, channel: str) -> bool:

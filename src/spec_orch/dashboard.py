@@ -24,7 +24,7 @@ def _get_event_bus():
         from spec_orch.services.event_bus import get_event_bus
 
         return get_event_bus()
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -33,7 +33,7 @@ def _get_lifecycle_manager(repo_root: Path):
         from spec_orch.services.lifecycle_manager import MissionLifecycleManager
 
         return MissionLifecycleManager(repo_root)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -150,7 +150,7 @@ def _gather_evolution_metrics(repo_root: Path) -> dict[str, Any]:
             if total > 0:
                 metrics["success_rate"] = round(success / total * 100, 1)
     except Exception:
-        pass
+        logger.warning("Failed to gather evolution metrics", exc_info=True)
     return metrics
 
 
@@ -731,9 +731,9 @@ def create_app(repo_root: Path | None = None) -> Any:
             mgr.begin_tracking(mission_id)
             state = mgr.auto_advance(mission_id)
             return JSONResponse({"ok": True, "phase": state.phase.value if state else "unknown"})
-        except Exception as exc:
+        except Exception:
             logger.exception("approve failed for %s", mission_id)
-            return JSONResponse({"error": str(exc)}, status_code=500)
+            return JSONResponse({"error": "Mission approval failed"}, status_code=500)
 
     @app.post("/api/missions/{mission_id}/retry")
     async def api_retry(mission_id: str) -> JSONResponse:
@@ -741,14 +741,12 @@ def create_app(repo_root: Path | None = None) -> Any:
         if mgr is None:
             return JSONResponse({"error": "Lifecycle manager unavailable"}, status_code=503)
         try:
-            from spec_orch.services.lifecycle_manager import MissionPhase
-
-            mgr._transition(mission_id, MissionPhase.APPROVED)
+            mgr.retry(mission_id)
             state = mgr.auto_advance(mission_id)
             return JSONResponse({"ok": True, "phase": state.phase.value if state else "unknown"})
-        except Exception as exc:
+        except Exception:
             logger.exception("retry failed for %s", mission_id)
-            return JSONResponse({"error": str(exc)}, status_code=500)
+            return JSONResponse({"error": "Mission retry failed"}, status_code=500)
 
     @app.post("/api/discuss")
     async def api_discuss(
@@ -771,9 +769,9 @@ def create_app(repo_root: Path | None = None) -> Any:
             )
             reply = svc.handle_message(msg)
             return JSONResponse({"reply": reply or ""})
-        except Exception as exc:
+        except Exception:
             logger.exception("discuss failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
+            return JSONResponse({"error": "Discussion request failed"}, status_code=500)
 
     @app.post("/api/btw")
     async def api_btw(
@@ -786,9 +784,9 @@ def create_app(repo_root: Path | None = None) -> Any:
         try:
             ok = mgr.inject_btw(issue_id, message, channel="web-dashboard")
             return JSONResponse({"ok": ok})
-        except Exception as exc:
+        except Exception:
             logger.exception("btw injection failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
+            return JSONResponse({"error": "BTW injection failed"}, status_code=500)
 
     # ---- websocket ----
 
@@ -825,7 +823,7 @@ def create_app(repo_root: Path | None = None) -> Any:
         except WebSocketDisconnect:
             pass
         except Exception:
-            pass
+            logger.exception("Error in websocket endpoint")
         finally:
             bus.remove_async_queue(queue)
 
