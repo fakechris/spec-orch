@@ -75,7 +75,7 @@ class TestEventBusIntegration:
         bus.publish(
             Event(
                 topic=EventTopic.MISSION_STATE,
-                payload={"mission_id": "test-m", "phase": "executing"},
+                payload={"mission_id": "test-m", "old_state": "planning", "new_state": "executing"},
                 source="test",
             )
         )
@@ -112,7 +112,9 @@ class TestCustomProvider:
     def test_accepts_custom_provider(self):
         mock = MagicMock()
         mock.store.return_value = "custom-key"
-        mock.get.return_value = MemoryEntry(key="custom-key", content="hi", layer=MemoryLayer.WORKING)
+        mock.get.return_value = MemoryEntry(
+            key="custom-key", content="hi", layer=MemoryLayer.WORKING
+        )
 
         svc = MemoryService(provider=mock)
         key = svc.store(MemoryEntry(key="x", content="y", layer=MemoryLayer.WORKING))

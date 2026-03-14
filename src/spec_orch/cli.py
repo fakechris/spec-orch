@@ -2712,16 +2712,14 @@ def memory_list(
     from spec_orch.services.memory.service import get_memory_service
 
     svc = get_memory_service(repo_root=Path(repo_root).resolve())
-    tags = [tag] if tag else None
-    keys = svc.list_keys(layer=layer or None, tags=tags, limit=limit)
-    if not keys:
+    tag_list = [tag] if tag else None
+    summaries = svc.list_summaries(layer=layer or None, tags=tag_list, limit=limit)
+    if not summaries:
         typer.echo("No entries found.")
         return
-    for k in keys:
-        entry = svc.get(k)
-        if entry:
-            tags_str = ", ".join(entry.tags) if entry.tags else "-"
-            typer.echo(f"  [{entry.layer.value:11s}] {k}  ({tags_str})")
+    for s in summaries:
+        tags_str = ", ".join(s.get("tags", [])) or "-"
+        typer.echo(f"  [{s['layer']:11s}] {s['key']}  ({tags_str})")
 
 
 @memory_app.command("show")
@@ -2739,7 +2737,7 @@ def memory_show(
         raise typer.Exit(1)
     typer.echo(f"Key:       {entry.key}")
     typer.echo(f"Layer:     {entry.layer.value}")
-    typer.echo(f"Tags:      {', '.join(entry.tags)}")
+    typer.echo(f"Tags:      {', '.join(entry.tags) or '-'}")
     typer.echo(f"Created:   {entry.created_at}")
     typer.echo(f"Updated:   {entry.updated_at}")
     if entry.metadata:

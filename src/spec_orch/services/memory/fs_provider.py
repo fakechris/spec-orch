@@ -178,6 +178,28 @@ class FileSystemMemoryProvider:
             return None
         return self._read_entry(path)
 
+    def list_summaries(
+        self,
+        *,
+        layer: str | None = None,
+        tags: list[str] | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Return lightweight summaries from the index without reading files."""
+        keys = self._filtered_keys(layer=layer, tags=tags)[:limit]
+        results: list[dict[str, Any]] = []
+        for key in keys:
+            info = self._index.get(key, {})
+            results.append(
+                {
+                    "key": key,
+                    "layer": info.get("layer", "working"),
+                    "tags": info.get("tags", []),
+                    "updated_at": info.get("updated_at", ""),
+                }
+            )
+        return results
+
     # -- internals -----------------------------------------------------------
 
     def _ensure_dirs(self) -> None:
@@ -230,14 +252,16 @@ class FileSystemMemoryProvider:
             return None
         known_keys = {"key", "layer", "tags", "created_at", "updated_at"}
         extra_meta = {k: v for k, v in meta.items() if k not in known_keys}
-        return MemoryEntry(
-            key=meta["key"],
-            content=body.strip(),
-            layer=MemoryLayer(meta.get("layer", "working")),
-            metadata=extra_meta,
-            tags=meta.get("tags", []),
-            created_at=meta.get("created_at", ""),
-            updated_at=meta.get("updated_at", ""),
+        return MemoryEntry.from_dict(
+            {
+                "key": meta["key"],
+                "content": body.strip(),
+                "layer": meta.get("layer", "working"),
+                "metadata": extra_meta,
+                "tags": meta.get("tags", []),
+                "created_at": meta.get("created_at") or None,
+                "updated_at": meta.get("updated_at") or None,
+            }
         )
 
     def _filtered_keys(

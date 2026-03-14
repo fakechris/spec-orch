@@ -51,14 +51,15 @@ class MemoryEntry:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> MemoryEntry:
+        now = datetime.now(UTC).isoformat()
         return cls(
             key=data["key"],
             content=data["content"],
             layer=MemoryLayer(data["layer"]),
             metadata=data.get("metadata", {}),
             tags=data.get("tags", []),
-            created_at=data.get("created_at", datetime.now(UTC).isoformat()),
-            updated_at=data.get("updated_at", datetime.now(UTC).isoformat()),
+            created_at=data.get("created_at") or now,
+            updated_at=data.get("updated_at") or now,
         )
 
 

@@ -95,15 +95,21 @@ class TestListKeys:
 
     def test_limit(self, provider: FileSystemMemoryProvider):
         for i in range(20):
-            provider.store(MemoryEntry(key=f"item-{i:02d}", content=str(i), layer=MemoryLayer.WORKING))
+            provider.store(
+                MemoryEntry(key=f"item-{i:02d}", content=str(i), layer=MemoryLayer.WORKING)
+            )
         keys = provider.list_keys(limit=5)
         assert len(keys) == 5
 
 
 class TestRecall:
     def test_text_search(self, provider: FileSystemMemoryProvider):
-        provider.store(MemoryEntry(key="apple", content="I like apples", layer=MemoryLayer.SEMANTIC))
-        provider.store(MemoryEntry(key="banana", content="I like bananas", layer=MemoryLayer.SEMANTIC))
+        provider.store(
+            MemoryEntry(key="apple", content="I like apples", layer=MemoryLayer.SEMANTIC)
+        )
+        provider.store(
+            MemoryEntry(key="banana", content="I like bananas", layer=MemoryLayer.SEMANTIC)
+        )
         results = provider.recall(MemoryQuery(text="apple"))
         assert len(results) == 1
         assert results[0].key == "apple"

@@ -74,6 +74,22 @@ class MemoryService:
     ) -> list[str]:
         return self._provider.list_keys(layer=layer, tags=tags, limit=limit)
 
+    def list_summaries(
+        self,
+        *,
+        layer: str | None = None,
+        tags: list[str] | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Return index-only summaries (no file I/O per entry)."""
+        if hasattr(self._provider, "list_summaries"):
+            result: list[dict[str, Any]] = self._provider.list_summaries(
+                layer=layer, tags=tags, limit=limit
+            )  # type: ignore[union-attr]
+            return result
+        keys = self._provider.list_keys(layer=layer, tags=tags, limit=limit)
+        return [{"key": k, "layer": layer or "", "tags": []} for k in keys]
+
     # -- lifecycle event capture ---------------------------------------------
 
     def record_mission_event(
@@ -136,8 +152,10 @@ class MemoryService:
     def _on_mission_state(self, event: Any) -> None:
         payload = event.payload if hasattr(event, "payload") else event
         mission_id = payload.get("mission_id", "unknown")
-        phase = payload.get("phase", "unknown")
-        self.record_mission_event(mission_id, phase, metadata=payload)
+        new_state = payload.get("new_state", "unknown")
+        old_state = payload.get("old_state", "")
+        detail = f"Transition: {old_state} → {new_state}" if old_state else ""
+        self.record_mission_event(mission_id, new_state, detail=detail, metadata=payload)
 
     def _on_issue_state(self, event: Any) -> None:
         payload = event.payload if hasattr(event, "payload") else event
@@ -150,12 +168,15 @@ class MemoryService:
     # -- EventBus emit helper ------------------------------------------------
 
     @staticmethod
-    def _emit(topic: str, payload: dict[str, Any]) -> None:
+    def _emit(topic_str: str, payload: dict[str, Any]) -> None:
         try:
-            from spec_orch.services.event_bus import Event, get_event_bus
+            from spec_orch.services.event_bus import Event, EventTopic, get_event_bus
 
             bus = get_event_bus()
-            bus.publish(Event(topic=topic, payload=payload, source="memory_service"))
+            topic = EventTopic.MEMORY
+            bus.publish(
+                Event(topic=topic, payload={"sub": topic_str, **payload}, source="memory_service")
+            )
         except ImportError:
             pass
 
