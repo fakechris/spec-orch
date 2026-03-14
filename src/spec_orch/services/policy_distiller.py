@@ -12,17 +12,27 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import subprocess
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
 
 logger = logging.getLogger(__name__)
 
 _POLICIES_DIR = "policies"
+_VALID_POLICY_ID = re.compile(r"^[a-z0-9][a-z0-9\-]{0,62}$")
+
+
+class PolicyCandidate(TypedDict):
+    pattern: str
+    occurrences: int
+    examples: list[str]
+
+
 _POLICIES_INDEX = "policies_index.json"
 
 _DISTILLER_SYSTEM_PROMPT = """\
@@ -123,13 +133,13 @@ class PolicyDistiller:
         data = [asdict(p) for p in policies]
         self._index_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
-    def identify_candidates(self, min_occurrences: int = 3) -> list[dict[str, Any]]:
+    def identify_candidates(self, min_occurrences: int = 3) -> list[PolicyCandidate]:
         """Identify recurring task patterns from historical data.
 
-        Returns a list of pattern dicts with task descriptions and counts.
+        Returns a list of candidates keyed by verification-check name.
         """
         analyzer = EvidenceAnalyzer(self._repo_root)
-        run_dirs = analyzer._collect_run_dirs()
+        run_dirs = analyzer.collect_run_dirs()
 
         if not run_dirs:
             return []
@@ -138,17 +148,11 @@ class PolicyDistiller:
         task_examples: dict[str, list[str]] = {}
 
         for rd in run_dirs:
-            report = analyzer._read_report(rd)
+            report = analyzer.read_report(rd)
             if report is None:
                 continue
 
-            succeeded = report.get("mergeable", report.get("succeeded", False))
-            if not succeeded:
-                continue
-
-            failed = report.get("failed_conditions", [])
             verification = report.get("verification", {})
-
             for check_name, check_data in verification.items():
                 if not isinstance(check_data, dict):
                     continue
@@ -158,21 +162,19 @@ class PolicyDistiller:
                 if cmd:
                     pattern = f"fix-{check_name}"
                     task_counts[pattern] = task_counts.get(pattern, 0) + 1
-                    task_examples.setdefault(pattern, []).append(cmd)
+                    examples = task_examples.setdefault(pattern, [])
+                    if cmd not in examples:
+                        examples.append(cmd)
 
-            if not failed:
-                run_id = rd.name
-                task_counts[run_id] = task_counts.get(run_id, 0) + 1
-
-        candidates = []
+        candidates: list[PolicyCandidate] = []
         for pattern, count in task_counts.items():
             if count >= min_occurrences:
                 candidates.append(
-                    {
-                        "pattern": pattern,
-                        "occurrences": count,
-                        "examples": task_examples.get(pattern, [])[:3],
-                    }
+                    PolicyCandidate(
+                        pattern=pattern,
+                        occurrences=count,
+                        examples=task_examples.get(pattern, [])[:3],
+                    )
                 )
 
         candidates.sort(key=lambda x: x["occurrences"], reverse=True)
@@ -238,32 +240,41 @@ class PolicyDistiller:
         if not isinstance(obj, dict) or "script" not in obj:
             return None
 
-        policy_id = obj.get("policy_id", "unnamed-policy")
+        raw_id = str(obj.get("policy_id", "unnamed-policy"))
+        policy_id = re.sub(r"[^a-z0-9\-]", "-", raw_id.lower()).strip("-")[:63]
+        if not _VALID_POLICY_ID.match(policy_id):
+            policy_id = "unnamed-policy"
+
         self._policies_dir.mkdir(parents=True, exist_ok=True)
-        script_path = self._policies_dir / f"{policy_id}.py"
+        script_path = (self._policies_dir / f"{policy_id}.py").resolve()
+        if not str(script_path).startswith(str(self._policies_dir.resolve())):
+            logger.warning("Policy path escapes policies dir: %s", script_path)
+            return None
         script_path.write_text(obj["script"])
 
         now = datetime.now(UTC).isoformat()
+        name = str(obj.get("name") or policy_id)
         policy = Policy(
             policy_id=policy_id,
-            name=obj.get("name", policy_id),
-            description=obj.get("description", ""),
+            name=name,
+            description=str(obj.get("description") or ""),
             trigger_patterns=obj.get("trigger_patterns", []),
             script_path=str(script_path.relative_to(self._repo_root)),
             created_at=now,
-            estimated_savings=obj.get("estimated_savings", ""),
+            estimated_savings=str(obj.get("estimated_savings") or ""),
         )
 
         policies = self.load_policies()
-        existing_ids = {p.policy_id for p in policies}
-        if policy_id in existing_ids:
-            logger.info("Policy %s already exists, updating script", policy_id)
-            for p in policies:
-                if p.policy_id == policy_id:
-                    p.script_path = str(script_path.relative_to(self._repo_root))
-                    p.description = policy.description
-                    break
-        else:
+        replaced = False
+        for i, p in enumerate(policies):
+            if p.policy_id == policy_id:
+                logger.info("Policy %s already exists, replacing", policy_id)
+                policy.total_executions = p.total_executions
+                policy.successful_executions = p.successful_executions
+                policies[i] = policy
+                replaced = True
+                break
+        if not replaced:
             policies.append(policy)
 
         self.save_policies(policies)
@@ -288,7 +299,9 @@ class PolicyDistiller:
         if not target.is_active:
             return {"succeeded": False, "error": f"Policy {policy_id} is inactive"}
 
-        script = self._repo_root / target.script_path
+        script = (self._repo_root / target.script_path).resolve()
+        if not str(script).startswith(str(self._repo_root.resolve())):
+            return {"succeeded": False, "error": "Script path escapes repo root"}
         if not script.exists():
             return {"succeeded": False, "error": f"Script not found: {target.script_path}"}
 
@@ -326,8 +339,6 @@ class PolicyDistiller:
 
         Returns the first matching policy, or ``None``.
         """
-        import re
-
         for policy in self.load_policies():
             if not policy.is_active:
                 continue

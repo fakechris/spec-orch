@@ -146,10 +146,11 @@ class EvidenceAnalyzer:
         return "\n".join(parts)
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Public helpers (also used by PlanStrategyEvolver, PolicyDistiller)
     # ------------------------------------------------------------------
 
-    def _collect_run_dirs(self) -> list[Path]:
+    def collect_run_dirs(self) -> list[Path]:
+        """Return sorted list of all run directories."""
         dirs: list[Path] = []
         for parent_name in RUN_DIRS:
             parent = self._repo_root / parent_name
@@ -159,7 +160,8 @@ class EvidenceAnalyzer:
                         dirs.append(child)
         return dirs
 
-    def _read_report(self, run_dir: Path) -> dict | None:
+    def read_report(self, run_dir: Path) -> dict | None:
+        """Read and parse report.json from a run directory."""
         report_path = run_dir / "report.json"
         if not report_path.exists():
             return None
@@ -173,7 +175,8 @@ class EvidenceAnalyzer:
             logger.warning("Skipping malformed report %s: %s", report_path, exc)
             return None
 
-    def _read_deviations(self, run_dir: Path) -> list[dict]:
+    def read_deviations(self, run_dir: Path) -> list[dict]:
+        """Read and parse deviations.jsonl from a run directory."""
         dev_path = run_dir / "deviations.jsonl"
         if not dev_path.exists():
             return []
@@ -192,6 +195,11 @@ class EvidenceAnalyzer:
         except OSError as exc:
             logger.warning("Could not read deviations %s: %s", dev_path, exc)
         return results
+
+    # Keep underscore aliases for backward compatibility
+    _collect_run_dirs = collect_run_dirs
+    _read_report = read_report
+    _read_deviations = read_deviations
 
     def _verification_pass_rate(self, report: dict) -> float | None:
         verification = report.get("verification")

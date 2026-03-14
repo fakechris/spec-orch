@@ -132,7 +132,7 @@ class PlanStrategyEvolver:
     def collect_plan_outcomes(self, last_n: int = 20) -> dict[str, Any]:
         """Gather historical plan outcome data for analysis."""
         analyzer = EvidenceAnalyzer(self._repo_root)
-        run_dirs = analyzer._collect_run_dirs()[-last_n:]
+        run_dirs = analyzer.collect_run_dirs()[-last_n:]
 
         if not run_dirs:
             return {}
@@ -140,11 +140,11 @@ class PlanStrategyEvolver:
         outcomes: list[dict[str, Any]] = []
         for rd in run_dirs:
             run_id = rd.name
-            report = analyzer._read_report(rd)
+            report = analyzer.read_report(rd)
             if report is None:
                 continue
 
-            deviations = analyzer._read_deviations(rd)
+            deviations = analyzer.read_deviations(rd)
             plan_data = report.get("metadata", {}).get("plan", [])
 
             outcome: dict[str, Any] = {
@@ -243,13 +243,12 @@ class PlanStrategyEvolver:
                 )
             )
 
-        hint_set = HintSet(
+        new_hint_set = HintSet(
             hints=hints,
             analysis_summary=obj.get("analysis_summary", ""),
             generated_at=now,
         )
-        self.save_hints(hint_set)
-        return hint_set
+        return self.merge_hints(new_hint_set)
 
     def format_hints_for_prompt(self, hint_set: HintSet | None = None) -> str:
         """Format active hints as text for injection into scoper system prompt."""
