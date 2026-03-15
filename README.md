@@ -271,6 +271,7 @@ What is still intentionally incomplete:
 - Daemon hotfix mode with priority queue and minimal gate (SON-72)
 - Preview deployment and browser verification
 - Slack bot for discussion layer
+- Orchestration brain: scaffold-layer flow graphs, flow promotion/demotion, IntentEvolver / FlowPolicyEvolver / GatePolicyEvolver (SON-106)
 
 ## Installation
 
@@ -576,6 +577,7 @@ policies/                Distilled deterministic scripts (auto-generated)
 - [Competitive Analysis & Roadmap](docs/plans/2026-03-10-competitive-analysis-and-roadmap.md)
 - [SDD Industry Landscape & Positioning](docs/architecture/sdd-landscape-and-positioning.md) — Spec vs Skill analysis, industry benchmarking
 - [Skill-Driven vs Spec-Driven Orchestration](docs/architecture/skill-driven-vs-spec-driven.md) — hybrid architecture proposal
+- [Orchestration Brain Design](docs/architecture/orchestration-brain-design.md) — scaffold determinism + muscle intelligence, flow promotion/demotion, evolution architecture
 
 ### Historical (early design, kept as decision records)
 
