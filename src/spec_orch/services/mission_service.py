@@ -11,9 +11,12 @@ import logging
 import re
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from spec_orch.domain.models import Mission, MissionStatus
+
+if TYPE_CHECKING:
+    from spec_orch.spec_import.models import SpecStructure
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +67,25 @@ class MissionService:
             constraints=constraints or [],
         )
         self._write_meta(mission_dir, mission)
+        return mission
+
+    def create_mission_from_structure(
+        self,
+        title: str,
+        spec_structure: SpecStructure,
+        *,
+        mission_id: str | None = None,
+    ) -> Mission:
+        """Create a mission from a parsed SpecStructure."""
+        mission = self.create_mission(
+            title,
+            mission_id=mission_id,
+            acceptance_criteria=spec_structure.acceptance_criteria or None,
+            constraints=spec_structure.constraints or None,
+        )
+        spec_text = spec_structure.to_markdown(title)
+        spec_path = self.specs_dir / mission.mission_id / "spec.md"
+        spec_path.write_text(spec_text)
         return mission
 
     def create_mission_from_template(
