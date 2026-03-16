@@ -2007,13 +2007,69 @@ def _load_planner_config(repo_root: Path) -> dict[str, Any]:
 def mission_create(
     title: str = typer.Argument(..., help="Mission title."),
     mission_id: str | None = typer.Option(None, "--id", help="Override generated ID."),
+    template: str | None = typer.Option(
+        None,
+        "--template",
+        help="Create from an existing mission's spec (mission ID).",
+    ),
+    from_example: str | None = typer.Option(
+        None,
+        "--from-example",
+        help="Reverse-engineer spec from a local file (JSON/MD/TXT).",
+    ),
+    from_url: str | None = typer.Option(
+        None,
+        "--from-url",
+        help="Reverse-engineer spec from a URL.",
+    ),
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
 ) -> None:
-    """Create a new Mission with a canonical spec skeleton."""
+    """Create a new Mission with a canonical spec skeleton.
+
+    Optionally use --template, --from-example, or --from-url (mutually exclusive)
+    to seed the spec from existing content.
+    """
     from spec_orch.services.mission_service import MissionService
 
+    sources = [s for s in (template, from_example, from_url) if s is not None]
+    if len(sources) > 1:
+        typer.echo(
+            "Error: --template, --from-example, and --from-url are mutually exclusive.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
     svc = MissionService(repo_root=Path(repo_root))
-    m = svc.create_mission(title, mission_id=mission_id)
+
+    if template is not None:
+        try:
+            m = svc.create_mission_from_template(title, template, mission_id=mission_id)
+        except (FileNotFoundError, ValueError) as exc:
+            typer.echo(f"Error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+    elif from_example is not None:
+        example_path = Path(from_example)
+        if not example_path.exists():
+            typer.echo(f"Error: file not found: {from_example}", err=True)
+            raise typer.Exit(code=1)
+        content = example_path.read_text()
+        planner = _build_planner_from_toml(Path(repo_root))
+        m = svc.create_mission_from_example(title, content, mission_id=mission_id, planner=planner)
+    elif from_url is not None:
+        try:
+            import httpx
+
+            resp = httpx.get(from_url, timeout=30, follow_redirects=True)
+            resp.raise_for_status()
+            content = resp.text
+        except Exception as exc:
+            typer.echo(f"Error fetching URL: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        planner = _build_planner_from_toml(Path(repo_root))
+        m = svc.create_mission_from_example(title, content, mission_id=mission_id, planner=planner)
+    else:
+        m = svc.create_mission(title, mission_id=mission_id)
+
     typer.echo(f"mission created: {m.mission_id}")
     typer.echo(f"spec: {m.spec_path}")
 
