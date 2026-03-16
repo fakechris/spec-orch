@@ -374,7 +374,14 @@ class Conductor:
                 )
                 return issue.get("identifier", ""), ""
             except Exception as exc:
-                is_rate_limit = "429" in str(exc) or "rate" in str(exc).lower()
+                status = getattr(exc, "status_code", None)
+                exc_str = str(exc).lower()
+                is_rate_limit = (
+                    status == 429
+                    or "429" in exc_str
+                    or "rate limit" in exc_str
+                    or "too many requests" in exc_str
+                )
                 if is_rate_limit and attempt < max_retries:
                     time.sleep(2**attempt)
                     continue

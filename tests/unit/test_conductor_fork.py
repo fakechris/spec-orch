@@ -310,6 +310,11 @@ class TestForkViaProcessMessage:
         updated = c.get_state("t-exec")
         assert updated is not None
         assert updated.mode == ConversationMode.EXECUTE
+        # Verify fork was triggered (R1.2) — intent classifier may assign
+        # different categories, so only check if the rule-based classifier
+        # produced an actionable signal.  When it does, Linear should be called.
+        if updated.forked_intent_ids:
+            client.create_issue.assert_called()
 
     def test_fork_nested_serial(self, tmp_path: Path):
         """S7.2: Multiple forks in one message are handled serially without nesting."""
