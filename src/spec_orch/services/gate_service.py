@@ -157,9 +157,7 @@ class GateService:
 
     _DOC_EXTENSIONS = frozenset({".md", ".txt", ".rst", ".json", ".yaml", ".yml", ".toml"})
 
-    def _check_promotion(
-        self, gate_input: GateInput
-    ) -> tuple[bool, str | None]:
+    def _check_promotion(self, gate_input: GateInput) -> tuple[bool, str | None]:
         """Detect if claimed flow is inconsistent with actual diff.
 
         Returns (promotion_required, promotion_target).  Does not affect
@@ -173,10 +171,7 @@ class GateService:
         if claimed_lower == "full":
             return False, None
 
-        has_code = any(
-            ext not in self._DOC_EXTENSIONS
-            for ext in gate_input.diff_stats
-        )
+        has_code = any(ext not in self._DOC_EXTENSIONS for ext in gate_input.diff_stats)
 
         if not has_code:
             return False, None
