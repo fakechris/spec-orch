@@ -275,9 +275,9 @@ spec-orch daemon / CLI
 | Phase 4 | 第 6-7 周 | Gate 独立化，compliance 框架 | ✅ 完成 |
 | Phase 5 | 第 8-9 周 | Linear + GitHub write-back 闭环 | ✅ 完成 |
 | **Phase 6** | **第 10 周** | **自进化：AutoHarness 闭环改进 (Epic SON-74, 8 issues)** | **✅ 完成** |
-| **Phase 7** | **第 11-13 周** | **Mission Control Center (Epic SON-83)** | **🔄 进行中** |
-| **Phase 8** | **第 14-16 周** | **混合架构: Talk Freely, Execute Strictly (Epic SON-100)** | **📋 计划中** |
-| **Phase 9** | **第 17-20 周** | **编排大脑: 骨架确定性 + 肌肉智能化 (Epic SON-106)** | **📋 计划中** |
+| **Phase 7** | **第 11-13 周** | **Mission Control Center (Epic SON-83)** | **🔄 集成测试待完成** |
+| **Phase 8** | **第 14-16 周** | **混合架构: Talk Freely, Execute Strictly (Epic SON-100)** | **✅ 完成** |
+| **Phase 9** | **第 17-20 周** | **编排大脑: 骨架确定性 + 肌肉智能化 (Epic SON-106)** | **✅ 完成** |
 
 #### Phase 7: Mission Control Center (SON-83)
 
@@ -301,29 +301,29 @@ spec-orch daemon / CLI
 基于 SDD 行业分析（Spec Kit / Kiro / Tessl / agent-spec）和实战反思，将 spec-orch 定位为
 **灵活交互 + 结构化执行 + 闭环进化**的三层架构。
 
-| 编号 | 任务 | 说明 |
+| 编号 | 任务 | 状态 |
 |------|------|------|
-| SON-101 | Spec 模板库 | 模板化已有 spec，支持路径 2（模板填空发现 spec） |
-| SON-102 | Conductor → DMA 全生命周期集成 | 在任意阶段识别用户意图并分流（SON-98 升级） |
-| SON-103 | 流程检查 Skill 化 | Gate 前置检查从硬编码改为 Skill 描述 + LLM 编排 |
-| SON-104 | 示例反推 Spec | 路径 4: "我要类似这个" → AI 反推 spec（高价值方向） |
-| SON-105 | 行业 Spec 格式兼容 | 支持 Spec Kit / Kiro EARS / Tessl 格式的 spec 导入 |
+| SON-101 | Spec 模板库 | ✅ (Change 05, PR #47) |
+| SON-102 | Conductor → DMA 全生命周期集成 | ✅ (Change 04, PR #46) |
+| SON-103 | 流程检查 Skill 化 | ✅ (Change 06, PR #48) |
+| SON-104 | 示例反推 Spec | ✅ (Change 05, PR #47) |
+| SON-105 | 行业 Spec 格式兼容 | ✅ (Change 06, PR #48) |
 
 #### Phase 9: 编排大脑 — 骨架确定性 + 肌肉智能化 (SON-106)
 
 基于学术研究（SEW / MetaAgent / Live-SWE-agent / VIGIL）和实战反思，实现两层分离的编排大脑：
 骨架层（确定性流程拓扑）+ 肌肉层（LLM 驱动、可进化的节点逻辑）。
 
-| 编号 | 任务 | 说明 |
+| 编号 | 任务 | 状态 |
 |------|------|------|
-| SON-107 | 骨架层: 三流程有向图 | Full/Standard/Hotfix 的步骤序列、转换条件、回退路径 |
-| SON-108 | 流程升降级 | Gate 后验触发 Promotion/Demotion，事件记录到 Episodic Memory |
-| SON-109 | Intent → Flow Mapping | Conductor IntentCategory 映射到 FlowType，可配置规则 |
-| SON-110 | Conductor Fork | 对话中分裂出新 Issue，审计来源 thread + 原始 intent |
-| SON-111 | IntentEvolver | 从 intent 分类日志自动调优 classifier prompt |
-| SON-112 | FlowPolicyEvolver | 从升降级事件学习流程选择阈值 |
-| SON-113 | GatePolicyEvolver | Gate 判定的自动优化（false positive/negative 识别） |
-| SON-114 | Memory → Evolution 数据管道 | 连接四层 Memory 到对应进化器 |
+| SON-107 | 骨架层: 三流程有向图 | ✅ (Change 01, PR #43) |
+| SON-108 | 流程升降级 | ✅ (Change 01, PR #43) |
+| SON-109 | Intent → Flow Mapping | ✅ (Change 01, PR #43) |
+| SON-110 | Conductor Fork | ✅ (Change 02, PR #44) |
+| SON-111 | IntentEvolver | ✅ (Change 03, PR #45) |
+| SON-112 | FlowPolicyEvolver | ✅ (Change 03, PR #45) |
+| SON-113 | GatePolicyEvolver | ✅ (Change 03, PR #45) |
+| SON-114 | Memory → Evolution 数据管道 | ✅ (Change 03, PR #45) |
 
 设计参考: `docs/architecture/orchestration-brain-design.md`
 
