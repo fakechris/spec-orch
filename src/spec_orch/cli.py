@@ -2802,6 +2802,128 @@ def memory_forget(
         typer.echo(f"Not found: {key}")
 
 
+_OPENSPEC_LAYER_MAP = {
+    "spec.md": "semantic",
+    "prd.md": "semantic",
+    "proposal.md": "semantic",
+    "design.md": "semantic",
+    "tasks.md": "procedural",
+}
+
+
+@memory_app.command("ingest-openspec")
+def memory_ingest_openspec(
+    openspec_dir: str = typer.Option("openspec", help="Path to openspec directory"),
+    repo_root: str = typer.Option(".", help="Repository root"),
+) -> None:
+    """Ingest OpenSpec artifacts (specs, contracts, evidence) into Memory.
+
+    Layer mapping:
+      spec.md / prd.md / proposal.md / design.md → Semantic
+      tasks.md / contracts/*.md                   → Procedural
+      evidence/*.md                               → Episodic
+    """
+    from spec_orch.services.memory.service import get_memory_service
+    from spec_orch.services.memory.types import MemoryEntry, MemoryLayer
+
+    root = Path(repo_root).resolve()
+    svc = get_memory_service(repo_root=root)
+    odir = root / openspec_dir / "changes"
+
+    if not odir.is_dir():
+        typer.echo(f"No changes directory at {odir}", err=True)
+        raise typer.Exit(1)
+
+    counts: dict[str, int] = {"semantic": 0, "episodic": 0, "procedural": 0}
+
+    for change_dir in sorted(odir.iterdir()):
+        if not change_dir.is_dir():
+            continue
+        change_name = change_dir.name
+
+        for filename, layer_str in _OPENSPEC_LAYER_MAP.items():
+            fpath = change_dir / filename
+            if not fpath.is_file():
+                continue
+            content = fpath.read_text(encoding="utf-8")
+            key = f"openspec-{change_name}-{fpath.stem}"
+            entry = MemoryEntry(
+                key=key,
+                content=content,
+                layer=MemoryLayer(layer_str),
+                tags=["openspec", f"change:{change_name}", fpath.stem],
+                metadata={
+                    "change": change_name,
+                    "file": filename,
+                    "source": str(fpath.relative_to(root)),
+                },
+            )
+            svc.store(entry)
+            counts[layer_str] += 1
+
+        contracts_dir = change_dir / "contract"
+        if not contracts_dir.is_dir():
+            contracts_dir = change_dir.parent.parent / "contracts"
+        if contracts_dir.is_dir():
+            for cpath in sorted(contracts_dir.glob("*.md")):
+                if change_name not in cpath.stem and contracts_dir.name == "contracts":
+                    continue
+                content = cpath.read_text(encoding="utf-8")
+                key = f"openspec-contract-{cpath.stem}"
+                entry = MemoryEntry(
+                    key=key,
+                    content=content,
+                    layer=MemoryLayer.PROCEDURAL,
+                    tags=["openspec", "contract", f"change:{change_name}"],
+                    metadata={
+                        "change": change_name,
+                        "file": cpath.name,
+                        "source": str(cpath.relative_to(root)),
+                    },
+                )
+                svc.store(entry)
+                counts["procedural"] += 1
+
+        evidence_dir = change_dir / "evidence"
+        if evidence_dir.is_dir():
+            for epath in sorted(evidence_dir.glob("*.md")):
+                content = epath.read_text(encoding="utf-8")
+                key = f"openspec-evidence-{epath.stem}"
+                entry = MemoryEntry(
+                    key=key,
+                    content=content,
+                    layer=MemoryLayer.EPISODIC,
+                    tags=["openspec", "evidence", f"change:{change_name}", epath.stem],
+                    metadata={
+                        "change": change_name,
+                        "file": epath.name,
+                        "source": str(epath.relative_to(root)),
+                    },
+                )
+                svc.store(entry)
+                counts["episodic"] += 1
+
+    top_contracts = root / openspec_dir / "contracts"
+    if top_contracts.is_dir():
+        for cpath in sorted(top_contracts.glob("*.md")):
+            content = cpath.read_text(encoding="utf-8")
+            key = f"openspec-contract-{cpath.stem}"
+            entry = MemoryEntry(
+                key=key,
+                content=content,
+                layer=MemoryLayer.PROCEDURAL,
+                tags=["openspec", "contract", cpath.stem],
+                metadata={"file": cpath.name, "source": str(cpath.relative_to(root))},
+            )
+            svc.store(entry)
+            counts["procedural"] += 1
+
+    total = sum(counts.values())
+    typer.echo(f"Ingested {total} OpenSpec entries into Memory:")
+    for layer_name, n in counts.items():
+        typer.echo(f"  {layer_name}: {n}")
+
+
 def main() -> None:
     app()
 

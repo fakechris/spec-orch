@@ -90,3 +90,80 @@ def test_preview_condition_only_blocks_when_required_and_needed() -> None:
 
     result_required_passed = svc.evaluate(GateInput(preview_required=True, preview_passed=True))
     assert result_required_passed.mergeable
+
+
+# ── Flow promotion detection (T3.3 contract) ──
+
+
+def test_promotion_required_when_hotfix_has_code_changes() -> None:
+    """C2: hotfix + code file in diff → promotion to standard."""
+    svc = GateService(policy=GatePolicy(required_conditions=set()))
+    result = svc.evaluate(GateInput(claimed_flow="hotfix", diff_stats={".py": 1}))
+    assert result.promotion_required is True
+    assert result.promotion_target == "standard"
+
+
+def test_no_promotion_when_standard_doc_only() -> None:
+    """C3: standard + only doc files → no promotion."""
+    svc = GateService(policy=GatePolicy(required_conditions=set()))
+    result = svc.evaluate(GateInput(claimed_flow="standard", diff_stats={".md": 2, ".txt": 1}))
+    assert result.promotion_required is False
+    assert result.promotion_target is None
+
+
+def test_promotion_to_full_when_standard_has_code() -> None:
+    """C4: standard + code files → promotion to full."""
+    svc = GateService(policy=GatePolicy(required_conditions=set()))
+    result = svc.evaluate(
+        GateInput(
+            claimed_flow="standard",
+            diff_stats={".py": 5, ".md": 1},
+        )
+    )
+    assert result.promotion_required is True
+    assert result.promotion_target == "full"
+
+
+def test_no_promotion_when_already_full() -> None:
+    """C5: full flow → never promote (already highest)."""
+    svc = GateService(policy=GatePolicy(required_conditions=set()))
+    result = svc.evaluate(GateInput(claimed_flow="full", diff_stats={".py": 10}))
+    assert result.promotion_required is False
+    assert result.promotion_target is None
+
+
+def test_no_promotion_when_claimed_flow_is_none() -> None:
+    """C1: no claimed flow → no promotion (backward compatible)."""
+    svc = GateService(policy=GatePolicy(required_conditions=set()))
+    result = svc.evaluate(GateInput(claimed_flow=None, diff_stats={".py": 3}))
+    assert result.promotion_required is False
+    assert result.promotion_target is None
+
+
+def test_promotion_does_not_affect_mergeable() -> None:
+    """C6: promotion_required=True must NOT change mergeable."""
+    policy = GatePolicy(required_conditions={"builder", "verification"})
+    svc = GateService(policy=policy)
+    result = svc.evaluate(
+        GateInput(
+            builder_succeeded=True,
+            verification=VerificationSummary(
+                lint_passed=True,
+                typecheck_passed=True,
+                test_passed=True,
+                build_passed=True,
+            ),
+            claimed_flow="hotfix",
+            diff_stats={".py": 1},
+        )
+    )
+    assert result.mergeable is True
+    assert result.promotion_required is True
+
+
+def test_no_promotion_when_diff_stats_empty() -> None:
+    """C7: empty diff_stats → no promotion (safe default)."""
+    svc = GateService(policy=GatePolicy(required_conditions=set()))
+    result = svc.evaluate(GateInput(claimed_flow="hotfix", diff_stats={}))
+    assert result.promotion_required is False
+    assert result.promotion_target is None

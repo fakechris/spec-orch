@@ -143,12 +143,45 @@ class GateService:
             failed_conditions.append("compliance")
 
         mergeable_internal = not failed_conditions
+
+        promotion_required, promotion_target = self._check_promotion(gate_input)
+
         return GateVerdict(
             mergeable=mergeable_internal,
             failed_conditions=failed_conditions,
             mergeable_internal=mergeable_internal,
             mergeable_external=True,
+            promotion_required=promotion_required,
+            promotion_target=promotion_target,
         )
+
+    _DOC_EXTENSIONS = frozenset({".md", ".txt", ".rst", ".json", ".yaml", ".yml", ".toml"})
+
+    def _check_promotion(self, gate_input: GateInput) -> tuple[bool, str | None]:
+        """Detect if claimed flow is inconsistent with actual diff.
+
+        Returns (promotion_required, promotion_target).  Does not affect
+        mergeable — this is a signal for the caller (RunController) to act on.
+        """
+        claimed = gate_input.claimed_flow
+        if not claimed or not gate_input.diff_stats:
+            return False, None
+
+        claimed_lower = claimed.lower()
+        if claimed_lower == "full":
+            return False, None
+
+        has_code = any(ext not in self._DOC_EXTENSIONS for ext in gate_input.diff_stats)
+
+        if not has_code:
+            return False, None
+
+        if claimed_lower == "hotfix":
+            return True, "standard"
+        if claimed_lower == "standard":
+            return True, "full"
+
+        return False, None
 
     def should_auto_merge(self, gate_input: GateInput) -> bool:
         """Check whether auto-merge should trigger.
