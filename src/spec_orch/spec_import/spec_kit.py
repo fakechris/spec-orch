@@ -68,7 +68,7 @@ class SpecKitParser:
         goal = sections.pop("Goal", sections.pop("goal", ""))
         ac_text = sections.pop("Requirements", sections.pop("Acceptance Criteria", ""))
         ac_list = [
-            line.lstrip("- ").strip()
+            line.strip().removeprefix("-").strip()
             for line in ac_text.split("\n")
             if line.strip().startswith("-")
         ]
