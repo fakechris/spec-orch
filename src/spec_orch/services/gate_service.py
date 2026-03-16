@@ -191,6 +191,7 @@ class GateService:
         return False, None
 
     _DEMOTION_DIFF_THRESHOLD = 5
+    _DEMOTION_MAP: dict[str, str] = {"full": "standard", "standard": "hotfix"}
 
     def _check_demotion(self, gate_input: GateInput) -> tuple[bool, str | None]:
         """Suggest demotion when Conductor proposed it and diff is small enough."""
@@ -209,8 +210,7 @@ class GateService:
         if total_changes > self._DEMOTION_DIFF_THRESHOLD:
             return False, None
 
-        _DEMOTION_MAP = {"full": "standard", "standard": "hotfix"}
-        target = _DEMOTION_MAP.get(claimed_lower)
+        target = self._DEMOTION_MAP.get(claimed_lower)
         if target:
             return True, target
         return False, None

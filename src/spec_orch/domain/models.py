@@ -498,14 +498,15 @@ class FlowGraph:
     transitions: dict[str, tuple[str, ...]] = field(default_factory=dict)
     backtrack: dict[str, dict[str, str]] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_steps_map", {s.id: s for s in self.steps})
+
     def step_ids(self) -> list[str]:
         return [s.id for s in self.steps]
 
     def get_step(self, step_id: str) -> FlowStep | None:
-        for s in self.steps:
-            if s.id == step_id:
-                return s
-        return None
+        mapping: dict[str, FlowStep] = self._steps_map  # type: ignore[attr-defined]
+        return mapping.get(step_id)
 
 
 @dataclass(frozen=True)

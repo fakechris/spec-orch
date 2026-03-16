@@ -746,8 +746,11 @@ def run_full(
         live_stream=live_stream,
         source=source,
     )
+    from spec_orch.domain.models import FlowType as _FlowType
+
+    resolved_flow = _FlowType(flow) if flow else None
     typer.echo(f"running full pipeline for {issue_id}...")
-    result = controller.advance_to_completion(issue_id)
+    result = controller.advance_to_completion(issue_id, flow_type=resolved_flow)
     typer.echo(
         " ".join(
             [

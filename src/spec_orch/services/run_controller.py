@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
 
@@ -45,6 +46,7 @@ from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.workspace_service import WorkspaceService
 
 _MAX_ADVANCE_ITERATIONS = 10
+_FLOW_ORDER: dict[FlowType, int] = {FlowType.HOTFIX: 0, FlowType.STANDARD: 1, FlowType.FULL: 2}
 
 
 def record_flow_transition(event: FlowTransitionEvent) -> None:
@@ -233,8 +235,6 @@ class RunController:
         workspace: Path = Path("."),
     ) -> None:
         """Process promotion, demotion, and backtrack signals from GateVerdict."""
-        from datetime import UTC, datetime
-
         now = datetime.now(UTC).isoformat()
 
         if gate.promotion_required and gate.promotion_target:
@@ -251,7 +251,6 @@ class RunController:
                     message=f"Invalid promotion target: {gate.promotion_target!r}",
                 )
                 return
-            _FLOW_ORDER = {FlowType.HOTFIX: 0, FlowType.STANDARD: 1, FlowType.FULL: 2}
             if _FLOW_ORDER.get(target_flow, 0) <= _FLOW_ORDER.get(resolved_flow, 0):
                 self._log_and_emit(
                     activity_logger=activity_logger,
@@ -558,7 +557,7 @@ class RunController:
             return RunState.DRAFT
         return state
 
-    def advance_to_completion(self, issue_id: str) -> RunResult:
+    def advance_to_completion(self, issue_id: str, flow_type: FlowType | None = None) -> RunResult:
         """Drive *issue_id* through the full pipeline until GATE_EVALUATED or FAILED.
 
         Unlike ``advance()`` which executes a single transition, this loops
@@ -580,11 +579,11 @@ class RunController:
                         issue=issue,
                     )
                     write_spec_snapshot(workspace, snapshot)
-            result = self.advance(issue_id)
+            result = self.advance(issue_id, flow_type=flow_type)
             if result.state == RunState.FAILED:
                 return result
         else:
-            return self.advance(issue_id)
+            return self.advance(issue_id, flow_type=flow_type)
 
         return self._load_final_result(issue_id)
 
@@ -609,7 +608,7 @@ class RunController:
             state=state,
         )
 
-    def advance(self, issue_id: str) -> RunResult:
+    def advance(self, issue_id: str, flow_type: FlowType | None = None) -> RunResult:
         """Execute the next legal transition for *issue_id*.
 
         Supports:
@@ -627,7 +626,7 @@ class RunController:
             return self._advance_spec_drafting(issue_id)
 
         if state == RunState.SPEC_APPROVED:
-            return self.run_issue(issue_id)
+            return self.run_issue(issue_id, flow_type=flow_type)
 
         if state in {RunState.GATE_EVALUATED, RunState.REVIEW_PENDING, RunState.FAILED}:
             return self.rerun_issue(issue_id)

@@ -49,4 +49,4 @@ class FlowEngine:
         step = graph.get_step(step_id)
         if step is None:
             return False
-        return bool(step.skippable_if and active_conditions & set(step.skippable_if))
+        return bool(step.skippable_if and not active_conditions.isdisjoint(step.skippable_if))
