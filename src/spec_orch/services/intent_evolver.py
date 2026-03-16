@@ -156,16 +156,20 @@ class IntentEvolver:
 
         flow_events = self.recall_flow_events()
         promotion_intents: Counter[str] = Counter()
+        demotion_intents: Counter[str] = Counter()
         for ev in flow_events:
             trigger = ev.get("trigger", "")
+            intent = ev.get("intent_category", "unknown")
             if "promotion" in trigger:
-                intent = ev.get("intent_category", "unknown")
                 promotion_intents[intent] += 1
+            elif "demotion" in trigger:
+                demotion_intents[intent] += 1
 
         return {
             "total_classifications": len(logs),
             "category_distribution": dict(category_counts),
             "promotion_correlations": dict(promotion_intents),
+            "demotion_correlations": dict(demotion_intents),
         }
 
     def evolve(self) -> ClassifierVariant | None:

@@ -45,6 +45,7 @@ class FlowPolicyEvolver:
     """Produces flow mapping threshold suggestions from historical evidence."""
 
     MIN_EVENTS_FOR_EVOLVE = 5
+    _MIN_EVENTS_FOR_SUGGESTION = 2
 
     def __init__(self, repo_root: Path, planner: Any | None = None) -> None:
         self._repo_root = repo_root
@@ -112,7 +113,7 @@ class FlowPolicyEvolver:
         suggestions: list[FlowPolicySuggestion] = []
         promotions = patterns.get("promotions_by_intent", {})
         for intent, count in promotions.items():
-            if count < 2:
+            if count < self._MIN_EVENTS_FOR_SUGGESTION:
                 continue
             current = intent_to_flow.get(intent, "standard")
             suggested = "full" if current != "full" else current
@@ -129,7 +130,7 @@ class FlowPolicyEvolver:
 
         demotions = patterns.get("demotions_by_intent", {})
         for intent, count in demotions.items():
-            if count < 2:
+            if count < self._MIN_EVENTS_FOR_SUGGESTION:
                 continue
             current = intent_to_flow.get(intent, "standard")
             suggested = (

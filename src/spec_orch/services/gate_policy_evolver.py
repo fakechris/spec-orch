@@ -43,6 +43,9 @@ class GatePolicyEvolver:
     """Produces gate policy suggestions from historical verdict + outcome data."""
 
     MIN_VERDICTS_FOR_EVOLVE = 5
+    _FP_CONFIDENCE_THRESHOLD = 3
+    _MAX_SOURCE_ISSUES = 10
+    _FN_CONDITION_THRESHOLD = 3
 
     def __init__(self, repo_root: Path, planner: Any | None = None) -> None:
         self._repo_root = repo_root
@@ -87,6 +90,7 @@ class GatePolicyEvolver:
         false_positives: list[str] = []
         false_negatives: list[str] = []
         failed_condition_counts: Counter[str] = Counter()
+        fn_failed_conditions: Counter[str] = Counter()
 
         for v in verdicts:
             issue_id = v.get("issue_id", "")
@@ -98,6 +102,8 @@ class GatePolicyEvolver:
                 false_positives.append(issue_id)
             elif not passed and succeeded_downstream is True:
                 false_negatives.append(issue_id)
+                for cond in v.get("failed_conditions", []):
+                    fn_failed_conditions[cond] += 1
 
             for cond in v.get("failed_conditions", []):
                 failed_condition_counts[cond] += 1
@@ -107,6 +113,7 @@ class GatePolicyEvolver:
             "false_positives": false_positives,
             "false_negatives": false_negatives,
             "failed_condition_frequency": dict(failed_condition_counts),
+            "fn_failed_conditions": dict(fn_failed_conditions),
         }
 
     def evolve(self) -> GatePolicyEvolveResult | None:
@@ -130,14 +137,16 @@ class GatePolicyEvolver:
                         f"{len(fp_issues)} issues passed gate but failed downstream — "
                         "consider adding post-merge regression verification"
                     ),
-                    source_issues=fp_issues[:10],
-                    confidence="high" if len(fp_issues) >= 3 else "medium",
+                    source_issues=fp_issues[: self._MAX_SOURCE_ISSUES],
+                    confidence="high"
+                    if len(fp_issues) >= self._FP_CONFIDENCE_THRESHOLD
+                    else "medium",
                 )
             )
 
-        freq = patterns.get("failed_condition_frequency", {})
-        for cond, count in freq.items():
-            if count >= 3 and cond in fn_issues:
+        fn_conds: dict[str, int] = patterns.get("fn_failed_conditions", {})
+        for cond, count in fn_conds.items():
+            if count >= self._FN_CONDITION_THRESHOLD:
                 suggestions.append(
                     GatePolicySuggestion(
                         suggestion_type="adjust_severity",

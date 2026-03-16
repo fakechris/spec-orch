@@ -7,6 +7,7 @@ to automatically capture mission lifecycle events into episodic memory.
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -200,7 +201,7 @@ class MemoryService:
         passed = payload.get("passed", False)
         self.store(
             MemoryEntry(
-                key=f"gate-verdict-{issue_id}",
+                key=f"gate-verdict-{issue_id}-{int(time.time() * 1000)}",
                 content=f"Gate {'passed' if passed else 'failed'}",
                 layer=MemoryLayer.EPISODIC,
                 tags=[

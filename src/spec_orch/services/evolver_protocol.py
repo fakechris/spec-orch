@@ -13,7 +13,7 @@ class Evolver(Protocol):
     produces improvement suggestions, and optionally applies them.
     """
 
-    def evolve(self) -> Any:
+    def evolve(self) -> Any | None:
         """Analyse evidence and produce an improvement suggestion.
 
         Returns the suggestion object (type varies per evolver), or

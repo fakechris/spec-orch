@@ -264,6 +264,7 @@ class GateInput:
     claimed_flow: str | None = None
     demotion_proposed_by_conductor: bool = False
     diff_stats: dict[str, int] = field(default_factory=dict)
+    issue_id: str = ""
 
 
 @dataclass(slots=True)

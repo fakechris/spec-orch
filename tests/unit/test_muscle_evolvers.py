@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 from spec_orch.services.evolver_protocol import Evolver
@@ -317,6 +318,47 @@ class TestGatePolicyEvolver:
         assert loaded is not None
         assert len(loaded.suggestions) == 1
 
+    def test_detect_false_negative(self, tmp_path: Path):
+        verdicts = [
+            _gate_verdict_entry(
+                issue_id=f"FN-{i}",
+                passed=False,
+                failed_conditions=["builder"],
+                key_suffix=f"fn-{i}",
+            )
+            for i in range(4)
+        ]
+        outcomes = [
+            _issue_result_entry(issue_id=f"FN-{i}", succeeded=True, key_suffix=f"fn-{i}")
+            for i in range(4)
+        ]
+        _seed_memory(tmp_path, verdicts + outcomes)
+        e = GatePolicyEvolver(tmp_path)
+        patterns = e.detect_false_patterns()
+        assert len(patterns["false_negatives"]) == 4
+        assert patterns["fn_failed_conditions"]["builder"] == 4
+
+    def test_evolve_with_false_negatives(self, tmp_path: Path):
+        verdicts = [
+            _gate_verdict_entry(
+                issue_id=f"FN-{i}",
+                passed=False,
+                failed_conditions=["builder"],
+                key_suffix=f"fn-{i}",
+            )
+            for i in range(5)
+        ]
+        outcomes = [
+            _issue_result_entry(issue_id=f"FN-{i}", succeeded=True, key_suffix=f"fn-{i}")
+            for i in range(5)
+        ]
+        _seed_memory(tmp_path, verdicts + outcomes)
+        e = GatePolicyEvolver(tmp_path)
+        result = e.evolve()
+        assert result is not None
+        assert result.false_negatives >= 3
+        assert any(s.suggestion_type == "adjust_severity" for s in result.suggestions)
+
     def test_no_outcomes_partial_analysis(self, tmp_path: Path):
         verdicts = [
             _gate_verdict_entry(issue_id=f"S-{i}", passed=True, key_suffix=str(i)) for i in range(6)
@@ -384,11 +426,29 @@ class TestMemoryEventHandlers:
 
 
 class TestGateServiceEmit:
-    def test_evaluate_calls_emit(self, tmp_path: Path):
+    def test_evaluate_and_emit_calls_emit(self, tmp_path: Path, monkeypatch: Any):
         from spec_orch.domain.models import GateInput
         from spec_orch.services.gate_service import GatePolicy, GateService
 
+        mock_emit = MagicMock()
+        monkeypatch.setattr(GateService, "_emit_verdict", mock_emit)
+
         policy = GatePolicy(required_conditions={"builder"})
         svc = GateService(policy=policy)
-        verdict = svc.evaluate(GateInput(builder_succeeded=True))
+        gate_input = GateInput(builder_succeeded=True)
+        verdict = svc.evaluate_and_emit(gate_input)
+
         assert verdict.mergeable is True
+        mock_emit.assert_called_once_with(gate_input, verdict)
+
+    def test_evaluate_does_not_emit(self, tmp_path: Path, monkeypatch: Any):
+        from spec_orch.domain.models import GateInput
+        from spec_orch.services.gate_service import GatePolicy, GateService
+
+        mock_emit = MagicMock()
+        monkeypatch.setattr(GateService, "_emit_verdict", mock_emit)
+
+        policy = GatePolicy(required_conditions={"builder"})
+        svc = GateService(policy=policy)
+        svc.evaluate(GateInput(builder_succeeded=True))
+        mock_emit.assert_not_called()

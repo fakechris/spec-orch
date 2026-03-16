@@ -153,7 +153,7 @@ class GateService:
             self._infer_backtrack_reason(failed_conditions) if failed_conditions else None
         )
 
-        verdict = GateVerdict(
+        return GateVerdict(
             mergeable=mergeable_internal,
             failed_conditions=failed_conditions,
             mergeable_internal=mergeable_internal,
@@ -164,6 +164,10 @@ class GateService:
             demotion_target=demotion_target,
             backtrack_reason=backtrack_reason,
         )
+
+    def evaluate_and_emit(self, gate_input: GateInput) -> GateVerdict:
+        """Evaluate gate conditions and publish the verdict to EventBus."""
+        verdict = self.evaluate(gate_input)
         self._emit_verdict(gate_input, verdict)
         return verdict
 
@@ -309,10 +313,12 @@ class GateService:
                         "demotion_suggested": verdict.demotion_suggested,
                         "backtrack_reason": verdict.backtrack_reason or "",
                         "claimed_flow": gate_input.claimed_flow or "",
-                        "issue_id": getattr(gate_input, "issue_id", ""),
+                        "issue_id": gate_input.issue_id,
                     },
                     source="gate_service",
                 )
             )
-        except (ImportError, Exception):
-            logger.debug("Failed to emit gate verdict event", exc_info=True)
+        except ImportError:
+            pass
+        except Exception:
+            logger.warning("Failed to emit gate verdict event", exc_info=True)
