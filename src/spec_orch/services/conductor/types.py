@@ -56,6 +56,16 @@ class IntentSignal:
 
 
 @dataclass
+class ForkResult:
+    """Outcome of a fork attempt."""
+
+    forked: bool
+    linear_issue_id: str = ""
+    title: str = ""
+    error: str = ""
+
+
+@dataclass
 class ConductorState:
     """Running state of a Conductor session tied to a conversation thread.
 
@@ -69,6 +79,7 @@ class ConductorState:
     topic_anchors: list[str] = field(default_factory=list)
     pending_proposal: FormalizationProposal | None = None
     formalized_issues: list[str] = field(default_factory=list)
+    forked_intent_ids: list[str] = field(default_factory=list)
     updated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
@@ -86,6 +97,7 @@ class ConductorState:
             ],
             "topic_anchors": self.topic_anchors,
             "formalized_issues": self.formalized_issues,
+            "forked_intent_ids": self.forked_intent_ids,
             "updated_at": self.updated_at,
         }
         if self.pending_proposal is not None:
@@ -126,6 +138,7 @@ class ConductorState:
             topic_anchors=data.get("topic_anchors", []),
             pending_proposal=proposal,
             formalized_issues=data.get("formalized_issues", []),
+            forked_intent_ids=data.get("forked_intent_ids", []),
             updated_at=data.get("updated_at", datetime.now(UTC).isoformat()),
         )
 

@@ -11,9 +11,12 @@ conversation-to-structure bridge.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import os
 import re
+import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,6 +28,7 @@ from spec_orch.services.conductor.types import (
     ACTIONABLE_INTENTS,
     ConductorState,
     ConversationMode,
+    ForkResult,
     FormalizationProposal,
     IntentCategory,
     IntentSignal,
@@ -36,6 +40,9 @@ _STATE_DIR = ".spec_orch_conductor"
 _CRYSTALLIZE_THRESHOLD = 3
 APPROVE_RE_PATTERN = r"@?spec[_-]?orch\s+approve"
 _DRIFT_JACCARD_THRESHOLD = 0.15
+_FORK_DEBOUNCE_SECONDS = 60
+_FORK_EXCERPT_MESSAGES = 5
+_FORK_EXCERPT_CHARS = 100
 
 
 class Conductor:
@@ -55,12 +62,24 @@ class Conductor:
         *,
         repo_root: Path,
         planner: Any | None = None,
+        linear_client: Any | None = None,
+        event_bus: Any | None = None,
+        fork_team_key: str = "",
     ) -> None:
         self._repo_root = Path(repo_root)
         self._planner = planner
+        self._linear_client = linear_client
+        self._event_bus = event_bus
+        self._fork_team_key = (
+            fork_team_key
+            or os.environ.get("SPEC_ORCH_FORK_TEAM", "")
+            or os.environ.get("SPEC_ORCH_LINEAR_TEAM", "SON")
+        )
+        self._fork_enabled = os.environ.get("SPEC_ORCH_FORK_ENABLED", "true").lower() != "false"
         self._state_dir = self._repo_root / _STATE_DIR
         self._state_dir.mkdir(parents=True, exist_ok=True)
         self._states: dict[str, ConductorState] = {}
+        self._fork_timestamps: dict[str, float] = {}
 
     def process_message(
         self,
@@ -87,7 +106,8 @@ class Conductor:
         state.intent_history.append(signal)
 
         # Detect drift
-        if self._detect_drift(state, signal):
+        is_drift = self._detect_drift(state, signal)
+        if is_drift:
             signal = IntentSignal(
                 category=IntentCategory.DRIFT,
                 confidence=signal.confidence,
@@ -95,6 +115,10 @@ class Conductor:
                 reasoning="Topic drift detected",
             )
             state.intent_history[-1] = signal
+
+        # Fork on drift (R1.1)
+        if is_drift and signal.summary:
+            self._maybe_fork(state, signal, thread)
 
         # Update topic anchor if we have a clear signal
         if signal.summary and signal.confidence >= 0.5:
@@ -113,6 +137,14 @@ class Conductor:
                     intent=signal,
                     conductor_message=proposal.format_for_user(),
                 )
+
+        # Fork on new actionable intent during CRYSTALLIZE/EXECUTE (R1.2)
+        if (
+            not is_drift
+            and state.mode in {ConversationMode.CRYSTALLIZE, ConversationMode.EXECUTE}
+            and signal.is_actionable()
+        ):
+            self._maybe_fork(state, signal, thread)
 
         # Record to memory
         self._record_to_memory(state, signal, msg)
@@ -250,6 +282,201 @@ class Conductor:
             intent_category=trigger.category,
             confidence=trigger.confidence,
         )
+
+    # -- fork logic -----------------------------------------------------------
+
+    def _maybe_fork(
+        self,
+        state: ConductorState,
+        signal: IntentSignal,
+        thread: ConversationThread,
+    ) -> ForkResult:
+        """Attempt to fork a new Issue for a divergent or new actionable intent.
+
+        Side-effect only — does not modify state.mode or pending_proposal (R4.1).
+        """
+        if not self._fork_enabled:
+            return ForkResult(forked=False)
+
+        signal_hash = self._signal_hash(signal)
+
+        # Dedup: same intent within debounce window (S7.1)
+        if signal_hash in state.forked_intent_ids:
+            return ForkResult(forked=False)
+        now = time.monotonic()
+        last_fork_time = self._fork_timestamps.get(state.thread_id, 0.0)
+        if now - last_fork_time < _FORK_DEBOUNCE_SECONDS and state.forked_intent_ids:
+            return ForkResult(forked=False)
+
+        title = (
+            signal.suggested_title
+            or (signal.summary[:60] if signal.summary else "")
+            or "Forked from conversation"
+        )
+        description = self._build_fork_description(state, signal, thread)
+
+        issue_id = ""
+        error = ""
+
+        # Try Linear creation (R6.3: skip if no client)
+        if self._linear_client is not None:
+            issue_id, error = self._create_linear_fork_issue(title, description)
+
+        if not issue_id:
+            self._write_local_fork_fallback(state, title, description, signal)
+
+        state.forked_intent_ids.append(signal_hash)
+        self._fork_timestamps[state.thread_id] = now
+
+        result = ForkResult(forked=True, linear_issue_id=issue_id, title=title, error=error)
+
+        self._emit_fork_event(state, signal, result)
+        self._record_fork_to_memory(state, signal, result)
+
+        return result
+
+    @staticmethod
+    def _signal_hash(signal: IntentSignal) -> str:
+        raw = f"{signal.category.value}:{signal.summary}"
+        return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+    def _build_fork_description(
+        self,
+        state: ConductorState,
+        signal: IntentSignal,
+        thread: ConversationThread,
+    ) -> str:
+        lines = [
+            f"Source: thread:{state.thread_id}",
+            "",
+            f"**Original intent**: {signal.category.value} — {signal.summary}",
+            "",
+            "**Conversation excerpt**:",
+        ]
+        recent = thread.messages[-_FORK_EXCERPT_MESSAGES:]
+        for m in recent:
+            truncated = m.content[:_FORK_EXCERPT_CHARS]
+            if len(m.content) > _FORK_EXCERPT_CHARS:
+                truncated += "…"
+            lines.append(f"- [{m.sender}] {truncated}")
+        return "\n".join(lines)
+
+    def _create_linear_fork_issue(self, title: str, description: str) -> tuple[str, str]:
+        """Call LinearClient.create_issue with retry on 429. Returns (issue_id, error)."""
+        assert self._linear_client is not None  # caller guards
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                issue = self._linear_client.create_issue(
+                    team_key=self._fork_team_key,
+                    title=title,
+                    description=description,
+                )
+                return issue.get("identifier", ""), ""
+            except Exception as exc:
+                status = getattr(exc, "status_code", None)
+                exc_str = str(exc).lower()
+                is_rate_limit = (
+                    status == 429
+                    or "429" in exc_str
+                    or "rate limit" in exc_str
+                    or "too many requests" in exc_str
+                )
+                if is_rate_limit and attempt < max_retries:
+                    time.sleep(2**attempt)
+                    continue
+                logger.warning("Fork Linear issue creation failed: %s", exc)
+                return "", str(exc)
+        return "", "max retries exceeded"
+
+    def _write_local_fork_fallback(
+        self,
+        state: ConductorState,
+        title: str,
+        description: str,
+        signal: IntentSignal,
+    ) -> None:
+        """Write fork to local JSONL as a sync queue (R6.2 fallback)."""
+        forks_dir = self._state_dir
+        forks_dir.mkdir(parents=True, exist_ok=True)
+        forks_path = forks_dir / "forks.jsonl"
+        entry = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "thread_id": state.thread_id,
+            "title": title,
+            "description": description,
+            "intent_category": signal.category.value,
+            "intent_summary": signal.summary,
+        }
+        with forks_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    def _emit_fork_event(
+        self,
+        state: ConductorState,
+        signal: IntentSignal,
+        result: ForkResult,
+    ) -> None:
+        if self._event_bus is None:
+            return
+        try:
+            from spec_orch.services.event_bus import Event, EventTopic
+
+            self._event_bus.publish(
+                Event(
+                    topic=EventTopic.CONDUCTOR,
+                    payload={
+                        "action": "fork",
+                        "thread_id": state.thread_id,
+                        "linear_issue_id": result.linear_issue_id,
+                        "intent_category": signal.category.value,
+                        "intent_summary": signal.summary,
+                        "title": result.title,
+                        "error": result.error,
+                    },
+                    source="conductor.fork",
+                )
+            )
+        except Exception:
+            logger.debug("Failed to emit fork event", exc_info=True)
+
+    def _record_fork_to_memory(
+        self,
+        state: ConductorState,
+        signal: IntentSignal,
+        result: ForkResult,
+    ) -> None:
+        try:
+            from spec_orch.services.memory.service import get_memory_service
+            from spec_orch.services.memory.types import MemoryEntry, MemoryLayer
+
+            svc = get_memory_service(repo_root=self._repo_root)
+            tags = [
+                "conductor-fork",
+                f"thread:{state.thread_id}",
+            ]
+            if result.linear_issue_id:
+                tags.append(f"linear:{result.linear_issue_id}")
+
+            svc.store(
+                MemoryEntry(
+                    key=f"conductor-fork-{state.thread_id}-{self._signal_hash(signal)}",
+                    content=f"Forked: {result.title}",
+                    layer=MemoryLayer.EPISODIC,
+                    tags=tags,
+                    metadata={
+                        "action": "fork",
+                        "intent_category": signal.category.value,
+                        "intent_summary": signal.summary,
+                        "linear_issue_id": result.linear_issue_id,
+                        "thread_id": state.thread_id,
+                    },
+                )
+            )
+        except (ImportError, Exception):
+            logger.debug("Failed to record fork to memory", exc_info=True)
+
+    # -- drift detection -----------------------------------------------------
 
     def _detect_drift(self, state: ConductorState, signal: IntentSignal) -> bool:
         """Simple drift detection based on topic anchor divergence."""
