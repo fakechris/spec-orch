@@ -28,10 +28,13 @@ from spec_orch.services.conductor.types import (
     ACTIONABLE_INTENTS,
     ConductorState,
     ConversationMode,
+    DMAStage,
     ForkResult,
     FormalizationProposal,
     IntentCategory,
     IntentSignal,
+    InterceptAction,
+    InterceptResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,6 +46,7 @@ _DRIFT_JACCARD_THRESHOLD = 0.15
 _FORK_DEBOUNCE_SECONDS = 60
 _FORK_EXCERPT_MESSAGES = 5
 _FORK_EXCERPT_CHARS = 100
+_INTERCEPT_DEBOUNCE_SECONDS = 60
 
 
 class Conductor:
@@ -76,10 +80,109 @@ class Conductor:
             or os.environ.get("SPEC_ORCH_LINEAR_TEAM", "SON")
         )
         self._fork_enabled = os.environ.get("SPEC_ORCH_FORK_ENABLED", "true").lower() != "false"
+        self._intercept_enabled = (
+            os.environ.get("SPEC_ORCH_INTERCEPT_ENABLED", "true").lower() != "false"
+        )
+        raw_stages = os.environ.get("SPEC_ORCH_INTERCEPT_STAGES", "")
+        self._intercept_stages: set[str] = (
+            {s.strip() for s in raw_stages.split(",") if s.strip()} if raw_stages else set()
+        )
         self._state_dir = self._repo_root / _STATE_DIR
         self._state_dir.mkdir(parents=True, exist_ok=True)
         self._states: dict[str, ConductorState] = {}
         self._fork_timestamps: dict[str, float] = {}
+        self._intercept_cache: dict[str, float] = {}
+
+    def intercept(
+        self,
+        stage: DMAStage,
+        user_input: str,
+        context: dict[str, Any] | None = None,
+    ) -> InterceptResult:
+        """Intercept a DMA lifecycle stage with user input.
+
+        Returns an InterceptResult with an action that the caller (e.g.
+        RunController) should honour.  When intercept is disabled, the
+        stage is filtered out, or the input was already processed within
+        the debounce window, the method returns ``action="continue"``
+        without invoking the classifier.
+        """
+        _noop = InterceptResult(
+            intent_signal=IntentSignal(
+                category=IntentCategory.EXPLORATION,
+                confidence=0.0,
+            ),
+            action="continue",
+        )
+
+        if not self._intercept_enabled:
+            return _noop
+
+        if self._intercept_stages and stage.value not in self._intercept_stages:
+            return _noop
+
+        if not user_input or not user_input.strip():
+            return _noop
+
+        input_hash = self._signal_hash(
+            IntentSignal(
+                category=IntentCategory.EXPLORATION,
+                confidence=0.0,
+                summary=user_input,
+            ),
+        )
+        now = time.time()
+        last_ts = self._intercept_cache.get(input_hash, 0.0)
+        if now - last_ts < _INTERCEPT_DEBOUNCE_SECONDS:
+            return _noop
+        self._intercept_cache[input_hash] = now
+
+        try:
+            signal = classify_intent(
+                user_input,
+                conversation_history=(context or {}).get("history", []),
+                planner=self._planner,
+            )
+        except Exception:
+            logger.warning("intercept: classify_intent failed, degrading to continue")
+            return _noop
+
+        action = self._intent_to_action(signal, stage)
+        metadata: dict[str, Any] = {"stage": stage.value}
+
+        if action == "fork":
+            thread_id = (context or {}).get("thread_id", "intercept")
+            state = self._get_or_create_state(thread_id)
+            fork_result = self._maybe_fork(state, signal, None)
+            if fork_result.forked:
+                metadata["fork_result"] = {
+                    "forked": fork_result.forked,
+                    "linear_issue_id": fork_result.linear_issue_id,
+                    "title": fork_result.title,
+                    "error": fork_result.error,
+                }
+
+        return InterceptResult(
+            intent_signal=signal,
+            action=action,
+            metadata=metadata,
+        )
+
+    @staticmethod
+    def _intent_to_action(
+        signal: IntentSignal,
+        stage: DMAStage,
+    ) -> InterceptAction:
+        """Map an IntentSignal to an intercept action."""
+        if signal.category == IntentCategory.DRIFT:
+            if stage in {DMAStage.BUILD, DMAStage.VERIFY}:
+                return "pause"
+            return "fork"
+        if signal.is_actionable():
+            if stage in {DMAStage.GATE, DMAStage.REVIEW}:
+                return "fork"
+            return "redirect"
+        return "continue"
 
     def process_message(
         self,
@@ -289,7 +392,7 @@ class Conductor:
         self,
         state: ConductorState,
         signal: IntentSignal,
-        thread: ConversationThread,
+        thread: ConversationThread | None,
     ) -> ForkResult:
         """Attempt to fork a new Issue for a divergent or new actionable intent.
 
@@ -344,7 +447,7 @@ class Conductor:
         self,
         state: ConductorState,
         signal: IntentSignal,
-        thread: ConversationThread,
+        thread: ConversationThread | None,
     ) -> str:
         lines = [
             f"Source: thread:{state.thread_id}",
@@ -353,12 +456,15 @@ class Conductor:
             "",
             "**Conversation excerpt**:",
         ]
-        recent = thread.messages[-_FORK_EXCERPT_MESSAGES:]
-        for m in recent:
-            truncated = m.content[:_FORK_EXCERPT_CHARS]
-            if len(m.content) > _FORK_EXCERPT_CHARS:
-                truncated += "…"
-            lines.append(f"- [{m.sender}] {truncated}")
+        if thread is not None:
+            recent = thread.messages[-_FORK_EXCERPT_MESSAGES:]
+            for m in recent:
+                truncated = m.content[:_FORK_EXCERPT_CHARS]
+                if len(m.content) > _FORK_EXCERPT_CHARS:
+                    truncated += "…"
+                lines.append(f"- [{m.sender}] {truncated}")
+        else:
+            lines.append("- (no conversation thread available)")
         return "\n".join(lines)
 
     def _create_linear_fork_issue(self, title: str, description: str) -> tuple[str, str]:

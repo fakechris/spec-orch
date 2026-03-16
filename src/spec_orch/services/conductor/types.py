@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 
 class ConversationMode(StrEnum):
@@ -36,6 +36,37 @@ ACTIONABLE_INTENTS = frozenset(
 )
 
 ACTIONABLE_CONFIDENCE_THRESHOLD = 0.6
+
+InterceptAction = Literal["continue", "pause", "redirect", "fork"]
+
+
+class DMAStage(StrEnum):
+    """Lifecycle stage where the Conductor can intercept."""
+
+    CONVERSATION = "conversation"
+    BUILD = "build"
+    VERIFY = "verify"
+    REVIEW = "review"
+    GATE = "gate"
+    RETRO = "retro"
+
+
+@dataclass
+class UserInputSource:
+    """Describes the origin of a user input event."""
+
+    source: str  # e.g. "linear_comment", "slack", "cli"
+    content: str
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+
+@dataclass
+class InterceptResult:
+    """What the Conductor returns when intercepting a lifecycle stage."""
+
+    intent_signal: IntentSignal
+    action: InterceptAction = "continue"
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
