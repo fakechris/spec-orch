@@ -114,21 +114,58 @@ class TestInterceptClassifyFailure:
 
 
 class TestInterceptForkAction:
-    def test_fork_populates_metadata(self, conductor: Conductor) -> None:
+    def test_fork_populates_metadata_when_forked(self, conductor: Conductor) -> None:
+        from spec_orch.services.conductor.types import ForkResult
+
         signal = IntentSignal(
             category=IntentCategory.DRIFT,
             confidence=0.9,
             summary="scope change",
             suggested_title="New scope",
         )
-        with patch(_CLASSIFY, return_value=signal):
+        mock_fork_result = ForkResult(
+            forked=True,
+            linear_issue_id="L-456",
+            title="New scope",
+            error="",
+        )
+        with (
+            patch(_CLASSIFY, return_value=signal),
+            patch.object(conductor, "_maybe_fork", return_value=mock_fork_result),
+        ):
             result = conductor.intercept(
                 DMAStage.GATE,
                 "scope change detected abc",
                 context={"thread_id": "t-123"},
             )
         assert result.action == "fork"
-        assert result.metadata.get("stage") == "gate"
+        assert result.metadata["stage"] == "gate"
+        assert "fork_result" in result.metadata
+        assert result.metadata["fork_result"]["forked"] is True
+        assert result.metadata["fork_result"]["linear_issue_id"] == "L-456"
+
+    def test_fork_no_metadata_when_not_forked(self, conductor: Conductor) -> None:
+        from spec_orch.services.conductor.types import ForkResult
+
+        signal = IntentSignal(
+            category=IntentCategory.DRIFT,
+            confidence=0.9,
+            summary="scope change again",
+            suggested_title="Something",
+        )
+        mock_fork_result = ForkResult(forked=False)
+        with (
+            patch(_CLASSIFY, return_value=signal),
+            patch.object(conductor, "_maybe_fork", return_value=mock_fork_result),
+        ):
+            result = conductor.intercept(
+                DMAStage.GATE,
+                "scope change again xyz",
+                context={"thread_id": "t-999"},
+            )
+        assert result.action == "fork"
+        assert result.metadata["stage"] == "gate"
+        assert "fork_result" not in result.metadata
 
 
 class TestInterceptResultDataclass:

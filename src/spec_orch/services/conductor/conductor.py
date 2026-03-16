@@ -154,7 +154,7 @@ class Conductor:
             thread_id = (context or {}).get("thread_id", "intercept")
             state = self._get_or_create_state(thread_id)
             fork_result = self._maybe_fork(state, signal, None)
-            if fork_result:
+            if fork_result.forked:
                 metadata["fork_result"] = {
                     "forked": fork_result.forked,
                     "linear_issue_id": fork_result.linear_issue_id,

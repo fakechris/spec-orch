@@ -57,7 +57,7 @@ class UserInputSource:
 
     source: str  # e.g. "linear_comment", "slack", "cli"
     content: str
-    timestamp: str = ""
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 @dataclass
