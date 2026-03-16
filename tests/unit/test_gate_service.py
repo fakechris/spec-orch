@@ -167,3 +167,101 @@ def test_no_promotion_when_diff_stats_empty() -> None:
     result = svc.evaluate(GateInput(claimed_flow="hotfix", diff_stats={}))
     assert result.promotion_required is False
     assert result.promotion_target is None
+
+
+# ── T3.2: backtrack_reason inference ──
+
+
+def test_backtrack_recoverable_on_builder_failure() -> None:
+    svc = GateService(policy=GatePolicy(required_conditions={"builder", "verification"}))
+    result = svc.evaluate(GateInput(builder_succeeded=False))
+    assert result.mergeable is False
+    assert result.backtrack_reason == "recoverable"
+
+
+def test_backtrack_needs_redesign_on_spec_failure() -> None:
+    svc = GateService(policy=GatePolicy(required_conditions={"spec_exists"}))
+    result = svc.evaluate(GateInput(spec_exists=False))
+    assert result.mergeable is False
+    assert result.backtrack_reason == "needs_redesign"
+
+
+def test_backtrack_none_when_all_pass() -> None:
+    policy = GatePolicy(required_conditions={"builder"})
+    svc = GateService(policy=policy)
+    result = svc.evaluate(GateInput(builder_succeeded=True))
+    assert result.mergeable is True
+    assert result.backtrack_reason is None
+
+
+def test_backtrack_needs_redesign_takes_priority() -> None:
+    svc = GateService(
+        policy=GatePolicy(required_conditions={"spec_exists", "builder", "verification"})
+    )
+    result = svc.evaluate(GateInput(spec_exists=False, builder_succeeded=False))
+    assert result.backtrack_reason == "needs_redesign"
+
+
+# ── T3.4: demotion_suggested ──
+
+
+def test_demotion_suggested_when_conductor_proposes() -> None:
+    svc = GateService(policy=GatePolicy(required_conditions=set()))
+    result = svc.evaluate(
+        GateInput(
+            claimed_flow="full",
+            demotion_proposed_by_conductor=True,
+            diff_stats={".md": 2},
+        )
+    )
+    assert result.demotion_suggested is True
+    assert result.demotion_target == "standard"
+
+
+def test_no_demotion_without_conductor_proposal() -> None:
+    svc = GateService(policy=GatePolicy(required_conditions=set()))
+    result = svc.evaluate(
+        GateInput(
+            claimed_flow="full",
+            demotion_proposed_by_conductor=False,
+            diff_stats={".md": 1},
+        )
+    )
+    assert result.demotion_suggested is False
+
+
+def test_no_demotion_when_diff_exceeds_threshold() -> None:
+    svc = GateService(policy=GatePolicy(required_conditions=set()))
+    result = svc.evaluate(
+        GateInput(
+            claimed_flow="full",
+            demotion_proposed_by_conductor=True,
+            diff_stats={".py": 10},
+        )
+    )
+    assert result.demotion_suggested is False
+
+
+def test_no_demotion_from_hotfix() -> None:
+    svc = GateService(policy=GatePolicy(required_conditions=set()))
+    result = svc.evaluate(
+        GateInput(
+            claimed_flow="hotfix",
+            demotion_proposed_by_conductor=True,
+            diff_stats={".md": 1},
+        )
+    )
+    assert result.demotion_suggested is False
+
+
+def test_demotion_standard_to_hotfix() -> None:
+    svc = GateService(policy=GatePolicy(required_conditions=set()))
+    result = svc.evaluate(
+        GateInput(
+            claimed_flow="standard",
+            demotion_proposed_by_conductor=True,
+            diff_stats={".md": 1},
+        )
+    )
+    assert result.demotion_suggested is True
+    assert result.demotion_target == "hotfix"
