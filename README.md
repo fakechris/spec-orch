@@ -578,6 +578,7 @@ policies/                Distilled deterministic scripts (auto-generated)
 - [SDD Industry Landscape & Positioning](docs/architecture/sdd-landscape-and-positioning.md) — Spec vs Skill analysis, industry benchmarking
 - [Skill-Driven vs Spec-Driven Orchestration](docs/architecture/skill-driven-vs-spec-driven.md) — hybrid architecture proposal
 - [Orchestration Brain Design](docs/architecture/orchestration-brain-design.md) — scaffold determinism + muscle intelligence, flow promotion/demotion, evolution architecture
+- [Spec-Contract Integration](docs/architecture/spec-contract-integration.md) — three-layer spec hierarchy (OpenSpec + Agent-Spec Contract + Tests), when to use each
 
 ### Historical (early design, kept as decision records)
 
