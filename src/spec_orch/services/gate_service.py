@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.models import GateInput, GateVerdict
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_REQUIRED = {
     "spec_exists",
@@ -150,7 +153,7 @@ class GateService:
             self._infer_backtrack_reason(failed_conditions) if failed_conditions else None
         )
 
-        return GateVerdict(
+        verdict = GateVerdict(
             mergeable=mergeable_internal,
             failed_conditions=failed_conditions,
             mergeable_internal=mergeable_internal,
@@ -161,6 +164,8 @@ class GateService:
             demotion_target=demotion_target,
             backtrack_reason=backtrack_reason,
         )
+        self._emit_verdict(gate_input, verdict)
+        return verdict
 
     _DOC_EXTENSIONS = frozenset({".md", ".txt", ".rst", ".json", ".yaml", ".yml", ".toml"})
 
@@ -285,3 +290,29 @@ class GateService:
             else None,
             "profiles": list(self.policy.profiles.keys()),
         }
+
+    @staticmethod
+    def _emit_verdict(gate_input: GateInput, verdict: GateVerdict) -> None:
+        try:
+            from spec_orch.services.event_bus import Event, EventTopic, get_event_bus
+
+            bus = get_event_bus()
+            bus.publish(
+                Event(
+                    topic=EventTopic.GATE_RESULT,
+                    payload={
+                        "action": "gate.verdict",
+                        "passed": verdict.mergeable,
+                        "failed_conditions": verdict.failed_conditions,
+                        "promotion_required": verdict.promotion_required,
+                        "promotion_target": verdict.promotion_target or "",
+                        "demotion_suggested": verdict.demotion_suggested,
+                        "backtrack_reason": verdict.backtrack_reason or "",
+                        "claimed_flow": gate_input.claimed_flow or "",
+                        "issue_id": getattr(gate_input, "issue_id", ""),
+                    },
+                    source="gate_service",
+                )
+            )
+        except (ImportError, Exception):
+            logger.debug("Failed to emit gate verdict event", exc_info=True)
