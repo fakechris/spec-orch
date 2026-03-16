@@ -253,6 +253,8 @@ class GateInput:
     preview_passed: bool = False
     review_meta: ReviewMeta = field(default_factory=ReviewMeta)
     compliance_passed: bool = True
+    claimed_flow: str | None = None
+    diff_stats: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -280,6 +282,8 @@ class GateVerdict:
     failed_conditions: list[str]
     mergeable_internal: bool = True
     mergeable_external: bool = True
+    promotion_required: bool = False
+    promotion_target: str | None = None
 
 
 @dataclass(slots=True)
