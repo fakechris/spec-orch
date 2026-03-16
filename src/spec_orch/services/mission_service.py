@@ -7,14 +7,19 @@ in ``docs/specs/<mission_id>/``.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from spec_orch.domain.models import Mission, MissionStatus
 
+logger = logging.getLogger(__name__)
+
 _MISSION_META = "mission.json"
 _SPECS_DIR = "docs/specs"
+_MAX_EXAMPLE_CHARS = 24_000
 
 
 class MissionService:
@@ -59,6 +64,72 @@ class MissionService:
             constraints=constraints or [],
         )
         self._write_meta(mission_dir, mission)
+        return mission
+
+    def create_mission_from_template(
+        self,
+        title: str,
+        template_id: str,
+        *,
+        mission_id: str | None = None,
+    ) -> Mission:
+        """Create a new mission by copying the spec structure of an existing one."""
+        template_spec = self.specs_dir / template_id / "spec.md"
+        if not template_spec.exists():
+            raise FileNotFoundError(
+                f"Template spec not found: {template_id}. "
+                "Use `mission list` to see available missions."
+            )
+
+        spec_content = template_spec.read_text()
+        if not spec_content.strip():
+            raise ValueError(f"Template spec is empty: {template_id}")
+
+        first_line_end = spec_content.find("\n")
+        if first_line_end != -1:
+            spec_content = f"# {title}" + spec_content[first_line_end:]
+        else:
+            spec_content = f"# {title}\n"
+
+        mission = self.create_mission(title, mission_id=mission_id)
+        spec_path = self.specs_dir / mission.mission_id / "spec.md"
+        spec_path.write_text(spec_content)
+        return mission
+
+    def create_mission_from_example(
+        self,
+        title: str,
+        example_content: str,
+        *,
+        mission_id: str | None = None,
+        planner: Any | None = None,
+    ) -> Mission:
+        """Create a new mission by reverse-engineering a spec from example content."""
+        from spec_orch.services.spec_reverse_engineer import reverse_engineer_spec
+
+        truncated = example_content[:_MAX_EXAMPLE_CHARS]
+        if len(example_content) > _MAX_EXAMPLE_CHARS:
+            logger.warning(
+                "Example content truncated from %d to %d chars",
+                len(example_content),
+                _MAX_EXAMPLE_CHARS,
+            )
+
+        try:
+            spec_text = reverse_engineer_spec(truncated, title, planner=planner)
+        except Exception:
+            logger.warning(
+                "LLM reverse-engineering failed; falling back to blank skeleton",
+                exc_info=True,
+            )
+            spec_text = ""
+
+        mission = self.create_mission(title, mission_id=mission_id)
+
+        if spec_text.strip():
+            spec_path = self.specs_dir / mission.mission_id / "spec.md"
+            spec_path.write_text(spec_text)
+
         return mission
 
     def approve_mission(self, mission_id: str) -> Mission:
