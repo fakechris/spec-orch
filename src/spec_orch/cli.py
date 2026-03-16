@@ -725,6 +725,11 @@ def run_full(
         help="Gate profile to apply (e.g. daemon, ci).",
     ),
     base: str = typer.Option("main", "--base", "-b", help="Base branch for PR."),
+    flow: str = typer.Option(
+        "",
+        "--flow",
+        help="Override flow type: full, standard, or hotfix.",
+    ),
 ) -> None:
     """Run an issue through the full pipeline in one shot.
 

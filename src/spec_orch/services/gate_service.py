@@ -145,6 +145,10 @@ class GateService:
         mergeable_internal = not failed_conditions
 
         promotion_required, promotion_target = self._check_promotion(gate_input)
+        demotion_suggested, demotion_target = self._check_demotion(gate_input)
+        backtrack_reason = (
+            self._infer_backtrack_reason(failed_conditions) if failed_conditions else None
+        )
 
         return GateVerdict(
             mergeable=mergeable_internal,
@@ -153,6 +157,9 @@ class GateService:
             mergeable_external=True,
             promotion_required=promotion_required,
             promotion_target=promotion_target,
+            demotion_suggested=demotion_suggested,
+            demotion_target=demotion_target,
+            backtrack_reason=backtrack_reason,
         )
 
     _DOC_EXTENSIONS = frozenset({".md", ".txt", ".rst", ".json", ".yaml", ".yml", ".toml"})
@@ -182,6 +189,44 @@ class GateService:
             return True, "full"
 
         return False, None
+
+    _DEMOTION_DIFF_THRESHOLD = 5
+
+    def _check_demotion(self, gate_input: GateInput) -> tuple[bool, str | None]:
+        """Suggest demotion when Conductor proposed it and diff is small enough."""
+        if not gate_input.demotion_proposed_by_conductor:
+            return False, None
+
+        claimed = gate_input.claimed_flow
+        if not claimed:
+            return False, None
+
+        claimed_lower = claimed.lower()
+        if claimed_lower == "hotfix":
+            return False, None
+
+        total_changes = sum(gate_input.diff_stats.values()) if gate_input.diff_stats else 0
+        if total_changes > self._DEMOTION_DIFF_THRESHOLD:
+            return False, None
+
+        _DEMOTION_MAP = {"full": "standard", "standard": "hotfix"}
+        target = _DEMOTION_MAP.get(claimed_lower)
+        if target:
+            return True, target
+        return False, None
+
+    _REDESIGN_CONDITIONS = frozenset({"spec_exists", "spec_approved", "within_boundaries"})
+    _PROMOTION_CONDITIONS = frozenset({"compliance"})
+
+    @classmethod
+    def _infer_backtrack_reason(cls, failed_conditions: list[str]) -> str:
+        """Classify gate failure into a backtrack reason category."""
+        failed_set = set(failed_conditions)
+        if failed_set & cls._REDESIGN_CONDITIONS:
+            return "needs_redesign"
+        if failed_set & cls._PROMOTION_CONDITIONS:
+            return "promotion_required"
+        return "recoverable"
 
     def should_auto_merge(self, gate_input: GateInput) -> bool:
         """Check whether auto-merge should trigger.

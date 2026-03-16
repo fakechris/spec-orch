@@ -11,6 +11,8 @@ from spec_orch.domain.compliance import (
 )
 from spec_orch.domain.models import (
     BuilderResult,
+    FlowTransitionEvent,
+    FlowType,
     GateInput,
     GateVerdict,
     Issue,
@@ -21,6 +23,8 @@ from spec_orch.domain.models import (
     VerificationSummary,
 )
 from spec_orch.domain.protocols import BuilderAdapter, IssueSource, PlannerAdapter
+from spec_orch.flow_engine.engine import FlowEngine
+from spec_orch.flow_engine.mapper import FlowMapper
 from spec_orch.services.activity_logger import ActivityLogger
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
@@ -43,6 +47,19 @@ from spec_orch.services.workspace_service import WorkspaceService
 _MAX_ADVANCE_ITERATIONS = 10
 
 
+def record_flow_transition(event: FlowTransitionEvent) -> None:
+    """Record a flow transition event.  Stub — will be wired to Memory later."""
+    import logging
+
+    logging.getLogger(__name__).info(
+        "Flow transition: %s → %s (trigger=%s, issue=%s)",
+        event.from_flow,
+        event.to_flow,
+        event.trigger,
+        event.issue_id,
+    )
+
+
 class RunController:
     def __init__(
         self,
@@ -54,6 +71,8 @@ class RunController:
         issue_source: IssueSource | None = None,
         planner_adapter: PlannerAdapter | None = None,
         live_stream: IO[str] | None = None,
+        flow_engine: FlowEngine | None = None,
+        flow_mapper: FlowMapper | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
         self.artifact_service = ArtifactService()
@@ -70,9 +89,20 @@ class RunController:
             repo_root=self.repo_root
         )
         self._live_stream = live_stream
+        self.flow_engine = flow_engine or FlowEngine()
+        self.flow_mapper = flow_mapper or FlowMapper()
 
-    def run_issue(self, issue_id: str) -> RunResult:
+    def _resolve_flow(self, issue: Issue) -> FlowType:
+        """Determine the FlowType for an issue. Defaults to Standard."""
+        resolved = self.flow_mapper.resolve_flow_type(
+            issue.run_class,
+            labels=[],
+        )
+        return resolved or FlowType.STANDARD
+
+    def run_issue(self, issue_id: str, flow_type: FlowType | None = None) -> RunResult:
         issue = self.issue_source.load(issue_id)
+        resolved_flow = flow_type or self._resolve_flow(issue)
         workspace = self.workspace_service.prepare_issue_workspace(issue.issue_id)
         run_id = self.telemetry_service.new_run_id(issue.issue_id)
 
@@ -171,6 +201,15 @@ class RunController:
                 state=RunState.GATE_EVALUATED,
             )
 
+            self._handle_gate_flow_signals(
+                gate=gate,
+                resolved_flow=resolved_flow,
+                issue_id=issue.issue_id,
+                run_id=run_id,
+                activity_logger=activity_logger,
+                workspace=workspace,
+            )
+
         return RunResult(
             issue=issue,
             workspace=workspace,
@@ -183,6 +222,105 @@ class RunController:
             gate=gate,
             state=RunState.GATE_EVALUATED,
         )
+
+    def _handle_gate_flow_signals(
+        self,
+        gate: GateVerdict,
+        resolved_flow: FlowType,
+        issue_id: str,
+        run_id: str,
+        activity_logger: ActivityLogger | None = None,
+        workspace: Path = Path("."),
+    ) -> None:
+        """Process promotion, demotion, and backtrack signals from GateVerdict."""
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC).isoformat()
+
+        if gate.promotion_required and gate.promotion_target:
+            try:
+                target_flow = FlowType(gate.promotion_target)
+            except ValueError:
+                self._log_and_emit(
+                    activity_logger=activity_logger,
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=issue_id,
+                    component="flow_engine",
+                    event_type="promotion_invalid_target",
+                    message=f"Invalid promotion target: {gate.promotion_target!r}",
+                )
+                return
+            _FLOW_ORDER = {FlowType.HOTFIX: 0, FlowType.STANDARD: 1, FlowType.FULL: 2}
+            if _FLOW_ORDER.get(target_flow, 0) <= _FLOW_ORDER.get(resolved_flow, 0):
+                self._log_and_emit(
+                    activity_logger=activity_logger,
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=issue_id,
+                    component="flow_engine",
+                    event_type="promotion_same_or_lower",
+                    message=f"Promotion target {target_flow} is not higher than {resolved_flow}",
+                )
+                return
+            event = FlowTransitionEvent(
+                from_flow=resolved_flow.value,
+                to_flow=target_flow.value,
+                trigger="promotion_required",
+                timestamp=now,
+                issue_id=issue_id,
+                run_id=run_id,
+            )
+            record_flow_transition(event)
+            self._log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue_id,
+                component="flow_engine",
+                event_type="flow_promoted",
+                message=f"Flow promoted: {resolved_flow.value} → {target_flow.value}",
+                data={"from_flow": resolved_flow.value, "to_flow": target_flow.value},
+            )
+
+        if gate.demotion_suggested and gate.demotion_target:
+            event = FlowTransitionEvent(
+                from_flow=resolved_flow.value,
+                to_flow=gate.demotion_target,
+                trigger="demotion_suggested",
+                timestamp=now,
+                issue_id=issue_id,
+                run_id=run_id,
+            )
+            record_flow_transition(event)
+            self._log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue_id,
+                component="flow_engine",
+                event_type="flow_demotion_suggested",
+                message=f"Demotion suggested: {resolved_flow.value} → {gate.demotion_target}",
+                data={"from_flow": resolved_flow.value, "to_flow": gate.demotion_target},
+            )
+
+        if gate.backtrack_reason:
+            target_step = self.flow_engine.get_backtrack_target(
+                resolved_flow, "gate", gate.backtrack_reason
+            )
+            self._log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue_id,
+                component="flow_engine",
+                event_type="backtrack_signal",
+                message=f"Backtrack: reason={gate.backtrack_reason}, target_step={target_step}",
+                data={
+                    "reason": gate.backtrack_reason,
+                    "target_step": target_step,
+                },
+            )
 
     def _load_existing_run(
         self,

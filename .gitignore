@@ -30,3 +30,4 @@ packages/tui/dist/
 .env.*
 !.env.example
 builder_report.json
+.spec_orch_memory/

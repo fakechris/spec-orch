@@ -1,0 +1,16 @@
+# Intent → FlowType mapping rules.
+# Used by FlowMapper.resolve_flow_type() to select the workflow tier.
+
+intent_to_flow:
+  feature: full
+  architecture: full
+  bug: standard
+  improvement: standard
+  quick_fix: standard
+  documentation: standard
+  hotfix: hotfix
+  security: hotfix
+
+# Labels that override intent-based mapping (checked first).
+label_overrides:
+  hotfix: hotfix
