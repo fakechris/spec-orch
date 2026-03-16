@@ -666,6 +666,57 @@ def spec_draft(
     typer.echo(f"created draft spec v1 for {issue_id}")
 
 
+@spec_app.command("import")
+def spec_import(
+    format_id: str = typer.Option(
+        ..., "--format", "-f", help="Source format: spec-kit, ears, bdd."
+    ),
+    path: str = typer.Option(..., "--path", "-p", help="Path to spec file or directory."),
+    title: str = typer.Option(
+        "", "--title", "-t", help="Mission title (defaults to format+filename)."
+    ),
+    mission_id: str | None = typer.Option(
+        None, "--mission-id", help="Override generated mission ID."
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Print parsed spec without creating mission."
+    ),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Import a spec from an external format (spec-kit, ears, bdd) and create a mission."""
+    from spec_orch.spec_import.parser import PARSER_REGISTRY
+
+    parser = PARSER_REGISTRY.get(format_id)
+    if parser is None:
+        supported = ", ".join(PARSER_REGISTRY.supported_formats())
+        typer.echo(f"Error: unsupported format '{format_id}'. Supported: {supported}", err=True)
+        raise typer.Exit(code=1)
+
+    source_path = Path(path)
+    if not source_path.exists():
+        typer.echo(f"Error: path not found: {path}", err=True)
+        raise typer.Exit(code=1)
+
+    try:
+        spec_structure = parser.parse(source_path)
+    except Exception as exc:
+        typer.echo(f"Error parsing {format_id}: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    resolved_title = title or f"{format_id}-import-{source_path.stem}"
+
+    if dry_run:
+        typer.echo(spec_structure.to_markdown(resolved_title))
+        return
+
+    from spec_orch.services.mission_service import MissionService
+
+    svc = MissionService(repo_root=Path(repo_root))
+    m = svc.create_mission_from_structure(resolved_title, spec_structure, mission_id=mission_id)
+    typer.echo(f"mission created: {m.mission_id}")
+    typer.echo(f"spec: {m.spec_path}")
+
+
 @app.command("advance")
 def advance_issue(
     issue_id: str,

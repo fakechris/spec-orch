@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.models import GateInput, GateVerdict
+from spec_orch.services.gate_skill_protocol import GateSkillRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -117,33 +118,39 @@ class GatePolicy:
 
 
 class GateService:
-    def __init__(self, policy: GatePolicy | None = None) -> None:
+    def __init__(
+        self,
+        policy: GatePolicy | None = None,
+        registry: GateSkillRegistry | None = None,
+    ) -> None:
         self.policy = policy or GatePolicy.default()
+        if registry is not None:
+            self._registry = registry
+        else:
+            from spec_orch.services.gate_builtin_skills import build_default_registry
+
+            self._registry = build_default_registry()
+
+    @property
+    def registry(self) -> GateSkillRegistry:
+        return self._registry
 
     def evaluate(self, gate_input: GateInput) -> GateVerdict:
         failed_conditions: list[str] = []
         required = self.policy.required_conditions
 
-        if "spec_exists" in required and not gate_input.spec_exists:
-            failed_conditions.append("spec_exists")
-        if "spec_approved" in required and not gate_input.spec_approved:
-            failed_conditions.append("spec_approved")
-        if "within_boundaries" in required and not gate_input.within_boundaries:
-            failed_conditions.append("within_boundaries")
-        if "builder" in required and not gate_input.builder_succeeded:
-            failed_conditions.append("builder")
-        if "verification" in required and not gate_input.verification.all_passed:
-            failed_conditions.append("verification")
-        if "review" in required and gate_input.review.verdict != "pass":
-            failed_conditions.append("review")
-        if "preview" in required and gate_input.preview_required and not gate_input.preview_passed:
-            failed_conditions.append("preview")
-        if "human_acceptance" in required and not gate_input.human_acceptance:
-            failed_conditions.append("human_acceptance")
-        if "findings" in required and gate_input.review_meta.blocking_unresolved:
-            failed_conditions.append("findings")
-        if "compliance" in required and not gate_input.compliance_passed:
-            failed_conditions.append("compliance")
+        for cond in sorted(required):
+            skill = self._registry.get(cond)
+            if skill is not None:
+                try:
+                    result = skill.run(gate_input)
+                    if not result.passed:
+                        failed_conditions.append(cond)
+                except Exception:
+                    logger.warning("Gate skill %s failed, treating as failed", cond, exc_info=True)
+                    failed_conditions.append(cond)
+            else:
+                logger.warning("Unknown gate condition: %s (no skill registered)", cond)
 
         mergeable_internal = not failed_conditions
 

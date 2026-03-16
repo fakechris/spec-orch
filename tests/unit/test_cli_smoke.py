@@ -77,7 +77,7 @@ def test_run_issue_uses_fixture_and_reports_gate_result(tmp_path) -> None:
     assert result.exit_code == 0
     assert "SPC-1" in result.stdout
     assert "mergeable=False" in result.stdout
-    assert "blocked=verification,review,human_acceptance" in result.stdout
+    assert "blocked=human_acceptance,review,verification" in result.stdout
 
 
 def test_review_and_accept_issue_mark_existing_run_mergeable(tmp_path) -> None:

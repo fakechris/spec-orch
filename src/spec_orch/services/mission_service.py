@@ -10,6 +10,7 @@ import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from spec_orch.domain.models import Mission, MissionStatus
 
@@ -59,6 +60,20 @@ class MissionService:
             constraints=constraints or [],
         )
         self._write_meta(mission_dir, mission)
+        return mission
+
+    def create_mission_from_structure(
+        self,
+        title: str,
+        spec_structure: Any,
+        *,
+        mission_id: str | None = None,
+    ) -> Mission:
+        """Create a mission from a parsed SpecStructure."""
+        mission = self.create_mission(title, mission_id=mission_id)
+        spec_text = spec_structure.to_markdown(title)
+        spec_path = self.specs_dir / mission.mission_id / "spec.md"
+        spec_path.write_text(spec_text)
         return mission
 
     def approve_mission(self, mission_id: str) -> Mission:
