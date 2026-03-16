@@ -254,7 +254,7 @@ class GateService:
             return False
         check_set = self.policy.auto_merge_conditions or self.policy.required_conditions
         temp_policy = GatePolicy(required_conditions=check_set)
-        temp_svc = GateService(policy=temp_policy)
+        temp_svc = GateService(policy=temp_policy, registry=self._registry)
         verdict = temp_svc.evaluate(gate_input)
         return verdict.mergeable
 

@@ -16,7 +16,10 @@ class BddParser:
         return "bdd"
 
     def parse(self, path: Path) -> SpecStructure:
-        content = Path(path).read_text()
+        path = Path(path)
+        if not path.is_file():
+            raise ValueError(f"BDD parser requires a .feature file, got directory: {path}")
+        content = path.read_text()
 
         feature_match = re.match(r"Feature:\s*(.+?)(?:\n|$)", content, re.IGNORECASE)
         goal = feature_match.group(1).strip() if feature_match else ""

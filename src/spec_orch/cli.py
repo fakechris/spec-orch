@@ -711,7 +711,7 @@ def spec_import(
 
     from spec_orch.services.mission_service import MissionService
 
-    svc = MissionService(repo_root=Path(repo_root))
+    svc = MissionService(repo_root=repo_root)
     m = svc.create_mission_from_structure(resolved_title, spec_structure, mission_id=mission_id)
     typer.echo(f"mission created: {m.mission_id}")
     typer.echo(f"spec: {m.spec_path}")

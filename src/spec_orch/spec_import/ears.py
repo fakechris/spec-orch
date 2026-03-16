@@ -22,7 +22,10 @@ class EarsParser:
         return "ears"
 
     def parse(self, path: Path) -> SpecStructure:
-        content = Path(path).read_text()
+        path = Path(path)
+        if not path.is_file():
+            raise ValueError(f"EARS parser requires a file, got directory: {path}")
+        content = path.read_text()
 
         matches = _EARS_PATTERN.findall(content)
 

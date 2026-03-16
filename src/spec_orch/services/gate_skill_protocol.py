@@ -44,7 +44,7 @@ class GateSkillRegistry:
         self._custom[skill.id] = skill
 
     def get(self, condition_id: str) -> GateCheckSkill | None:
-        return self._builtin.get(condition_id) or self._custom.get(condition_id)
+        return self._custom.get(condition_id) or self._builtin.get(condition_id)
 
     def all_ids(self) -> set[str]:
         return set(self._builtin) | set(self._custom)
