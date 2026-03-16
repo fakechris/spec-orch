@@ -44,9 +44,9 @@ def _seed_template(svc: MissionService, template_id: str = "tpl-demo") -> Path:
                 "acceptance_criteria": [],
                 "constraints": [],
                 "interface_contracts": [],
-                "created_at": "",
-                "approved_at": "",
-                "completed_at": "",
+                "created_at": None,
+                "approved_at": None,
+                "completed_at": None,
             }
         )
     )
@@ -82,9 +82,9 @@ class TestCreateMissionFromTemplate:
                     "acceptance_criteria": [],
                     "constraints": [],
                     "interface_contracts": [],
-                    "created_at": "",
-                    "approved_at": "",
-                    "completed_at": "",
+                    "created_at": None,
+                    "approved_at": None,
+                    "completed_at": None,
                 }
             )
         )

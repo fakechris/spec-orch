@@ -118,7 +118,10 @@ class MissionService:
         try:
             spec_text = reverse_engineer_spec(truncated, title, planner=planner)
         except Exception:
-            logger.warning("LLM reverse-engineering failed; falling back to blank skeleton")
+            logger.warning(
+                "LLM reverse-engineering failed; falling back to blank skeleton",
+                exc_info=True,
+            )
             spec_text = ""
 
         mission = self.create_mission(title, mission_id=mission_id)

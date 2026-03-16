@@ -2002,7 +2002,8 @@ def mission_create(
             typer.echo(f"Error: file not found: {from_example}", err=True)
             raise typer.Exit(code=1)
         content = example_path.read_text()
-        m = svc.create_mission_from_example(title, content, mission_id=mission_id)
+        planner = _build_planner_from_toml(Path(repo_root))
+        m = svc.create_mission_from_example(title, content, mission_id=mission_id, planner=planner)
     elif from_url is not None:
         try:
             import httpx
@@ -2013,7 +2014,8 @@ def mission_create(
         except Exception as exc:
             typer.echo(f"Error fetching URL: {exc}", err=True)
             raise typer.Exit(code=1) from exc
-        m = svc.create_mission_from_example(title, content, mission_id=mission_id)
+        planner = _build_planner_from_toml(Path(repo_root))
+        m = svc.create_mission_from_example(title, content, mission_id=mission_id, planner=planner)
     else:
         m = svc.create_mission(title, mission_id=mission_id)
 
