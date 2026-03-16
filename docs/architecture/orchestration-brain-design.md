@@ -1,7 +1,7 @@
 # 编排大脑设计：骨架确定性 + 肌肉智能化
 
 > 日期: 2026-03-14
-> 状态: 设计哲学确认，待实施
+> 状态: 设计哲学确认，核心已实施 (Change 01~06, PR #43~#48)
 > Linear Epic: SON-100 (混合架构: Talk Freely, Execute Strictly)
 > 前置文档:
 > - [SDD 行业全景](sdd-landscape-and-positioning.md)
@@ -108,9 +108,9 @@ Conductor 的 Intent 分类直接映射到流程选择：
 | Plan Strategy | 历史 plan 拆分效果 | Scoper hints 注入 | **已有** (PlanStrategyEvolver) |
 | Compliance Rules | 历史失败模式 | LLM 合成 + 回测验证 | **已有** (HarnessSynthesizer) |
 | Routine Tasks | 重复任务模式 | 蒸馏为 Python 脚本 | **已有** (PolicyDistiller) |
-| **Intent Classifier** | intent 分类 vs 实际流程 | 准确率统计 + prompt 调优 | **待建** |
-| **Flow Selection** | 流程选择 vs Gate 后验 | 升降级统计 → 阈值调整 | **待建** |
-| **Gate Policy** | Gate 判定 vs 实际结果 | 统计分析 + 阈值调整 | **待建** |
+| **Intent Classifier** | intent 分类 vs 实际流程 | 准确率统计 + prompt 调优 | **已建** (IntentEvolver, PR #45) |
+| **Flow Selection** | 流程选择 vs Gate 后验 | 升降级统计 → 阈值调整 | **已建** (FlowPolicyEvolver, PR #45) |
+| **Gate Policy** | Gate 判定 vs 实际结果 | 统计分析 + 阈值调整 | **已建** (GatePolicyEvolver, PR #45) |
 
 ### 3.3 进化数据流
 
@@ -138,10 +138,10 @@ Conductor 的 Intent 分类直接映射到流程选择：
 | Semantic | 抽象知识（模式、规律） | Gate Policy, Compliance Rules |
 | Procedural | "怎么做"的知识 | PolicyDistiller (蒸馏为代码) |
 
-新增的数据流需要建设：
-- **Intent 判定日志** → Episodic → IntentEvolver
-- **Flow 升降级事件** → Episodic → FlowPolicyEvolver
-- **Gate 后验结果**（Gate 说 pass 但后来发现有问题）→ Semantic → GatePolicyEvolver
+新增的数据流（已建设完成）：
+- **Intent 判定日志** → Episodic → IntentEvolver ✅ (MemoryService `_on_conductor`, PR #45)
+- **Flow 升降级事件** → Episodic → FlowPolicyEvolver ✅ (FlowTransitionEvent, PR #43/#45)
+- **Gate 后验结果** → Semantic → GatePolicyEvolver ✅ (MemoryService `_on_gate_result`, PR #45)
 
 ## 四、学术支撑
 
