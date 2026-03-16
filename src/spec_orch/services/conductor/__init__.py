@@ -17,9 +17,13 @@ from spec_orch.services.conductor.types import (
     ACTIONABLE_INTENTS,
     ConductorState,
     ConversationMode,
+    DMAStage,
     FormalizationProposal,
     IntentCategory,
     IntentSignal,
+    InterceptAction,
+    InterceptResult,
+    UserInputSource,
 )
 
 __all__ = [
@@ -31,8 +35,12 @@ __all__ = [
     "ConductorResponse",
     "ConductorState",
     "ConversationMode",
+    "DMAStage",
     "FormalizationProposal",
     "IntentCategory",
     "IntentSignal",
+    "InterceptAction",
+    "InterceptResult",
+    "UserInputSource",
     "classify_intent",
 ]
