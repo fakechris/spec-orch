@@ -7,6 +7,7 @@ to automatically capture mission lifecycle events into episodic memory.
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -145,6 +146,8 @@ class MemoryService:
             bus = get_event_bus()
             bus.subscribe(self._on_mission_state, EventTopic.MISSION_STATE)
             bus.subscribe(self._on_issue_state, EventTopic.ISSUE_STATE)
+            bus.subscribe(self._on_conductor, EventTopic.CONDUCTOR)
+            bus.subscribe(self._on_gate_result, EventTopic.GATE_RESULT)
             logger.info("MemoryService subscribed to EventBus")
         except ImportError:
             logger.debug("EventBus not available, skipping subscription")
@@ -164,6 +167,51 @@ class MemoryService:
         succeeded = state in ("accepted", "merged")
         if state in ("accepted", "merged", "failed"):
             self.record_issue_completion(issue_id, succeeded=succeeded, metadata=payload)
+
+    def _on_conductor(self, event: Any) -> None:
+        payload = event.payload if hasattr(event, "payload") else event
+        action = payload.get("action", "")
+        thread_id = payload.get("thread_id", "unknown")
+
+        if action == "fork":
+            self.store(
+                MemoryEntry(
+                    key=f"conductor-fork-{thread_id}-{payload.get('linear_issue_id', '')}",
+                    content=f"Fork: {payload.get('title', '')}",
+                    layer=MemoryLayer.EPISODIC,
+                    tags=["conductor-fork", f"thread:{thread_id}"],
+                    metadata=payload,
+                )
+            )
+        else:
+            intent_cat = payload.get("intent_category", "")
+            self.store(
+                MemoryEntry(
+                    key=f"intent-classified-{thread_id}-{payload.get('message_id', '')}",
+                    content=payload.get("summary", ""),
+                    layer=MemoryLayer.EPISODIC,
+                    tags=["intent-classified", f"thread:{thread_id}", f"intent:{intent_cat}"],
+                    metadata=payload,
+                )
+            )
+
+    def _on_gate_result(self, event: Any) -> None:
+        payload = event.payload if hasattr(event, "payload") else event
+        issue_id = payload.get("issue_id", "unknown")
+        passed = payload.get("passed", False)
+        self.store(
+            MemoryEntry(
+                key=f"gate-verdict-{issue_id}-{int(time.time() * 1000)}",
+                content=f"Gate {'passed' if passed else 'failed'}",
+                layer=MemoryLayer.EPISODIC,
+                tags=[
+                    "gate-verdict",
+                    f"issue:{issue_id}",
+                    "gate-passed" if passed else "gate-failed",
+                ],
+                metadata=payload,
+            )
+        )
 
     # -- EventBus emit helper ------------------------------------------------
 

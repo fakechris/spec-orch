@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.models import GateInput, GateVerdict
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_REQUIRED = {
     "spec_exists",
@@ -162,6 +165,12 @@ class GateService:
             backtrack_reason=backtrack_reason,
         )
 
+    def evaluate_and_emit(self, gate_input: GateInput) -> GateVerdict:
+        """Evaluate gate conditions and publish the verdict to EventBus."""
+        verdict = self.evaluate(gate_input)
+        self._emit_verdict(gate_input, verdict)
+        return verdict
+
     _DOC_EXTENSIONS = frozenset({".md", ".txt", ".rst", ".json", ".yaml", ".yml", ".toml"})
 
     def _check_promotion(self, gate_input: GateInput) -> tuple[bool, str | None]:
@@ -285,3 +294,31 @@ class GateService:
             else None,
             "profiles": list(self.policy.profiles.keys()),
         }
+
+    @staticmethod
+    def _emit_verdict(gate_input: GateInput, verdict: GateVerdict) -> None:
+        try:
+            from spec_orch.services.event_bus import Event, EventTopic, get_event_bus
+
+            bus = get_event_bus()
+            bus.publish(
+                Event(
+                    topic=EventTopic.GATE_RESULT,
+                    payload={
+                        "action": "gate.verdict",
+                        "passed": verdict.mergeable,
+                        "failed_conditions": verdict.failed_conditions,
+                        "promotion_required": verdict.promotion_required,
+                        "promotion_target": verdict.promotion_target or "",
+                        "demotion_suggested": verdict.demotion_suggested,
+                        "backtrack_reason": verdict.backtrack_reason or "",
+                        "claimed_flow": gate_input.claimed_flow or "",
+                        "issue_id": gate_input.issue_id,
+                    },
+                    source="gate_service",
+                )
+            )
+        except ImportError:
+            pass
+        except Exception:
+            logger.warning("Failed to emit gate verdict event", exc_info=True)
