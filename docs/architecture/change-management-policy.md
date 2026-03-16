@@ -30,6 +30,7 @@ capabilities, modifies public interfaces, or affects system architecture.
 | Mission approve | Yes | Human |
 | Generate execution plan | Yes | Planner |
 | Promote to Linear issues | Yes | Orchestrator |
+| Generate task contracts | Conditional | Conductor / Human |
 | Execute work packets | Yes | Builder (Codex) |
 | Verification | Yes | Verifier |
 | Gate evaluation | Yes | Gate |
@@ -105,6 +106,47 @@ currently handled manually.
 | Pre-merge review required? | Yes | Yes | Optional |
 | Post-merge review required? | No | No | Yes |
 | Can daemon automate end-to-end? | Yes | Yes | Future |
+
+## Spec Hierarchy: Three Layers
+
+Every change produces artifacts at up to three spec layers.  Not every
+layer is required for every task.
+
+| Layer | Artifact | Question it answers | Consumer |
+|-------|----------|---------------------|----------|
+| **L1: Spec** | `spec.md` | What to build? What behaviour must hold? | Humans, Gate |
+| **L2: Contract** | `contract.md` | How to build safely? What to touch, what not to touch? | Coding agent |
+| **L3: Test** | `test_*.py` | Is it done? Does the behaviour hold? | CI, Gate |
+
+L1 is always required for Full tier.  L2 is conditional (see below).
+L3 is always required for Full and Standard tiers.
+
+## Task Contract Policy
+
+A task contract (L2) constrains the coding agent's execution boundaries.
+It is **not required for every task** — only for high-risk ones.
+
+**When to write a contract:**
+
+- The task modifies a file imported by 3+ other modules
+- Multiple tasks in the same change modify the same file
+- The function being changed has 10+ existing tests
+- The task's Forbidden Paths would be longer than its Allowed Paths
+
+**When to skip:**
+
+- Pure new files (no regression surface)
+- Documentation or configuration only
+- Hotfix tier (speed over safety)
+
+**Contract structure** (see `docs/architecture/spec-contract-integration.md`):
+
+1. Intent — external result
+2. Decisions — confirmed choices + open questions
+3. Boundaries — allowed paths, forbidden paths, non-regression list
+4. Completion Criteria — behaviours, new tests, regression checks
+5. Verification Plan — commands to run, failure triage
+6. Risk Notes — likely overreach points
 
 ## Branch Protection Settings
 
