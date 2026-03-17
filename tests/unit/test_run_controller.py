@@ -384,3 +384,151 @@ class _PassingBuilderAdapter:
 
 def _raise_runtime_error(**_kwargs):
     raise RuntimeError("boom")
+
+
+# ---------------------------------------------------------------------------
+# Phase 0: SON-125 / SON-126 / SON-127 tests
+# ---------------------------------------------------------------------------
+
+
+def test_artifact_manifest_written_after_run(tmp_path: Path) -> None:
+    """SON-127: artifact_manifest.json is written at end of each run."""
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-AM.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-AM",
+                "title": "Test artifact manifest",
+                "summary": "Verify manifest is written.",
+            }
+        )
+    )
+    controller = RunController(repo_root=tmp_path)
+    result = controller.run_issue("SPC-AM")
+
+    manifest_path = result.workspace / "artifact_manifest.json"
+    assert manifest_path.exists(), "artifact_manifest.json should be written"
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["issue_id"] == "SPC-AM"
+    assert manifest["run_id"]
+    assert "report" in manifest["artifacts"]
+    assert "explain" in manifest["artifacts"]
+
+
+def test_flow_transition_writes_to_memory(tmp_path: Path) -> None:
+    """SON-126: record_flow_transition stores event in MemoryService."""
+    from spec_orch.domain.models import FlowTransitionEvent
+    from spec_orch.services.memory.service import MemoryService, reset_memory_service
+    from spec_orch.services.memory.types import MemoryLayer, MemoryQuery
+
+    reset_memory_service()
+    svc = MemoryService(repo_root=tmp_path)
+
+    import spec_orch.services.memory.service as mem_mod
+
+    mem_mod._instance = svc
+
+    try:
+        from spec_orch.services.run_controller import record_flow_transition
+
+        event = FlowTransitionEvent(
+            from_flow="standard",
+            to_flow="full",
+            trigger="promotion_required",
+            timestamp="2026-03-17T00:00:00Z",
+            issue_id="TEST-1",
+            run_id="run-abc",
+        )
+        record_flow_transition(event)
+
+        results = svc.recall(
+            MemoryQuery(layer=MemoryLayer.EPISODIC, tags=["flow-promotion"])
+        )
+        assert len(results) >= 1
+        entry = results[0]
+        assert entry.metadata["from_flow"] == "standard"
+        assert entry.metadata["to_flow"] == "full"
+        assert entry.metadata["issue_id"] == "TEST-1"
+    finally:
+        reset_memory_service()
+
+
+def test_chat_completion_method_exists_on_planner() -> None:
+    """SON-125: LiteLLMPlannerAdapter exposes chat_completion method."""
+    from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
+
+    adapter = LiteLLMPlannerAdapter(api_key="fake-key")
+    assert hasattr(adapter, "chat_completion")
+    assert callable(adapter.chat_completion)
+
+
+def test_intent_evolver_uses_chat_completion(tmp_path: Path) -> None:
+    """SON-125: IntentEvolver calls chat_completion, not invoke."""
+    from spec_orch.services.intent_evolver import IntentEvolver
+
+    class FakePlanner:
+        called_method: str = ""
+
+        def chat_completion(self, *, system_prompt: str, user_prompt: str) -> str:
+            self.called_method = "chat_completion"
+            return json.dumps(
+                {
+                    "variant_id": "v1",
+                    "prompt_text": "improved prompt",
+                    "rationale": "test",
+                    "target_improvements": [],
+                }
+            )
+
+    planner = FakePlanner()
+    evolver = IntentEvolver(repo_root=tmp_path, planner=planner)
+    evolver.MIN_ENTRIES_FOR_EVOLVE = 0
+
+    evo_dir = tmp_path / ".spec_orch_evolution"
+    evo_dir.mkdir(parents=True, exist_ok=True)
+    history_path = evo_dir / "classifier_prompt_history.json"
+    history_path.write_text(
+        json.dumps(
+            [
+                {
+                    "variant_id": "v0",
+                    "prompt_text": "classify intent",
+                    "is_active": True,
+                    "total_runs": 20,
+                    "successful_runs": 15,
+                }
+            ]
+        )
+    )
+
+    class FakeMemory:
+        def recall(self, query):
+            from spec_orch.services.memory.types import MemoryEntry, MemoryLayer
+
+            return [
+                MemoryEntry(
+                    key="test",
+                    content="test",
+                    layer=MemoryLayer.EPISODIC,
+                    metadata={"intent_category": "feature"},
+                )
+                for _ in range(15)
+            ]
+
+    import spec_orch.services.intent_evolver as ie_mod
+
+    orig_recall = ie_mod.IntentEvolver.recall_intent_logs
+
+    def patched_recall(self):
+        return [{"intent_category": "feature"} for _ in range(15)]
+
+    ie_mod.IntentEvolver.recall_intent_logs = patched_recall
+
+    try:
+        result = evolver.evolve()
+        assert planner.called_method == "chat_completion"
+        assert result is not None
+        assert result.variant_id == "v1"
+    finally:
+        ie_mod.IntentEvolver.recall_intent_logs = orig_recall
