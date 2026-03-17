@@ -162,13 +162,14 @@ class LLMReviewAdapter:
                             status = "pass" if detail.get("exit_code") == 0 else "FAIL"
                             lines.append(f"  - {name}: {status}")
                     if lines:
-                        parts.append("## Verification Results\n" + "\n".join(lines))
+                        parts.append("## Verification Results (previous run)\n" + "\n".join(lines))
 
                 failed = report.get("failed_conditions", [])
                 mergeable = report.get("mergeable", False)
                 if failed or not mergeable:
                     parts.append(
-                        f"## Gate Status\nmergeable={mergeable}, failed_conditions={failed}"
+                        f"## Gate Status (previous run)\n"
+                        f"mergeable={mergeable}, failed_conditions={failed}"
                     )
             except (json.JSONDecodeError, KeyError):
                 pass

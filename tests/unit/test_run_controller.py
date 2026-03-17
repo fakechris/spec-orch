@@ -653,10 +653,10 @@ def test_llm_review_adapter_collect_extra_context(tmp_path: Path) -> None:
     (tmp_path / "spec_snapshot.json").write_text(json.dumps(snap))
 
     extra = LLMReviewAdapter._collect_extra_context(tmp_path)
-    assert "Verification Results" in extra
+    assert "Verification Results (previous run)" in extra
     assert "lint: pass" in extra
     assert "test: FAIL" in extra
-    assert "Gate Status" in extra
+    assert "Gate Status (previous run)" in extra
     assert "Acceptance Criteria" in extra
     assert "All tests pass" in extra
 

@@ -15,6 +15,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.services.harness_synthesizer import HarnessSynthesizer, RuleValidator
+from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
+from spec_orch.services.prompt_evolver import PromptEvolver
+
 logger = logging.getLogger(__name__)
 
 
@@ -74,7 +78,17 @@ class EvolutionTrigger:
         try:
             data = json.loads(self._counter_path.read_text())
             return int(data.get("count", 0))
-        except (json.JSONDecodeError, ValueError, OSError):
+        except json.JSONDecodeError:
+            logger.warning(
+                "Failed to decode run counter JSON at %s, resetting to 0",
+                self._counter_path,
+            )
+            return 0
+        except (ValueError, OSError):
+            logger.warning(
+                "Failed to read or parse run counter at %s, resetting to 0",
+                self._counter_path,
+            )
             return 0
 
     def _write_counter(self, count: int) -> None:
@@ -96,24 +110,24 @@ class EvolutionTrigger:
 
     def run_evolution_cycle(self) -> EvolutionResult:
         """Execute all enabled evolvers and return results."""
-        result = EvolutionResult(
-            run_count=self._read_counter(),
-            timestamp=datetime.now(UTC).isoformat(),
-        )
-
         if not self._config.enabled:
-            return result
+            return EvolutionResult(timestamp=datetime.now(UTC).isoformat())
 
         if not self.increment_and_check():
-            return result
+            return EvolutionResult(
+                run_count=self._read_counter(),
+                timestamp=datetime.now(UTC).isoformat(),
+            )
 
-        result.triggered = True
+        result = EvolutionResult(
+            run_count=self._read_counter(),
+            triggered=True,
+            timestamp=datetime.now(UTC).isoformat(),
+        )
         self.reset_counter()
 
         if self._config.prompt_evolver_enabled and self._planner is not None:
             try:
-                from spec_orch.services.prompt_evolver import PromptEvolver
-
                 evolver = PromptEvolver(self._repo_root, planner=self._planner)
                 variant = evolver.evolve()
                 if variant is not None:
@@ -126,8 +140,6 @@ class EvolutionTrigger:
 
         if self._config.plan_strategy_evolver_enabled and self._planner is not None:
             try:
-                from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
-
                 pse = PlanStrategyEvolver(self._repo_root, planner=self._planner)
                 hint_set = pse.analyze()
                 if hint_set is not None and hint_set.hints:
@@ -138,11 +150,6 @@ class EvolutionTrigger:
 
         if self._config.harness_synthesizer_enabled and self._planner is not None:
             try:
-                from spec_orch.services.harness_synthesizer import (
-                    HarnessSynthesizer,
-                    RuleValidator,
-                )
-
                 synth = HarnessSynthesizer(self._repo_root, planner=self._planner)
                 candidates = synth.synthesize()
                 if candidates:

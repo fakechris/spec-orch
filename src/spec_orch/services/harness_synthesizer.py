@@ -202,7 +202,8 @@ class HarnessSynthesizer:
         """Extract raw builder event text from failed runs for precise pattern crafting."""
         analyzer = EvidenceAnalyzer(self._repo_root)
         run_dirs = analyzer._collect_run_dirs()
-        target_dirs = [d for d in run_dirs if d.name in run_ids]
+        run_id_set = set(run_ids)
+        target_dirs = [d for d in run_dirs if d.name in run_id_set]
 
         samples: list[str] = []
         for rd in target_dirs:

@@ -201,7 +201,7 @@ class PlanStrategyEvolver:
             sample["failed_checks"] = [
                 k
                 for k, v in verification.items()
-                if isinstance(v, dict) and v.get("exit_code", 0) != 0
+                if isinstance(v, dict) and v.get("exit_code", 1) != 0
             ]
 
             samples.append(sample)
