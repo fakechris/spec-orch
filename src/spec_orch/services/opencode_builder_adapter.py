@@ -154,8 +154,11 @@ class OpenCodeBuilderAdapter:
             command.extend(["-m", self.model])
         command.append(prompt)
 
+        # OpenCode's MiniMax provider uses @ai-sdk/anthropic which reads
+        # ANTHROPIC_API_KEY. Inject it from spec-orch's own key env vars
+        # so users don't need to set a separate variable.
         env = os.environ.copy()
-        if "ANTHROPIC_API_KEY" not in env:
+        if not env.get("ANTHROPIC_API_KEY"):
             for key_env in ("SPEC_ORCH_LLM_API_KEY", "MINIMAX_API_KEY"):
                 if val := env.get(key_env):
                     env["ANTHROPIC_API_KEY"] = val
