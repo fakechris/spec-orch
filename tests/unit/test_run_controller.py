@@ -589,7 +589,7 @@ def test_context_assembler_builds_bundle(tmp_path: Path) -> None:
     )
     spec = NodeContextSpec(
         node_name="builder",
-        required_task_fields=["issue", "spec_snapshot_text"],
+        required_task_fields=["issue", "spec_snapshot_text", "constraints", "acceptance_criteria"],
         required_execution_fields=["file_tree"],
         max_tokens_budget=6000,
     )

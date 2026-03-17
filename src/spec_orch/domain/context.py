@@ -19,7 +19,7 @@ from spec_orch.domain.models import (
 )
 
 
-@dataclass
+@dataclass(slots=True)
 class TaskContext:
     """Contract context: what the task is and what its boundaries are."""
 
@@ -32,7 +32,7 @@ class TaskContext:
     architecture_notes: str = ""
 
 
-@dataclass
+@dataclass(slots=True)
 class ExecutionContext:
     """Execution context: current code state and run facts."""
 
@@ -45,7 +45,7 @@ class ExecutionContext:
     deviation_slices: list[dict[str, Any]] = field(default_factory=list)
 
 
-@dataclass
+@dataclass(slots=True)
 class LearningContext:
     """Learning context: historical experience and evolution artifacts."""
 
@@ -56,7 +56,7 @@ class LearningContext:
     relevant_policies: list[str] = field(default_factory=list)
 
 
-@dataclass
+@dataclass(slots=True)
 class ContextBundle:
     """Unified context package assembled by ContextAssembler.
 
@@ -68,7 +68,7 @@ class ContextBundle:
     learning: LearningContext = field(default_factory=LearningContext)
 
 
-@dataclass
+@dataclass(slots=True)
 class NodeContextSpec:
     """Declares what context fields a specific LLM node needs.
 

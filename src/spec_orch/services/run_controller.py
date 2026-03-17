@@ -998,19 +998,22 @@ class RunController:
         run_id: str,
         activity_logger: ActivityLogger | None = None,
     ) -> BuilderResult:
-        enriched_prompt = self._render_builder_envelope(issue, workspace)
-        enriched_issue = Issue(
-            issue_id=issue.issue_id,
-            title=issue.title,
-            summary=issue.summary,
-            builder_prompt=enriched_prompt,
-            verification_commands=issue.verification_commands,
-            context=issue.context,
-            acceptance_criteria=issue.acceptance_criteria,
-            mission_id=issue.mission_id,
-            spec_section=issue.spec_section,
-            run_class=issue.run_class,
-        )
+        if issue.builder_prompt:
+            enriched_prompt = self._render_builder_envelope(issue, workspace)
+            enriched_issue = Issue(
+                issue_id=issue.issue_id,
+                title=issue.title,
+                summary=issue.summary,
+                builder_prompt=enriched_prompt,
+                verification_commands=issue.verification_commands,
+                context=issue.context,
+                acceptance_criteria=issue.acceptance_criteria,
+                mission_id=issue.mission_id,
+                spec_section=issue.spec_section,
+                run_class=issue.run_class,
+            )
+        else:
+            enriched_issue = issue
 
         adapter_name = self.builder_adapter.ADAPTER_NAME
         agent_name = self.builder_adapter.AGENT_NAME

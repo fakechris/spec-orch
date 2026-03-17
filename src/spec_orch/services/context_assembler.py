@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -95,28 +96,42 @@ class ContextAssembler:
         required: list[str],
     ) -> TaskContext:
         spec_text = ""
-        spec_path = workspace / "spec_snapshot.json"
-        if spec_path.exists():
-            try:
-                snap = json.loads(spec_path.read_text())
-                spec_text = snap.get("issue", {}).get("summary", "")
-            except (json.JSONDecodeError, KeyError):
-                pass
-        if not spec_text:
-            task_spec_path = workspace / "task.spec.md"
-            if task_spec_path.exists():
-                spec_text = task_spec_path.read_text()
-
-        spec_text = _truncate(spec_text, budget // 2)
+        if not required or "spec_snapshot_text" in required:
+            spec_path = workspace / "spec_snapshot.json"
+            if spec_path.exists():
+                try:
+                    snap = json.loads(spec_path.read_text())
+                    spec_text = snap.get("issue", {}).get("summary", "")
+                except (json.JSONDecodeError, KeyError):
+                    pass
+            if not spec_text:
+                task_spec_path = workspace / "task.spec.md"
+                if task_spec_path.exists():
+                    spec_text = task_spec_path.read_text()
+            spec_text = _truncate(spec_text, budget // 2)
 
         return TaskContext(
             issue=issue,
             spec_snapshot_text=spec_text,
-            acceptance_criteria=list(issue.acceptance_criteria),
-            constraints=list(issue.context.constraints),
-            files_in_scope=list(issue.context.files_to_read),
+            acceptance_criteria=(
+                list(issue.acceptance_criteria)
+                if not required or "acceptance_criteria" in required
+                else []
+            ),
+            constraints=(
+                list(issue.context.constraints) if not required or "constraints" in required else []
+            ),
+            files_in_scope=(
+                list(issue.context.files_to_read)
+                if not required or "files_in_scope" in required
+                else []
+            ),
             files_out_of_scope=[],
-            architecture_notes=_truncate(issue.context.architecture_notes, budget // 4),
+            architecture_notes=(
+                _truncate(issue.context.architecture_notes, budget // 4)
+                if not required or "architecture_notes" in required
+                else ""
+            ),
         )
 
     def _build_execution_context(
@@ -223,8 +238,6 @@ class ContextAssembler:
 
     @staticmethod
     def _read_file_tree(workspace: Path) -> str:
-        import subprocess
-
         try:
             result = subprocess.run(
                 ["find", ".", "-type", "f", "-not", "-path", "./.git/*"],
@@ -239,8 +252,6 @@ class ContextAssembler:
 
     @staticmethod
     def _read_git_diff(workspace: Path) -> str:
-        import subprocess
-
         try:
             result = subprocess.run(
                 ["git", "diff", "HEAD"],
