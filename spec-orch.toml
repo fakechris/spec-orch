@@ -7,14 +7,19 @@ issue_filter = "assigned_to_me"
 [builder]
 adapter = "codex_exec"
 executable = "codex"
+# --- To use OpenCode + MiniMax instead: ---
+# adapter = "opencode"
+# executable = "opencode"
 # model = "minimax/MiniMax-M2.5"
 # timeout_seconds = 1800
 
 [reviewer]
 adapter = "local"
-# model = "minimax/MiniMax-M2.5"
+# --- To use LLM-driven review with MiniMax (OpenAI-compat mode): ---
+# adapter = "llm"
+# model = "openai/MiniMax-M2.5"
 # api_key_env = "SPEC_ORCH_LLM_API_KEY"
-# api_base_env = "SPEC_ORCH_LLM_API_BASE"
+# api_base_env = "SPEC_ORCH_LLM_API_BASE_OPENAI"
 
 [planner]
 model = "MiniMax-M2.5"
