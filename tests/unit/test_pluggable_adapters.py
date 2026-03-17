@@ -163,11 +163,15 @@ class TestOpenCodeBuilderAdapter:
         raw = [
             {
                 "type": "tool_use",
-                "tool": "bash",
-                "status": "completed",
-                "input": {"command": "ls -la"},
-                "metadata": {"exit_code": 0},
                 "timestamp": "123",
+                "part": {
+                    "tool": "bash",
+                    "state": {
+                        "status": "completed",
+                        "input": {"command": "ls -la"},
+                        "metadata": {"exit_code": 0},
+                    },
+                },
             }
         ]
         events = adapter.map_events(raw)
@@ -182,15 +186,36 @@ class TestOpenCodeBuilderAdapter:
         raw = [
             {
                 "type": "tool_use",
-                "tool": "write",
-                "status": "completed",
-                "input": {"file_path": "src/main.py"},
                 "timestamp": "123",
+                "part": {
+                    "tool": "write",
+                    "state": {
+                        "status": "completed",
+                        "input": {"filePath": "src/main.py"},
+                    },
+                },
             }
         ]
         events = adapter.map_events(raw)
         assert events[0].kind == "file_change"
         assert events[0].file_path == "src/main.py"
+
+    def test_map_events_non_completed_tool_use_skipped(self):
+        from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter
+
+        adapter = OpenCodeBuilderAdapter()
+        raw = [
+            {
+                "type": "tool_use",
+                "timestamp": "123",
+                "part": {
+                    "tool": "bash",
+                    "state": {"status": "running", "input": {"command": "ls"}},
+                },
+            }
+        ]
+        events = adapter.map_events(raw)
+        assert len(events) == 0
 
     def test_map_events_step_finish(self):
         from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter
@@ -199,16 +224,18 @@ class TestOpenCodeBuilderAdapter:
         raw = [
             {
                 "type": "step_finish",
-                "cost_usd": 0.01,
-                "input_tokens": 100,
-                "output_tokens": 50,
-                "reason": "stop",
                 "timestamp": "123",
+                "part": {
+                    "cost": 0.01,
+                    "tokens": {"input": 100, "output": 50},
+                    "reason": "stop",
+                },
             }
         ]
         events = adapter.map_events(raw)
         assert events[0].kind == "turn_end"
         assert events[0].metadata["cost_usd"] == 0.01
+        assert events[0].metadata["input_tokens"] == 100
 
     def test_model_passed_to_command(self, tmp_path: Path):
         from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter

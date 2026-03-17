@@ -7,6 +7,7 @@ Supports 75+ model providers via ``-m provider/model``.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import threading
 from collections.abc import Callable
@@ -61,25 +62,32 @@ class OpenCodeBuilderAdapter:
         for raw in raw_events:
             etype = raw.get("type", "")
             ts = str(raw.get("timestamp", datetime.now(UTC).isoformat()))
+            part = raw.get("part", {})
 
             if etype == "step_start":
                 result.append(BuilderEvent(timestamp=ts, kind="message", text="Step started"))
+
             elif etype == "tool_use":
-                tool = raw.get("tool", "")
-                status = raw.get("status", "")
-                if tool == "bash" and status == "completed":
+                tool = part.get("tool", "")
+                state = part.get("state", {})
+                status = state.get("status", "")
+                inp = state.get("input", {})
+                output = state.get("output", "")
+
+                if status != "completed":
+                    continue
+
+                if tool == "bash":
                     result.append(
                         BuilderEvent(
                             timestamp=ts,
                             kind="command_end",
-                            text=raw.get("input", {}).get("command", ""),
-                            exit_code=raw.get("metadata", {}).get("exit_code"),
+                            text=inp.get("command", ""),
+                            exit_code=state.get("metadata", {}).get("exit_code"),
                         )
                     )
-                elif tool in ("write", "edit") and status == "completed":
-                    file_path = raw.get("input", {}).get("file_path") or raw.get("input", {}).get(
-                        "path", ""
-                    )
+                elif tool in ("write", "edit"):
+                    file_path = inp.get("filePath") or inp.get("file_path") or inp.get("path", "")
                     result.append(
                         BuilderEvent(timestamp=ts, kind="file_change", file_path=file_path)
                     )
@@ -88,21 +96,24 @@ class OpenCodeBuilderAdapter:
                         BuilderEvent(
                             timestamp=ts,
                             kind="command_end",
-                            text=f"{tool}: {raw.get('output', '')[:200]}",
+                            text=f"{tool}: {str(output)[:200]}",
                         )
                     )
+
             elif etype == "text":
-                result.append(BuilderEvent(timestamp=ts, kind="message", text=raw.get("text", "")))
+                result.append(BuilderEvent(timestamp=ts, kind="message", text=part.get("text", "")))
+
             elif etype == "step_finish":
+                tokens = part.get("tokens", {})
                 result.append(
                     BuilderEvent(
                         timestamp=ts,
                         kind="turn_end",
                         metadata={
-                            "cost_usd": raw.get("cost_usd", 0),
-                            "input_tokens": raw.get("input_tokens", 0),
-                            "output_tokens": raw.get("output_tokens", 0),
-                            "reason": raw.get("reason", ""),
+                            "cost_usd": part.get("cost", 0),
+                            "input_tokens": tokens.get("input", 0),
+                            "output_tokens": tokens.get("output", 0),
+                            "reason": part.get("reason", ""),
                         },
                     )
                 )
@@ -143,6 +154,13 @@ class OpenCodeBuilderAdapter:
             command.extend(["-m", self.model])
         command.append(prompt)
 
+        env = os.environ.copy()
+        if "ANTHROPIC_API_KEY" not in env:
+            for key_env in ("SPEC_ORCH_LLM_API_KEY", "MINIMAX_API_KEY"):
+                if val := env.get(key_env):
+                    env["ANTHROPIC_API_KEY"] = val
+                    break
+
         process = subprocess.Popen(
             command,
             cwd=workspace,
@@ -150,6 +168,7 @@ class OpenCodeBuilderAdapter:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env=env,
         )
 
         state: dict[str, Any] = {
@@ -184,25 +203,29 @@ class OpenCodeBuilderAdapter:
                         )
 
                     etype = event.get("type", "")
+                    part = event.get("part", {})
                     if etype == "text":
-                        state["final_message"] = event.get("text", "")
+                        state["final_message"] = part.get("text", "")
                     elif etype == "tool_use":
-                        tool = event.get("tool", "")
+                        tool = part.get("tool", "")
+                        evt_state = part.get("state", {})
+                        if evt_state.get("status") != "completed":
+                            continue
+                        inp = evt_state.get("input", {})
                         if tool in ("write", "edit"):
                             state.setdefault("files_changed", [])
-                            fp = event.get("input", {}).get("file_path") or event.get(
-                                "input", {}
-                            ).get("path", "")
+                            fp = inp.get("filePath") or inp.get("file_path") or inp.get("path", "")
                             if fp:
                                 state["files_changed"].append(fp)
                         elif tool == "bash":
                             state.setdefault("commands_completed", 0)
                             state["commands_completed"] += 1
                     elif etype == "step_finish":
-                        reason = event.get("reason", "")
-                        state["total_cost_usd"] += event.get("cost_usd", 0)
-                        state["total_input_tokens"] += event.get("input_tokens", 0)
-                        state["total_output_tokens"] += event.get("output_tokens", 0)
+                        reason = part.get("reason", "")
+                        tokens = part.get("tokens", {})
+                        state["total_cost_usd"] += part.get("cost", 0)
+                        state["total_input_tokens"] += tokens.get("input", 0)
+                        state["total_output_tokens"] += tokens.get("output", 0)
                         if reason == "stop":
                             state["turn_status"] = "success"
 
@@ -250,18 +273,19 @@ class OpenCodeBuilderAdapter:
 
 def _short_description(event: dict[str, Any]) -> str:
     etype = event.get("type", "")
+    part = event.get("part", {})
     if etype == "step_start":
         return "step_start"
     if etype == "tool_use":
-        tool = event.get("tool", "")
-        status = event.get("status", "")
+        tool = part.get("tool", "")
+        status = part.get("state", {}).get("status", "")
         return f"tool_use: {tool} ({status})"
     if etype == "text":
-        text = event.get("text", "")[:80]
+        text = part.get("text", "")[:80]
         return f"text: {text}..."
     if etype == "step_finish":
-        reason = event.get("reason", "")
-        cost = event.get("cost_usd", 0)
+        reason = part.get("reason", "")
+        cost = part.get("cost", 0)
         return f"step_finish ({reason}, ${cost:.4f})"
     return etype or "event"
 
