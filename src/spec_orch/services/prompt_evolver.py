@@ -163,6 +163,65 @@ class PromptEvolver:
                 return
         logger.warning("Variant %s not found in history", variant_id)
 
+    def _collect_failure_samples(self, max_samples: int = 10) -> list[dict[str, Any]]:
+        """Collect recent failure samples bucketed by task type and failure mode."""
+        try:
+            from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
+        except ImportError:
+            return []
+
+        analyzer = EvidenceAnalyzer(self._repo_root)
+        run_dirs = analyzer.collect_run_dirs()[-20:]
+        samples: list[dict[str, Any]] = []
+
+        for rd in run_dirs:
+            report = analyzer.read_report(rd)
+            if report is None or report.get("mergeable", True):
+                continue
+
+            sample: dict[str, Any] = {
+                "run_id": rd.name,
+                "failed_conditions": report.get("failed_conditions", []),
+            }
+
+            metadata = report.get("metadata", {})
+            sample["task_type"] = metadata.get("run_class", "unknown")
+            sample["adapter"] = metadata.get("builder_adapter", "unknown")
+
+            verification = report.get("verification", {})
+            failed_checks = [
+                k
+                for k, v in verification.items()
+                if isinstance(v, dict) and v.get("exit_code", 0) != 0
+            ]
+            sample["failed_checks"] = failed_checks
+
+            events_path = rd / "telemetry" / "incoming_events.jsonl"
+            if not events_path.exists():
+                events_path = rd / "builder_events.jsonl"
+            if events_path.exists():
+                excerpts: list[str] = []
+                try:
+                    for line in events_path.read_text().splitlines()[-5:]:
+                        line = line.strip()
+                        if line:
+                            try:
+                                obj = json.loads(line)
+                                text = obj.get("text") or obj.get("excerpt") or ""
+                                if text:
+                                    excerpts.append(text[:200])
+                            except json.JSONDecodeError:
+                                continue
+                except OSError:
+                    pass
+                sample["builder_tail"] = excerpts
+
+            samples.append(sample)
+            if len(samples) >= max_samples:
+                break
+
+        return samples
+
     def evolve(self) -> PromptVariant | None:
         """Use an LLM to propose an improved prompt variant.
 
@@ -197,13 +256,20 @@ class PromptEvolver:
             ],
         }
 
+        failure_samples = self._collect_failure_samples()
+
         user_msg = (
             "Current active builder prompt:\n"
             f"```\n{active.prompt_text}\n```\n\n"
             "Performance statistics:\n"
             f"```json\n{json.dumps(stats, indent=2)}\n```\n\n"
-            "Propose an improved prompt variant."
         )
+        if failure_samples:
+            user_msg += (
+                "Recent failure samples (use these to target specific failure patterns):\n"
+                f"```json\n{json.dumps(failure_samples, indent=2)}\n```\n\n"
+            )
+        user_msg += "Propose an improved prompt variant."
 
         try:
             response = self._planner.brainstorm(

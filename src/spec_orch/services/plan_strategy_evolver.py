@@ -170,6 +170,46 @@ class PlanStrategyEvolver:
 
         return {"total_runs": len(outcomes), "outcomes": outcomes}
 
+    def _collect_failure_details(self, last_n: int = 20) -> list[dict[str, Any]]:
+        """Collect detailed failure samples with packet/wave context."""
+        analyzer = EvidenceAnalyzer(self._repo_root)
+        run_dirs = analyzer.collect_run_dirs()[-last_n:]
+        samples: list[dict[str, Any]] = []
+
+        for rd in run_dirs:
+            report = analyzer.read_report(rd)
+            if report is None or report.get("mergeable", True):
+                continue
+
+            sample: dict[str, Any] = {
+                "run_id": rd.name,
+                "failed_conditions": report.get("failed_conditions", []),
+            }
+
+            deviations = analyzer.read_deviations(rd)
+            if deviations:
+                sample["deviating_files"] = [d.get("file_path", "") for d in deviations[:5]]
+                sample["deviation_types"] = list(
+                    {d.get("deviation_type", "") for d in deviations if d.get("deviation_type")}
+                )
+
+            plan_data = report.get("metadata", {}).get("plan", [])
+            if plan_data:
+                sample["plan_structure"] = plan_data
+
+            verification = report.get("verification", {})
+            sample["failed_checks"] = [
+                k
+                for k, v in verification.items()
+                if isinstance(v, dict) and v.get("exit_code", 0) != 0
+            ]
+
+            samples.append(sample)
+            if len(samples) >= 10:
+                break
+
+        return samples
+
     def analyze(self, last_n: int = 20) -> HintSet | None:
         """Use an LLM to analyze plan outcomes and generate hints.
 
@@ -188,7 +228,15 @@ class PlanStrategyEvolver:
         if summary.total_runs > 0:
             evidence_ctx = evidence_analyzer.format_as_llm_context(summary)
 
+        failure_details = self._collect_failure_details(last_n=last_n)
+
         user_msg = f"Historical plan outcomes:\n```json\n{json.dumps(plan_data, indent=2)}\n```\n\n"
+        if failure_details:
+            user_msg += (
+                "Detailed failure samples (use these to identify specific "
+                "packet/wave decomposition problems):\n"
+                f"```json\n{json.dumps(failure_details, indent=2)}\n```\n\n"
+            )
         if evidence_ctx:
             user_msg += f"Additional evidence context:\n{evidence_ctx}\n\n"
         user_msg += "Analyze these outcomes and generate scoper hints."

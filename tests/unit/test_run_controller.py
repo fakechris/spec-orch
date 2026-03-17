@@ -661,6 +661,69 @@ def test_llm_review_adapter_collect_extra_context(tmp_path: Path) -> None:
     assert "All tests pass" in extra
 
 
+def test_prompt_evolver_collects_failure_samples(tmp_path: Path) -> None:
+    """SON-133: PromptEvolver collects failure samples bucketed by task type."""
+    from spec_orch.services.prompt_evolver import PromptEvolver
+
+    runs_dir = tmp_path / ".spec_orch_runs"
+    run_dir = runs_dir / "run-fail-01"
+    run_dir.mkdir(parents=True)
+    (run_dir / "report.json").write_text(
+        json.dumps(
+            {
+                "mergeable": False,
+                "failed_conditions": ["test_failure"],
+                "metadata": {"run_class": "feature", "builder_adapter": "opencode"},
+                "verification": {
+                    "lint": {"exit_code": 0},
+                    "test": {"exit_code": 1},
+                },
+            }
+        )
+    )
+    telem_dir = run_dir / "telemetry"
+    telem_dir.mkdir()
+    (telem_dir / "incoming_events.jsonl").write_text(
+        json.dumps({"text": "Error: test_auth failed"}) + "\n"
+    )
+
+    evolver = PromptEvolver(repo_root=tmp_path)
+    samples = evolver._collect_failure_samples()
+    assert len(samples) == 1
+    assert samples[0]["task_type"] == "feature"
+    assert samples[0]["adapter"] == "opencode"
+    assert "test" in samples[0]["failed_checks"]
+    assert len(samples[0]["builder_tail"]) >= 1
+
+
+def test_plan_strategy_evolver_collects_failure_details(tmp_path: Path) -> None:
+    """SON-134: PlanStrategyEvolver collects detailed failure samples."""
+    from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
+
+    runs_dir = tmp_path / ".spec_orch_runs"
+    run_dir = runs_dir / "run-plan-fail"
+    run_dir.mkdir(parents=True)
+    (run_dir / "report.json").write_text(
+        json.dumps(
+            {
+                "mergeable": False,
+                "failed_conditions": ["lint"],
+                "metadata": {"plan": [{"wave": 0, "packets": ["setup"]}]},
+                "verification": {"lint": {"exit_code": 1}},
+            }
+        )
+    )
+    devs = [json.dumps({"file_path": "src/bad.py", "deviation_type": "out_of_scope"})]
+    (run_dir / "deviations.jsonl").write_text("\n".join(devs))
+
+    evolver = PlanStrategyEvolver(repo_root=tmp_path)
+    details = evolver._collect_failure_details()
+    assert len(details) == 1
+    assert "src/bad.py" in details[0]["deviating_files"]
+    assert "out_of_scope" in details[0]["deviation_types"]
+    assert details[0]["plan_structure"] == [{"wave": 0, "packets": ["setup"]}]
+
+
 def test_harness_synthesizer_collect_failure_samples(tmp_path: Path) -> None:
     """SON-132: HarnessSynthesizer collects raw builder event samples."""
     from spec_orch.services.harness_synthesizer import HarnessSynthesizer
