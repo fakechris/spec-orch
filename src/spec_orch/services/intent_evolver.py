@@ -196,11 +196,10 @@ class IntentEvolver:
         )
 
         try:
-            response = self._planner.invoke(
+            text = self._planner.chat_completion(
                 system_prompt=_EVOLVE_SYSTEM_PROMPT,
                 user_prompt=user_msg,
             )
-            text = response if isinstance(response, str) else str(response)
             data = json.loads(text)
         except Exception:
             logger.warning("LLM call for intent evolution failed", exc_info=True)

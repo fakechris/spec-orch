@@ -300,6 +300,41 @@ class LiteLLMPlannerAdapter:
 
         return snapshot
 
+    def chat_completion(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> str:
+        """Generic system+user prompt → text completion.
+
+        Used by IntentClassifier and IntentEvolver which need a simple
+        prompt-in/text-out interface rather than the structured plan() API.
+        """
+        try:
+            import litellm
+        except ImportError as exc:
+            raise ImportError(
+                "litellm is required for LiteLLMPlannerAdapter. "
+                "Install with: pip install spec-orch[planner]"
+            ) from exc
+
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": self.temperature,
+        }
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+        if self.api_base:
+            kwargs["api_base"] = self.api_base
+
+        response = litellm.completion(**kwargs)
+        return response.choices[0].message.content or ""
+
     def brainstorm(
         self,
         *,

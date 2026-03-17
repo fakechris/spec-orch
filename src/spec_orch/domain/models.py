@@ -462,6 +462,41 @@ class ExecutionPlanResult:
         return all(w.all_succeeded for w in self.wave_results)
 
 
+@dataclass
+class ArtifactManifest:
+    """Records all artifacts produced by a single run.
+
+    Written to ``{workspace}/artifact_manifest.json`` at the end of each run
+    so that downstream consumers (ContextAssembler, Evolvers, Review) can
+    locate artifacts by type without hard-coding paths.
+    """
+
+    run_id: str
+    issue_id: str
+    artifacts: dict[str, str] = field(default_factory=dict)
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    STANDARD_TYPES = (
+        "spec_snapshot",
+        "builder_report",
+        "builder_events",
+        "verification",
+        "gate_report",
+        "review_report",
+        "deviations",
+        "explain",
+        "report",
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "run_id": self.run_id,
+            "issue_id": self.issue_id,
+            "artifacts": self.artifacts,
+            "created_at": self.created_at,
+        }
+
+
 @dataclass(slots=True)
 class RunResult:
     issue: Issue

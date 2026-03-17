@@ -11,6 +11,7 @@ from spec_orch.domain.compliance import (
     evaluate_pre_action_narration_compliance,
 )
 from spec_orch.domain.models import (
+    ArtifactManifest,
     BuilderResult,
     FlowTransitionEvent,
     FlowType,
@@ -50,7 +51,7 @@ _FLOW_ORDER: dict[FlowType, int] = {FlowType.HOTFIX: 0, FlowType.STANDARD: 1, Fl
 
 
 def record_flow_transition(event: FlowTransitionEvent) -> None:
-    """Record a flow transition event.  Stub — will be wired to Memory later."""
+    """Record a flow transition event to MemoryService and log."""
     import logging
 
     logging.getLogger(__name__).info(
@@ -60,6 +61,41 @@ def record_flow_transition(event: FlowTransitionEvent) -> None:
         event.trigger,
         event.issue_id,
     )
+
+    try:
+        from spec_orch.services.memory.service import get_memory_service
+        from spec_orch.services.memory.types import MemoryEntry, MemoryLayer
+
+        tag = "flow-promotion" if "promotion" in event.trigger else "flow-demotion"
+        svc = get_memory_service()
+        svc.store(
+            MemoryEntry(
+                key=f"flow-transition-{event.issue_id}-{event.timestamp}",
+                content=(
+                    f"Flow transition: {event.from_flow} → {event.to_flow} "
+                    f"(trigger={event.trigger})"
+                ),
+                layer=MemoryLayer.EPISODIC,
+                tags=[
+                    tag,
+                    f"issue:{event.issue_id}",
+                    f"from:{event.from_flow}",
+                    f"to:{event.to_flow}",
+                ],
+                metadata={
+                    "from_flow": event.from_flow,
+                    "to_flow": event.to_flow,
+                    "trigger": event.trigger,
+                    "issue_id": event.issue_id,
+                    "run_id": event.run_id,
+                    "timestamp": event.timestamp,
+                },
+            )
+        )
+    except Exception:
+        logging.getLogger(__name__).debug(
+            "Failed to write flow transition to memory", exc_info=True
+        )
 
 
 class RunController:
@@ -901,6 +937,15 @@ class RunController:
             accepted_by=accepted_by,
             state=state,
         )
+        self._write_artifact_manifest(
+            workspace=workspace,
+            run_id=run_id,
+            issue=issue,
+            builder=builder,
+            review=review,
+            explain=explain,
+            report=report,
+        )
         return gate, explain, report
 
     def _builder_status(self, builder) -> str:
@@ -1108,6 +1153,54 @@ class RunController:
             return RunState(raw)
         except ValueError:
             return RunState.GATE_EVALUATED
+
+    @staticmethod
+    def _write_artifact_manifest(
+        *,
+        workspace: Path,
+        run_id: str,
+        issue: Issue,
+        builder: BuilderResult,
+        review: ReviewSummary,
+        explain: Path,
+        report: Path,
+    ) -> Path:
+        """Write artifact_manifest.json cataloguing all run artifacts."""
+        artifacts: dict[str, str] = {}
+
+        spec_path = workspace / "spec_snapshot.json"
+        if spec_path.exists():
+            artifacts["spec_snapshot"] = str(spec_path)
+
+        if builder.report_path and builder.report_path.exists():
+            artifacts["builder_report"] = str(builder.report_path)
+
+        events_path = workspace / "telemetry" / "incoming_events.jsonl"
+        if events_path.exists():
+            artifacts["builder_events"] = str(events_path)
+
+        artifacts["report"] = str(report)
+
+        if explain.exists():
+            artifacts["explain"] = str(explain)
+
+        if review.report_path and review.report_path.exists():
+            artifacts["review_report"] = str(review.report_path)
+
+        deviations_path = workspace / "deviations.jsonl"
+        if deviations_path.exists():
+            artifacts["deviations"] = str(deviations_path)
+
+        manifest = ArtifactManifest(
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            artifacts=artifacts,
+        )
+        manifest_path = workspace / "artifact_manifest.json"
+        manifest_path.write_text(
+            json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False) + "\n"
+        )
+        return manifest_path
 
     def _write_report(
         self,
