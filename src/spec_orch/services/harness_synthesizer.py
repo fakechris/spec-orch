@@ -169,13 +169,20 @@ class HarnessSynthesizer:
         existing = load_contracts(contracts_path)
         existing_summary = [{"id": c.id, "name": c.name, "patterns": c.patterns} for c in existing]
 
+        raw_samples = self._collect_failure_samples(failure_data.get("run_ids", []))
         user_msg = (
             "Here are the existing compliance contracts (do NOT duplicate these):\n"
             f"```json\n{json.dumps(existing_summary, indent=2)}\n```\n\n"
             "Here is the failure data from recent runs:\n"
             f"```json\n{json.dumps(failure_data, indent=2)}\n```\n\n"
-            "Propose new pattern-based compliance rules that would catch these failures."
         )
+        if raw_samples:
+            user_msg += (
+                "Here are raw builder output samples from failed runs "
+                "(use these to craft precise regex patterns):\n"
+                f"```\n{raw_samples}\n```\n\n"
+            )
+        user_msg += "Propose new pattern-based compliance rules that would catch these failures."
 
         try:
             response = self._planner.brainstorm(
@@ -190,6 +197,46 @@ class HarnessSynthesizer:
             return []
 
         return self._parse_response(response, failure_data.get("run_ids", []))
+
+    def _collect_failure_samples(self, run_ids: list[str], max_samples: int = 20) -> str:
+        """Extract raw builder event text from failed runs for precise pattern crafting."""
+        analyzer = EvidenceAnalyzer(self._repo_root)
+        run_dirs = analyzer._collect_run_dirs()
+        target_dirs = [d for d in run_dirs if d.name in run_ids]
+
+        samples: list[str] = []
+        for rd in target_dirs:
+            report = analyzer._read_report(rd)
+            if report is None or report.get("mergeable", True):
+                continue
+
+            events_path = rd / "telemetry" / "incoming_events.jsonl"
+            if not events_path.exists():
+                events_path = rd / "builder_events.jsonl"
+            if not events_path.exists():
+                continue
+
+            try:
+                for line in events_path.read_text().splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                        text = obj.get("text") or obj.get("excerpt") or ""
+                        if text and len(text) > 10:
+                            samples.append(f"[{rd.name}] {text[:300]}")
+                            if len(samples) >= max_samples:
+                                break
+                    except json.JSONDecodeError:
+                        continue
+            except OSError:
+                continue
+
+            if len(samples) >= max_samples:
+                break
+
+        return "\n".join(samples)
 
     def _parse_response(self, response: Any, run_ids: list[str]) -> list[CandidateRule]:
         """Parse LLM JSON response into CandidateRule objects."""

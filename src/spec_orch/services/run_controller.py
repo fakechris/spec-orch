@@ -955,6 +955,41 @@ class RunController:
             return "passed"
         return "failed"
 
+    @staticmethod
+    def _render_builder_envelope(issue: Issue, workspace: Path) -> str:
+        """Render a structured envelope that replaces bare builder_prompt."""
+        sections: list[str] = []
+        base = issue.builder_prompt or issue.summary or ""
+        sections.append(f"## Task\n{base}")
+
+        if issue.acceptance_criteria:
+            items = "\n".join(f"- {c}" for c in issue.acceptance_criteria)
+            sections.append(f"## Acceptance Criteria\n{items}")
+
+        if issue.context.constraints:
+            items = "\n".join(f"- {c}" for c in issue.context.constraints)
+            sections.append(f"## Constraints\n{items}")
+
+        if issue.context.files_to_read:
+            items = "\n".join(f"- {f}" for f in issue.context.files_to_read)
+            sections.append(f"## Files to Read\n{items}")
+
+        if issue.verification_commands:
+            cmds = "\n".join(
+                f"- {name}: `{' '.join(cmd)}`" for name, cmd in issue.verification_commands.items()
+            )
+            sections.append(f"## Verification Commands\n{cmds}")
+
+        spec_path = workspace / "task.spec.md"
+        if spec_path.exists():
+            spec_text = spec_path.read_text()
+            if len(spec_text) > 4000:
+                spec_text = spec_text[:4000] + "\n... [truncated]"
+            if spec_text.strip():
+                sections.append(f"## Spec\n{spec_text}")
+
+        return "\n\n".join(sections)
+
     def _run_builder(
         self,
         *,
@@ -963,6 +998,20 @@ class RunController:
         run_id: str,
         activity_logger: ActivityLogger | None = None,
     ) -> BuilderResult:
+        enriched_prompt = self._render_builder_envelope(issue, workspace)
+        enriched_issue = Issue(
+            issue_id=issue.issue_id,
+            title=issue.title,
+            summary=issue.summary,
+            builder_prompt=enriched_prompt,
+            verification_commands=issue.verification_commands,
+            context=issue.context,
+            acceptance_criteria=issue.acceptance_criteria,
+            mission_id=issue.mission_id,
+            spec_section=issue.spec_section,
+            run_class=issue.run_class,
+        )
+
         adapter_name = self.builder_adapter.ADAPTER_NAME
         agent_name = self.builder_adapter.AGENT_NAME
         self._log_and_emit(
@@ -978,7 +1027,7 @@ class RunController:
         )
         try:
             builder = self.builder_adapter.run(
-                issue=issue,
+                issue=enriched_issue,
                 workspace=workspace,
                 run_id=run_id,
                 event_logger=self._make_event_logger(
