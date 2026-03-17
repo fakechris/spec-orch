@@ -442,9 +442,7 @@ def test_flow_transition_writes_to_memory(tmp_path: Path) -> None:
         )
         record_flow_transition(event)
 
-        results = svc.recall(
-            MemoryQuery(layer=MemoryLayer.EPISODIC, tags=["flow-promotion"])
-        )
+        results = svc.recall(MemoryQuery(layer=MemoryLayer.EPISODIC, tags=["flow-promotion"]))
         assert len(results) >= 1
         entry = results[0]
         assert entry.metadata["from_flow"] == "standard"
