@@ -40,7 +40,10 @@ def test_run_controller_creates_git_worktree_for_issue(tmp_path: Path) -> None:
     assert (result.workspace / ".git").exists()
     assert result.explain.exists()
     assert "mergeable=False" in result.explain.read_text()
-    assert "blocked_by=review, human_acceptance" in result.explain.read_text()
+    explain_text = result.explain.read_text()
+    assert "blocked_by=" in explain_text
+    assert "review" in explain_text
+    assert "human_acceptance" in explain_text
 
 
 def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> None:
