@@ -154,7 +154,41 @@ Conductor 的 Intent 分类直接映射到流程选择：
 | **Anthropic Patterns** | 5 种 workflow pattern + "简单优先" | 骨架用 routing + orchestrator-workers |
 | **OpenAI Handoffs** | Triage agent → specialist handoff | Conductor = triage，流程阶段 = specialists |
 
-## 五、设计原则总结
+## 五、可插拔执行层
+
+### 5.1 端到端闭环验证状态
+
+| 执行路径 | 状态 | 说明 |
+|----------|------|------|
+| CLI 单 issue (`run-issue`) | ✅ 验证通过 | OpenCode + MiniMax-M2.5，~$0.04/run |
+| Daemon 轮询 (`daemon start`) | 🔲 代码就绪 | `adapter_factory` 已集成到 daemon，待实测 |
+| Gate 通过 → 自动 PR → merge | 🔲 待验证 | 需要功能型 issue（非纯文档调研）验证 |
+
+### 5.2 Builder 适配器
+
+通过 `spec-orch.toml` 的 `[builder]` 段配置，由 `AdapterFactory` 实例化：
+
+| Adapter | CLI 命令 | 事件格式 | 验证状态 |
+|---------|---------|---------|---------|
+| `codex_exec` | `codex exec --json` | Codex JSONL | ✅ 生产使用 |
+| `opencode` | `opencode run --format json` | OpenCode JSONL (part 嵌套) | ✅ MiniMax 验证通过 |
+| `claude_code` | `claude -p --output-format stream-json` | Claude stream-json | 🔲 已实现，待验证 |
+| `droid` | `droid exec --output-format stream-json` | Droid stream-json | 🔲 已实现，待验证 |
+
+### 5.3 Reviewer 适配器
+
+| Adapter | 机制 | 验证状态 |
+|---------|------|---------|
+| `local` | 本地状态管理，人工 review | ✅ 生产使用 |
+| `llm` | litellm 调用任意 LLM 做 code review | ✅ MiniMax 验证通过 |
+
+### 5.4 ACPX 研究结论
+
+acpx (Agent Client Protocol) 是一个统一的 Agent 调用协议，可替代当前的
+per-adapter 实现。调研完成（`docs/research/acpx-acp-analysis.md`），
+集成方案为创建 `AcpxBuilderAdapter` 包装层。待评估 acpx alpha 稳定性后决策。
+
+## 六、设计原则总结
 
 1. **骨架确定性，肌肉智能化** — 流程图写死（3 种），每个节点内部 LLM 执行
 2. **三种流程足矣** — Full / Standard / Hotfix，灵活性靠 step skippability

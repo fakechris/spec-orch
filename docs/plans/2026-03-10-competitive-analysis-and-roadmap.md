@@ -17,13 +17,13 @@
 | **Stars** | — | 411 | 756 | 199 |
 | **成熟度** | 原型 (29 commits) | 生产级 (1,127 commits, 25 releases) | 生产级 (226 commits, 17 releases) | 早期 (17 commits) |
 | **Issue 来源** | 本地 fixture (Linear 计划中) | Linear + GitHub (实际运行) | 无 (消息驱动) | 无 |
-| **Agent 支持** | Codex (app-server) | Claude Code + Codex + Cursor + Gemini | 7 种 agent | Codex |
+| **Agent 支持** | Codex + OpenCode + Claude Code + Droid (可插拔) | Claude Code + Codex + Cursor + Gemini | 7 种 agent | Codex |
 | **Codex 集成方式** | `codex app-server` JSON-RPC 手写客户端 | `codex exec --json` | `codex exec --json` | `codex app-server` WebSocket |
 | **工作区隔离** | git worktree | git worktree | 无 (项目目录) | 无 |
 | **Gate / 门禁** | ✅ 结构化 8 条件门禁 | ❌ 无 | ❌ 无 | ❌ 无 |
 | **Builder 合规检测** | ✅ pre-action narration 检测 | ❌ 无 | ❌ 无 | ❌ 无 |
 | **审计链路** | ✅ explain.md + report.json + events.jsonl | 部分 (Linear comment 流) | 无 | 无 |
-| **Daemon 模式** | ❌ 无 | ✅ 持久进程 | ✅ daemon + systemd | ❌ 无 |
+| **Daemon 模式** | ✅ daemon + systemd/launchd | ✅ 持久进程 | ✅ daemon + systemd | ❌ 无 |
 | **回写** | ❌ 本地制品 | ✅ Linear comment + PR | ✅ 消息平台 | ✅ Codex.app 刷新 |
 | **商业模式** | 无 | Pro/Team/Community 分层 | 开源 (MIT) | TestFlight → 付费 App |
 
@@ -229,31 +229,39 @@ CLI command
         └── TelemetryService → events.jsonl
 ```
 
-### 目标架构 (v1.0)
+### 目标架构 (v1.0) → 当前实际架构
 
 ```
 spec-orch daemon / CLI
-  └── RunController (精简, ~200 行)
-        ├── IssueSource (Protocol)
+  └── RunController
+        ├── IssueSource (Protocol)               ← ✅ 已实现
         │     ├── FixtureIssueSource
         │     └── LinearIssueSource
-        ├── WorkspaceService → git worktree
-        ├── ArtifactService → 制品写入
-        ├── BuilderAdapter (Protocol)
-        │     ├── CodexExecBuilderAdapter (~150 行)
-        │     └── (future: ClaudeBuilderAdapter)
-        ├── VerificationService → subprocess + timeout
-        ├── ReviewAdapter (Protocol)
+        ├── WorkspaceService → git worktree       ← ✅ 已实现
+        ├── ArtifactService → 制品写入             ← ✅ 已实现
+        ├── BuilderAdapter (Protocol)             ← ✅ 可插拔
+        │     ├── CodexExecBuilderAdapter
+        │     ├── OpenCodeBuilderAdapter          ← ✅ (MiniMax 验证通过)
+        │     ├── ClaudeCodeBuilderAdapter
+        │     └── DroidBuilderAdapter
+        ├── VerificationService → subprocess      ← ✅ 已实现
+        ├── ReviewAdapter (Protocol)              ← ✅ 可插拔
         │     ├── LocalReviewAdapter
-        │     └── (future: ClaudeReviewAdapter)
-        ├── ComplianceEngine → agent 行为合约检测
-        ├── GateEngine (可配置, 可独立调用)
+        │     └── LLMReviewAdapter (litellm)      ← ✅ (MiniMax 验证通过)
+        ├── AdapterFactory                        ← ✅ spec-orch.toml 驱动
+        ├── FlowEngine (骨架层)                    ← ✅ 已实现
+        │     ├── Full / Standard / Hotfix 三流程
+        │     ├── 流程升降级 + 回退
+        │     └── IntentEvolver / FlowPolicyEvolver
+        ├── ComplianceEngine → agent 行为合约检测   ← ✅ 已实现
+        ├── GateService (可配置, 可独立调用)         ← ✅ 已实现
         │     ├── GatePolicy → gate.policy.yaml
+        │     ├── GatePolicyEvolver
         │     └── GateVerdict + GateReport
-        ├── TelemetryService → events.jsonl
+        ├── TelemetryService → events.jsonl        ← ✅ 已实现
         └── WritebackService (Protocol)
-              ├── LinearWriteback
-              └── GitHubWriteback
+              ├── LinearWriteback                   ← ✅ 已实现
+              └── GitHubWriteback                   ← ✅ 已实现
 ```
 
 关键演进：
@@ -279,6 +287,7 @@ spec-orch daemon / CLI
 | **Phase 8** | **第 14-16 周** | **混合架构: Talk Freely, Execute Strictly (Epic SON-100)** | **✅ 完成** |
 | **Phase 9** | **第 17-20 周** | **编排大脑: 骨架确定性 + 肌肉智能化 (Epic SON-106)** | **✅ 完成** |
 | **Phase 10** | **第 21 周** | **可插拔适配器架构 (Epic SON-115)** | **✅ 完成** |
+| **Phase 11** | **第 22 周** | **端到端闭环验证: OpenCode + MiniMax (SON-122)** | **✅ CLI 验证通过** |
 
 #### Phase 7: Mission Control Center (SON-83)
 
@@ -343,6 +352,33 @@ spec-orch daemon / CLI
 | SON-121 | 端到端闭环验证 | ✅ (PR #50) |
 
 配置方式: `spec-orch.toml` 的 `[builder]` 和 `[reviewer]` 段。
+
+#### Phase 11: 端到端闭环验证 — OpenCode + MiniMax (SON-122)
+
+首次使用低成本替代模型完成完整管线执行，验证可插拔架构的真实可用性。
+
+| 编号 | 任务 | 状态 |
+|------|------|------|
+| SON-122 | acpx 调研 — 作为 E2E 验证用例 | ✅ (PR #51, #52) |
+| — | CLI 单 issue 闭环: `run-issue SON-122 --source linear --live` | ✅ 验证通过 |
+| — | OpenCode builder (MiniMax-M2.5 模型) 执行成功 | ✅ ~2.5min, $0.043 |
+| — | LLM reviewer (MiniMax via litellm OpenAI-compat) 执行成功 | ✅ verdict=uncertain |
+| — | Gate 正确 BLOCKED (verification/review/human_acceptance) | ✅ 符合预期 |
+| — | Builder CWD worktree 逃逸修复 | ✅ (PR #52) |
+| — | builder_report.json 覆盖修复 | ✅ (PR #52) |
+| — | Daemon 轮询模式 + MiniMax 实测 | 🔲 代码支持，未实测 |
+
+**闭环跑通范围：**
+- ✅ **CLI 单次执行**: `spec-orch run-issue <ID> --source linear --live`，从 Linear 拉取 issue → OpenCode builder (MiniMax) 构建 → 验证 → LLM review (MiniMax) → Gate 判定，全链路执行完毕
+- ✅ **低成本模型验证**: MiniMax-M2.5 无限 token 替代 Codex/Claude，单次执行成本 ~$0.04
+- ✅ **多 adapter 切换**: 通过 `spec-orch.toml` 的 `[builder]` / `[reviewer]` 段即可切换 builder 和 reviewer，无需改代码
+- 🔲 **Daemon 轮询**: `daemon.py` 已使用 `adapter_factory`，代码层面支持 OpenCode，但尚未以 Daemon 模式实际运行过 MiniMax 闭环
+- 🔲 **Gate 通过 → 自动 PR → 自动 merge**: SON-122 为纯文档调研任务，Gate 因 typecheck/test 失败而正确 BLOCKED，完整自动合并路径待后续功能 issue 验证
+
+**发现的问题及修复 (PR #52):**
+1. Builder prompt 缺少 CWD 约束 → 文件写入主仓库而非 worktree → 在所有 adapter PREAMBLE 中添加 CWD 指令
+2. 测试中 `_PassingBuilderAdapter` 使用相对路径 → pytest 覆盖 builder_report.json → 规范化为 workspace 绝对路径
+3. Integration test blocked_by 顺序不稳定 → 改为灵活断言
 
 每个 Phase 结束时的检查点：
 - 所有测试通过
