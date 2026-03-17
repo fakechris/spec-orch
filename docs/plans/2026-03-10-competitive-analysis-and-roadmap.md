@@ -278,6 +278,7 @@ spec-orch daemon / CLI
 | **Phase 7** | **第 11-13 周** | **Mission Control Center (Epic SON-83)** | **🔄 集成测试待完成** |
 | **Phase 8** | **第 14-16 周** | **混合架构: Talk Freely, Execute Strictly (Epic SON-100)** | **✅ 完成** |
 | **Phase 9** | **第 17-20 周** | **编排大脑: 骨架确定性 + 肌肉智能化 (Epic SON-106)** | **✅ 完成** |
+| **Phase 10** | **第 21 周** | **可插拔适配器架构 (Epic SON-115)** | **✅ 完成** |
 
 #### Phase 7: Mission Control Center (SON-83)
 
@@ -326,6 +327,22 @@ spec-orch daemon / CLI
 | SON-114 | Memory → Evolution 数据管道 | ✅ (Change 03, PR #45) |
 
 设计参考: `docs/architecture/orchestration-brain-design.md`
+
+#### Phase 10: 可插拔适配器架构 (SON-115)
+
+将 Builder、Reviewer 等核心模块改造为可插拔、可配置的架构，支持多种 Coding CLI 作为执行器，
+降低闭环运行成本（MiniMax 无限 token 替代 Codex）。
+
+| 编号 | 任务 | 状态 |
+|------|------|------|
+| SON-116 | ReviewAdapter Protocol + adapter_factory + 注入改造 | ✅ (PR #50) |
+| SON-117 | OpenCode Builder Adapter | ✅ (PR #50) |
+| SON-118 | Droid Builder Adapter | ✅ (PR #50) |
+| SON-119 | Claude Code Builder Adapter | ✅ (PR #50) |
+| SON-120 | LLM Review Adapter | ✅ (PR #50) |
+| SON-121 | 端到端闭环验证 | ✅ (PR #50) |
+
+配置方式: `spec-orch.toml` 的 `[builder]` 和 `[reviewer]` 段。
 
 每个 Phase 结束时的检查点：
 - 所有测试通过
