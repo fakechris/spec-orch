@@ -192,7 +192,7 @@ class PromptEvolver:
             failed_checks = [
                 k
                 for k, v in verification.items()
-                if isinstance(v, dict) and v.get("exit_code", 0) != 0
+                if isinstance(v, dict) and v.get("exit_code", 1) != 0
             ]
             sample["failed_checks"] = failed_checks
 

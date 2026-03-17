@@ -54,6 +54,7 @@ class ContextAssembler:
         issue: Issue,
         workspace: Path,
         memory: Any | None = None,
+        repo_root: Path | None = None,
     ) -> ContextBundle:
         manifest = self._load_manifest(workspace)
         budget = spec.max_tokens_budget
@@ -68,7 +69,7 @@ class ContextAssembler:
             workspace, manifest, exec_budget, spec.required_execution_fields
         )
         learn_ctx = self._build_learning_context(
-            workspace, memory, learn_budget, spec.required_learning_fields
+            repo_root or workspace, memory, learn_budget, spec.required_learning_fields
         )
         return ContextBundle(task=task_ctx, execution=exec_ctx, learning=learn_ctx)
 
@@ -227,12 +228,17 @@ class ContextAssembler:
             except Exception:
                 logger.debug("Failed to recall failure samples from memory", exc_info=True)
 
-        hints_path = workspace.parent / "scoper_hints.json"
-        if hints_path.exists():
-            import contextlib
+        if not required or "scoper_hints" in required:
+            hints_path = workspace / "scoper_hints.json"
+            if hints_path.exists():
+                import contextlib
 
-            with contextlib.suppress(json.JSONDecodeError, KeyError):
-                ctx.scoper_hints = json.loads(hints_path.read_text())
+                with contextlib.suppress(json.JSONDecodeError, KeyError):
+                    raw = json.loads(hints_path.read_text())
+                    if isinstance(raw, dict):
+                        ctx.scoper_hints = raw.get("hints", [])
+                    elif isinstance(raw, list):
+                        ctx.scoper_hints = raw
 
         return ctx
 
