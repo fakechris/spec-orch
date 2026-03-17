@@ -12,7 +12,7 @@ from typing import Any, cast
 
 from spec_orch.domain.models import TERMINAL_STATES, RunResult, RunState
 from spec_orch.domain.protocols import PlannerAdapter
-from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
+from spec_orch.services.adapter_factory import create_builder, create_reviewer
 from spec_orch.services.github_pr_service import GitHubPRService
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
@@ -34,6 +34,9 @@ class DaemonConfig:
         builder = raw.get("builder", {})
         self.builder_adapter: str = builder.get("adapter", "codex_exec")
         self.codex_executable: str = builder.get("codex_executable", "codex")
+
+        reviewer = raw.get("reviewer", {})
+        self.reviewer_adapter: str = reviewer.get("adapter", "local")
 
         planner = raw.get("planner", {})
         self.planner_model: str | None = planner.get("model")
@@ -123,7 +126,8 @@ class SpecOrchDaemon:
 
         client = LinearClient(token_env=self.config.linear_token_env)
         issue_source = LinearIssueSource(client=client)
-        builder = CodexExecBuilderAdapter(executable=self.config.codex_executable)
+        builder = create_builder(self.repo_root)
+        reviewer = create_reviewer(self.repo_root)
         self._write_back = LinearWriteBackService(client=client)
 
         planner = self._build_planner()
@@ -144,6 +148,7 @@ class SpecOrchDaemon:
             builder_adapter=builder,
             issue_source=issue_source,
             planner_adapter=planner,
+            review_adapter=reviewer,
         )
 
         interval = self.config.poll_interval_seconds

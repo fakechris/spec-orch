@@ -18,7 +18,6 @@ import typer
 import yaml
 
 from spec_orch.domain.models import Decision, Finding, Question, RunState
-from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
 from spec_orch.services.finding_store import (
     append_finding,
     fingerprint_from,
@@ -2128,6 +2127,8 @@ def _make_controller(
     live_stream: IO[str] | None = None,
     source: str = "fixture",
 ) -> RunController:
+    from spec_orch.services.adapter_factory import create_builder, create_reviewer
+
     issue_source: Any
     if source == "linear":
         from spec_orch.services.linear_client import LinearClient
@@ -2139,12 +2140,15 @@ def _make_controller(
         issue_source = FixtureIssueSource(repo_root=Path(repo_root))
 
     planner = _build_planner_from_toml(repo_root)
+    builder = create_builder(repo_root)
+    reviewer = create_reviewer(repo_root)
 
     return RunController(
         repo_root=repo_root,
-        builder_adapter=CodexExecBuilderAdapter(executable=codex_executable),
+        builder_adapter=builder,
         issue_source=issue_source,
         planner_adapter=planner,
+        review_adapter=reviewer,
         live_stream=live_stream,
     )
 

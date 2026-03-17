@@ -6,7 +6,15 @@ issue_filter = "assigned_to_me"
 
 [builder]
 adapter = "codex_exec"
-codex_executable = "codex"
+executable = "codex"
+# model = "minimax/MiniMax-M2.5"
+# timeout_seconds = 1800
+
+[reviewer]
+adapter = "local"
+# model = "minimax/MiniMax-M2.5"
+# api_key_env = "SPEC_ORCH_LLM_API_KEY"
+# api_base_env = "SPEC_ORCH_LLM_API_BASE"
 
 [planner]
 model = "MiniMax-M2.5"

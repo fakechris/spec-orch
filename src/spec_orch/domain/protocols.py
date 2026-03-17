@@ -15,6 +15,7 @@ from spec_orch.domain.models import (
     PacketResult,
     ParallelConfig,
     PlannerResult,
+    ReviewSummary,
     SpecSnapshot,
     WaveResult,
     WorkPacket,
@@ -57,6 +58,36 @@ class BuilderAdapter(Protocol):
         Default returns an empty list.
         """
         return []
+
+
+@runtime_checkable
+class ReviewAdapter(Protocol):
+    """Produces a ReviewSummary for a builder run.
+
+    Implementations:
+      - LocalReviewAdapter  — writes a JSON report to the workspace
+      - LLMReviewAdapter    — uses an LLM to review the diff
+    """
+
+    ADAPTER_NAME: str
+
+    def initialize(
+        self,
+        *,
+        issue_id: str,
+        workspace: Path,
+        builder_turn_contract_compliance: dict[str, Any] | None = None,
+    ) -> ReviewSummary: ...
+
+    def review(
+        self,
+        *,
+        issue_id: str,
+        workspace: Path,
+        verdict: str,
+        reviewed_by: str,
+        builder_turn_contract_compliance: dict[str, Any] | None = None,
+    ) -> ReviewSummary: ...
 
 
 @runtime_checkable

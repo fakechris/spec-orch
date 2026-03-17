@@ -23,7 +23,7 @@ from spec_orch.domain.models import (
     VerificationDetail,
     VerificationSummary,
 )
-from spec_orch.domain.protocols import BuilderAdapter, IssueSource, PlannerAdapter
+from spec_orch.domain.protocols import BuilderAdapter, IssueSource, PlannerAdapter, ReviewAdapter
 from spec_orch.flow_engine.engine import FlowEngine
 from spec_orch.flow_engine.mapper import FlowMapper
 from spec_orch.services.activity_logger import ActivityLogger
@@ -72,6 +72,7 @@ class RunController:
         builder_adapter: BuilderAdapter | None = None,
         issue_source: IssueSource | None = None,
         planner_adapter: PlannerAdapter | None = None,
+        review_adapter: ReviewAdapter | None = None,
         live_stream: IO[str] | None = None,
         flow_engine: FlowEngine | None = None,
         flow_mapper: FlowMapper | None = None,
@@ -83,7 +84,7 @@ class RunController:
         )
         self.planner_adapter: PlannerAdapter | None = planner_adapter
         self.gate_service = GateService()
-        self.review_adapter = LocalReviewAdapter()
+        self.review_adapter: ReviewAdapter = review_adapter or LocalReviewAdapter()
         self.telemetry_service = TelemetryService()
         self.verification_service = VerificationService()
         self.workspace_service = WorkspaceService(repo_root=self.repo_root)
