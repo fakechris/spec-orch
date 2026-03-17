@@ -5,6 +5,8 @@ import pytest
 
 from spec_orch.domain.models import (
     BuilderResult,
+    Issue,
+    IssueContext,
     RunState,
     validate_transition,
 )
@@ -530,3 +532,154 @@ def test_intent_evolver_uses_chat_completion(tmp_path: Path) -> None:
         assert result.variant_id == "v1"
     finally:
         ie_mod.IntentEvolver.recall_intent_logs = orig_recall
+
+
+# ─── Phase 1: Context Contract tests ─────────────────────────────────────────
+
+
+def test_context_bundle_dataclass_fields() -> None:
+    """SON-128: ContextBundle exposes task/execution/learning."""
+    from spec_orch.domain.context import (
+        ContextBundle,
+        ExecutionContext,
+        LearningContext,
+        TaskContext,
+    )
+
+    issue = Issue(issue_id="CTX-1", title="t", summary="s", context=IssueContext())
+    bundle = ContextBundle(
+        task=TaskContext(issue=issue),
+        execution=ExecutionContext(),
+        learning=LearningContext(),
+    )
+    assert bundle.task.issue.issue_id == "CTX-1"
+    assert bundle.execution.git_diff == ""
+    assert bundle.learning.similar_failure_samples == []
+
+
+def test_node_context_spec_defaults() -> None:
+    """SON-128: NodeContextSpec carries node-level budget & field lists."""
+    from spec_orch.domain.context import NodeContextSpec
+
+    spec = NodeContextSpec(
+        node_name="builder",
+        required_task_fields=["issue", "spec_snapshot_text"],
+        required_execution_fields=["file_tree"],
+        max_tokens_budget=4000,
+    )
+    assert spec.node_name == "builder"
+    assert spec.max_tokens_budget == 4000
+    assert "issue" in spec.required_task_fields
+
+
+def test_context_assembler_builds_bundle(tmp_path: Path) -> None:
+    """SON-129: ContextAssembler returns a valid ContextBundle."""
+    from spec_orch.domain.context import NodeContextSpec
+    from spec_orch.services.context_assembler import ContextAssembler
+
+    issue = Issue(
+        issue_id="CTX-2",
+        title="Assembler test",
+        summary="Test assembler builds bundle.",
+        context=IssueContext(
+            constraints=["no-sudo"],
+            files_to_read=["src/main.py"],
+        ),
+        acceptance_criteria=["Passes lint"],
+    )
+    spec = NodeContextSpec(
+        node_name="builder",
+        required_task_fields=["issue", "spec_snapshot_text", "constraints", "acceptance_criteria"],
+        required_execution_fields=["file_tree"],
+        max_tokens_budget=6000,
+    )
+    assembler = ContextAssembler()
+    bundle = assembler.assemble(spec=spec, issue=issue, workspace=tmp_path)
+
+    assert bundle.task.issue.issue_id == "CTX-2"
+    assert "no-sudo" in bundle.task.constraints
+    assert "Passes lint" in bundle.task.acceptance_criteria
+
+
+def test_render_builder_envelope_includes_acceptance_criteria(tmp_path: Path) -> None:
+    """SON-130: Builder envelope contains structured acceptance criteria."""
+    from spec_orch.services.run_controller import RunController
+
+    issue = Issue(
+        issue_id="ENV-1",
+        title="Envelope test",
+        summary="Check envelope rendering.",
+        context=IssueContext(constraints=["no-secrets"]),
+        acceptance_criteria=["All tests pass", "No regressions"],
+        verification_commands={"lint": ["ruff", "check", "."]},
+    )
+    rendered = RunController._render_builder_envelope(issue, tmp_path)
+    assert "## Acceptance Criteria" in rendered
+    assert "All tests pass" in rendered
+    assert "## Constraints" in rendered
+    assert "no-secrets" in rendered
+    assert "## Verification Commands" in rendered
+    assert "ruff" in rendered
+
+
+def test_render_builder_envelope_includes_spec(tmp_path: Path) -> None:
+    """SON-130: Builder envelope includes task.spec.md when present."""
+    from spec_orch.services.run_controller import RunController
+
+    spec_path = tmp_path / "task.spec.md"
+    spec_path.write_text("# My Spec\nDo the thing.\n")
+
+    issue = Issue(issue_id="ENV-2", title="t", summary="s", context=IssueContext())
+    rendered = RunController._render_builder_envelope(issue, tmp_path)
+    assert "## Spec" in rendered
+    assert "Do the thing." in rendered
+
+
+def test_llm_review_adapter_collect_extra_context(tmp_path: Path) -> None:
+    """SON-131: LLMReviewAdapter collects verification+gate+criteria context."""
+    from spec_orch.services.llm_review_adapter import LLMReviewAdapter
+
+    report = {
+        "verification": {
+            "lint": {"command": ["ruff", "check"], "exit_code": 0},
+            "test": {"command": ["pytest"], "exit_code": 1},
+        },
+        "mergeable": False,
+        "failed_conditions": ["test_failure"],
+    }
+    (tmp_path / "report.json").write_text(json.dumps(report))
+
+    snap = {"issue": {"acceptance_criteria": ["All tests pass"]}}
+    (tmp_path / "spec_snapshot.json").write_text(json.dumps(snap))
+
+    extra = LLMReviewAdapter._collect_extra_context(tmp_path)
+    assert "Verification Results" in extra
+    assert "lint: pass" in extra
+    assert "test: FAIL" in extra
+    assert "Gate Status" in extra
+    assert "Acceptance Criteria" in extra
+    assert "All tests pass" in extra
+
+
+def test_harness_synthesizer_collect_failure_samples(tmp_path: Path) -> None:
+    """SON-132: HarnessSynthesizer collects raw builder event samples."""
+    from spec_orch.services.harness_synthesizer import HarnessSynthesizer
+
+    runs_dir = tmp_path / ".spec_orch_runs"
+    run_dir = runs_dir / "run-001"
+    run_dir.mkdir(parents=True)
+    (run_dir / "report.json").write_text(
+        json.dumps({"mergeable": False, "failed_conditions": ["bad"]})
+    )
+    telem_dir = run_dir / "telemetry"
+    telem_dir.mkdir()
+    events = [
+        json.dumps({"text": "sudo rm -rf / executed"}),
+        json.dumps({"text": "normal operation"}),
+    ]
+    (telem_dir / "incoming_events.jsonl").write_text("\n".join(events))
+
+    synth = HarnessSynthesizer(repo_root=tmp_path)
+    samples = synth._collect_failure_samples(["run-001"])
+    assert "sudo" in samples
+    assert "run-001" in samples

@@ -75,7 +75,8 @@ class LLMReviewAdapter:
             )
             return summary
 
-        llm_result = self._call_llm(diff, spec, issue_id)
+        extra_context = self._collect_extra_context(workspace)
+        llm_result = self._call_llm(diff, spec, issue_id, extra_context=extra_context)
         verdict = llm_result.get("verdict", "uncertain")
         if verdict not in ("pass", "changes_requested", "uncertain"):
             verdict = "uncertain"
@@ -144,7 +145,58 @@ class LLMReviewAdapter:
             text = text[:_MAX_SPEC_CHARS] + "\n... [truncated]"
         return text
 
-    def _call_llm(self, diff: str, spec: str, issue_id: str) -> dict[str, Any]:
+    @staticmethod
+    def _collect_extra_context(workspace: Path) -> str:
+        """Gather verification, gate, and acceptance criteria for richer review."""
+        parts: list[str] = []
+
+        report_path = workspace / "report.json"
+        if report_path.exists():
+            try:
+                report = json.loads(report_path.read_text())
+                verification = report.get("verification", {})
+                if verification:
+                    lines = []
+                    for name, detail in verification.items():
+                        if isinstance(detail, dict):
+                            status = "pass" if detail.get("exit_code") == 0 else "FAIL"
+                            lines.append(f"  - {name}: {status}")
+                    if lines:
+                        parts.append("## Verification Results\n" + "\n".join(lines))
+
+                failed = report.get("failed_conditions", [])
+                mergeable = report.get("mergeable", False)
+                if failed or not mergeable:
+                    parts.append(
+                        f"## Gate Status\nmergeable={mergeable}, failed_conditions={failed}"
+                    )
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        manifest_path = workspace / "artifact_manifest.json"
+        if manifest_path.exists():
+            try:
+                manifest = json.loads(manifest_path.read_text())
+                parts.append(f"## Run ID\n{manifest.get('run_id', 'unknown')}")
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        spec_snap_path = workspace / "spec_snapshot.json"
+        if spec_snap_path.exists():
+            try:
+                snap = json.loads(spec_snap_path.read_text())
+                criteria = snap.get("issue", {}).get("acceptance_criteria", [])
+                if criteria:
+                    items = "\n".join(f"- {c}" for c in criteria)
+                    parts.append(f"## Acceptance Criteria\n{items}")
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        return "\n\n".join(parts)
+
+    def _call_llm(
+        self, diff: str, spec: str, issue_id: str, *, extra_context: str = ""
+    ) -> dict[str, Any]:
         try:
             import litellm
         except ImportError:
@@ -154,6 +206,8 @@ class LLMReviewAdapter:
         user_msg = f"## Issue: {issue_id}\n\n"
         if spec:
             user_msg += f"## Spec\n\n{spec}\n\n"
+        if extra_context:
+            user_msg += f"{extra_context}\n\n"
         user_msg += f"## Diff\n\n```diff\n{diff}\n```"
 
         kwargs: dict[str, Any] = {
