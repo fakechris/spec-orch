@@ -9,6 +9,7 @@ from spec_orch.domain.models import ReviewSummary
 
 
 class LocalReviewAdapter:
+    ADAPTER_NAME = "local"
     VALID_VERDICTS = {"pass", "changes_requested", "uncertain"}
 
     def initialize(
