@@ -369,12 +369,13 @@ class _PassingBuilderAdapter:
     AGENT_NAME = "codex"
 
     def run(self, **_kwargs) -> BuilderResult:
+        workspace = _kwargs.get("workspace", Path("."))
         return BuilderResult(
             succeeded=True,
             command=[],
             stdout="",
             stderr="",
-            report_path=Path("builder_report.json"),
+            report_path=workspace / "builder_report.json",
             adapter=self.ADAPTER_NAME,
             agent=self.AGENT_NAME,
             metadata={},

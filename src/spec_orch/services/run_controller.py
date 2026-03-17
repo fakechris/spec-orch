@@ -964,6 +964,8 @@ class RunController:
             )
         builder.metadata.setdefault("turn_contract_compliance", default_turn_contract_compliance())
         builder.metadata["run_id"] = run_id
+        if not builder.report_path.is_absolute():
+            builder.report_path = workspace / builder.report_path
         from spec_orch.services.codex_exec_builder_adapter import (
             _write_report as write_builder_report,
         )
