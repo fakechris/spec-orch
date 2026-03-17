@@ -195,6 +195,11 @@ Evolution ─────────── "What to improve" (rules, prompts, h
 | **RunController** | Orchestrates the full issue lifecycle: claim → worktree → build → verify → review → gate |
 | **ReadinessChecker** | Rule-based + LLM evaluation of issue completeness before execution |
 | **CodexExecBuilderAdapter** | Delegates code generation to `codex exec --json` |
+| **OpenCodeBuilderAdapter** | OpenCode CLI builder with JSONL event streaming |
+| **ClaudeCodeBuilderAdapter** | Claude Code CLI builder with stream-json output |
+| **DroidBuilderAdapter** | Factory Droid CLI builder with ACP-compatible events |
+| **LLMReviewAdapter** | LLM-driven code review via litellm (any model provider) |
+| **AdapterFactory** | Instantiates builder/reviewer adapters from `spec-orch.toml` config |
 | **VerificationService** | Runs lint, typecheck, test, build via subprocess |
 | **GateService** | Evaluates merge conditions per `gate.policy.yaml` profiles |
 | **ComplianceEngine** | Evaluates agent behaviour against YAML-defined contracts |
@@ -262,6 +267,10 @@ What works on `main`:
 - **Mission Control Center**: EventBus, MissionLifecycleManager, interactive Web Dashboard, Rich TUI (TypeScript/React/Ink)
 - **Memory subsystem**: cross-session knowledge continuity with file-backed storage, migration from legacy formats
 - **Conductor agent**: progressive formalization layer — intent classification, crystallization proposals, `@spec-orch approve`
+- **Pluggable builder/reviewer adapters**: swap execution engines via `spec-orch.toml` — OpenCode, Droid, Claude Code, or Codex as builder; local or LLM-driven review
+- **Low-cost model support**: validated end-to-end pipeline with MiniMax-M2.5 (unlimited tokens, ~$0.04/run) via OpenCode builder + LLM reviewer
+- **Orchestration brain**: scaffold-layer flow graphs (Full/Standard/Hotfix), flow promotion/demotion, IntentEvolver / FlowPolicyEvolver / GatePolicyEvolver
+- **Spec-Contract integration**: three-layer hierarchy (OpenSpec + Agent-Spec Contract + Tests)
 
 What is still intentionally incomplete:
 
@@ -271,7 +280,8 @@ What is still intentionally incomplete:
 - Daemon hotfix mode with priority queue and minimal gate (SON-72)
 - Preview deployment and browser verification
 - Slack bot for discussion layer
-- Orchestration brain: scaffold-layer flow graphs, flow promotion/demotion, IntentEvolver / FlowPolicyEvolver / GatePolicyEvolver (SON-106)
+- Daemon mode with low-cost models (OpenCode + MiniMax) — code supports it, needs production validation
+- ACPX (Agent Client Protocol) unified adapter layer — research complete (SON-122), implementation pending
 
 ## Installation
 
@@ -329,7 +339,7 @@ spec-orch config check
 
 - **Python 3.11+** (3.11, 3.12, 3.13 tested on Ubuntu and macOS)
 - **Git** (for worktree-based isolation)
-- **Codex CLI** (`codex exec --json`) — builder adapter
+- **Builder CLI** — one of: Codex (`codex exec`), OpenCode (`opencode run`), Droid (`droid exec`), or Claude Code (`claude`)
 - **Linear API token** (optional, for issue tracking integration)
 - **LLM API key** (optional, for `discuss` / `plan` / readiness triage)
 
@@ -498,8 +508,16 @@ token_env = "SPEC_ORCH_LINEAR_TOKEN"
 team_key = "SON"
 
 [builder]
-adapter = "codex_exec"
-codex_executable = "codex"
+adapter = "codex_exec"       # or "opencode", "droid", "claude_code"
+executable = "codex"          # path to the builder CLI
+# model = "minimax/MiniMax-M2.5"  # for opencode with custom model
+# timeout_seconds = 1800
+
+[reviewer]
+adapter = "local"             # or "llm" for LLM-driven review
+# model = "openai/MiniMax-M2.5"  # for LLM review with MiniMax
+# api_key_env = "SPEC_ORCH_LLM_API_KEY"
+# api_base_env = "SPEC_ORCH_LLM_API_BASE_OPENAI"
 
 [planner]
 model = "minimax/MiniMax-M1"
@@ -542,6 +560,11 @@ src/spec_orch/
     daemon_installer.py  systemd/launchd service file generation
     parallel_run_controller.py  Multi-wave concurrent execution
     codex_exec_builder_adapter.py  Codex exec integration
+    opencode_builder_adapter.py   OpenCode CLI integration
+    claude_code_builder_adapter.py  Claude Code CLI integration
+    droid_builder_adapter.py      Factory Droid CLI integration
+    llm_review_adapter.py         LLM-driven code review via litellm
+    adapter_factory.py            Instantiates adapters from spec-orch.toml
     verification_service.py  Lint, typecheck, test runner
     evidence_analyzer.py     Historical run pattern aggregation
     harness_synthesizer.py   LLM-driven compliance rule generation + validation
@@ -549,11 +572,12 @@ src/spec_orch/
     plan_strategy_evolver.py Scoper hints from plan outcome analysis
     policy_distiller.py      Deterministic code policies for recurring tasks
 packages/tui/            Rich TUI (TypeScript + React/Ink)
-tests/                   Unit and integration tests (620+)
+tests/                   Unit and integration tests (810+)
 fixtures/issues/         Local issue fixtures
 docs/specs/              Canonical specs per mission
 docs/architecture/       System design and policy documents
 docs/plans/              Implementation plans and roadmaps
+docs/research/           Technical research and analysis reports
 gate.policy.yaml         Gate policy: conditions, profiles, auto-merge rules
 compliance.contracts.yaml  Compliance rules for agent behaviour (auto-evolving)
 spec-orch.toml           Daemon, planner, and Linear configuration
@@ -579,6 +603,7 @@ policies/                Distilled deterministic scripts (auto-generated)
 - [Skill-Driven vs Spec-Driven Orchestration](docs/architecture/skill-driven-vs-spec-driven.md) — hybrid architecture proposal
 - [Orchestration Brain Design](docs/architecture/orchestration-brain-design.md) — scaffold determinism + muscle intelligence, flow promotion/demotion, evolution architecture
 - [Spec-Contract Integration](docs/architecture/spec-contract-integration.md) — three-layer spec hierarchy (OpenSpec + Agent-Spec Contract + Tests), when to use each
+- [ACPX Analysis](docs/research/acpx-acp-analysis.md) — Agent Client Protocol research, adapter comparison, integration proposal
 
 ### Historical (early design, kept as decision records)
 
