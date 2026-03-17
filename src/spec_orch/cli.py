@@ -1053,8 +1053,13 @@ def config_check(
     linear_token_env = linear.get("token_env") if isinstance(linear, dict) else None
     linear_token = os.environ.get(linear_token_env, "") if linear_token_env else ""
     linear_team_key = linear.get("team_key", "") if isinstance(linear, dict) else ""
+    builder_adapter = (
+        builder.get("adapter", "codex_exec") if isinstance(builder, dict) else "codex_exec"
+    )
     codex_executable = (
-        builder.get("codex_executable", "codex") if isinstance(builder, dict) else "codex"
+        builder.get("executable") or builder.get("codex_executable", "codex")
+        if isinstance(builder, dict)
+        else "codex"
     )
     planner_model = planner.get("model") if isinstance(planner, dict) else None
     planner_api_type = (
@@ -1062,8 +1067,27 @@ def config_check(
     )
     planner_api_key_env = planner.get("api_key_env") if isinstance(planner, dict) else None
 
+    reviewer = raw.get("reviewer", {}) if isinstance(raw, dict) else {}
+    reviewer_adapter = reviewer.get("adapter", "local") if isinstance(reviewer, dict) else "local"
+    valid_reviewers = {"local", "llm"}
+    if reviewer_adapter not in valid_reviewers:
+        results.append(
+            CheckResult(
+                name="reviewer", status="fail", message=f"Unknown adapter: {reviewer_adapter!r}"
+            )
+        )
+    else:
+        results.append(
+            CheckResult(name="reviewer", status="pass", message=f"Adapter: {reviewer_adapter}")
+        )
+
     results.extend(checker.check_linear(linear_token, linear_team_key))
-    results.append(checker.check_codex(codex_executable))
+    if builder_adapter == "codex_exec":
+        results.append(checker.check_codex(codex_executable))
+    else:
+        results.append(
+            CheckResult(name="builder", status="pass", message=f"Adapter: {builder_adapter}")
+        )
     results.extend(checker.check_planner(planner_model, planner_api_key_env, planner_api_type))
 
     _print_check_report(results)
@@ -2140,8 +2164,14 @@ def _make_controller(
         issue_source = FixtureIssueSource(repo_root=Path(repo_root))
 
     planner = _build_planner_from_toml(repo_root)
-    builder = create_builder(repo_root)
-    reviewer = create_reviewer(repo_root)
+
+    toml_raw = _load_toml_raw(repo_root)
+    if codex_executable != "codex":
+        builder_cfg = toml_raw.setdefault("builder", {})
+        builder_cfg["executable"] = codex_executable
+        builder_cfg.setdefault("adapter", "codex_exec")
+    builder = create_builder(repo_root, toml_override=toml_raw)
+    reviewer = create_reviewer(repo_root, toml_override=toml_raw)
 
     return RunController(
         repo_root=repo_root,
@@ -2151,6 +2181,20 @@ def _make_controller(
         review_adapter=reviewer,
         live_stream=live_stream,
     )
+
+
+def _load_toml_raw(repo_root: Path) -> dict[str, Any]:
+    """Load spec-orch.toml as raw dict. Returns empty dict on failure."""
+    config_path = repo_root / "spec-orch.toml"
+    if not config_path.exists():
+        return {}
+    try:
+        import tomllib
+
+        with config_path.open("rb") as f:
+            return tomllib.load(f)
+    except Exception:
+        return {}
 
 
 def _build_planner_from_toml(repo_root: Path) -> Any:

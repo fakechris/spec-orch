@@ -161,7 +161,8 @@ class OpenCodeBuilderAdapter:
         }
 
         def read_stdout() -> None:
-            assert process.stdout is not None
+            if process.stdout is None:
+                return
             with incoming_path.open("w", encoding="utf-8") as out_file:
                 for line in process.stdout:
                     if not line.strip():

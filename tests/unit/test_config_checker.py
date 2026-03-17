@@ -43,8 +43,8 @@ def test_check_toml_reports_missing_required_fields(tmp_path: Path) -> None:
         ),
         CheckResult(
             name="builder",
-            status="fail",
-            message="Missing required fields: codex_executable",
+            status="pass",
+            message="Section present.",
         ),
         CheckResult(
             name="planner",
@@ -252,7 +252,7 @@ def test_config_check_command_prints_report_and_succeeds(tmp_path: Path) -> None
     assert "[PASS] linear" in result.stdout
     assert "[PASS] linear_api" in result.stdout
     assert "[PASS] codex" in result.stdout
-    assert "Summary: 8 pass, 0 warn, 0 fail" in result.stdout
+    assert "Summary: 9 pass, 0 warn, 0 fail" in result.stdout
 
 
 def test_config_check_command_exits_nonzero_on_failures(tmp_path: Path) -> None:
@@ -318,4 +318,4 @@ def test_config_check_command_exits_nonzero_on_failures(tmp_path: Path) -> None:
 
     assert result.exit_code == 1
     assert "[FAIL] linear_api" in result.stdout
-    assert "Summary: 7 pass, 0 warn, 1 fail" in result.stdout
+    assert "Summary: 8 pass, 0 warn, 1 fail" in result.stdout

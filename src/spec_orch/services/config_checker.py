@@ -21,7 +21,7 @@ class ConfigChecker:
     _SECTIONS: tuple[str, ...] = ("linear", "builder", "planner", "daemon")
     _REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
         "linear": ("token_env", "team_key"),
-        "builder": ("codex_executable",),
+        "builder": ("adapter",),
         "planner": ("model",),
         "daemon": (),
     }

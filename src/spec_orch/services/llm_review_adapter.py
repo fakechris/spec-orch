@@ -39,6 +39,7 @@ _MAX_SPEC_CHARS = 10_000
 
 class LLMReviewAdapter:
     ADAPTER_NAME = "llm"
+    VALID_VERDICTS = {"pass", "changes_requested", "uncertain"}
 
     def __init__(
         self,
@@ -102,6 +103,8 @@ class LLMReviewAdapter:
         reviewed_by: str,
         builder_turn_contract_compliance: dict[str, Any] | None = None,
     ) -> ReviewSummary:
+        if verdict not in self.VALID_VERDICTS:
+            raise ValueError(f"invalid review verdict: {verdict}")
         summary = ReviewSummary(
             verdict=verdict,
             reviewed_by=reviewed_by,
@@ -168,7 +171,13 @@ class LLMReviewAdapter:
 
         try:
             response = litellm.completion(**kwargs)
-            content = response.choices[0].message.content or ""
+            choices = getattr(response, "choices", None) or []
+            if not choices:
+                return {"verdict": "uncertain", "summary": "Empty LLM response", "issues": []}
+            message = getattr(choices[0], "message", None)
+            content = (getattr(message, "content", None) or "") if message else ""
+            if not content:
+                return {"verdict": "uncertain", "summary": "Empty LLM content", "issues": []}
             parsed: dict[str, Any] = json.loads(content)
             return parsed
         except json.JSONDecodeError:

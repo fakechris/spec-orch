@@ -25,6 +25,7 @@ _PR_ISSUE_ID_RE = re.compile(r"\[SpecOrch\]\s+([A-Za-z0-9_-]+):")
 
 class DaemonConfig:
     def __init__(self, raw: dict[str, Any]) -> None:
+        self._raw = raw
         linear = raw.get("linear", {})
         self.linear_token_env: str = linear.get("token_env", "SPEC_ORCH_LINEAR_TOKEN")
         self.team_key: str = linear.get("team_key", "SPC")
@@ -33,7 +34,9 @@ class DaemonConfig:
 
         builder = raw.get("builder", {})
         self.builder_adapter: str = builder.get("adapter", "codex_exec")
-        self.codex_executable: str = builder.get("codex_executable", "codex")
+        self.codex_executable: str = builder.get("executable") or builder.get(
+            "codex_executable", "codex"
+        )
 
         reviewer = raw.get("reviewer", {})
         self.reviewer_adapter: str = reviewer.get("adapter", "local")
@@ -126,8 +129,8 @@ class SpecOrchDaemon:
 
         client = LinearClient(token_env=self.config.linear_token_env)
         issue_source = LinearIssueSource(client=client)
-        builder = create_builder(self.repo_root)
-        reviewer = create_reviewer(self.repo_root)
+        builder = create_builder(self.repo_root, toml_override=self.config._raw)
+        reviewer = create_reviewer(self.repo_root, toml_override=self.config._raw)
         self._write_back = LinearWriteBackService(client=client)
 
         planner = self._build_planner()

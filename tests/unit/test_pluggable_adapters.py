@@ -446,6 +446,7 @@ class TestRunControllerInjection:
 class TestEndToEndConfig:
     def test_opencode_config_creates_correct_controller(self, tmp_path: Path):
         from spec_orch.services.run_controller import RunController
+
         toml_content = (
             b'[builder]\nadapter = "opencode"\n'
             b'executable = "opencode"\n'

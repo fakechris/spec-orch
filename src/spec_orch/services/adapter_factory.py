@@ -54,7 +54,7 @@ def create_builder(
             executable=executable, absolute_timeout_seconds=float(timeout)
         )
 
-    if adapter_name == "opencode":
+    elif adapter_name == "opencode":
         from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter
 
         return OpenCodeBuilderAdapter(
@@ -63,7 +63,7 @@ def create_builder(
             absolute_timeout_seconds=float(cfg.get("timeout_seconds", 1800)),
         )
 
-    if adapter_name == "droid":
+    elif adapter_name == "droid":
         from spec_orch.services.droid_builder_adapter import DroidBuilderAdapter
 
         return DroidBuilderAdapter(
@@ -72,7 +72,7 @@ def create_builder(
             absolute_timeout_seconds=float(cfg.get("timeout_seconds", 1800)),
         )
 
-    if adapter_name == "claude_code":
+    elif adapter_name == "claude_code":
         from spec_orch.services.claude_code_builder_adapter import ClaudeCodeBuilderAdapter
 
         return ClaudeCodeBuilderAdapter(
@@ -81,8 +81,9 @@ def create_builder(
             absolute_timeout_seconds=float(cfg.get("timeout_seconds", 1800)),
         )
 
-    if adapter_name in _BUILDER_REGISTRY:
-        instance: BuilderAdapter = _BUILDER_REGISTRY[adapter_name](**cfg)
+    elif adapter_name in _BUILDER_REGISTRY:
+        builder_cfg = {k: v for k, v in cfg.items() if k != "adapter"}
+        instance: BuilderAdapter = _BUILDER_REGISTRY[adapter_name](**builder_cfg)
         return instance
 
     raise ValueError(
@@ -104,7 +105,7 @@ def create_reviewer(
 
         return LocalReviewAdapter()
 
-    if adapter_name == "llm":
+    elif adapter_name == "llm":
         from spec_orch.services.llm_review_adapter import LLMReviewAdapter
 
         model = cfg.get("model")
@@ -117,8 +118,9 @@ def create_reviewer(
 
         return LLMReviewAdapter(model=model, api_key=api_key, api_base=api_base)
 
-    if adapter_name in _REVIEWER_REGISTRY:
-        rev_instance: ReviewAdapter = _REVIEWER_REGISTRY[adapter_name](**cfg)
+    elif adapter_name in _REVIEWER_REGISTRY:
+        reviewer_cfg = {k: v for k, v in cfg.items() if k != "adapter"}
+        rev_instance: ReviewAdapter = _REVIEWER_REGISTRY[adapter_name](**reviewer_cfg)
         return rev_instance
 
     raise ValueError(f"Unknown reviewer adapter: {adapter_name!r}. Supported: local, llm")
