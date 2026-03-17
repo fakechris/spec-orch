@@ -35,6 +35,24 @@ require_labels = []
 exclude_labels = ["blocked", "needs-clarification"]
 skip_parents = true
 
+[evolution]
+enabled = true
+trigger_after_n_runs = 5
+auto_promote = false
+
+[evolution.prompt_evolver]
+enabled = true
+
+[evolution.plan_strategy_evolver]
+enabled = true
+
+[evolution.harness_synthesizer]
+enabled = true
+dry_run = true
+
+[evolution.policy_distiller]
+enabled = false
+
 [conversation]
 default_channel = "cli"
 

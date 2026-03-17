@@ -724,6 +724,52 @@ def test_plan_strategy_evolver_collects_failure_details(tmp_path: Path) -> None:
     assert details[0]["plan_structure"] == [{"wave": 0, "packets": ["setup"]}]
 
 
+def test_evolution_config_from_toml() -> None:
+    """SON-135: EvolutionConfig parses [evolution] section from TOML data."""
+    from spec_orch.services.evolution_trigger import EvolutionConfig
+
+    toml_data = {
+        "evolution": {
+            "enabled": True,
+            "trigger_after_n_runs": 10,
+            "auto_promote": True,
+            "prompt_evolver": {"enabled": False},
+            "harness_synthesizer": {"enabled": True, "dry_run": False},
+        }
+    }
+    cfg = EvolutionConfig.from_toml(toml_data)
+    assert cfg.enabled is True
+    assert cfg.trigger_after_n_runs == 10
+    assert cfg.auto_promote is True
+    assert cfg.prompt_evolver_enabled is False
+    assert cfg.harness_dry_run is False
+
+
+def test_evolution_trigger_counter(tmp_path: Path) -> None:
+    """SON-135: EvolutionTrigger increments counter and triggers at threshold."""
+    from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
+
+    cfg = EvolutionConfig(enabled=True, trigger_after_n_runs=3)
+    trigger = EvolutionTrigger(repo_root=tmp_path, config=cfg)
+
+    assert trigger.increment_and_check() is False  # count=1
+    assert trigger.increment_and_check() is False  # count=2
+    assert trigger.increment_and_check() is True  # count=3, threshold met
+
+    trigger.reset_counter()
+    assert trigger._read_counter() == 0
+
+
+def test_evolution_trigger_disabled(tmp_path: Path) -> None:
+    """SON-135: Disabled evolution never triggers."""
+    from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
+
+    cfg = EvolutionConfig(enabled=False)
+    trigger = EvolutionTrigger(repo_root=tmp_path, config=cfg)
+    result = trigger.run_evolution_cycle()
+    assert result.triggered is False
+
+
 def test_harness_synthesizer_collect_failure_samples(tmp_path: Path) -> None:
     """SON-132: HarnessSynthesizer collects raw builder event samples."""
     from spec_orch.services.harness_synthesizer import HarnessSynthesizer
