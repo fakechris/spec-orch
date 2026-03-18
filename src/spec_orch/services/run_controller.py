@@ -135,7 +135,7 @@ class RunController:
         """Determine the FlowType for an issue. Defaults to Standard."""
         resolved = self.flow_mapper.resolve_flow_type(
             issue.run_class,
-            labels=[],
+            labels=issue.labels,
         )
         return resolved or FlowType.STANDARD
 
@@ -238,6 +238,7 @@ class RunController:
                 accepted_by=None,
                 activity_logger=activity_logger,
                 state=RunState.GATE_EVALUATED,
+                flow_type=resolved_flow,
             )
 
             self._handle_gate_flow_signals(
@@ -437,6 +438,7 @@ class RunController:
             human_acceptance=human_acceptance,
             accepted_by=accepted_by,
             state=RunState.GATE_EVALUATED,
+            flow_type=self._resolve_flow(issue),
         )
         self.telemetry_service.log_event(
             workspace=workspace,
@@ -482,6 +484,7 @@ class RunController:
             human_acceptance=True,
             accepted_by=accepted_by,
             state=RunState.ACCEPTED,
+            flow_type=self._resolve_flow(issue),
         )
         self.telemetry_service.log_event(
             workspace=workspace,
@@ -558,6 +561,7 @@ class RunController:
                 accepted_by=accepted_by,
                 activity_logger=activity_logger,
                 state=RunState.GATE_EVALUATED,
+                flow_type=self._resolve_flow(issue),
             )
             self._log_and_emit(
                 activity_logger=activity_logger,
@@ -883,6 +887,7 @@ class RunController:
         accepted_by: str | None,
         activity_logger: ActivityLogger | None = None,
         state: RunState = RunState.GATE_EVALUATED,
+        flow_type: FlowType | None = None,
     ) -> tuple[GateVerdict, Path, Path]:
         snapshot = read_spec_snapshot(workspace)
         spec_exists = snapshot is not None
@@ -901,6 +906,8 @@ class RunController:
                 verification=verification,
                 review=review,
                 human_acceptance=human_acceptance,
+                claimed_flow=flow_type.value if flow_type else None,
+                issue_id=issue.issue_id,
             )
         )
         self._log_gate_event(

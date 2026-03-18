@@ -156,7 +156,7 @@ def test_daemon_poll_and_run_processes_new_issue(tmp_path: Path) -> None:
     _init_checker(daemon)
     daemon._poll_and_run(mock_client, mock_controller)
 
-    mock_controller.advance_to_completion.assert_called_once_with("SPC-11")
+    mock_controller.advance_to_completion.assert_called_once_with("SPC-11", flow_type=None)
     assert "SPC-11" in daemon._processed
     daemon._write_back.post_run_summary.assert_called_once()
 
@@ -185,7 +185,7 @@ def test_daemon_poll_and_run_releases_non_terminal(tmp_path: Path) -> None:
     _init_checker(daemon)
     daemon._poll_and_run(mock_client, mock_controller)
 
-    mock_controller.advance_to_completion.assert_called_once_with("SPC-12")
+    mock_controller.advance_to_completion.assert_called_once_with("SPC-12", flow_type=None)
     assert "SPC-12" not in daemon._processed
     assert not daemon._is_locked("SPC-12")
 
@@ -213,7 +213,7 @@ def test_daemon_poll_and_run_marks_gate_evaluated_as_processed(tmp_path: Path) -
     _init_checker(daemon)
     daemon._poll_and_run(mock_client, mock_controller)
 
-    mock_controller.advance_to_completion.assert_called_once_with("SPC-13")
+    mock_controller.advance_to_completion.assert_called_once_with("SPC-13", flow_type=None)
     assert "SPC-13" in daemon._processed
 
 

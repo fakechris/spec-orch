@@ -32,6 +32,9 @@ class LinearIssueSource:
         acceptance_criteria = self._extract_list(ACCEPTANCE_CRITERIA_SECTION, description)
         context = self._extract_context(description)
 
+        labels_data = raw.get("labels", {}).get("nodes", [])
+        labels = [lbl.get("name", "") for lbl in labels_data if lbl.get("name")]
+
         return Issue(
             issue_id=raw.get("identifier", issue_id),
             title=raw.get("title", ""),
@@ -40,6 +43,7 @@ class LinearIssueSource:
             verification_commands=self._default_verification,
             context=context,
             acceptance_criteria=acceptance_criteria,
+            labels=labels,
         )
 
     def _extract_section(self, pattern: re.Pattern[str], text: str) -> str | None:

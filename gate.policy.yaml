@@ -70,3 +70,13 @@ profiles:
       - findings
       - compliance
     auto_merge: false
+
+  hotfix:
+    disable:
+      - human_acceptance
+      - compliance
+      - findings
+      - spec_exists
+      - spec_approved
+      - within_boundaries
+    auto_merge: true
