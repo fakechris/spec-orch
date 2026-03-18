@@ -3148,7 +3148,7 @@ def contract_assess_risk(
         title=issue.title,
         summary=issue.summary,
         files_in_scope=list(issue.context.files_to_read),
-        run_class=issue.run_class,
+        run_class=issue.run_class or "",
     )
     typer.echo(f"Issue {issue_id}: risk_level={risk}")
 
