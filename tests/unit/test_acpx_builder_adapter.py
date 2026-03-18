@@ -408,6 +408,32 @@ class TestAdapterFactory:
         assert builder.model == "minimax/MiniMax-M2.5"
         assert builder.absolute_timeout_seconds == 900.0
 
+    def test_create_acpx_shortcut_codex(self, tmp_path: Path) -> None:
+        from spec_orch.services.adapter_factory import create_builder
+
+        toml = {"builder": {"adapter": "acpx_codex"}}
+        builder = create_builder(tmp_path, toml_override=toml)
+        assert isinstance(builder, AcpxBuilderAdapter)
+        assert builder.agent == "codex"
+
+    def test_create_acpx_shortcut_claude(self, tmp_path: Path) -> None:
+        from spec_orch.services.adapter_factory import create_builder
+
+        toml = {"builder": {"adapter": "acpx_claude", "model": "sonnet"}}
+        builder = create_builder(tmp_path, toml_override=toml)
+        assert isinstance(builder, AcpxBuilderAdapter)
+        assert builder.agent == "claude"
+        assert builder.model == "sonnet"
+
+    def test_acpx_shortcut_agent_override(self, tmp_path: Path) -> None:
+        """Explicit agent= overrides the shortcut suffix."""
+        from spec_orch.services.adapter_factory import create_builder
+
+        toml = {"builder": {"adapter": "acpx_codex", "agent": "gemini"}}
+        builder = create_builder(tmp_path, toml_override=toml)
+        assert isinstance(builder, AcpxBuilderAdapter)
+        assert builder.agent == "gemini"
+
 
 class TestSessionManagement:
     @patch("spec_orch.services.acpx_builder_adapter.subprocess.run")

@@ -15,10 +15,14 @@ Complete reference for the `spec-orch.toml` configuration file.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `adapter` | string | `"codex_exec"` | Builder adapter: `codex_exec`, `opencode`, `droid`, `claude_code` |
-| `executable` | string | `"codex"` | Path to the builder CLI executable |
+| `adapter` | string | `"codex_exec"` | Builder adapter: `codex_exec`, `opencode`, `droid`, `claude_code`, `acpx`, `acpx_<agent>` |
+| `executable` | string | varies | Path to the builder CLI executable (`codex`, `opencode`, `npx` for acpx) |
 | `model` | string | — | Model override for adapters that support it (e.g. `minimax/MiniMax-M2.5`) |
 | `timeout_seconds` | int | `1800` | Builder execution timeout |
+| `agent` | string | `"opencode"` | (ACPX only) Target agent: `opencode`, `codex`, `claude`, `gemini`, `droid`, etc. |
+| `session_name` | string | — | (ACPX only) Named session for persistence and resume |
+| `permissions` | string | `"full-auto"` | (ACPX only) Permission mode: `full-auto`, `approve-reads`, etc. |
+| `acpx_package` | string | `"acpx"` | (ACPX only) npm package name |
 
 ## [reviewer]
 
@@ -92,7 +96,7 @@ Complete reference for the `spec-orch.toml` configuration file.
 |-----|------|---------|-------------|
 | `enabled` | bool | `false` | Enable policy distillation |
 
-## Example
+## Example (Direct Adapter)
 
 ```toml
 [linear]
@@ -142,4 +146,27 @@ dry_run = false
 
 [evolution.policy_distiller]
 enabled = false
+```
+
+## Example (ACPX Unified Adapter)
+
+```toml
+[linear]
+token_env = "SPEC_ORCH_LINEAR_TOKEN"
+team_key = "SON"
+
+[builder]
+adapter = "acpx"
+agent = "opencode"
+model = "minimax/MiniMax-M2.5"
+timeout_seconds = 900
+
+# Shortcut: adapter = "acpx_codex" is equivalent to adapter = "acpx" + agent = "codex"
+
+[reviewer]
+adapter = "llm"
+model = "openai/gpt-4o"
+
+[daemon]
+max_concurrent = 1
 ```
