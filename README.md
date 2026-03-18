@@ -197,13 +197,34 @@ What works on `main`:
 ### Quick Start
 
 ```bash
+# 1. Install
 git clone https://github.com/fakechris/spec-orch.git
 cd spec-orch
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-spec-orch init                    # Auto-detect project type
-spec-orch config check            # Verify configuration
+
+# 2. Configure environment — copy and edit .env
+cp .env.example .env
+# Edit .env: set SPEC_ORCH_LLM_API_KEY and SPEC_ORCH_LLM_API_BASE
+# (see .env.example for provider-specific examples)
+
+# 3. Initialize project config
+spec-orch init                    # Auto-detect project type, writes spec-orch.toml
+
+# 4. Verify everything works
+spec-orch config check            # Validate configuration
+spec-orch discuss                 # Test LLM connectivity with interactive TUI
 ```
+
+**Minimum required environment variables** (set in `.env` or export):
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `SPEC_ORCH_LLM_API_KEY` | LLM provider API key (planner, discuss, triage) | `sk-ant-xxx` or MiniMax key |
+| `SPEC_ORCH_LLM_API_BASE` | LLM API endpoint | `https://api.anthropic.com` |
+| `SPEC_ORCH_LINEAR_TOKEN` | Linear issue tracking (optional for daemon) | `lin_api_xxx` |
+
+See [`.env.example`](.env.example) for full configuration reference.
 
 ### From GitHub via pip / uv
 

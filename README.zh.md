@@ -197,13 +197,34 @@ spec-orch policy distill          # 零 LLM 确定性脚本
 ### 快速开始
 
 ```bash
+# 1. 安装
 git clone https://github.com/fakechris/spec-orch.git
 cd spec-orch
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-spec-orch init                    # 自动检测项目类型
+
+# 2. 配置环境变量 — 复制并编辑 .env
+cp .env.example .env
+# 编辑 .env：设置 SPEC_ORCH_LLM_API_KEY 和 SPEC_ORCH_LLM_API_BASE
+# (详见 .env.example 中的各提供商配置示例)
+
+# 3. 初始化项目配置
+spec-orch init                    # 自动检测项目类型，生成 spec-orch.toml
+
+# 4. 验证一切正常
 spec-orch config check            # 验证配置
+spec-orch discuss                 # 测试 LLM 连通性（交互式 TUI）
 ```
+
+**必需的环境变量**（在 `.env` 中设置或 export）：
+
+| 变量 | 用途 | 示例 |
+|------|------|------|
+| `SPEC_ORCH_LLM_API_KEY` | LLM 提供商 API key（planner、discuss、triage） | `sk-ant-xxx` 或 MiniMax key |
+| `SPEC_ORCH_LLM_API_BASE` | LLM API 端点 | `https://api.anthropic.com` |
+| `SPEC_ORCH_LINEAR_TOKEN` | Linear issue 跟踪（daemon 模式需要） | `lin_api_xxx` |
+
+完整配置参考见 [`.env.example`](.env.example)。
 
 ### 通过 pip / uv 从 GitHub 安装
 
