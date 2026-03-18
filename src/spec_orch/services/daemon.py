@@ -61,6 +61,9 @@ class DaemonConfig:
             ["blocked", "needs-clarification"],
         )
         self.skip_parents: bool = daemon.get("skip_parents", True)
+        self.max_retries: int = daemon.get("max_retries", 3)
+        self.retry_base_delay: int = daemon.get("retry_base_delay_seconds", 60)
+        self.hotfix_labels: list[str] = daemon.get("hotfix_labels", ["hotfix", "urgent", "P0"])
 
     @classmethod
     def from_toml(cls, path: Path) -> DaemonConfig:
@@ -87,6 +90,9 @@ class SpecOrchDaemon:
         self._triaged: set[str] = set(saved.get("triaged", []))
         self._last_poll: str = saved.get("last_poll", "")
         self._pr_commits: dict[str, str] = dict(saved.get("pr_commits", {}))
+        self._retry_counts: dict[str, int] = dict(saved.get("retry_counts", {}))
+        self._dead_letter: set[str] = set(saved.get("dead_letter", []))
+        self._in_progress: set[str] = set(saved.get("in_progress", []))
 
         from spec_orch.services.event_bus import get_event_bus
 
@@ -116,6 +122,9 @@ class SpecOrchDaemon:
             "processed": sorted(self._processed),
             "triaged": sorted(self._triaged),
             "pr_commits": self._pr_commits,
+            "retry_counts": self._retry_counts,
+            "dead_letter": sorted(self._dead_letter),
+            "in_progress": sorted(self._in_progress),
             "last_poll": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
         try:
@@ -158,6 +167,11 @@ class SpecOrchDaemon:
         print(f"[daemon] started, polling {self.config.team_key} every {interval}s")
         if planner:
             print(f"[daemon] planner: {planner.ADAPTER_NAME}")
+        if self._dead_letter:
+            print(f"[daemon] dead letter queue: {sorted(self._dead_letter)}")
+
+        self.resume_in_progress(controller)
+
         try:
             while self._running:
                 self._tick_missions()
@@ -260,12 +274,17 @@ class SpecOrchDaemon:
             linear_uid = raw_issue.get("id", "")
             if not issue_id or issue_id in self._processed:
                 continue
+            if issue_id in self._dead_letter:
+                continue
             if self._is_locked(issue_id):
+                continue
+            if self._should_backoff(issue_id):
                 continue
 
             self._claim(issue_id)
 
-            if not self._triage_issue(client, raw_issue):
+            is_hotfix = self._is_hotfix(raw_issue)
+            if not is_hotfix and not self._triage_issue(client, raw_issue):
                 self._release(issue_id)
                 continue
 
@@ -335,6 +354,8 @@ class SpecOrchDaemon:
         """Execute a single issue through the standard pipeline."""
         linear_uid = raw_issue.get("id", "")
         print(f"[daemon] processing {issue_id} (single issue pipeline)")
+        self._in_progress.add(issue_id)
+        self._save_state()
         self._event_bus.emit_issue_state(issue_id, "building")
         try:
             result = controller.advance_to_completion(issue_id)
@@ -365,10 +386,15 @@ class SpecOrchDaemon:
                         print(f"[daemon] state update failed: {exc}")
                 self._write_back_result(raw_issue, result)
                 self._processed.add(issue_id)
+                self._in_progress.discard(issue_id)
+                self._retry_counts.pop(issue_id, None)
             else:
+                self._in_progress.discard(issue_id)
                 self._release(issue_id)
         except Exception as exc:
             print(f"[daemon] {issue_id} failed: {exc}")
+            self._in_progress.discard(issue_id)
+            self._record_failure(issue_id, str(exc), client, linear_uid)
             self._release(issue_id)
 
     def _execute_mission(
@@ -752,6 +778,81 @@ class SpecOrchDaemon:
                 print(f"[daemon] moved {result.issue.issue_id} to Done")
             except Exception as exc:
                 print(f"[daemon] state update failed: {exc}")
+
+    def _is_hotfix(self, raw_issue: dict[str, Any]) -> bool:
+        """Check if an issue has hotfix labels — skip triage if so."""
+        labels = raw_issue.get("labels", {}).get("nodes", [])
+        issue_labels = {lbl.get("name", "").lower() for lbl in labels}
+        return bool(issue_labels & {h.lower() for h in self.config.hotfix_labels})
+
+    def _should_backoff(self, issue_id: str) -> bool:
+        """Check if the issue is in a retry backoff period."""
+        count = self._retry_counts.get(issue_id, 0)
+        if count == 0:
+            return False
+        lockfile = self._lockdir / f"{issue_id}.retry_at"
+        if not lockfile.exists():
+            return False
+        try:
+            retry_at = float(lockfile.read_text().strip())
+            return time.time() < retry_at
+        except (ValueError, OSError):
+            return False
+
+    def _record_failure(
+        self,
+        issue_id: str,
+        error_msg: str,
+        client: Any,
+        linear_uid: str,
+    ) -> None:
+        """Record an issue failure, increment retry counter, move to dead letter if max exceeded."""
+        count = self._retry_counts.get(issue_id, 0) + 1
+        self._retry_counts[issue_id] = count
+
+        if count >= self.config.max_retries:
+            print(
+                f"[daemon] {issue_id}: max retries ({self.config.max_retries}) "
+                "exceeded → dead letter"
+            )
+            self._dead_letter.add(issue_id)
+            self._retry_counts.pop(issue_id, None)
+            if linear_uid:
+                try:
+                    client.add_comment(
+                        linear_uid,
+                        f"## SpecOrch: Moved to Dead Letter\n\n"
+                        f"This issue failed {count} times and has been removed from "
+                        f"the automatic execution pool.\n\n"
+                        f"**Last error**: `{error_msg[:500]}`\n\n"
+                        f"_To retry, remove the `dead-letter` label and move back to Ready._",
+                    )
+                    client.add_label(linear_uid, "dead-letter")
+                except Exception as exc:
+                    print(f"[daemon] {issue_id}: dead letter notification failed: {exc}")
+        else:
+            delay = self.config.retry_base_delay * (2 ** (count - 1))
+            retry_at = time.time() + delay
+            retry_file = self._lockdir / f"{issue_id}.retry_at"
+            retry_file.write_text(str(retry_at))
+            print(
+                f"[daemon] {issue_id}: attempt {count}/{self.config.max_retries}, retry in {delay}s"
+            )
+
+    def resume_in_progress(self, controller: RunController) -> None:
+        """Resume issues that were in_progress when the daemon last stopped."""
+        if not self._in_progress:
+            return
+        print(f"[daemon] resuming {len(self._in_progress)} in-progress issues")
+        for issue_id in list(self._in_progress):
+            try:
+                result = controller.advance_to_completion(issue_id)
+                print(f"[daemon] resumed {issue_id}: state={result.state.value}")
+                self._in_progress.discard(issue_id)
+                self._processed.add(issue_id)
+            except Exception as exc:
+                print(f"[daemon] resume {issue_id} failed: {exc}")
+                self._in_progress.discard(issue_id)
 
     def _notify(self, issue_id: str, mergeable: bool) -> None:
         status = "mergeable=true" if mergeable else "mergeable=false"
