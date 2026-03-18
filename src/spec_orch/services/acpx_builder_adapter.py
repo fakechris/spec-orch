@@ -118,10 +118,8 @@ class AcpxBuilderAdapter:
             )
 
         stderr_lines: list[str] = []
-        stderr_thread = threading.Thread(target=self._drain_stderr, args=(process, stderr_lines))
-        stderr_thread.start()
 
-        try:
+        def _read_stdout() -> None:
             assert process.stdout is not None
             for line in process.stdout:
                 stdout_lines.append(line)
@@ -136,11 +134,27 @@ class AcpxBuilderAdapter:
                 except json.JSONDecodeError:
                     pass
 
+        stdout_thread = threading.Thread(target=_read_stdout, daemon=True)
+        stderr_thread = threading.Thread(
+            target=self._drain_stderr,
+            args=(process, stderr_lines),
+            daemon=True,
+        )
+        stdout_thread.start()
+        stderr_thread.start()
+
+        timed_out = False
+        try:
             process.wait(timeout=self.absolute_timeout_seconds)
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
-            stderr_thread.join(timeout=5)
+            timed_out = True
+
+        stdout_thread.join(timeout=5)
+        stderr_thread.join(timeout=5)
+
+        if timed_out:
             return BuilderResult(
                 succeeded=False,
                 command=cmd,
@@ -151,10 +165,8 @@ class AcpxBuilderAdapter:
                 agent=self.AGENT_NAME,
             )
 
-        stderr_thread.join(timeout=5)
         stderr_text = "".join(stderr_lines)
 
-        self.map_events(raw_events)
         compliance = default_turn_contract_compliance()
         succeeded = process.returncode == 0
 
@@ -197,7 +209,7 @@ class AcpxBuilderAdapter:
             params = raw.get("params", {})
 
             if ev_type == "text" or method == "text":
-                text = params.get("text", "") if params else raw.get("text", "")
+                text = params.get("text", raw.get("text", "")) if params else raw.get("text", "")
                 if text:
                     result.append(BuilderEvent(timestamp=ts, kind="message", text=str(text)))
 
@@ -289,13 +301,19 @@ class AcpxBuilderAdapter:
             "-s",
             self.session_name or "default",
         ]
-        subprocess.run(
+        result = subprocess.run(
             cmd,
             cwd=workspace,
             capture_output=True,
             text=True,
             check=False,
         )
+        if result.returncode != 0:
+            logger.warning(
+                "Session ensure failed (rc=%d): %s",
+                result.returncode,
+                result.stderr.strip(),
+            )
 
     def cancel_session(self, workspace: Path) -> None:
         """Cancel the current prompt in the named session."""
