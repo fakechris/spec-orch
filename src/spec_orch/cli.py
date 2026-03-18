@@ -56,6 +56,8 @@ strategy_app = typer.Typer(help="Plan strategy evolution and scoper hints.")
 app.add_typer(strategy_app, name="strategy")
 policy_app = typer.Typer(help="Policy distiller — deterministic code policies.")
 app.add_typer(policy_app, name="policy")
+contract_app = typer.Typer(help="Task contract generation and management.")
+app.add_typer(contract_app, name="contract")
 
 
 def _resolve_version() -> str:
@@ -3085,6 +3087,70 @@ def memory_ingest_openspec(
     typer.echo(f"Ingested {total} OpenSpec entries into Memory:")
     for layer_name, n in counts.items():
         typer.echo(f"  {layer_name}: {n}")
+
+
+@contract_app.command("generate")
+def contract_generate(
+    issue_id: str = typer.Argument(help="Issue identifier (e.g. SPC-1)"),
+    output: str = typer.Option("", help="Output file path (default: stdout)"),
+) -> None:
+    """Generate a TaskContract from an issue definition."""
+    from spec_orch.domain.task_contract import generate_contract_from_issue
+
+    root = Path.cwd()
+    source = FixtureIssueSource(repo_root=root)
+    issue = source.load(issue_id)
+    contract = generate_contract_from_issue(issue)
+
+    errors = contract.validate()
+    if errors:
+        for err in errors:
+            typer.echo(f"  WARNING: {err}", err=True)
+
+    data = contract.to_dict()
+    content = yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+    if output:
+        Path(output).write_text(content)
+        typer.echo(f"Contract written to {output}")
+    else:
+        typer.echo(content)
+
+
+@contract_app.command("validate")
+def contract_validate(
+    path: str = typer.Argument(help="Path to contract YAML file"),
+) -> None:
+    """Validate a TaskContract YAML file."""
+    from spec_orch.domain.task_contract import TaskContract
+
+    data = yaml.safe_load(Path(path).read_text())
+    contract = TaskContract.from_dict(data)
+    errors = contract.validate()
+    if errors:
+        for err in errors:
+            typer.echo(f"  ERROR: {err}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"Contract {contract.contract_id} is valid (risk: {contract.risk_level})")
+
+
+@contract_app.command("assess-risk")
+def contract_assess_risk(
+    issue_id: str = typer.Argument(help="Issue identifier"),
+) -> None:
+    """Assess the risk level of an issue for contract purposes."""
+    from spec_orch.domain.task_contract import assess_risk_level
+
+    root = Path.cwd()
+    source = FixtureIssueSource(repo_root=root)
+    issue = source.load(issue_id)
+    risk = assess_risk_level(
+        title=issue.title,
+        summary=issue.summary,
+        files_in_scope=list(issue.context.files_to_read),
+        run_class=issue.run_class,
+    )
+    typer.echo(f"Issue {issue_id}: risk_level={risk}")
 
 
 def main() -> None:
