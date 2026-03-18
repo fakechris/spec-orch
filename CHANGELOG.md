@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-03-18
+
+### Added
+
+- **VISION.md** (EN/ZH): Project manifesto — 7 theses, 7-plane architecture, north star, positioning as "the control plane for spec-driven software delivery"
+- **README.zh.md**: Full Chinese README matching English version
+- **Seven Planes Architecture** (`docs/architecture/seven-planes.md`): Complete codebase-to-plane mapping with competitor analysis (Capy, Fabro, Lody, Composio, Thariq, LangChain)
+- **Roadmap v2** (`docs/plans/2026-03-roadmap-v2.md`): Priority-ordered roadmap organized by 7 planes (P0–P6)
+
+### Changed
+
+- **README.md**: Rewritten from feature-list style to control-plane narrative — seven-plane architecture, bilingual links, version corrected to 0.5.0, commands organized by plane
+- **pyproject.toml**: Description updated to control-plane positioning
+
 ## [0.5.0] - 2026-03-18
 
 ### Added
@@ -119,6 +133,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spec deviation tracking
 - Retrospective generation
 
+[0.5.1]: https://github.com/fakechris/spec-orch/releases/tag/v0.5.1
+[0.5.0]: https://github.com/fakechris/spec-orch/releases/tag/v0.5.0
+[0.4.0]: https://github.com/fakechris/spec-orch/releases/tag/v0.4.0
 [0.3.0]: https://github.com/fakechris/spec-orch/releases/tag/v0.3.0
 [0.2.0]: https://github.com/fakechris/spec-orch/releases/tag/v0.2.0
 [0.1.0]: https://github.com/fakechris/spec-orch/releases/tag/v0.1.0
