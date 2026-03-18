@@ -41,35 +41,59 @@ class TestBuildCommand:
         assert "-y" in cmd
         assert "acpx" in cmd
         assert "opencode" in cmd
+        assert "exec" in cmd
         assert "--format" in cmd
         assert "json" in cmd
         assert cmd[-1] == "fix the bug"
+
+    def test_exec_subcommand_without_session(self) -> None:
+        adapter = AcpxBuilderAdapter(agent="opencode")
+        cmd = adapter._build_command("fix")
+        agent_idx = cmd.index("opencode")
+        exec_idx = cmd.index("exec")
+        assert exec_idx == agent_idx + 1
+
+    def test_global_flags_before_agent(self) -> None:
+        adapter = AcpxBuilderAdapter(agent="opencode", model="minimax/MiniMax-M2.5")
+        cmd = adapter._build_command("fix")
+        agent_idx = cmd.index("opencode")
+        format_idx = cmd.index("--format")
+        model_idx = cmd.index("--model")
+        assert format_idx < agent_idx, "--format must precede agent"
+        assert model_idx < agent_idx, "--model must precede agent"
+
+    def test_approve_all_for_full_auto(self) -> None:
+        adapter = AcpxBuilderAdapter(permissions="full-auto")
+        cmd = adapter._build_command("prompt")
+        assert "--approve-all" in cmd
+        assert "--permissions" not in cmd
+
+    def test_non_full_auto_skips_approve(self) -> None:
+        adapter = AcpxBuilderAdapter(permissions="approve-reads")
+        cmd = adapter._build_command("prompt")
+        assert "--approve-all" not in cmd
 
     def test_with_session(self) -> None:
         adapter = AcpxBuilderAdapter(agent="codex", session_name="my-session")
         cmd = adapter._build_command("prompt")
         assert "-s" in cmd
+        assert "exec" not in cmd, "exec must not appear when session is set"
         idx = cmd.index("-s")
         assert cmd[idx + 1] == "my-session"
+        agent_idx = cmd.index("codex")
+        assert idx > agent_idx, "-s must follow agent name"
 
-    def test_with_permissions(self) -> None:
-        adapter = AcpxBuilderAdapter(permissions="approve-reads")
-        cmd = adapter._build_command("prompt")
-        assert "--permissions" in cmd
-        idx = cmd.index("--permissions")
-        assert cmd[idx + 1] == "approve-reads"
-
-
-class TestBuildEnv:
-    def test_model_in_env(self) -> None:
+    def test_model_in_command(self) -> None:
         adapter = AcpxBuilderAdapter(model="minimax/MiniMax-M2.5")
-        env = adapter._build_env()
-        assert env.get("ACPX_MODEL") == "minimax/MiniMax-M2.5"
+        cmd = adapter._build_command("fix")
+        assert "--model" in cmd
+        idx = cmd.index("--model")
+        assert cmd[idx + 1] == "minimax/MiniMax-M2.5"
 
-    def test_no_model(self) -> None:
+    def test_no_model_flag_when_none(self) -> None:
         adapter = AcpxBuilderAdapter()
-        env = adapter._build_env()
-        assert "ACPX_MODEL" not in env
+        cmd = adapter._build_command("fix")
+        assert "--model" not in cmd
 
 
 class TestMapEvents:

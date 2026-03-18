@@ -396,24 +396,30 @@ class AcpxBuilderAdapter:
         )
 
     def _build_command(self, prompt: str) -> list[str]:
-        cmd = [self.executable, "-y", self.acpx_package, self.agent]
-
-        if self.session_name:
-            cmd.extend(["-s", self.session_name])
+        # Global flags (--format, --approve-all, --model) go BEFORE the agent
+        # subcommand; session flags (-s) go AFTER the agent name.
+        cmd = [self.executable, "-y", self.acpx_package]
 
         cmd.extend(["--format", "json"])
 
-        if self.permissions:
-            cmd.extend(["--permissions", self.permissions])
+        if self.permissions == "full-auto":
+            cmd.append("--approve-all")
+
+        if self.model:
+            cmd.extend(["--model", self.model])
+
+        cmd.append(self.agent)
+
+        if self.session_name:
+            cmd.extend(["-s", self.session_name])
+        else:
+            cmd.append("exec")
 
         cmd.append(prompt)
         return cmd
 
     def _build_env(self) -> dict[str, str]:
-        env = dict(os.environ)
-        if self.model:
-            env.setdefault("ACPX_MODEL", self.model)
-        return env
+        return dict(os.environ)
 
     def _ensure_session(self, workspace: Path) -> None:
         """Ensure a named session exists (create if needed)."""
@@ -424,7 +430,7 @@ class AcpxBuilderAdapter:
             self.agent,
             "sessions",
             "ensure",
-            "-s",
+            "--name",
             self.session_name or "default",
         ]
         result = subprocess.run(
@@ -450,7 +456,6 @@ class AcpxBuilderAdapter:
             "-y",
             self.acpx_package,
             self.agent,
-            "sessions",
             "cancel",
             "-s",
             self.session_name,

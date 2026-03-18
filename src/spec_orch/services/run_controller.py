@@ -857,14 +857,19 @@ class RunController:
         activity_logger: ActivityLogger | None = None,
     ) -> Callable[[dict[str, Any]], None]:
         def _log(event: dict[str, Any]) -> None:
+            ev_type = event.get("event_type") or event.get("type") or event.get("method", "unknown")
+            msg = event.get("message") or event.get("text", "")
+            if not msg:
+                params = event.get("params", {})
+                msg = params.get("text", "") if isinstance(params, dict) else ""
             self.telemetry_service.log_event(
                 workspace=workspace,
                 run_id=run_id,
                 issue_id=issue_id,
                 component=event.get("component", "builder"),
-                event_type=event["event_type"],
+                event_type=str(ev_type),
                 severity=event.get("severity", "info"),
-                message=event["message"],
+                message=str(msg) if msg else f"event:{ev_type}",
                 adapter=event.get("adapter"),
                 agent=event.get("agent"),
                 data=event.get("data"),
@@ -1098,7 +1103,7 @@ class RunController:
         builder.metadata.setdefault("turn_contract_compliance", default_turn_contract_compliance())
         builder.metadata["run_id"] = run_id
         if not builder.report_path.is_absolute():
-            builder.report_path = workspace / builder.report_path
+            builder.report_path = builder.report_path.resolve()
         from spec_orch.services.codex_exec_builder_adapter import (
             _write_report as write_builder_report,
         )

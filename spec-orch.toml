@@ -5,13 +5,10 @@ poll_interval_seconds = 60
 issue_filter = "assigned_to_me"
 
 [builder]
-adapter = "codex_exec"
-executable = "codex"
-# --- To use OpenCode + MiniMax instead: ---
-# adapter = "opencode"
-# executable = "opencode"
-# model = "minimax/MiniMax-M2.5"
-# timeout_seconds = 1800
+adapter = "acpx"
+agent = "opencode"
+model = "minimax/MiniMax-M2.5"
+timeout_seconds = 1800
 
 [reviewer]
 adapter = "local"

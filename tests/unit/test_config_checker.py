@@ -107,17 +107,17 @@ def test_check_linear_fails_when_team_key_does_not_exist() -> None:
 
 
 def test_check_codex_runs_version_command() -> None:
+    """Legacy test for backward compatibility."""
     checker = ConfigChecker()
     completed = MagicMock(returncode=0, stdout="codex 1.2.3\n", stderr="")
 
     with patch("spec_orch.services.config_checker.subprocess.run", return_value=completed) as run:
         result = checker.check_codex("codex")
 
-    assert result == CheckResult(
-        name="codex",
-        status="pass",
-        message="codex 1.2.3",
-    )
+    assert result.name == "builder"  # Now returns "builder" instead of "codex"
+    assert result.status == "pass"
+    assert "codex_exec" in result.message
+    assert "codex 1.2.3" in result.message
     run.assert_called_once_with(
         ["codex", "--version"],
         capture_output=True,
@@ -127,6 +127,7 @@ def test_check_codex_runs_version_command() -> None:
 
 
 def test_check_codex_fails_when_executable_is_missing() -> None:
+    """Legacy test for backward compatibility."""
     checker = ConfigChecker()
 
     with patch(
@@ -135,11 +136,49 @@ def test_check_codex_fails_when_executable_is_missing() -> None:
     ):
         result = checker.check_codex("missing-codex")
 
-    assert result == CheckResult(
-        name="codex",
-        status="fail",
-        message="Executable not found: missing-codex",
+    assert result.name == "builder"  # Now returns "builder" instead of "codex"
+    assert result.status == "fail"
+    assert "codex_exec" in result.message
+    assert "Executable not found" in result.message
+
+
+def test_check_builder_with_agent_and_model() -> None:
+    """Test check_builder with all parameters including agent and model."""
+    checker = ConfigChecker()
+    completed = MagicMock(returncode=0, stdout="opencode 2.0.0\n", stderr="")
+
+    with patch("spec_orch.services.config_checker.subprocess.run", return_value=completed):
+        result = checker.check_builder(
+            adapter="opencode",
+            executable="opencode",
+            agent="opencode",
+            model="minimax/MiniMax-M2.5",
+        )
+
+    assert result.name == "builder"
+    assert result.status == "pass"
+    assert "adapter=opencode" in result.message
+    assert "agent=opencode" in result.message
+    assert "model=minimax/MiniMax-M2.5" in result.message
+    assert "opencode 2.0.0" in result.message
+
+
+def test_check_builder_acpx_no_executable_check() -> None:
+    """Test that acpx adapter doesn't run executable check."""
+    checker = ConfigChecker()
+
+    result = checker.check_builder(
+        adapter="acpx",
+        executable="npx",
+        agent="codex",
+        model="gpt-4o",
     )
+
+    assert result.name == "builder"
+    assert result.status == "pass"
+    assert "adapter=acpx" in result.message
+    assert "agent=codex" in result.message
+    assert "model=gpt-4o" in result.message
 
 
 def test_check_planner_warns_when_model_is_not_configured() -> None:
@@ -226,8 +265,8 @@ def test_config_check_command_prints_report_and_succeeds(tmp_path: Path) -> None
         ),
         patch.object(
             ConfigChecker,
-            "check_codex",
-            return_value=CheckResult("codex", "pass", "codex 1.2.3"),
+            "check_builder",
+            return_value=CheckResult("builder", "pass", "adapter=codex_exec | codex 1.2.3"),
         ),
         patch.object(
             ConfigChecker,
@@ -251,7 +290,7 @@ def test_config_check_command_prints_report_and_succeeds(tmp_path: Path) -> None
     assert result.exit_code == 0
     assert "[PASS] linear" in result.stdout
     assert "[PASS] linear_api" in result.stdout
-    assert "[PASS] codex" in result.stdout
+    assert "[PASS] builder" in result.stdout
     assert "Summary: 9 pass, 0 warn, 0 fail" in result.stdout
 
 
@@ -294,8 +333,8 @@ def test_config_check_command_exits_nonzero_on_failures(tmp_path: Path) -> None:
         ),
         patch.object(
             ConfigChecker,
-            "check_codex",
-            return_value=CheckResult("codex", "pass", "codex 1.2.3"),
+            "check_builder",
+            return_value=CheckResult("builder", "pass", "adapter=codex_exec | codex 1.2.3"),
         ),
         patch.object(
             ConfigChecker,
