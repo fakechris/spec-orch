@@ -271,7 +271,11 @@ class SpecOrchDaemon:
             print(f"[daemon] poll error: {exc}")
             return
 
-        for raw_issue in issues:
+        sorted_issues = sorted(
+            issues,
+            key=lambda i: 0 if self._is_hotfix(i) else 1,
+        )
+        for raw_issue in sorted_issues:
             issue_id = raw_issue.get("identifier", "")
             linear_uid = raw_issue.get("id", "")
             if not issue_id or issue_id in self._processed:
@@ -311,6 +315,7 @@ class SpecOrchDaemon:
                     raw_issue,
                     client,
                     controller,
+                    is_hotfix=is_hotfix,
                 )
 
     @staticmethod
@@ -352,15 +357,21 @@ class SpecOrchDaemon:
         raw_issue: dict[str, Any],
         client: LinearClient,
         controller: RunController,
+        *,
+        is_hotfix: bool = False,
     ) -> None:
         """Execute a single issue through the standard pipeline."""
+        from spec_orch.domain.models import FlowType
+
         linear_uid = raw_issue.get("id", "")
-        print(f"[daemon] processing {issue_id} (single issue pipeline)")
+        flow_type = FlowType.HOTFIX if is_hotfix else None
+        label = "hotfix" if is_hotfix else "single issue"
+        print(f"[daemon] processing {issue_id} ({label} pipeline)")
         self._in_progress.add(issue_id)
         self._save_state()
         self._event_bus.emit_issue_state(issue_id, "building")
         try:
-            result = controller.advance_to_completion(issue_id)
+            result = controller.advance_to_completion(issue_id, flow_type=flow_type)
             state = result.state
             mergeable = result.gate.mergeable
             blocked = ",".join(result.gate.failed_conditions) or "none"
@@ -376,7 +387,7 @@ class SpecOrchDaemon:
                 self._notify(issue_id, mergeable)
                 pr_created = self._auto_create_pr(issue_id, result)
 
-                gate_policy = self._load_gate_policy()
+                gate_policy = self._load_gate_policy_for("hotfix" if is_hotfix else "daemon")
                 auto_merged = pr_created and gate_policy.auto_merge and mergeable
 
                 if pr_created and linear_uid:
@@ -581,6 +592,10 @@ class SpecOrchDaemon:
 
     def _load_gate_policy(self) -> Any:
         """Load gate policy with daemon profile applied."""
+        return self._load_gate_policy_for("daemon")
+
+    def _load_gate_policy_for(self, profile: str) -> Any:
+        """Load gate policy with the specified profile applied."""
         from spec_orch.services.gate_service import GatePolicy
 
         policy_path = self.repo_root / "gate.policy.yaml"
@@ -588,7 +603,7 @@ class SpecOrchDaemon:
             base_policy = GatePolicy.from_yaml(policy_path)
         else:
             base_policy = GatePolicy.default()
-        return base_policy.with_profile("daemon")
+        return base_policy.with_profile(profile)
 
     def _triage_issue(
         self,

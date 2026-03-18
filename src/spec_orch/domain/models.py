@@ -157,6 +157,7 @@ class Issue:
     mission_id: str | None = None
     spec_section: str | None = None
     run_class: str | None = None
+    labels: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
