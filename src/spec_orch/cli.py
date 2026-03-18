@@ -182,7 +182,14 @@ def init_project(
     typer.echo("\nRunning config check...")
     checker = ConfigChecker()
     results = checker.check_toml(config_path)
+    if profile != ProfileLevel.full:
+        results = [r for r in results if r.status != "fail" or "Missing section" not in r.message]
     _print_check_report(results)
+    if profile != ProfileLevel.full:
+        typer.echo(
+            f"\nNote: '{profile.value}' profile omits optional sections. "
+            "Run 'spec-orch init --profile full' for a complete config."
+        )
 
 
 @app.command("dashboard")
