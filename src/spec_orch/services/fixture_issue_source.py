@@ -10,8 +10,14 @@ _VALID_ISSUE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class FixtureIssueSource:
-    def __init__(self, *, repo_root: Path) -> None:
+    def __init__(
+        self,
+        *,
+        repo_root: Path,
+        default_verification_commands: dict[str, list[str]] | None = None,
+    ) -> None:
         self.repo_root = repo_root
+        self._default_verify = default_verification_commands or {}
 
     def load(self, issue_id: str) -> Issue:
         if not _VALID_ISSUE_ID_RE.match(issue_id):
@@ -32,12 +38,17 @@ class FixtureIssueSource:
             architecture_notes=ctx_raw.get("architecture_notes", ""),
             constraints=ctx_raw.get("constraints", []),
         )
+        verify = (
+            data["verification_commands"]
+            if "verification_commands" in data
+            else dict(self._default_verify)
+        )
         return Issue(
             issue_id=data["issue_id"],
             title=data["title"],
             summary=data["summary"],
             builder_prompt=data.get("builder_prompt"),
-            verification_commands=data.get("verification_commands", {}),
+            verification_commands=verify,
             context=context,
             acceptance_criteria=data.get("acceptance_criteria", []),
         )
