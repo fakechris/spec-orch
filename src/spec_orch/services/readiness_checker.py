@@ -3,13 +3,20 @@
 Evaluates whether an issue description is complete enough for an agent
 to execute autonomously.  Uses rule-based checks first, optionally
 followed by an LLM assessment that generates targeted questions.
+
+When a ``ContextBundle`` is provided, the LLM assessment includes
+spec snapshots, constraints, and historical failure samples to produce
+more calibrated triage decisions.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from spec_orch.domain.context import ContextBundle
 
 
 @dataclass(slots=True)
@@ -67,7 +74,11 @@ class ReadinessChecker:
         self._planner = planner
         self._evidence_context = evidence_context
 
-    def check(self, description: str | None) -> ReadinessResult:
+    def check(
+        self,
+        description: str | None,
+        context: ContextBundle | None = None,
+    ) -> ReadinessResult:
         """Run rule-based checks, optionally followed by LLM assessment."""
         if not description or not description.strip():
             return ReadinessResult(
@@ -85,7 +96,7 @@ class ReadinessChecker:
             )
 
         if self._planner is not None:
-            return self._llm_check(description)
+            return self._llm_check(description, context)
 
         return ReadinessResult(ready=True)
 
@@ -139,7 +150,11 @@ class ReadinessChecker:
         }
         return [templates.get(m, f"Please provide: {m}") for m in missing]
 
-    def _llm_check(self, description: str) -> ReadinessResult:
+    def _llm_check(
+        self,
+        description: str,
+        context: ContextBundle | None = None,
+    ) -> ReadinessResult:
         """Use the planner LLM to assess description completeness."""
         evidence_block = ""
         if self._evidence_context:
@@ -149,6 +164,36 @@ class ReadinessChecker:
                 "failure rates may need more explicit acceptance criteria "
                 "or scope constraints:\n\n" + self._evidence_context + "\n\n"
             )
+
+        context_block = ""
+        if context is not None:
+            parts: list[str] = []
+            if context.task.spec_snapshot_text:
+                parts.append(f"### Spec Snapshot\n{context.task.spec_snapshot_text[:2000]}")
+            if context.task.constraints:
+                parts.append(
+                    "### Constraints\n" + "\n".join(f"- {c}" for c in context.task.constraints)
+                )
+            if context.task.acceptance_criteria:
+                parts.append(
+                    "### Acceptance Criteria\n"
+                    + "\n".join(f"- {c}" for c in context.task.acceptance_criteria)
+                )
+            if context.execution.file_tree:
+                parts.append(
+                    f"### Codebase Structure\n```\n{context.execution.file_tree[:1000]}\n```"
+                )
+            if context.learning.similar_failure_samples:
+                lines = []
+                for s in context.learning.similar_failure_samples[:3]:
+                    lines.append(f"- {s.get('key', '?')}: {s.get('content', '')[:200]}")
+                parts.append("### Recent Failure Samples (from similar tasks)\n" + "\n".join(lines))
+            if parts:
+                context_block = (
+                    "\n\nAdditional context from the orchestration system:\n\n"
+                    + "\n\n".join(parts)
+                    + "\n\n"
+                )
 
         prompt = (
             "You are a triage assistant. Evaluate whether the following issue "
@@ -160,6 +205,7 @@ class ReadinessChecker:
             "3. Scope (which files or areas are affected)\n"
             "4. Any ambiguities that would block execution\n\n"
             + evidence_block
+            + context_block
             + "If the description is sufficient, respond with exactly: READY\n"
             "If not, respond with a numbered list of specific questions "
             "the agent needs answered before it can proceed.\n\n"
