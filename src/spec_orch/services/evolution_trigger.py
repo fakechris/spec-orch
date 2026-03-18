@@ -182,7 +182,8 @@ class EvolutionTrigger:
             return {}
         try:
             data = json.loads(manifest_path.read_text())
-            return data.get("artifacts", {})
+            artifacts: dict[str, str] = data.get("artifacts", {})
+            return artifacts
         except (json.JSONDecodeError, OSError):
             logger.debug("Failed to load artifact manifest from %s", manifest_path, exc_info=True)
             return {}
