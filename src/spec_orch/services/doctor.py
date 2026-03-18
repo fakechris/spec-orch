@@ -77,14 +77,16 @@ class Doctor:
         """Derive required env keys from active config sections."""
         raw = self._load_raw()
         keys: list[str] = []
-        if "planner" in raw or "conversation" in raw:
-            planner = raw.get("planner", {})
-            if isinstance(planner, dict):
-                keys.append(planner.get("api_key_env", "SPEC_ORCH_LLM_API_KEY"))
-        if "linear" in raw:
-            linear = raw.get("linear", {})
-            if isinstance(linear, dict):
-                keys.append(linear.get("token_env", "SPEC_ORCH_LINEAR_TOKEN"))
+        planner = raw.get("planner") or raw.get("conversation")
+        if isinstance(planner, dict) and planner:
+            key_env = planner.get("api_key_env")
+            if key_env:
+                keys.append(key_env)
+        linear = raw.get("linear")
+        if isinstance(linear, dict) and linear:
+            token_env = linear.get("token_env")
+            if token_env:
+                keys.append(token_env)
         return keys
 
     def _check_env_file(self) -> DoctorCheck:
