@@ -163,6 +163,184 @@ class TestMapEvents:
         assert events == []
 
 
+class TestCodexEventMapping:
+    """Verify Codex-style events are correctly mapped via ACPX."""
+
+    def test_command_start(self) -> None:
+        adapter = AcpxBuilderAdapter(agent="codex")
+        events = adapter.map_events(
+            [
+                {
+                    "type": "item.started",
+                    "item": {"type": "command_execution", "command": "npm test"},
+                }
+            ]
+        )
+        assert len(events) == 1
+        assert events[0].kind == "command_start"
+        assert events[0].text == "npm test"
+
+    def test_command_complete(self) -> None:
+        adapter = AcpxBuilderAdapter(agent="codex")
+        events = adapter.map_events(
+            [
+                {
+                    "type": "item.completed",
+                    "item": {
+                        "type": "command_execution",
+                        "command": "npm test",
+                        "exit_code": 0,
+                    },
+                }
+            ]
+        )
+        assert len(events) == 1
+        assert events[0].kind == "command_end"
+        assert events[0].exit_code == 0
+
+    def test_agent_message(self) -> None:
+        adapter = AcpxBuilderAdapter(agent="codex")
+        events = adapter.map_events(
+            [
+                {
+                    "type": "item.completed",
+                    "item": {"type": "agent_message", "text": "Done!"},
+                }
+            ]
+        )
+        assert len(events) == 1
+        assert events[0].kind == "message"
+        assert events[0].text == "Done!"
+
+    def test_file_change(self) -> None:
+        adapter = AcpxBuilderAdapter(agent="codex")
+        events = adapter.map_events(
+            [
+                {
+                    "type": "item.completed",
+                    "item": {"type": "file_change", "file": "src/app.py"},
+                }
+            ]
+        )
+        assert len(events) == 1
+        assert events[0].kind == "file_change"
+        assert events[0].file_path == "src/app.py"
+
+    def test_reasoning(self) -> None:
+        adapter = AcpxBuilderAdapter(agent="codex")
+        events = adapter.map_events(
+            [
+                {
+                    "type": "item.completed",
+                    "item": {"type": "reasoning", "text": "thinking..."},
+                }
+            ]
+        )
+        assert len(events) == 1
+        assert events[0].kind == "reasoning"
+
+    def test_plan_updated(self) -> None:
+        adapter = AcpxBuilderAdapter(agent="codex")
+        events = adapter.map_events([{"type": "turn.plan.updated", "items": ["step1", "step2"]}])
+        assert len(events) == 1
+        assert events[0].kind == "plan"
+        assert events[0].metadata["items"] == ["step1", "step2"]
+
+
+class TestOpenCodeEventMapping:
+    """Verify OpenCode-style events are correctly mapped via ACPX."""
+
+    def test_step_start(self) -> None:
+        adapter = AcpxBuilderAdapter(agent="opencode")
+        events = adapter.map_events([{"type": "step_start"}])
+        assert len(events) == 1
+        assert events[0].kind == "message"
+
+    def test_tool_use_bash(self) -> None:
+        adapter = AcpxBuilderAdapter(agent="opencode")
+        events = adapter.map_events(
+            [
+                {
+                    "type": "tool_use",
+                    "part": {
+                        "tool": "bash",
+                        "state": {
+                            "status": "completed",
+                            "input": {"command": "ls"},
+                            "output": "file1\nfile2",
+                        },
+                    },
+                }
+            ]
+        )
+        assert len(events) == 1
+        assert events[0].kind == "command_end"
+        assert events[0].text == "ls"
+
+    def test_tool_use_write(self) -> None:
+        adapter = AcpxBuilderAdapter(agent="opencode")
+        events = adapter.map_events(
+            [
+                {
+                    "type": "tool_use",
+                    "part": {
+                        "tool": "write",
+                        "state": {
+                            "status": "completed",
+                            "input": {"filePath": "src/foo.py"},
+                        },
+                    },
+                }
+            ]
+        )
+        assert len(events) == 1
+        assert events[0].kind == "file_change"
+        assert events[0].file_path == "src/foo.py"
+
+    def test_tool_use_pending_skipped(self) -> None:
+        adapter = AcpxBuilderAdapter(agent="opencode")
+        events = adapter.map_events(
+            [
+                {
+                    "type": "tool_use",
+                    "part": {
+                        "tool": "bash",
+                        "state": {"status": "pending"},
+                    },
+                }
+            ]
+        )
+        assert events == []
+
+    def test_step_finish(self) -> None:
+        adapter = AcpxBuilderAdapter(agent="opencode")
+        events = adapter.map_events([{"type": "step_finish", "part": {"reason": "stop"}}])
+        assert len(events) == 1
+        assert events[0].kind == "turn_end"
+        assert events[0].text == "stop"
+
+
+class TestMixedEvents:
+    """Verify that ACPX can handle mixed ACP + native events."""
+
+    def test_mixed_acp_and_codex(self) -> None:
+        adapter = AcpxBuilderAdapter()
+        events = adapter.map_events(
+            [
+                {"type": "text", "params": {"text": "Starting"}},
+                {
+                    "type": "item.completed",
+                    "item": {"type": "command_execution", "command": "test"},
+                },
+                {"type": "result", "params": {"text": "Done"}},
+            ]
+        )
+        assert len(events) == 3
+        assert events[0].kind == "message"
+        assert events[1].kind == "command_end"
+        assert events[2].kind == "turn_end"
+
+
 class TestRun:
     @patch("spec_orch.services.acpx_builder_adapter.subprocess.Popen")
     def test_run_success(self, mock_popen: MagicMock, tmp_path: Path) -> None:
