@@ -951,19 +951,11 @@ class RunController:
 
     def _maybe_trigger_evolution(self, workspace: Path) -> None:
         """Run the evolution cycle if configured and threshold is met."""
-        try:
-            import tomllib
-        except ImportError:
-            try:
-                import tomli as tomllib  # type: ignore[no-redef]
-            except ImportError:
-                return
         toml_path = self.repo_root / "spec-orch.toml"
         if not toml_path.exists():
             return
         try:
-            with open(toml_path, "rb") as f:
-                toml_data = tomllib.load(f)
+            toml_data = self._load_toml(toml_path)
         except Exception:
             return
         from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
@@ -1236,6 +1228,24 @@ class RunController:
             return RunState(raw)
         except ValueError:
             return RunState.GATE_EVALUATED
+
+    @staticmethod
+    def _load_toml(path: Path) -> dict[str, Any]:
+        """Load a TOML file, supporting both Python 3.11+ and older versions."""
+        import sys
+
+        if sys.version_info >= (3, 11):
+            import tomllib
+
+            with open(path, "rb") as f:
+                return tomllib.load(f)  # type: ignore[no-any-return]
+        try:
+            import tomli
+
+            with open(path, "rb") as f:
+                return tomli.load(f)  # type: ignore[no-any-return]
+        except ImportError:
+            raise ImportError("tomli is required on Python < 3.11")
 
     @staticmethod
     def _write_artifact_manifest(
