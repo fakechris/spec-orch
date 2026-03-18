@@ -18,10 +18,11 @@ class VerificationService:
             if not command:
                 summary.details[step_name] = VerificationDetail(
                     command=[],
-                    exit_code=-1,
+                    exit_code=0,
                     stdout="",
-                    stderr="not configured",
+                    stderr="not configured — skipped",
                 )
+                setattr(summary, f"{step_name}_passed", True)
                 continue
 
             resolved_command = [self._resolve_token(token) for token in command]

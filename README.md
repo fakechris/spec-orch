@@ -358,7 +358,9 @@ spec-orch config check
 ### Quick Start
 
 ```bash
-cp .env.example .env   # Add your API tokens
+spec-orch init                       # Auto-detect project type, generate spec-orch.toml
+cp .env.example .env                 # Add your API tokens
+spec-orch config check               # Verify configuration
 spec-orch mission create "My First Feature"
 spec-orch discuss
 # Type @freeze when done
@@ -510,30 +512,37 @@ spec-orch --version                   # Show version
 
 ## Configuration
 
-SpecOrch is configured via `spec-orch.toml`:
+SpecOrch is configured via `spec-orch.toml`. Run `spec-orch init` to auto-detect
+your project type and generate an initial configuration:
+
+```bash
+spec-orch init          # detects Python/Node/Rust/Go/Java/Swift/.NET
+spec-orch init --force  # overwrite existing config
+```
+
+Minimal example:
 
 ```toml
+[issue]
+source = "linear"          # "fixture" (local JSON) or "linear" (Linear API)
+
 [linear]
 token_env = "SPEC_ORCH_LINEAR_TOKEN"
 team_key = "SON"
 
 [builder]
-adapter = "codex_exec"       # or "opencode", "droid", "claude_code", "acpx", "acpx_opencode"
-executable = "codex"          # path to the builder CLI
-# model = "minimax/MiniMax-M2.5"  # for opencode with custom model
-# agent = "opencode"              # for acpx adapter: target agent
-# timeout_seconds = 1800
+adapter = "codex_exec"     # or "opencode", "droid", "claude_code", "acpx"
+# agent = "opencode"       # for acpx adapter: target agent
+# model = "minimax/MiniMax-M2.5"
 
 [reviewer]
-adapter = "local"             # or "llm" for LLM-driven review
-# model = "openai/MiniMax-M2.5"  # for LLM review with MiniMax
-# api_key_env = "SPEC_ORCH_LLM_API_KEY"
-# api_base_env = "SPEC_ORCH_LLM_API_BASE_OPENAI"
+adapter = "local"          # or "llm" for LLM-driven review
 
-[planner]
-model = "minimax/MiniMax-M1"
-api_type = "litellm"
-api_key_env = "MINIMAX_API_KEY"
+[verification]
+lint = ["{python}", "-m", "ruff", "check", "src/"]
+typecheck = ["{python}", "-m", "mypy", "src/"]
+test = ["{python}", "-m", "pytest", "-q"]
+build = ["{python}", "-c", "print('build ok')"]
 
 [github]
 base_branch = "main"
@@ -542,14 +551,13 @@ base_branch = "main"
 max_concurrent = 1
 consume_state = "Ready"
 exclude_labels = ["blocked", "needs-clarification"]
-max_retries = 3                       # Dead letter after N failures
-retry_base_delay_seconds = 60         # Exponential backoff base (60, 120, 240...)
-hotfix_labels = ["hotfix", "urgent", "P0"]  # Skip triage for these labels
+max_retries = 3
+hotfix_labels = ["hotfix", "urgent", "P0"]
 
 [evolution]
 enabled = true
-trigger_after_n_runs = 5              # Trigger evolution cycle every N runs
-auto_promote = false                  # Auto-promote evolved prompts
+trigger_after_n_runs = 5
+auto_promote = false
 ```
 
 Environment variables are loaded automatically from `.env` in the project root.

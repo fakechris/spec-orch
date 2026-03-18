@@ -37,7 +37,7 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     assert result.report.exists()
     assert result.gate.mergeable is False
     assert "builder" not in result.gate.failed_conditions
-    assert "verification" in result.gate.failed_conditions
+    assert "verification" not in result.gate.failed_conditions
     assert "review" in result.gate.failed_conditions
     assert "human_acceptance" in result.explain.read_text()
     assert '"adapter": "codex_exec"' in result.report.read_text()
@@ -61,7 +61,7 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     assert any(
         event["event_type"] == "gate_evaluated"
         and event["data"]["mergeable"] is False
-        and "verification" in event["data"]["failed_conditions"]
+        and "verification" not in event["data"]["failed_conditions"]
         for event in events
     )
 

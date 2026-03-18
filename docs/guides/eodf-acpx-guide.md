@@ -31,9 +31,24 @@ export MINIMAX_API_KEY="sk-cp-xxxxx"
 
 ### spec-orch.toml 配置
 
-确保 `spec-orch.toml` 的 `[builder]` 段配置为 ACPX：
+可以用 `spec-orch init` 自动生成基础配置，然后手动调整 builder 段为 ACPX：
+
+```bash
+spec-orch init  # 如果还没有 spec-orch.toml
+```
+
+确保 `spec-orch.toml` 包含以下配置：
 
 ```toml
+[issue]
+source = "linear"
+
+[verification]
+lint = ["{python}", "-m", "ruff", "check", "src/"]
+typecheck = ["{python}", "-m", "mypy", "src/"]
+test = ["{python}", "-m", "pytest", "-q"]
+build = ["{python}", "-c", "print('build ok')"]
+
 [builder]
 adapter = "acpx"
 agent = "opencode"
@@ -48,6 +63,8 @@ spec-orch config check
 # 期望输出:
 # [PASS] builder: adapter=acpx, agent=opencode, model=minimax/MiniMax-M2.5
 ```
+
+> 配置详情参见 [AI Config Guide](ai-config-guide.md)，包含各语言的模板。
 
 ---
 

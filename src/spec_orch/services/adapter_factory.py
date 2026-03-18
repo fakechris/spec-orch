@@ -4,15 +4,24 @@ from __future__ import annotations
 
 import logging
 import os
+import shlex
 from pathlib import Path
 from typing import Any
 
-from spec_orch.domain.protocols import BuilderAdapter, ReviewAdapter
+from spec_orch.domain.protocols import BuilderAdapter, IssueSource, ReviewAdapter
 
 logger = logging.getLogger(__name__)
 
 _BUILDER_REGISTRY: dict[str, type] = {}
 _REVIEWER_REGISTRY: dict[str, type] = {}
+_ISSUE_SOURCE_REGISTRY: dict[str, type] = {}
+
+_DEFAULT_PYTHON_VERIFICATION: dict[str, list[str]] = {
+    "lint": ["{python}", "-m", "ruff", "check", "src/"],
+    "typecheck": ["{python}", "-m", "mypy", "src/"],
+    "test": ["{python}", "-m", "pytest", "-q"],
+    "build": ["{python}", "-c", "print('build ok')"],
+}
 
 
 def register_builder(name: str, cls: type) -> None:
@@ -21,6 +30,10 @@ def register_builder(name: str, cls: type) -> None:
 
 def register_reviewer(name: str, cls: type) -> None:
     _REVIEWER_REGISTRY[name] = cls
+
+
+def register_issue_source(name: str, cls: type) -> None:
+    _ISSUE_SOURCE_REGISTRY[name] = cls
 
 
 def _load_toml(repo_root: Path) -> dict[str, Any]:
@@ -142,3 +155,68 @@ def create_reviewer(
         return rev_instance
 
     raise ValueError(f"Unknown reviewer adapter: {adapter_name!r}. Supported: local, llm")
+
+
+def load_verification_commands(
+    repo_root: Path, *, toml_override: dict[str, Any] | None = None
+) -> dict[str, list[str]]:
+    """Load verification commands from spec-orch.toml [verification] section.
+
+    Falls back to Python defaults if no [verification] section is present,
+    preserving backward compatibility.
+    """
+    raw = toml_override or _load_toml(repo_root)
+    cfg = raw.get("verification")
+    if cfg is None:
+        return dict(_DEFAULT_PYTHON_VERIFICATION)
+    commands: dict[str, list[str]] = {}
+    for step in ("lint", "typecheck", "test", "build"):
+        cmd = cfg.get(step)
+        if cmd is not None:
+            if isinstance(cmd, str):
+                commands[step] = shlex.split(cmd)
+            elif isinstance(cmd, list):
+                commands[step] = [str(c) for c in cmd]
+    return commands
+
+
+def create_issue_source(
+    repo_root: Path,
+    *,
+    toml_override: dict[str, Any] | None = None,
+    source_override: str | None = None,
+) -> IssueSource:
+    """Create an IssueSource from spec-orch.toml [issue] section.
+
+    Args:
+        repo_root: Project root directory.
+        toml_override: Pre-loaded TOML config (optional).
+        source_override: Explicit source name, overrides [issue].source.
+    """
+    raw = toml_override or _load_toml(repo_root)
+    issue_cfg = raw.get("issue", {})
+    source_name = source_override or issue_cfg.get("source", "fixture")
+    verify_cmds = load_verification_commands(repo_root, toml_override=raw)
+
+    if source_name == "linear":
+        from spec_orch.services.linear_client import LinearClient
+        from spec_orch.services.linear_issue_source import LinearIssueSource
+
+        client = LinearClient()
+        return LinearIssueSource(
+            client=client,
+            default_verification_commands=verify_cmds,
+        )
+
+    elif source_name == "fixture":
+        from spec_orch.services.fixture_issue_source import FixtureIssueSource
+
+        return FixtureIssueSource(repo_root=repo_root)
+
+    elif source_name in _ISSUE_SOURCE_REGISTRY:
+        src_cfg = {k: v for k, v in issue_cfg.items() if k != "source"}
+        src_cfg["verification_commands"] = verify_cmds
+        instance: IssueSource = _ISSUE_SOURCE_REGISTRY[source_name](**src_cfg)
+        return instance
+
+    raise ValueError(f"Unknown issue source: {source_name!r}. Supported: fixture, linear")

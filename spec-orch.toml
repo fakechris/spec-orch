@@ -1,8 +1,17 @@
+[issue]
+source = "linear"
+
 [linear]
 token_env = "SPEC_ORCH_LINEAR_TOKEN"
 team_key = "SON"
 poll_interval_seconds = 60
 issue_filter = "assigned_to_me"
+
+[verification]
+lint = ["{python}", "-m", "ruff", "check", "src/"]
+typecheck = ["{python}", "-m", "mypy", "src/"]
+test = ["{python}", "-m", "pytest", "-q"]
+build = ["{python}", "-c", "print('build ok')"]
 
 [builder]
 adapter = "acpx"

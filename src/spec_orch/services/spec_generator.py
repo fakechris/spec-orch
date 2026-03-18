@@ -1,24 +1,29 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from spec_orch.services.plan_parser import PlanData
 
 _PATH_IN_BACKTICKS_RE = re.compile(r"`([^`\n]+)`")
 
 
-def generate_fixture(plan: PlanData, issue_id: str) -> dict:
+def generate_fixture(
+    plan: PlanData,
+    issue_id: str,
+    *,
+    repo_root: Path | None = None,
+) -> dict:
+    from spec_orch.services.adapter_factory import load_verification_commands
+
+    verify = load_verification_commands(repo_root) if repo_root is not None else {}
+
     return {
         "issue_id": issue_id,
         "title": plan.title,
         "summary": plan.summary,
         "builder_prompt": generate_builder_prompt(plan),
-        "verification_commands": {
-            "lint": ["{python}", "-m", "ruff", "check", "src/"],
-            "typecheck": ["{python}", "-m", "mypy", "src/"],
-            "test": ["{python}", "-m", "pytest", "tests/", "-q"],
-            "build": ["{python}", "-c", "print('build ok')"],
-        },
+        "verification_commands": verify,
         "acceptance_criteria": plan.acceptance_criteria,
         "context": {
             "files_to_read": plan.files_to_read,

@@ -2,6 +2,35 @@
 
 Complete reference for the `spec-orch.toml` configuration file.
 
+## [issue]
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `source` | string | `"fixture"` | Issue source: `fixture`, `linear` (extensible via `register_issue_source()`) |
+
+When `source = "fixture"`, issues are loaded from `fixtures/issues/<id>.json`.
+When `source = "linear"`, the `[linear]` section must be configured.
+
+## [verification]
+
+Defines the shell commands for each verification step. Omitted steps are
+treated as "not applicable" and automatically pass the gate.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `lint` | list[string] | — | Lint command (e.g., `["{python}", "-m", "ruff", "check", "src/"]`) |
+| `typecheck` | list[string] | — | Type check command |
+| `test` | list[string] | — | Test command |
+| `build` | list[string] | — | Build command |
+
+If the entire `[verification]` section is absent, spec-orch falls back to
+Python defaults (ruff/mypy/pytest) for backward compatibility.
+
+The token `{python}` is replaced with the current Python interpreter at runtime.
+
+See `docs/guides/ai-config-guide.md` for per-language templates (Node.js,
+Rust, Go, Java, Swift, .NET, Docker, monorepo).
+
 ## [linear]
 
 | Key | Type | Default | Description |

@@ -26,12 +26,7 @@ def test_generate_fixture_produces_valid_schema() -> None:
         "title": "Build plan-to-spec",
         "summary": "Convert markdown plans into issue fixtures.",
         "builder_prompt": generate_builder_prompt(plan),
-        "verification_commands": {
-            "lint": ["{python}", "-m", "ruff", "check", "src/"],
-            "typecheck": ["{python}", "-m", "mypy", "src/"],
-            "test": ["{python}", "-m", "pytest", "tests/", "-q"],
-            "build": ["{python}", "-c", "print('build ok')"],
-        },
+        "verification_commands": {},
         "acceptance_criteria": ["Fixture JSON is written."],
         "context": {
             "files_to_read": ["src/spec_orch/cli.py"],

@@ -109,6 +109,48 @@ def cli(
     _load_dotenv()
 
 
+@app.command("init")
+def init_project(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing spec-orch.toml."),
+    non_interactive: bool = typer.Option(
+        False, "--yes", "-y", help="Accept defaults without prompting."
+    ),
+) -> None:
+    """Detect project type and generate spec-orch.toml configuration.
+
+    Scans the project root for marker files (pyproject.toml, package.json,
+    Cargo.toml, go.mod, etc.) and generates an appropriate spec-orch.toml
+    with matching verification commands, builder defaults, and more.
+    """
+    from spec_orch.services.project_detector import detect_project, generate_toml_config
+
+    root = Path(repo_root).resolve()
+    config_path = root / "spec-orch.toml"
+
+    if config_path.exists() and not force:
+        typer.echo(f"spec-orch.toml already exists at {config_path}")
+        typer.echo("Use --force to overwrite.")
+        raise typer.Exit(1)
+
+    profile = detect_project(root)
+    typer.echo(f"Detected project: {profile.language} ({profile.framework or 'no framework'})")
+    typer.echo("Verification commands:")
+    for step, cmd in profile.verification.items():
+        typer.echo(f"  {step}: {' '.join(cmd)}")
+
+    if not non_interactive:
+        proceed = typer.confirm("Generate spec-orch.toml with these settings?", default=True)
+        if not proceed:
+            typer.echo("Aborted.")
+            raise typer.Exit(0)
+
+    toml_content = generate_toml_config(profile)
+    config_path.write_text(toml_content)
+    typer.echo(f"\nWrote {config_path}")
+    typer.echo("Run 'spec-orch config check' to verify.")
+
+
 @app.command("dashboard")
 def dashboard(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
@@ -170,6 +212,7 @@ def plan_to_spec(
         "-o",
         help="Output path (default: fixtures/issues/{issue-id}.json).",
     ),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
     edit: bool = typer.Option(False, "--edit", help="Open in $EDITOR before saving."),
     builder_prompt_from: Path | None = typer.Option(
         None,
@@ -191,7 +234,7 @@ def plan_to_spec(
         typer.echo(f"Invalid issue_id: {issue_id!r}")
         raise typer.Exit(1)
 
-    fixture = generate_fixture(parse_plan(plan_path), issue_id)
+    fixture = generate_fixture(parse_plan(plan_path), issue_id, repo_root=Path(repo_root))
 
     if builder_prompt_from is not None:
         if not builder_prompt_from.exists():
@@ -1724,11 +1767,13 @@ def run_plan(
 
         pkt_exec: PacketExecutor
         if full_pipeline:
+            from spec_orch.services.adapter_factory import load_verification_commands
             from spec_orch.services.packet_executor import FullPipelinePacketExecutor
 
             pkt_exec = FullPipelinePacketExecutor(
                 codex_bin=codex_executable,
                 workspace=str(Path(repo_root).resolve()),
+                verify_commands=load_verification_commands(Path(repo_root)),
             )
         else:
             from spec_orch.services.packet_executor import SubprocessPacketExecutor
@@ -2155,25 +2200,21 @@ def _make_controller(
     live_stream: IO[str] | None = None,
     source: str = "fixture",
 ) -> RunController:
-    from spec_orch.services.adapter_factory import create_builder, create_reviewer
-
-    issue_source: Any
-    if source == "linear":
-        from spec_orch.services.linear_client import LinearClient
-        from spec_orch.services.linear_issue_source import LinearIssueSource
-
-        client = LinearClient()
-        issue_source = LinearIssueSource(client=client)
-    else:
-        issue_source = FixtureIssueSource(repo_root=Path(repo_root))
-
-    planner = _build_planner_from_toml(repo_root)
+    from spec_orch.services.adapter_factory import (
+        create_builder,
+        create_issue_source,
+        create_reviewer,
+    )
 
     toml_raw = _load_toml_raw(repo_root)
     if codex_executable != "codex":
         builder_cfg = toml_raw.setdefault("builder", {})
         builder_cfg["executable"] = codex_executable
         builder_cfg.setdefault("adapter", "codex_exec")
+
+    issue_source = create_issue_source(repo_root, toml_override=toml_raw, source_override=source)
+
+    planner = _build_planner_from_toml(repo_root)
     builder = create_builder(repo_root, toml_override=toml_raw)
     reviewer = create_reviewer(repo_root, toml_override=toml_raw)
 
