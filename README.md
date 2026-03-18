@@ -199,6 +199,7 @@ Evolution ─────────── "What to improve" (rules, prompts, h
 | **ClaudeCodeBuilderAdapter** | Claude Code CLI builder with stream-json output |
 | **DroidBuilderAdapter** | Factory Droid CLI builder with ACP-compatible events |
 | **LLMReviewAdapter** | LLM-driven code review via litellm (any model provider) |
+| **AcpxBuilderAdapter** | ACPX unified builder via Agent Client Protocol (15+ agents) |
 | **AdapterFactory** | Instantiates builder/reviewer adapters from `spec-orch.toml` config |
 | **VerificationService** | Runs lint, typecheck, test, build via subprocess |
 | **GateService** | Evaluates merge conditions per `gate.policy.yaml` profiles |
@@ -268,6 +269,7 @@ What works on `main`:
 - **Memory subsystem**: cross-session knowledge continuity with file-backed storage, migration from legacy formats
 - **Conductor agent**: progressive formalization layer — intent classification, crystallization proposals, `@spec-orch approve`
 - **Pluggable builder/reviewer adapters**: swap execution engines via `spec-orch.toml` — OpenCode, Droid, Claude Code, or Codex as builder; local or LLM-driven review
+- **ACPX unified adapter layer**: single `AcpxBuilderAdapter` wrapping 15+ agents via Agent Client Protocol — session management, multi-agent event mapping, shortcut aliases (`acpx_opencode`, `acpx_codex`)
 - **Low-cost model support**: validated end-to-end pipeline with MiniMax-M2.5 (unlimited tokens, ~$0.04/run) via OpenCode builder + LLM reviewer
 - **Orchestration brain**: scaffold-layer flow graphs (Full/Standard/Hotfix), flow promotion/demotion, IntentEvolver / FlowPolicyEvolver / GatePolicyEvolver
 - **Spec-Contract integration**: three-layer hierarchy (OpenSpec + Agent-Spec Contract + Tests)
@@ -281,7 +283,7 @@ What is still intentionally incomplete:
 - Preview deployment and browser verification
 - Slack bot for discussion layer
 - Daemon mode with low-cost models (OpenCode + MiniMax) — code supports it, needs production validation
-- ACPX (Agent Client Protocol) unified adapter layer — research complete (SON-122), implementation pending
+- ACPX production validation with real agent workloads
 
 ## Installation
 
@@ -516,9 +518,10 @@ token_env = "SPEC_ORCH_LINEAR_TOKEN"
 team_key = "SON"
 
 [builder]
-adapter = "codex_exec"       # or "opencode", "droid", "claude_code"
+adapter = "codex_exec"       # or "opencode", "droid", "claude_code", "acpx", "acpx_opencode"
 executable = "codex"          # path to the builder CLI
 # model = "minimax/MiniMax-M2.5"  # for opencode with custom model
+# agent = "opencode"              # for acpx adapter: target agent
 # timeout_seconds = 1800
 
 [reviewer]
@@ -581,6 +584,7 @@ src/spec_orch/
     opencode_builder_adapter.py   OpenCode CLI integration
     claude_code_builder_adapter.py  Claude Code CLI integration
     droid_builder_adapter.py      Factory Droid CLI integration
+    acpx_builder_adapter.py       ACPX unified adapter (ACP protocol)
     llm_review_adapter.py         LLM-driven code review via litellm
     adapter_factory.py            Instantiates adapters from spec-orch.toml
     context_assembler.py     Dynamic context assembly for LLM nodes
