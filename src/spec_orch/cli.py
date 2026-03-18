@@ -1063,6 +1063,8 @@ def config_check(
         if isinstance(builder, dict)
         else "codex"
     )
+    builder_agent = builder.get("agent") if isinstance(builder, dict) else None
+    builder_model = builder.get("model") if isinstance(builder, dict) else None
     planner_model = planner.get("model") if isinstance(planner, dict) else None
     planner_api_type = (
         planner.get("api_type", "anthropic") if isinstance(planner, dict) else "anthropic"
@@ -1084,12 +1086,9 @@ def config_check(
         )
 
     results.extend(checker.check_linear(linear_token, linear_team_key))
-    if builder_adapter == "codex_exec":
-        results.append(checker.check_codex(codex_executable))
-    else:
-        results.append(
-            CheckResult(name="builder", status="pass", message=f"Adapter: {builder_adapter}")
-        )
+    results.append(
+        checker.check_builder(builder_adapter, codex_executable, builder_agent, builder_model)
+    )
     results.extend(checker.check_planner(planner_model, planner_api_key_env, planner_api_type))
 
     _print_check_report(results)

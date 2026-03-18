@@ -161,31 +161,66 @@ class ConfigChecker:
             if client is not None:
                 client.close()
 
+    def check_builder(
+        self,
+        adapter: str,
+        executable: str,
+        agent: str | None = None,
+        model: str | None = None,
+    ) -> CheckResult:
+        """Check builder adapter configuration and executable availability.
+
+        Args:
+            adapter: Builder adapter type (e.g., "codex_exec", "opencode", "acpx")
+            executable: Path to the builder CLI executable
+            agent: Agent name (optional, e.g., "codex", "opencode", "claude")
+            model: Model name (optional, e.g., "minimax/MiniMax-M2.5")
+        """
+        # Build the info message with adapter, agent, and model
+        info_parts = [f"adapter={adapter}"]
+        if agent:
+            info_parts.append(f"agent={agent}")
+        if model:
+            info_parts.append(f"model={model}")
+
+        info_message = ", ".join(info_parts)
+
+        # CLI-based adapters need executable check
+        cli_adapters = {"codex_exec", "opencode", "droid", "claude_code"}
+        if adapter in cli_adapters:
+            try:
+                result = subprocess.run(
+                    [executable, "--version"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+            except FileNotFoundError:
+                return CheckResult(
+                    name="builder",
+                    status="fail",
+                    message=f"{info_message} | Executable not found: {executable}",
+                )
+
+            if result.returncode != 0:
+                details = (
+                    result.stderr or result.stdout
+                ).strip() or f"exit code {result.returncode}"
+                return CheckResult(
+                    name="builder",
+                    status="fail",
+                    message=f"{info_message} | {executable} --version failed: {details}",
+                )
+
+            version = result.stdout.strip() or f"{executable} is available"
+            return CheckResult(name="builder", status="pass", message=f"{info_message} | {version}")
+
+        # Non-CLI adapters (acpx, etc.) - just show config info
+        return CheckResult(name="builder", status="pass", message=info_message)
+
     def check_codex(self, executable: str) -> CheckResult:
-        try:
-            result = subprocess.run(
-                [executable, "--version"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        except FileNotFoundError:
-            return CheckResult(
-                name="codex",
-                status="fail",
-                message=f"Executable not found: {executable}",
-            )
-
-        if result.returncode != 0:
-            details = (result.stderr or result.stdout).strip() or f"exit code {result.returncode}"
-            return CheckResult(
-                name="codex",
-                status="fail",
-                message=f"{executable} --version failed: {details}",
-            )
-
-        version = result.stdout.strip() or f"{executable} is available"
-        return CheckResult(name="codex", status="pass", message=version)
+        """Legacy method for backward compatibility."""
+        return self.check_builder("codex_exec", executable)
 
     def check_planner(
         self,
