@@ -234,8 +234,8 @@ def generate_toml_config(profile: ProjectProfile, *, profile_level: str = "stand
     Args:
         profile: Detected project profile.
         profile_level: One of "minimal", "standard", or "full".
-            - minimal: [issue] + [verification] + [builder]
-            - standard: adds [reviewer] + [planner]
+            - minimal: [issue] + [verification] + [builder] + [reviewer] + [github]
+            - standard: adds [planner]
             - full: adds [daemon] + [evolution] + [conversation]
     """
     lines: list[str] = []
