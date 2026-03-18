@@ -38,7 +38,11 @@ class FixtureIssueSource:
             architecture_notes=ctx_raw.get("architecture_notes", ""),
             constraints=ctx_raw.get("constraints", []),
         )
-        verify = data.get("verification_commands") or self._default_verify
+        verify = (
+            data["verification_commands"]
+            if "verification_commands" in data
+            else dict(self._default_verify)
+        )
         return Issue(
             issue_id=data["issue_id"],
             title=data["title"],
