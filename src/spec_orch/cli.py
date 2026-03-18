@@ -1114,7 +1114,8 @@ def daemon_status(
     except tomllib.TOMLDecodeError as exc:
         typer.echo(f"Config:    malformed TOML ({exc})")
         lockfile_dir = ".spec_orch_locks/"
-    except Exception:
+    except (KeyError, ValueError) as exc:
+        typer.echo(f"Config:    invalid ({exc}). Run: spec-orch doctor")
         lockfile_dir = ".spec_orch_locks/"
 
     state_path = repo_root.resolve() / lockfile_dir / "daemon_state.json"

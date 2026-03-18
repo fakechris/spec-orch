@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -72,36 +73,52 @@ class Doctor:
             fix_hint="pyenv install 3.11 && pyenv local 3.11",
         )
 
+    def _required_env_keys(self) -> list[str]:
+        """Derive required env keys from active config sections."""
+        raw = self._load_raw()
+        keys: list[str] = []
+        if "planner" in raw or "conversation" in raw:
+            planner = raw.get("planner", {})
+            if isinstance(planner, dict):
+                keys.append(planner.get("api_key_env", "SPEC_ORCH_LLM_API_KEY"))
+        if "linear" in raw:
+            linear = raw.get("linear", {})
+            if isinstance(linear, dict):
+                keys.append(linear.get("token_env", "SPEC_ORCH_LINEAR_TOKEN"))
+        return keys
+
     def _check_env_file(self) -> DoctorCheck:
-        env_path = Path(".env")
-        if not env_path.exists():
+        required_keys = self._required_env_keys()
+        if not required_keys:
             return DoctorCheck(
                 name="env:dotenv",
-                status="warn",
-                message=".env file not found",
-                fix_hint="cp .env.example .env",
+                status="pass",
+                message="No env keys required by active config",
             )
+
+        env_path = Path(".env")
         defined_keys: set[str] = set()
-        for line in env_path.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#") or "=" not in stripped:
-                continue
-            key = stripped.split("=", 1)[0].strip()
-            if key:
-                defined_keys.add(key)
-        required_keys = ("SPEC_ORCH_LLM_API_KEY", "SPEC_ORCH_LINEAR_TOKEN")
-        missing = [k for k in required_keys if k not in defined_keys]
+        if env_path.exists():
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#") or "=" not in stripped:
+                    continue
+                key = stripped.split("=", 1)[0].strip()
+                if key:
+                    defined_keys.add(key)
+
+        missing = [k for k in required_keys if k not in defined_keys and k not in os.environ]
         if missing:
             return DoctorCheck(
                 name="env:dotenv",
                 status="warn",
-                message=f".env missing keys: {', '.join(missing)}",
-                fix_hint=f"echo '{missing[0]}=' >> .env",
+                message=f"Missing env keys: {', '.join(missing)}",
+                fix_hint=f"echo '{missing[0]}=' >> .env  (or export {missing[0]}=...)",
             )
         return DoctorCheck(
             name="env:dotenv",
             status="pass",
-            message=".env present with required keys",
+            message="Required env keys present",
         )
 
     def _check_environment(self) -> list[DoctorCheck]:

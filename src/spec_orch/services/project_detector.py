@@ -267,11 +267,11 @@ def generate_toml_config(profile: ProjectProfile, *, profile_level: str = "stand
     lines.append("timeout_seconds = 1800")
     lines.append("")
 
-    if profile_level in ("standard", "full"):
-        lines.append("[reviewer]")
-        lines.append('adapter = "local"')
-        lines.append("")
+    lines.append("[reviewer]")
+    lines.append('adapter = "local"')
+    lines.append("")
 
+    if profile_level in ("standard", "full"):
         lines.append("[planner]")
         lines.append('# model = "anthropic/claude-sonnet-4-20250514"')
         lines.append('# api_key_env = "ANTHROPIC_API_KEY"')
