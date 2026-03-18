@@ -286,14 +286,10 @@ class ContextAssembler:
                 )
         if not details:
             return None
-        return VerificationSummary(
-            lint_passed=details.get("lint", VerificationDetail([], 1, "", "")).exit_code == 0,
-            typecheck_passed=details.get("typecheck", VerificationDetail([], 1, "", "")).exit_code
-            == 0,
-            test_passed=details.get("test", VerificationDetail([], 1, "", "")).exit_code == 0,
-            build_passed=details.get("build", VerificationDetail([], 1, "", "")).exit_code == 0,
-            details=details,
-        )
+        summary = VerificationSummary(details=details)
+        for name, detail in details.items():
+            summary.set_step_passed(name, detail.exit_code == 0)
+        return summary
 
     @staticmethod
     def _parse_gate(report: dict[str, Any]) -> GateVerdict | None:

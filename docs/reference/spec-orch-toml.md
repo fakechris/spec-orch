@@ -13,8 +13,12 @@ When `source = "linear"`, the `[linear]` section must be configured.
 
 ## [verification]
 
-Defines the shell commands for each verification step. Omitted steps are
-treated as "not applicable" and automatically pass the gate.
+Defines the shell commands for each verification step.  **Any key** in this
+section is treated as a verification step — you are not limited to the four
+standard names.  Omitted steps are treated as "not applicable" and
+automatically pass the gate.
+
+### Standard steps
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -23,13 +27,39 @@ treated as "not applicable" and automatically pass the gate.
 | `test` | list[string] | — | Test command |
 | `build` | list[string] | — | Build command |
 
-If the entire `[verification]` section is absent, spec-orch falls back to
-Python defaults (ruff/mypy/pytest) for backward compatibility.
+### Custom steps (examples)
+
+```toml
+[verification]
+lint = ["make", "lint"]
+test = ["make", "test"]
+security_scan = ["npm", "audit", "--production"]
+e2e = ["make", "e2e-test"]
+docker_test = ["docker", "compose", "run", "--rm", "test"]
+format_check = ["cargo", "fmt", "--check"]
+```
+
+If the entire `[verification]` section is absent, no verification steps are
+run (all steps pass by default).  Use `spec-orch init` to auto-detect the
+appropriate commands for your project.
 
 The token `{python}` is replaced with the current Python interpreter at runtime.
 
-See `docs/guides/ai-config-guide.md` for per-language templates (Node.js,
-Rust, Go, Java, Swift, .NET, Docker, monorepo).
+### Monorepo / multi-language projects
+
+For monorepo setups, use composite commands that test all sub-projects:
+
+```toml
+[verification]
+lint = ["make", "lint-all"]
+test = ["make", "test-all"]
+build = ["make", "build-all"]
+```
+
+Or use `spec-orch init` with LLM analysis (default mode) to auto-detect
+the project structure and generate appropriate commands.
+
+See `docs/guides/ai-config-guide.md` for per-language templates.
 
 ## [linear]
 
@@ -61,6 +91,9 @@ Rust, Go, Java, Swift, .NET, Docker, monorepo).
 | `model` | string | — | LLM model for `llm` adapter (e.g. `openai/gpt-4o`, `minimax/MiniMax-M2.5`) |
 | `api_key_env` | string | — | Environment variable for reviewer API key |
 | `api_base_env` | string | — | Environment variable for reviewer API base URL |
+| `temperature` | float | `0.2` | LLM temperature for review calls |
+| `max_diff_chars` | int | `60000` | Maximum diff characters sent to LLM |
+| `max_spec_chars` | int | `10000` | Maximum spec characters sent to LLM |
 
 ## [planner]
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -13,6 +14,7 @@ class ProjectProfile:
     verification: dict[str, list[str]] = field(default_factory=dict)
     builder_adapter: str = "codex_exec"
     extra_notes: str = ""
+    base_branch: str = "main"
 
 
 _PROFILES: dict[str, dict] = {
@@ -111,6 +113,37 @@ _FRAMEWORK_HINTS: dict[str, str] = {
 }
 
 
+def _detect_base_branch(root: Path) -> str:
+    """Detect the default branch from git (main or master)."""
+    try:
+        result = subprocess.run(
+            ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            ref = result.stdout.strip()
+            return ref.split("/")[-1]
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    for branch in ("main", "master"):
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--verify", f"refs/heads/{branch}"],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                return branch
+        except (subprocess.SubprocessError, FileNotFoundError):
+            pass
+    return "main"
+
+
 def _detect_framework(root: Path) -> str | None:
     for marker, framework in _FRAMEWORK_HINTS.items():
         if "*" in marker:
@@ -173,21 +206,25 @@ def detect_project(root: Path) -> ProjectProfile:
 
         if matched:
             framework = _detect_framework(root)
+            base_branch = _detect_base_branch(root)
             profile = ProjectProfile(
                 language=spec["language"],
                 framework=framework,
                 verification=dict(spec["verification"]),
+                base_branch=base_branch,
             )
             if profile.language == "node":
                 _refine_node_verification(root, profile)
             return profile
 
     framework = _detect_framework(root)
+    base_branch = _detect_base_branch(root)
     return ProjectProfile(
         language="unknown",
         framework=framework,
         verification={},
         extra_notes="Could not detect project type. Configure [verification] manually.",
+        base_branch=base_branch,
     )
 
 
@@ -227,7 +264,7 @@ def generate_toml_config(profile: ProjectProfile) -> str:
         lines.append("")
 
     lines.append("[github]")
-    lines.append('base_branch = "main"')
+    lines.append(f'base_branch = "{profile.base_branch}"')
     lines.append("")
 
     lines.append("[daemon]")

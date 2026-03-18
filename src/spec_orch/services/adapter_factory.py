@@ -16,13 +16,6 @@ _BUILDER_REGISTRY: dict[str, type] = {}
 _REVIEWER_REGISTRY: dict[str, type] = {}
 _ISSUE_SOURCE_REGISTRY: dict[str, type] = {}
 
-_DEFAULT_PYTHON_VERIFICATION: dict[str, list[str]] = {
-    "lint": ["{python}", "-m", "ruff", "check", "src/"],
-    "typecheck": ["{python}", "-m", "mypy", "src/"],
-    "test": ["{python}", "-m", "pytest", "-q"],
-    "build": ["{python}", "-c", "print('build ok')"],
-}
-
 
 def register_builder(name: str, cls: type) -> None:
     _BUILDER_REGISTRY[name] = cls
@@ -147,7 +140,14 @@ def create_reviewer(
         if env := cfg.get("api_base_env"):
             api_base = os.environ.get(env)
 
-        return LLMReviewAdapter(model=model, api_key=api_key, api_base=api_base)
+        return LLMReviewAdapter(
+            model=model,
+            api_key=api_key,
+            api_base=api_base,
+            temperature=float(cfg.get("temperature", 0.2)),
+            max_diff_chars=int(cfg.get("max_diff_chars", 60_000)),
+            max_spec_chars=int(cfg.get("max_spec_chars", 10_000)),
+        )
 
     elif adapter_name in _REVIEWER_REGISTRY:
         reviewer_cfg = {k: v for k, v in cfg.items() if k != "adapter"}
@@ -162,21 +162,21 @@ def load_verification_commands(
 ) -> dict[str, list[str]]:
     """Load verification commands from spec-orch.toml [verification] section.
 
-    Falls back to Python defaults if no [verification] section is present,
-    preserving backward compatibility.
+    Returns an empty dict when no [verification] section is present.
+    All keys in the section are treated as verification step names,
+    supporting arbitrary steps beyond the standard lint/typecheck/test/build.
     """
     raw = toml_override or _load_toml(repo_root)
     cfg = raw.get("verification")
     if cfg is None:
-        return dict(_DEFAULT_PYTHON_VERIFICATION)
+        return {}
     commands: dict[str, list[str]] = {}
-    for step in ("lint", "typecheck", "test", "build"):
-        cmd = cfg.get(step)
+    for step_name, cmd in cfg.items():
         if cmd is not None:
             if isinstance(cmd, str):
-                commands[step] = shlex.split(cmd)
+                commands[step_name] = shlex.split(cmd)
             elif isinstance(cmd, list):
-                commands[step] = [str(c) for c in cmd]
+                commands[step_name] = [str(c) for c in cmd]
     return commands
 
 

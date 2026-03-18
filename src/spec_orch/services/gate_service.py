@@ -48,12 +48,14 @@ class GatePolicy:
         auto_merge_conditions: set[str] | None = None,
         profiles: dict[str, dict[str, Any]] | None = None,
         raw: dict[str, Any] | None = None,
+        demotion_diff_threshold: int = 5,
     ) -> None:
         self.required_conditions = required_conditions or DEFAULT_REQUIRED
         self.auto_merge = auto_merge
         self.auto_merge_conditions = auto_merge_conditions
         self.profiles = profiles or {}
         self.raw = raw or {}
+        self.demotion_diff_threshold = demotion_diff_threshold
 
     @classmethod
     def from_yaml(cls, path: Path) -> GatePolicy:
@@ -223,7 +225,7 @@ class GateService:
             return False, None
 
         total_changes = sum(gate_input.diff_stats.values()) if gate_input.diff_stats else 0
-        if total_changes > self._DEMOTION_DIFF_THRESHOLD:
+        if total_changes > self.policy.demotion_diff_threshold:
             return False, None
 
         target = self._DEMOTION_MAP.get(claimed_lower)

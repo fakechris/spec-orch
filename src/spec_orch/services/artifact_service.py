@@ -97,14 +97,9 @@ class ArtifactService:
         sections.append(f"| builder | {builder_status} | adapter={builder_adapter or 'unknown'} |")
 
         if verification:
-            for step, passed in [
-                ("lint", verification.lint_passed),
-                ("typecheck", verification.typecheck_passed),
-                ("test", verification.test_passed),
-                ("build", verification.build_passed),
-            ]:
+            for step, detail in verification.details.items():
+                passed = verification.get_step_passed(step)
                 status = "pass" if passed else "fail"
-                detail = verification.details.get(step)
                 exit_info = f"exit_code={detail.exit_code}" if detail else ""
                 sections.append(f"| verification.{step} | {status} | {exit_info} |")
         else:
@@ -167,9 +162,9 @@ class ArtifactService:
             return False
         lower = criterion.lower()
         if "all tests pass" in lower or "tests pass" in lower:
-            return verification.test_passed
+            return verification.get_step_passed("test")
         if "lint" in lower:
-            return verification.lint_passed
+            return verification.get_step_passed("lint")
         return False
 
     def _compute_review_focus(
@@ -183,13 +178,8 @@ class ArtifactService:
         if builder_status == "failed":
             focus.append("Builder failed — check builder_report.json for details")
         if verification:
-            for step, passed in [
-                ("lint", verification.lint_passed),
-                ("typecheck", verification.typecheck_passed),
-                ("test", verification.test_passed),
-                ("build", verification.build_passed),
-            ]:
-                if not passed:
+            for step in verification.details:
+                if not verification.get_step_passed(step):
                     focus.append(f"Verification step '{step}' failed")
         if not compliance.get("compliant", True):
             focus.append(f"Builder contract violations: {len(compliance.get('violations', []))}")

@@ -141,10 +141,14 @@ class LiteLLMScoperAdapter:
                 vr = getattr(execution, "verification_results", None)
                 if vr:
                     status = []
-                    for k in ("lint_passed", "typecheck_passed", "test_passed"):
-                        v = getattr(vr, k, None)
-                        if v is not None:
-                            status.append(f"- {k}: {'PASS' if v else 'FAIL'}")
+                    all_results = getattr(vr, "step_results", {})
+                    if not all_results:
+                        for k in ("lint", "typecheck", "test", "build"):
+                            v = getattr(vr, f"{k}_passed", None)
+                            if v is not None:
+                                all_results[k] = v
+                    for k, v in all_results.items():
+                        status.append(f"- {k}: {'PASS' if v else 'FAIL'}")
                     if status:
                         ctx_parts.append("### Verification (previous run)\n" + "\n".join(status))
             if ctx_parts:
