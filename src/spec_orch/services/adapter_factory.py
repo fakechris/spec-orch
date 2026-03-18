@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -173,7 +174,7 @@ def load_verification_commands(
         cmd = cfg.get(step)
         if cmd is not None:
             if isinstance(cmd, str):
-                commands[step] = cmd.split()
+                commands[step] = shlex.split(cmd)
             elif isinstance(cmd, list):
                 commands[step] = [str(c) for c in cmd]
     return commands

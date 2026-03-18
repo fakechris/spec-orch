@@ -212,6 +212,7 @@ def plan_to_spec(
         "-o",
         help="Output path (default: fixtures/issues/{issue-id}.json).",
     ),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
     edit: bool = typer.Option(False, "--edit", help="Open in $EDITOR before saving."),
     builder_prompt_from: Path | None = typer.Option(
         None,
@@ -233,7 +234,7 @@ def plan_to_spec(
         typer.echo(f"Invalid issue_id: {issue_id!r}")
         raise typer.Exit(1)
 
-    fixture = generate_fixture(parse_plan(plan_path), issue_id)
+    fixture = generate_fixture(parse_plan(plan_path), issue_id, repo_root=Path(repo_root))
 
     if builder_prompt_from is not None:
         if not builder_prompt_from.exists():
@@ -1766,11 +1767,13 @@ def run_plan(
 
         pkt_exec: PacketExecutor
         if full_pipeline:
+            from spec_orch.services.adapter_factory import load_verification_commands
             from spec_orch.services.packet_executor import FullPipelinePacketExecutor
 
             pkt_exec = FullPipelinePacketExecutor(
                 codex_bin=codex_executable,
                 workspace=str(Path(repo_root).resolve()),
+                verify_commands=load_verification_commands(Path(repo_root)),
             )
         else:
             from spec_orch.services.packet_executor import SubprocessPacketExecutor
