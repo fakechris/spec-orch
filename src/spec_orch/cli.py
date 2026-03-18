@@ -3093,11 +3093,12 @@ def memory_ingest_openspec(
 def contract_generate(
     issue_id: str = typer.Argument(help="Issue identifier (e.g. SPC-1)"),
     output: str = typer.Option("", help="Output file path (default: stdout)"),
+    repo_root: str = typer.Option("", help="Repository root (default: cwd)"),
 ) -> None:
     """Generate a TaskContract from an issue definition."""
     from spec_orch.domain.task_contract import generate_contract_from_issue
 
-    root = Path.cwd()
+    root = Path(repo_root) if repo_root else Path.cwd()
     source = FixtureIssueSource(repo_root=root)
     issue = source.load(issue_id)
     contract = generate_contract_from_issue(issue)
@@ -3137,11 +3138,12 @@ def contract_validate(
 @contract_app.command("assess-risk")
 def contract_assess_risk(
     issue_id: str = typer.Argument(help="Issue identifier"),
+    repo_root: str = typer.Option("", help="Repository root (default: cwd)"),
 ) -> None:
     """Assess the risk level of an issue for contract purposes."""
     from spec_orch.domain.task_contract import assess_risk_level
 
-    root = Path.cwd()
+    root = Path(repo_root) if repo_root else Path.cwd()
     source = FixtureIssueSource(repo_root=root)
     issue = source.load(issue_id)
     risk = assess_risk_level(
