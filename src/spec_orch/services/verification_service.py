@@ -8,12 +8,14 @@ from spec_orch.domain.models import Issue, VerificationDetail, VerificationSumma
 
 
 class VerificationService:
-    STEP_NAMES = ("lint", "typecheck", "test", "build")
+    STANDARD_STEPS = ("lint", "typecheck", "test", "build")
 
     def run(self, *, issue: Issue, workspace: Path) -> VerificationSummary:
         summary = VerificationSummary()
 
-        for step_name in self.STEP_NAMES:
+        step_names = list(issue.verification_commands.keys()) or list(self.STANDARD_STEPS)
+
+        for step_name in step_names:
             command = issue.verification_commands.get(step_name)
             if not command:
                 summary.details[step_name] = VerificationDetail(
@@ -22,7 +24,7 @@ class VerificationService:
                     stdout="",
                     stderr="not configured — skipped",
                 )
-                setattr(summary, f"{step_name}_passed", True)
+                summary.set_step_passed(step_name, True)
                 continue
 
             resolved_command = [self._resolve_token(token) for token in command]
@@ -39,8 +41,7 @@ class VerificationService:
                 stdout=result.stdout,
                 stderr=result.stderr,
             )
-            passed = result.returncode == 0
-            setattr(summary, f"{step_name}_passed", passed)
+            summary.set_step_passed(step_name, result.returncode == 0)
 
         return summary
 

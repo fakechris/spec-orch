@@ -168,22 +168,38 @@ class VerificationDetail:
     stderr: str
 
 
-@dataclass(slots=True)
+@dataclass
 class VerificationSummary:
     lint_passed: bool = False
     typecheck_passed: bool = False
     test_passed: bool = False
     build_passed: bool = False
     details: dict[str, VerificationDetail] = field(default_factory=dict)
+    step_results: dict[str, bool] = field(default_factory=dict)
+
+    _LEGACY_FIELDS = ("lint", "typecheck", "test", "build")
+
+    def set_step_passed(self, step: str, passed: bool) -> None:
+        """Record the result for a verification step (works for any name)."""
+        self.step_results[step] = passed
+        if step in self._LEGACY_FIELDS:
+            setattr(self, f"{step}_passed", passed)
+
+    def get_step_passed(self, step: str) -> bool:
+        """Get the result for a verification step by name."""
+        if step in self.step_results:
+            return self.step_results[step]
+        if step in self._LEGACY_FIELDS:
+            return getattr(self, f"{step}_passed", False)
+        return False
 
     @property
     def all_passed(self) -> bool:
         """Only count steps that were actually configured (have a detail entry
         with a non-empty command).  Unconfigured steps are treated as N/A
         rather than as failures."""
-        for step in ("lint", "typecheck", "test", "build"):
-            detail = self.details.get(step)
-            if detail is not None and detail.command and not getattr(self, f"{step}_passed"):
+        for step, detail in self.details.items():
+            if detail.command and not self.get_step_passed(step):
                 return False
         return True
 

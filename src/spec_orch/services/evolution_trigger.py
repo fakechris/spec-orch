@@ -34,6 +34,7 @@ class EvolutionConfig:
     harness_synthesizer_enabled: bool = True
     harness_dry_run: bool = True
     policy_distiller_enabled: bool = False
+    config_evolver_enabled: bool = True
 
     @classmethod
     def from_toml(cls, data: dict[str, Any]) -> EvolutionConfig:
@@ -47,6 +48,7 @@ class EvolutionConfig:
             harness_synthesizer_enabled=evo.get("harness_synthesizer", {}).get("enabled", True),
             harness_dry_run=evo.get("harness_synthesizer", {}).get("dry_run", True),
             policy_distiller_enabled=evo.get("policy_distiller", {}).get("enabled", False),
+            config_evolver_enabled=evo.get("config_evolver", {}).get("enabled", True),
         )
 
 
@@ -169,6 +171,21 @@ class EvolutionTrigger:
             except Exception as exc:
                 result.errors.append(f"HarnessSynthesizer: {exc}")
                 logger.warning("HarnessSynthesizer failed", exc_info=True)
+
+        if self._config.config_evolver_enabled:
+            try:
+                from spec_orch.services.config_evolver import ConfigEvolver
+
+                cev = ConfigEvolver(self._repo_root)
+                cev_result = cev.evolve()
+                if cev_result and cev_result.suggestions:
+                    logger.info(
+                        "ConfigEvolver proposed %d suggestion(s)",
+                        len(cev_result.suggestions),
+                    )
+            except Exception as exc:
+                result.errors.append(f"ConfigEvolver: {exc}")
+                logger.warning("ConfigEvolver failed", exc_info=True)
 
         self._write_result(result)
         return result

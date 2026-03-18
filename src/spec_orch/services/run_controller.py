@@ -1216,13 +1216,10 @@ class RunController:
             )
             for name, detail in report_data["verification"].items()
         }
-        return VerificationSummary(
-            lint_passed=details["lint"].exit_code == 0,
-            typecheck_passed=details["typecheck"].exit_code == 0,
-            test_passed=details["test"].exit_code == 0,
-            build_passed=details["build"].exit_code == 0,
-            details=details,
-        )
+        summary = VerificationSummary(details=details)
+        for name, detail in details.items():
+            summary.set_step_passed(name, detail.exit_code == 0)
+        return summary
 
     def _review_from_report(self, report_data: dict, workspace: Path) -> ReviewSummary:
         review_data = report_data["review"]

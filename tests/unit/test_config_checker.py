@@ -19,14 +19,13 @@ def test_check_toml_reports_missing_required_fields(tmp_path: Path) -> None:
     config_path = _write_config(
         tmp_path / "spec-orch.toml",
         """
-        [linear]
-        token_env = "SPEC_ORCH_LINEAR_TOKEN"
+        [issue]
+        source = "fixture"
 
         [builder]
         adapter = "codex_exec"
 
-        [planner]
-        api_key_env = "SPEC_ORCH_LLM_API_KEY"
+        [reviewer]
 
         [daemon]
         max_concurrent = 1
@@ -37,9 +36,9 @@ def test_check_toml_reports_missing_required_fields(tmp_path: Path) -> None:
 
     assert results == [
         CheckResult(
-            name="linear",
-            status="fail",
-            message="Missing required fields: team_key",
+            name="issue",
+            status="pass",
+            message="Section present.",
         ),
         CheckResult(
             name="builder",
@@ -47,9 +46,14 @@ def test_check_toml_reports_missing_required_fields(tmp_path: Path) -> None:
             message="Section present.",
         ),
         CheckResult(
-            name="planner",
+            name="reviewer",
             status="fail",
-            message="Missing required fields: model",
+            message="Missing required fields: adapter",
+        ),
+        CheckResult(
+            name="verification",
+            status="warn",
+            message="Missing section: [verification]",
         ),
         CheckResult(
             name="daemon",

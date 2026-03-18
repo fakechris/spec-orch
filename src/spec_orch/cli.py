@@ -116,14 +116,21 @@ def init_project(
     non_interactive: bool = typer.Option(
         False, "--yes", "-y", help="Accept defaults without prompting."
     ),
+    offline: bool = typer.Option(
+        False, "--offline", help="Skip LLM analysis, use rule-based detection only."
+    ),
 ) -> None:
     """Detect project type and generate spec-orch.toml configuration.
 
-    Scans the project root for marker files (pyproject.toml, package.json,
-    Cargo.toml, go.mod, etc.) and generates an appropriate spec-orch.toml
-    with matching verification commands, builder defaults, and more.
+    By default, uses LLM analysis to understand the project structure and
+    select the optimal verification commands.  Falls back to rule-based
+    detection when no LLM API key is available or --offline is specified.
+
+    Rule-based detection scans for marker files (pyproject.toml, package.json,
+    Cargo.toml, go.mod, etc.) and applies language-specific defaults.
     """
-    from spec_orch.services.project_detector import detect_project, generate_toml_config
+    from spec_orch.services.project_detector import generate_toml_config
+    from spec_orch.services.smart_project_analyzer import smart_detect_project
 
     root = Path(repo_root).resolve()
     config_path = root / "spec-orch.toml"
@@ -133,11 +140,18 @@ def init_project(
         typer.echo("Use --force to overwrite.")
         raise typer.Exit(1)
 
-    profile = detect_project(root)
-    typer.echo(f"Detected project: {profile.language} ({profile.framework or 'no framework'})")
+    profile, method = smart_detect_project(root, offline=offline)
+    method_label = "LLM analysis" if method == "llm" else "rule-based detection"
+    typer.echo(
+        f"Detected project: {profile.language}"
+        f" ({profile.framework or 'no framework'})"
+        f" via {method_label}"
+    )
     typer.echo("Verification commands:")
     for step, cmd in profile.verification.items():
         typer.echo(f"  {step}: {' '.join(cmd)}")
+    if profile.extra_notes:
+        typer.echo(f"Notes: {profile.extra_notes}")
 
     if not non_interactive:
         proceed = typer.confirm("Generate spec-orch.toml with these settings?", default=True)
@@ -1424,13 +1438,9 @@ def _build_gate_input_from_report(data: dict[str, Any]) -> Any:
         )
         for name, detail in verification_data.items()
     }
-    verification = VerificationSummary(
-        lint_passed=details.get("lint", _fail).exit_code == 0,
-        typecheck_passed=details.get("typecheck", _fail).exit_code == 0,
-        test_passed=details.get("test", _fail).exit_code == 0,
-        build_passed=details.get("build", _fail).exit_code == 0,
-        details=details,
-    )
+    verification = VerificationSummary(details=details)
+    for name, detail in details.items():
+        verification.set_step_passed(name, detail.exit_code == 0)
     review = ReviewSummary(
         verdict=review_data.get("verdict", "pending"),
         reviewed_by=review_data.get("reviewed_by"),

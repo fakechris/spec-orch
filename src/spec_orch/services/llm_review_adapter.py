@@ -33,10 +33,6 @@ You will receive a git diff and the issue spec. Your job is to:
 Respond ONLY with the JSON object. No markdown fences, no extra text.\
 """
 
-_MAX_DIFF_CHARS = 60_000
-_MAX_SPEC_CHARS = 10_000
-
-
 class LLMReviewAdapter:
     ADAPTER_NAME = "llm"
     VALID_VERDICTS = {"pass", "changes_requested", "uncertain"}
@@ -48,11 +44,15 @@ class LLMReviewAdapter:
         api_key: str | None = None,
         api_base: str | None = None,
         temperature: float = 0.2,
+        max_diff_chars: int = 60_000,
+        max_spec_chars: int = 10_000,
     ) -> None:
         self.model = model or "anthropic/claude-sonnet-4-20250514"
         self._api_key = api_key or os.environ.get("SPEC_ORCH_LLM_API_KEY")
         self.api_base = api_base or os.environ.get("SPEC_ORCH_LLM_API_BASE")
         self.temperature = temperature
+        self.max_diff_chars = max_diff_chars
+        self.max_spec_chars = max_spec_chars
 
     def initialize(
         self,
@@ -130,8 +130,8 @@ class LLMReviewAdapter:
                 timeout=30,
             )
             diff = result.stdout
-            if len(diff) > _MAX_DIFF_CHARS:
-                diff = diff[:_MAX_DIFF_CHARS] + "\n... [truncated]"
+            if len(diff) > self.max_diff_chars:
+                diff = diff[:self.max_diff_chars] + "\n... [truncated]"
             return diff
         except (subprocess.SubprocessError, FileNotFoundError):
             return ""
@@ -141,8 +141,8 @@ class LLMReviewAdapter:
         if not spec_path.exists():
             return ""
         text = spec_path.read_text()
-        if len(text) > _MAX_SPEC_CHARS:
-            text = text[:_MAX_SPEC_CHARS] + "\n... [truncated]"
+        if len(text) > self.max_spec_chars:
+            text = text[:self.max_spec_chars] + "\n... [truncated]"
         return text
 
     @staticmethod

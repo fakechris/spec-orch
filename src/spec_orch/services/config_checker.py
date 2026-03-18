@@ -18,11 +18,12 @@ class CheckResult:
 
 
 class ConfigChecker:
-    _SECTIONS: tuple[str, ...] = ("linear", "builder", "planner", "daemon")
+    _SECTIONS: tuple[str, ...] = ("issue", "builder", "reviewer", "verification", "daemon")
     _REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
-        "linear": ("token_env", "team_key"),
+        "issue": ("source",),
         "builder": ("adapter",),
-        "planner": ("model",),
+        "reviewer": ("adapter",),
+        "verification": (),
         "daemon": (),
     }
 
