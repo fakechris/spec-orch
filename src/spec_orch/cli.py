@@ -2353,10 +2353,21 @@ def _load_conversation_planner(
 
         from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
 
+        api_key = os.environ.get(api_key_env) if api_key_env else None
+        if not api_key and not token_command:
+            hint_env = api_key_env or "SPEC_ORCH_LLM_API_KEY"
+            typer.echo(
+                f"Warning: environment variable '{hint_env}' is not set.\n"
+                f"  The LLM planner will not work until you provide an API key.\n"
+                f"  Option 1: Add to .env file   →  {hint_env}=your-key\n"
+                f"  Option 2: Export in shell     →  export {hint_env}=your-key\n"
+                f"  Option 3: Set token_command   →  [planner] token_command = \"...\"\n",
+            )
+
         return LiteLLMPlannerAdapter(
             model=model,
             api_type=api_type,
-            api_key=os.environ.get(api_key_env) if api_key_env else None,
+            api_key=api_key,
             api_base=os.environ.get(api_base_env) if api_base_env else None,
             token_command=token_command,
         )
@@ -2417,7 +2428,16 @@ def discuss_tui(
             timestamp=datetime.now(UTC).isoformat(),
             channel="cli",
         )
-        reply = svc.handle_message(msg)
+        try:
+            reply = svc.handle_message(msg)
+        except Exception as exc:
+            typer.echo(
+                f"\n[error] {type(exc).__name__}: {exc}\n"
+                "Hint: check your .env file or environment variables.\n"
+                "Run `spec-orch config check` for a configuration health check.",
+                err=True,
+            )
+            continue
         if reply:
             typer.echo(f"\nbot> {reply}")
 
