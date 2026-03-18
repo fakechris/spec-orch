@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-18
+
+### Added
+
+- **Context Contract System**: Structured `ContextBundle` (TaskContext / ExecutionContext / LearningContext) replaces ad-hoc prompt assembly across all LLM nodes
+- **ContextAssembler**: Dynamic context assembly for ReadinessChecker, Planner, Scoper, and IntentClassifier — each node now receives structured, budget-aware context
+- **ArtifactManifest**: Standardized artifact cataloguing with downstream consumption by evolvers
+- **EvolutionTrigger integration**: Automatic evolution cycle after each run (configurable via `[evolution]` in spec-orch.toml)
+- **Daemon resilience**: Restart recovery (in_progress persistence), exponential backoff retry, dead letter queue, hotfix mode (skip triage for P0/hotfix/urgent labels)
+- **Task Contract automation**: `TaskContract` schema with YAML serialization, `generate-task-contract` CLI, automatic risk assessment (low/medium/high/critical)
+- **3 new CLI commands**: `contract generate`, `contract validate`, `contract assess-risk`
+- **35+ new unit tests** covering context integration, daemon resilience, and contract automation
+
+### Changed
+
+- `ReadinessChecker.check()` accepts optional `ContextBundle` for richer LLM triage
+- `LiteLLMPlannerAdapter.plan()` and `answer_questions()` accept optional `context` parameter
+- `LiteLLMScoperAdapter.scope()` accepts optional `context` with scoper hints and failure samples
+- `classify_intent()` accepts optional `context` for issue-aware classification
+- `EvolutionTrigger` accepts `latest_workspace` to read artifact manifests
+- `RunController._finalize_run` triggers evolution cycle when configured
+- `DaemonConfig` adds `max_retries`, `retry_base_delay_seconds`, `hotfix_labels`
+- Daemon state now persists `retry_counts`, `dead_letter`, `in_progress` sets
+
 ## [0.3.0] - 2026-03-14
 
 ### Added

@@ -490,6 +490,14 @@ spec-orch policy distill              # LLM generates deterministic script
 spec-orch policy run --policy <id>    # Execute a policy (no LLM needed)
 ```
 
+### Contract Layer — Task Contracts
+
+```bash
+spec-orch contract generate <id>      # Generate TaskContract from issue
+spec-orch contract validate <file>    # Validate a contract YAML file
+spec-orch contract assess-risk <id>   # Assess risk level (low/medium/high/critical)
+```
+
 ### Configuration
 
 ```bash
@@ -531,6 +539,14 @@ base_branch = "main"
 max_concurrent = 1
 consume_state = "Ready"
 exclude_labels = ["blocked", "needs-clarification"]
+max_retries = 3                       # Dead letter after N failures
+retry_base_delay_seconds = 60         # Exponential backoff base (60, 120, 240...)
+hotfix_labels = ["hotfix", "urgent", "P0"]  # Skip triage for these labels
+
+[evolution]
+enabled = true
+trigger_after_n_runs = 5              # Trigger evolution cycle every N runs
+auto_promote = false                  # Auto-promote evolved prompts
 ```
 
 Environment variables are loaded automatically from `.env` in the project root.
@@ -542,6 +558,8 @@ src/spec_orch/
   cli.py                 CLI entry point (65+ commands)
   domain/
     models.py            Core domain models (Mission, ExecutionPlan, Run, Gate, etc.)
+    context.py           Structured LLM context types (TaskContext, ExecutionContext, LearningContext)
+    task_contract.py     Task contract schema, generation, and risk assessment
     protocols.py         Adapter protocols (Builder, Planner, IssueSource, etc.)
   services/
     run_controller.py    Main orchestration loop
@@ -565,6 +583,8 @@ src/spec_orch/
     droid_builder_adapter.py      Factory Droid CLI integration
     llm_review_adapter.py         LLM-driven code review via litellm
     adapter_factory.py            Instantiates adapters from spec-orch.toml
+    context_assembler.py     Dynamic context assembly for LLM nodes
+    evolution_trigger.py     Config-driven evolution lifecycle management
     verification_service.py  Lint, typecheck, test runner
     evidence_analyzer.py     Historical run pattern aggregation
     harness_synthesizer.py   LLM-driven compliance rule generation + validation
@@ -572,7 +592,7 @@ src/spec_orch/
     plan_strategy_evolver.py Scoper hints from plan outcome analysis
     policy_distiller.py      Deterministic code policies for recurring tasks
 packages/tui/            Rich TUI (TypeScript + React/Ink)
-tests/                   Unit and integration tests (810+)
+tests/                   Unit and integration tests (900+)
 fixtures/issues/         Local issue fixtures
 docs/specs/              Canonical specs per mission
 docs/architecture/       System design and policy documents
@@ -604,6 +624,9 @@ policies/                Distilled deterministic scripts (auto-generated)
 - [Orchestration Brain Design](docs/architecture/orchestration-brain-design.md) — scaffold determinism + muscle intelligence, flow promotion/demotion, evolution architecture
 - [Spec-Contract Integration](docs/architecture/spec-contract-integration.md) — three-layer spec hierarchy (OpenSpec + Agent-Spec Contract + Tests), when to use each
 - [ACPX Analysis](docs/research/acpx-acp-analysis.md) — Agent Client Protocol research, adapter comparison, integration proposal
+- [Context Contract Design](docs/architecture/context-contract-design.md) — ContextBundle / NodeContextSpec / ArtifactRegistry architecture
+- [Overall Status & Roadmap (Phase 13-16)](docs/plans/2026-03-18-overall-status-and-roadmap.md) — current capabilities, gap analysis, next phases
+- [spec-orch.toml Reference](docs/reference/spec-orch-toml.md) — complete configuration reference
 
 ### Historical (early design, kept as decision records)
 
