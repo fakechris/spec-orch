@@ -81,6 +81,19 @@ def create_builder(
             absolute_timeout_seconds=float(cfg.get("timeout_seconds", 1800)),
         )
 
+    elif adapter_name == "acpx":
+        from spec_orch.services.acpx_builder_adapter import AcpxBuilderAdapter
+
+        return AcpxBuilderAdapter(
+            agent=cfg.get("agent", "opencode"),
+            model=cfg.get("model"),
+            session_name=cfg.get("session_name"),
+            permissions=cfg.get("permissions", "full-auto"),
+            executable=cfg.get("executable", "npx"),
+            acpx_package=cfg.get("acpx_package", "acpx"),
+            absolute_timeout_seconds=float(cfg.get("timeout_seconds", 1800)),
+        )
+
     elif adapter_name in _BUILDER_REGISTRY:
         builder_cfg = {k: v for k, v in cfg.items() if k != "adapter"}
         instance: BuilderAdapter = _BUILDER_REGISTRY[adapter_name](**builder_cfg)
@@ -88,7 +101,7 @@ def create_builder(
 
     raise ValueError(
         f"Unknown builder adapter: {adapter_name!r}. "
-        "Supported: codex_exec, opencode, droid, claude_code"
+        "Supported: codex_exec, opencode, droid, claude_code, acpx"
     )
 
 
