@@ -25,7 +25,7 @@ Complete reference for the `spec-orch.toml` configuration file.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `adapter` | string | `"local"` | Reviewer adapter: `local`, `llm`, `github` |
-| `model` | string | — | LLM model for `llm` adapter |
+| `model` | string | — | LLM model for `llm` adapter (e.g. `openai/gpt-4o`, `minimax/MiniMax-M2.5`) |
 | `api_key_env` | string | — | Environment variable for reviewer API key |
 | `api_base_env` | string | — | Environment variable for reviewer API base URL |
 
@@ -33,7 +33,7 @@ Complete reference for the `spec-orch.toml` configuration file.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `model` | string | — | LLM model for planning (e.g. `claude-sonnet-4-20250514`, `minimax/MiniMax-M1`) |
+| `model` | string | — | LLM model for planning. Full provider/model string (e.g. `anthropic/claude-sonnet-4-20250514`) or bare name auto-prefixed with `api_type` |
 | `api_type` | string | `"anthropic"` | API type: `anthropic`, `openai` |
 | `api_key_env` | string | — | Environment variable for planner API key |
 | `api_base_env` | string | — | Environment variable for planner API base URL |
@@ -131,6 +131,15 @@ enabled = true
 trigger_after_n_runs = 10
 auto_promote = false
 
+[evolution.prompt_evolver]
+enabled = true
+
+[evolution.plan_strategy_evolver]
+enabled = true
+
 [evolution.harness_synthesizer]
 dry_run = false
+
+[evolution.policy_distiller]
+enabled = false
 ```
