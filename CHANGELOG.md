@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-03-18
+
+### Added
+
+- **AI-Assisted Conflict Resolution (SON-68)**: `ConflictResolver` service classifies merge conflicts (formatting/logic/architecture) and attempts automatic resolution — trivial formatting via ruff, logic conflicts via builder AI, architecture conflicts escalated to Linear
+- **Hotfix Complete Mode (SON-72)**: End-to-end hotfix pipeline with `hotfix` gate profile (disables spec/human/compliance gates, auto-merge enabled), hotfix priority sorting in daemon, `FlowType.HOTFIX` propagation, and `Issue.labels` from Linear
+- **ACPX Unified Adapter Layer (SON-122)**: `AcpxBuilderAdapter` wraps 15+ agents via Agent Client Protocol — supports OpenCode, Codex, Claude, Gemini, Droid, etc. through a single adapter with session management, multi-agent event mapping, and shortcut aliases (`acpx_opencode`, `acpx_codex`)
+- **ACPX Multi-Agent Event Mapping**: Three-lineage event handling (ACP generic, Codex-style, OpenCode-style) enables transparent agent switching without code changes
+- **Shortcut Aliases**: `adapter = "acpx_<agent>"` in spec-orch.toml auto-configures the target agent
+- **80+ new unit tests** covering conflict resolution, ACPX adapter, event mapping, session management, and factory aliases
+
+### Changed
+
+- `GitHubPRService.check_mergeable()` returns additional `conflicting_paths` field
+- `RunController._finalize_run()` passes `claimed_flow` and `issue_id` to `GateInput`
+- `RunController._resolve_flow()` uses `issue.labels` for accurate flow mapping
+- `LinearIssueSource.load()` parses and passes through issue labels
+- `adapter_factory.create_builder()` supports `acpx` and `acpx_<agent>` adapter names
+- Daemon: rebase failure triggers `ConflictResolver` before creating PR with conflicts
+- Daemon: hotfix issues sorted to front of queue with dedicated gate profile selection
+
 ## [0.4.0] - 2026-03-18
 
 ### Added
