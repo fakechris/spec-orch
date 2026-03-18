@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 import importlib.metadata
 import json
 import os
@@ -109,6 +110,12 @@ def cli(
     _load_dotenv()
 
 
+class ProfileLevel(enum.StrEnum):
+    minimal = "minimal"
+    standard = "standard"
+    full = "full"
+
+
 @app.command("init")
 def init_project(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
@@ -122,11 +129,10 @@ def init_project(
     smart: bool = typer.Option(
         False, "--smart", help="Use LLM-based project analysis instead of rule-based detection."
     ),
-    profile: str = typer.Option(
-        "standard",
+    profile: ProfileLevel = typer.Option(
+        ProfileLevel.standard,
         "--profile",
-        help="Config profile: minimal, standard, or full.",
-        show_choices=True,
+        help="Config profile level.",
     ),
 ) -> None:
     """Detect project type and generate spec-orch.toml configuration.
@@ -140,11 +146,6 @@ def init_project(
     from spec_orch.services.config_checker import ConfigChecker
     from spec_orch.services.project_detector import generate_toml_config
     from spec_orch.services.smart_project_analyzer import smart_detect_project
-
-    valid_profiles = ("minimal", "standard", "full")
-    if profile not in valid_profiles:
-        typer.echo(f"Invalid profile: {profile!r}. Choose from: {', '.join(valid_profiles)}")
-        raise typer.Exit(1)
 
     root = Path(repo_root).resolve()
     config_path = root / "spec-orch.toml"
@@ -174,7 +175,7 @@ def init_project(
             typer.echo("Aborted.")
             raise typer.Exit(0)
 
-    toml_content = generate_toml_config(project_profile, profile_level=profile)
+    toml_content = generate_toml_config(project_profile, profile_level=profile.value)
     config_path.write_text(toml_content)
     typer.echo(f"\nWrote {config_path}")
 
@@ -1234,7 +1235,8 @@ def doctor_cmd(
 
         data = doc.to_json()
         typer.echo(_json.dumps(data, indent=2))
-        if data["summary"]["fail"] > 0:  # type: ignore[operator]
+        summary = data.get("summary", {})
+        if isinstance(summary, dict) and summary.get("fail", 0) > 0:
             raise typer.Exit(1)
         return
 

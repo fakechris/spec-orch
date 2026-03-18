@@ -298,4 +298,4 @@ def generate_toml_config(profile: ProjectProfile, *, profile_level: str = "stand
         lines.append(f"# NOTE: {profile.extra_notes}")
         lines.append("")
 
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n"

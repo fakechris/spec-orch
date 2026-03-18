@@ -81,9 +81,16 @@ class Doctor:
                 message=".env file not found",
                 fix_hint="cp .env.example .env",
             )
-        content = env_path.read_text(encoding="utf-8")
+        defined_keys: set[str] = set()
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key = stripped.split("=", 1)[0].strip()
+            if key:
+                defined_keys.add(key)
         required_keys = ("SPEC_ORCH_LLM_API_KEY", "SPEC_ORCH_LINEAR_TOKEN")
-        missing = [k for k in required_keys if k not in content]
+        missing = [k for k in required_keys if k not in defined_keys]
         if missing:
             return DoctorCheck(
                 name="env:dotenv",
@@ -142,6 +149,15 @@ class Doctor:
                 )
                 continue
             base_token = cmd_list[0]
+            if not isinstance(base_token, str):
+                checks.append(
+                    DoctorCheck(
+                        name=f"verify:{step_name}",
+                        status="warn",
+                        message=f"Non-string executable in {step_name}: {base_token!r}",
+                    )
+                )
+                continue
             exe = self._resolve_executable(base_token)
             found = shutil.which(exe)
             if found:
@@ -178,14 +194,12 @@ class Doctor:
         executable = builder.get("executable") or builder.get("codex_executable")
         agent = builder.get("agent")
 
+        if not isinstance(executable, str):
+            executable = None
         if not executable and isinstance(agent, str):
             executable = agent
-
         if not executable:
             executable = "codex"
-
-        if not isinstance(executable, str):
-            executable = str(executable)
 
         found = shutil.which(executable)
         if found:
