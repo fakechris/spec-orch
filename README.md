@@ -166,7 +166,7 @@ spec-orch policy distill          # Zero-LLM deterministic scripts
 
 ## Status
 
-**v0.5.0** — Alpha, dogfood-first (EODF) mode.
+**v0.5.1** — Alpha, dogfood-first (EODF) mode.
 
 The system is used to develop itself and improves itself with each iteration. 900+ tests, 65+ commands.
 
@@ -222,7 +222,7 @@ pip install "spec-orch[all]"
 ### Verify
 
 ```bash
-spec-orch --version   # 0.5.0
+spec-orch --version   # 0.5.1
 spec-orch config check
 ```
 
@@ -242,7 +242,7 @@ spec-orch config check
 | `dashboard` | fastapi, uvicorn | `spec-orch dashboard` |
 | `slack` | slack-bolt | Slack discussion adapter |
 | `all` | all of the above | Full feature set |
-| `dev` | all + pytest, ruff, mypy | Development |
+| `dev` | all + pytest, ruff, mypy, build, twine | Development |
 
 ## Configuration
 

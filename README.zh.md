@@ -166,7 +166,7 @@ spec-orch policy distill          # 零 LLM 确定性脚本
 
 ## 当前状态
 
-**v0.5.0** — Alpha，吃自己的狗粮（EODF）模式。
+**v0.5.1** — Alpha，吃自己的狗粮（EODF）模式。
 
 系统用自己来开发自己，每次迭代都在自我改进。900+ 测试，65+ 命令。
 
@@ -222,7 +222,7 @@ pip install "spec-orch[all]"
 ### 验证
 
 ```bash
-spec-orch --version   # 0.5.0
+spec-orch --version   # 0.5.1
 spec-orch config check
 ```
 
@@ -242,7 +242,7 @@ spec-orch config check
 | `dashboard` | fastapi, uvicorn | `spec-orch dashboard` |
 | `slack` | slack-bolt | Slack 讨论适配 |
 | `all` | 以上全部 | 完整功能 |
-| `dev` | all + pytest, ruff, mypy | 开发 |
+| `dev` | all + pytest, ruff, mypy, build, twine | 开发 |
 
 ## 配置
 
