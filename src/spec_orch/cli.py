@@ -414,9 +414,12 @@ def status_issue(
         return
     report = json.loads(report_path.read_text())
     blocked = ",".join(report.get("failed_conditions", [])) or "none"
+    flow_type = report.get("claimed_flow", "unknown")
+    builder_adapter = report.get("builder", {}).get("adapter", "unknown")
     typer.echo(
         f"issue={issue_id} workspace={workspace} "
-        f"mergeable={report.get('mergeable', False)} blocked={blocked}"
+        f"mergeable={report.get('mergeable', False)} blocked={blocked} "
+        f"flow={flow_type} builder={builder_adapter}"
     )
 
 
