@@ -211,7 +211,10 @@ def create_issue_source(
     elif source_name == "fixture":
         from spec_orch.services.fixture_issue_source import FixtureIssueSource
 
-        return FixtureIssueSource(repo_root=repo_root)
+        return FixtureIssueSource(
+            repo_root=repo_root,
+            default_verification_commands=verify_cmds,
+        )
 
     elif source_name in _ISSUE_SOURCE_REGISTRY:
         src_cfg = {k: v for k, v in issue_cfg.items() if k != "source"}

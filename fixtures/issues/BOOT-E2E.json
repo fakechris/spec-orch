@@ -3,12 +3,6 @@
   "title": "Bootstrap E2E: add BOOTSTRAPPED marker to pyproject.toml",
   "summary": "Add a comment '# bootstrapped by spec-orch' at the end of pyproject.toml to prove the pipeline can make a minimal change in a fresh environment. This is the simplest possible change that touches an existing file and can be verified by grep.",
   "builder_prompt": "Add a single comment line '# bootstrapped by spec-orch' at the very end of pyproject.toml. Do NOT change anything else. Do NOT modify any other file.",
-  "verification_commands": {
-    "lint": ["{python}", "-m", "ruff", "check", "src/"],
-    "typecheck": ["{python}", "-c", "print('typecheck ok')"],
-    "test": ["{python}", "-m", "pytest", "tests/unit/", "-q", "-x"],
-    "build": ["{python}", "-c", "print('build ok')"]
-  },
   "acceptance_criteria": [
     "pyproject.toml contains the line '# bootstrapped by spec-orch'",
     "No other files are modified",
