@@ -195,7 +195,13 @@ class AcpxBuilderAdapter:
         )
 
     def map_events(self, raw_events: list[dict[str, Any]]) -> list[BuilderEvent]:
-        """Map ACP protocol events to vendor-neutral BuilderEvent."""
+        """Map ACP protocol events to vendor-neutral BuilderEvent.
+
+        Handles three event lineages:
+        1. ACP generic (type=text/tool_call/result/error)
+        2. Codex-style (type=item.started/item.completed/turn.plan.updated)
+        3. OpenCode-style (type=step_start/tool_use/step_finish/text)
+        """
         result: list[BuilderEvent] = []
         for raw in raw_events:
             ts = str(
@@ -208,66 +214,186 @@ class AcpxBuilderAdapter:
             method = raw.get("method", "")
             params = raw.get("params", {})
 
-            if ev_type == "text" or method == "text":
-                text = params.get("text", raw.get("text", "")) if params else raw.get("text", "")
-                if text:
-                    result.append(BuilderEvent(timestamp=ts, kind="message", text=str(text)))
+            mapped = self._map_acp_event(ts, ev_type, method, params, raw)
+            if mapped:
+                result.append(mapped)
+                continue
 
-            elif ev_type == "tool_call" or method == "tools/call":
-                tool_name = params.get("name", "") if params else ""
-                tool_input = params.get("input", {}) if params else {}
-                lower_name = tool_name.lower()
+            mapped = self._map_codex_event(ts, ev_type, raw)
+            if mapped:
+                result.append(mapped)
+                continue
 
-                if lower_name in ("bash", "shell", "terminal", "execute"):
-                    cmd_text = (
-                        tool_input.get("command", "")
-                        if isinstance(tool_input, dict)
-                        else str(tool_input)
-                    )
-                    result.append(
-                        BuilderEvent(
-                            timestamp=ts,
-                            kind="command_end",
-                            text=cmd_text,
-                            metadata={"tool": tool_name},
-                        )
-                    )
-                elif lower_name in (
-                    "write",
-                    "edit",
-                    "write_file",
-                    "edit_file",
-                    "create_file",
-                ):
-                    fp = tool_input.get("path", "") if isinstance(tool_input, dict) else ""
-                    result.append(
-                        BuilderEvent(
-                            timestamp=ts,
-                            kind="file_change",
-                            text=tool_name,
-                            file_path=fp,
-                            metadata={"tool": tool_name},
-                        )
-                    )
-                else:
-                    result.append(
-                        BuilderEvent(
-                            timestamp=ts,
-                            kind="message",
-                            text=f"Tool: {tool_name}",
-                            metadata={"tool": tool_name, "input": tool_input},
-                        )
-                    )
-
-            elif ev_type == "result" or method == "session/result":
-                text = params.get("text", "") if params else raw.get("text", "")
-                result.append(BuilderEvent(timestamp=ts, kind="turn_end", text=str(text)))
-
-            elif ev_type == "error":
-                error_text = params.get("message", "") if params else str(raw.get("error", ""))
-                result.append(BuilderEvent(timestamp=ts, kind="error", text=error_text))
+            mapped = self._map_opencode_event(ts, ev_type, raw)
+            if mapped:
+                result.append(mapped)
 
         return result
+
+    def _map_acp_event(
+        self,
+        ts: str,
+        ev_type: str,
+        method: str,
+        params: dict[str, Any],
+        raw: dict[str, Any],
+    ) -> BuilderEvent | None:
+        """Map standard ACP protocol events."""
+        if ev_type == "text" or method == "text":
+            text = params.get("text", raw.get("text", "")) if params else raw.get("text", "")
+            if text:
+                return BuilderEvent(timestamp=ts, kind="message", text=str(text))
+            return None
+
+        if ev_type == "tool_call" or method == "tools/call":
+            return self._map_tool_call(ts, params)
+
+        if ev_type == "result" or method == "session/result":
+            text = params.get("text", raw.get("text", "")) if params else raw.get("text", "")
+            return BuilderEvent(timestamp=ts, kind="turn_end", text=str(text))
+
+        if ev_type == "error":
+            error_text = (
+                params.get("message", str(raw.get("error", "")))
+                if params
+                else str(raw.get("error", ""))
+            )
+            return BuilderEvent(timestamp=ts, kind="error", text=error_text)
+
+        return None
+
+    @staticmethod
+    def _map_codex_event(ts: str, ev_type: str, raw: dict[str, Any]) -> BuilderEvent | None:
+        """Map Codex-style events (item.started/completed, turn.plan.updated)."""
+        item = raw.get("item", {})
+        itype = item.get("type", "")
+
+        if ev_type == "item.started" and itype == "command_execution":
+            return BuilderEvent(
+                timestamp=ts,
+                kind="command_start",
+                text=item.get("command", ""),
+            )
+        if ev_type == "item.completed":
+            if itype == "command_execution":
+                return BuilderEvent(
+                    timestamp=ts,
+                    kind="command_end",
+                    text=item.get("command", ""),
+                    exit_code=item.get("exit_code"),
+                )
+            if itype == "agent_message":
+                return BuilderEvent(
+                    timestamp=ts,
+                    kind="message",
+                    text=item.get("text", ""),
+                )
+            if itype == "file_change":
+                return BuilderEvent(
+                    timestamp=ts,
+                    kind="file_change",
+                    file_path=item.get("file"),
+                )
+            if itype == "reasoning":
+                return BuilderEvent(
+                    timestamp=ts,
+                    kind="reasoning",
+                    text=item.get("text", ""),
+                )
+        if ev_type == "turn.plan.updated":
+            return BuilderEvent(
+                timestamp=ts,
+                kind="plan",
+                metadata={"items": raw.get("items", [])},
+            )
+
+        return None
+
+    @staticmethod
+    def _map_opencode_event(ts: str, ev_type: str, raw: dict[str, Any]) -> BuilderEvent | None:
+        """Map OpenCode-style events (step_start/tool_use/step_finish)."""
+        part = raw.get("part", {})
+
+        if ev_type == "step_start":
+            return BuilderEvent(timestamp=ts, kind="message", text="Step started")
+
+        if ev_type == "tool_use":
+            tool = part.get("tool", "")
+            state = part.get("state", {})
+            if state.get("status") != "completed":
+                return None
+            inp = state.get("input", {})
+            lower_tool = tool.lower()
+            if lower_tool == "bash":
+                return BuilderEvent(
+                    timestamp=ts,
+                    kind="command_end",
+                    text=inp.get("command", ""),
+                    metadata={"tool": tool},
+                )
+            if lower_tool in ("write", "edit"):
+                fp = inp.get("filePath") or inp.get("file_path") or inp.get("path", "")
+                return BuilderEvent(
+                    timestamp=ts,
+                    kind="file_change",
+                    file_path=fp,
+                    metadata={"tool": tool},
+                )
+            return BuilderEvent(
+                timestamp=ts,
+                kind="message",
+                text=f"Tool: {tool}",
+                metadata={"tool": tool},
+            )
+
+        if ev_type == "step_finish":
+            return BuilderEvent(
+                timestamp=ts,
+                kind="turn_end",
+                text=part.get("reason", ""),
+            )
+
+        return None
+
+    def _map_tool_call(self, ts: str, params: dict[str, Any]) -> BuilderEvent:
+        """Map a generic ACP tool_call event."""
+        tool_name = params.get("name", "") if params else ""
+        tool_input = params.get("input", {}) if params else {}
+        lower_name = tool_name.lower()
+
+        if lower_name in ("bash", "shell", "terminal", "execute"):
+            cmd_text = (
+                tool_input.get("command", "") if isinstance(tool_input, dict) else str(tool_input)
+            )
+            return BuilderEvent(
+                timestamp=ts,
+                kind="command_end",
+                text=cmd_text,
+                metadata={"tool": tool_name},
+            )
+
+        if lower_name in (
+            "write",
+            "edit",
+            "write_file",
+            "edit_file",
+            "create_file",
+        ):
+            fp = tool_input.get("path", "") if isinstance(tool_input, dict) else ""
+            return BuilderEvent(
+                timestamp=ts,
+                kind="file_change",
+                text=tool_name,
+                file_path=fp,
+                metadata={"tool": tool_name},
+            )
+
+        return BuilderEvent(
+            timestamp=ts,
+            kind="message",
+            text=f"Tool: {tool_name}",
+            metadata={"tool": tool_name, "input": tool_input},
+        )
 
     def _build_command(self, prompt: str) -> list[str]:
         cmd = [self.executable, "-y", self.acpx_package, self.agent]
