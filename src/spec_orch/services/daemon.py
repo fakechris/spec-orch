@@ -141,6 +141,7 @@ class SpecOrchDaemon:
         issue_source = LinearIssueSource(client=client)
         builder = create_builder(self.repo_root, toml_override=self.config._raw)
         reviewer = create_reviewer(self.repo_root, toml_override=self.config._raw)
+        self._builder = builder
         self._write_back = LinearWriteBackService(client=client)
 
         planner = self._build_planner()
@@ -523,9 +524,7 @@ class SpecOrchDaemon:
                     else:
                         print(f"[daemon] {issue_id}: rebase failed, attempting AI resolution")
                         resolver = ConflictResolver(
-                            builder_adapter=self._controller._builder
-                            if hasattr(self, "_controller")
-                            else None,
+                            builder_adapter=getattr(self, "_builder", None),
                             linear_client=getattr(self._write_back, "_client", None),
                         )
                         conflict_files = cast(list[str], check["conflicting_files"])

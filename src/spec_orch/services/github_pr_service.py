@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json as _json
+import re as _re
 import subprocess
 from pathlib import Path
 from typing import Any, cast
@@ -306,8 +307,6 @@ class GitHubPRService:
         for line in merge_result.stdout.splitlines():
             if line.startswith("CONFLICT"):
                 conflicts.append(line)
-                import re as _re
-
                 m = _re.search(r"(?:in|:)\s+(\S+)$", line)
                 if m:
                     paths.append(m.group(1))

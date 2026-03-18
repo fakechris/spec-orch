@@ -173,62 +173,27 @@ class ConflictResolver:
             ["python3", "-m", "ruff", "format", "."],
             ["python3", "-m", "ruff", "check", "--fix", "--select", "I", "."],
         ]:
-            subprocess.run(
+            res = subprocess.run(
                 cmd,
                 cwd=workspace,
                 capture_output=True,
                 text=True,
                 check=False,
             )
+            if res.returncode != 0:
+                logger.warning(
+                    "Tooling command failed: %s — %s",
+                    " ".join(cmd),
+                    res.stderr.strip(),
+                )
+                self._abort_merge(workspace)
+                return ConflictResult(
+                    resolved=False,
+                    method="trivial",
+                    details=f"Tooling failed: {' '.join(cmd)}",
+                )
 
-        add = subprocess.run(
-            ["git", "add", "-A"],
-            cwd=workspace,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if add.returncode != 0:
-            self._abort_merge(workspace)
-            return ConflictResult(resolved=False, method="trivial")
-
-        remaining = subprocess.run(
-            ["git", "diff", "--name-only", "--diff-filter=U"],
-            cwd=workspace,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if remaining.stdout.strip():
-            self._abort_merge(workspace)
-            return ConflictResult(resolved=False, method="trivial")
-
-        commit = subprocess.run(
-            ["git", "commit", "--no-edit"],
-            cwd=workspace,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if commit.returncode != 0:
-            self._abort_merge(workspace)
-            return ConflictResult(resolved=False, method="trivial")
-
-        push = subprocess.run(
-            ["git", "push", "--force-with-lease"],
-            cwd=workspace,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if push.returncode != 0:
-            return ConflictResult(
-                resolved=False,
-                method="trivial",
-                details="Commit succeeded but push failed",
-            )
-
-        return ConflictResult(resolved=True, method="trivial")
+        return self._finalize_merge(workspace, method="trivial")
 
     def _resolve_with_builder(
         self,
@@ -276,58 +241,7 @@ class ConflictResolver:
             self._abort_merge(workspace)
             return ConflictResult(resolved=False, method="builder")
 
-        remaining = subprocess.run(
-            ["git", "diff", "--name-only", "--diff-filter=U"],
-            cwd=workspace,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if remaining.stdout.strip():
-            self._abort_merge(workspace)
-            return ConflictResult(
-                resolved=False,
-                method="builder",
-                details="Builder ran but conflict markers remain",
-            )
-
-        add_commit = subprocess.run(
-            ["git", "add", "-A"],
-            cwd=workspace,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if add_commit.returncode != 0:
-            self._abort_merge(workspace)
-            return ConflictResult(resolved=False, method="builder")
-
-        commit = subprocess.run(
-            ["git", "commit", "--no-edit"],
-            cwd=workspace,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if commit.returncode != 0:
-            self._abort_merge(workspace)
-            return ConflictResult(resolved=False, method="builder")
-
-        push = subprocess.run(
-            ["git", "push", "--force-with-lease"],
-            cwd=workspace,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if push.returncode != 0:
-            return ConflictResult(
-                resolved=False,
-                method="builder",
-                details="Commit succeeded but push failed",
-            )
-
-        return ConflictResult(resolved=True, method="builder")
+        return self._finalize_merge(workspace, method="builder")
 
     def _escalate(self, issue_id: str, conflicting_files: list[str]) -> None:
         """Post a comment on Linear and add a conflict label."""
@@ -351,6 +265,61 @@ class ConflictResolver:
                 self._linear.add_label(linear_uid, "conflict")
         except Exception as exc:
             logger.warning("Escalation to Linear failed: %s", exc)
+
+    def _finalize_merge(self, workspace: Path, *, method: str) -> ConflictResult:
+        """Stage, check for remaining conflicts, commit, and push."""
+        add = subprocess.run(
+            ["git", "add", "-A"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if add.returncode != 0:
+            self._abort_merge(workspace)
+            return ConflictResult(resolved=False, method=method)
+
+        remaining = subprocess.run(
+            ["git", "diff", "--name-only", "--diff-filter=U"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if remaining.stdout.strip():
+            self._abort_merge(workspace)
+            return ConflictResult(
+                resolved=False,
+                method=method,
+                details="Conflict markers remain after resolution",
+            )
+
+        commit = subprocess.run(
+            ["git", "commit", "--no-edit"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if commit.returncode != 0:
+            self._abort_merge(workspace)
+            return ConflictResult(resolved=False, method=method)
+
+        push = subprocess.run(
+            ["git", "push", "--force-with-lease"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if push.returncode != 0:
+            return ConflictResult(
+                resolved=False,
+                method=method,
+                details="Commit succeeded but push failed",
+            )
+
+        return ConflictResult(resolved=True, method=method)
 
     def _abort_merge(self, workspace: Path) -> None:
         subprocess.run(
