@@ -117,20 +117,34 @@ def init_project(
         False, "--yes", "-y", help="Accept defaults without prompting."
     ),
     offline: bool = typer.Option(
-        False, "--offline", help="Skip LLM analysis, use rule-based detection only."
+        False, "--offline", hidden=True, help="No-op (offline is now the default)."
+    ),
+    smart: bool = typer.Option(
+        False, "--smart", help="Use LLM-based project analysis instead of rule-based detection."
+    ),
+    profile: str = typer.Option(
+        "standard",
+        "--profile",
+        help="Config profile: minimal, standard, or full.",
+        show_choices=True,
     ),
 ) -> None:
     """Detect project type and generate spec-orch.toml configuration.
 
-    By default, uses LLM analysis to understand the project structure and
-    select the optimal verification commands.  Falls back to rule-based
-    detection when no LLM API key is available or --offline is specified.
+    By default, uses fast offline rule-based detection that requires no API key.
+    Use --smart to enable LLM-based analysis for more accurate results.
 
     Rule-based detection scans for marker files (pyproject.toml, package.json,
     Cargo.toml, go.mod, etc.) and applies language-specific defaults.
     """
+    from spec_orch.services.config_checker import ConfigChecker
     from spec_orch.services.project_detector import generate_toml_config
     from spec_orch.services.smart_project_analyzer import smart_detect_project
+
+    valid_profiles = ("minimal", "standard", "full")
+    if profile not in valid_profiles:
+        typer.echo(f"Invalid profile: {profile!r}. Choose from: {', '.join(valid_profiles)}")
+        raise typer.Exit(1)
 
     root = Path(repo_root).resolve()
     config_path = root / "spec-orch.toml"
@@ -140,18 +154,19 @@ def init_project(
         typer.echo("Use --force to overwrite.")
         raise typer.Exit(1)
 
-    profile, method = smart_detect_project(root, offline=offline)
+    use_offline = not smart
+    project_profile, method = smart_detect_project(root, offline=use_offline)
     method_label = "LLM analysis" if method == "llm" else "rule-based detection"
     typer.echo(
-        f"Detected project: {profile.language}"
-        f" ({profile.framework or 'no framework'})"
+        f"Detected project: {project_profile.language}"
+        f" ({project_profile.framework or 'no framework'})"
         f" via {method_label}"
     )
     typer.echo("Verification commands:")
-    for step, cmd in profile.verification.items():
+    for step, cmd in project_profile.verification.items():
         typer.echo(f"  {step}: {' '.join(cmd)}")
-    if profile.extra_notes:
-        typer.echo(f"Notes: {profile.extra_notes}")
+    if project_profile.extra_notes:
+        typer.echo(f"Notes: {project_profile.extra_notes}")
 
     if not non_interactive:
         proceed = typer.confirm("Generate spec-orch.toml with these settings?", default=True)
@@ -159,10 +174,14 @@ def init_project(
             typer.echo("Aborted.")
             raise typer.Exit(0)
 
-    toml_content = generate_toml_config(profile)
+    toml_content = generate_toml_config(project_profile, profile_level=profile)
     config_path.write_text(toml_content)
     typer.echo(f"\nWrote {config_path}")
-    typer.echo("Run 'spec-orch config check' to verify.")
+
+    typer.echo("\nRunning config check...")
+    checker = ConfigChecker()
+    results = checker.check_toml(config_path)
+    _print_check_report(results)
 
 
 @app.command("dashboard")
@@ -1004,11 +1023,31 @@ def daemon_start(
     repo_root: Path = typer.Option(".", "--repo-root", "-r", help="Repository root."),
 ) -> None:
     """Start the SpecOrch daemon (foreground)."""
+    import tomllib
+
     from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
 
-    cfg = DaemonConfig.from_toml(config)
-    d = SpecOrchDaemon(config=cfg, repo_root=repo_root.resolve())
-    d.run()
+    try:
+        cfg = DaemonConfig.from_toml(config)
+        d = SpecOrchDaemon(config=cfg, repo_root=repo_root.resolve())
+        d.run()
+    except FileNotFoundError:
+        typer.echo(f"Config file not found: {config}")
+        typer.echo("Run: spec-orch init")
+        raise typer.Exit(1) from None
+    except tomllib.TOMLDecodeError as exc:
+        typer.echo(f"Malformed TOML in {config}: {exc}")
+        raise typer.Exit(1) from None
+    except (KeyError, ValueError) as exc:
+        typer.echo(f"Invalid configuration: {exc}")
+        typer.echo("Run: spec-orch doctor")
+        raise typer.Exit(1) from None
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        typer.echo(f"Daemon failed: {exc}")
+        typer.echo("Run: spec-orch doctor")
+        raise typer.Exit(1) from None
 
 
 @daemon_app.command("stop")
@@ -1018,11 +1057,18 @@ def daemon_stop(
     """Stop the daemon system service."""
     from spec_orch.services.daemon_installer import stop_service
 
-    if stop_service(label=label):
-        typer.echo("Daemon service stopped.")
-    else:
-        typer.echo("Failed to stop daemon service (may not be running).")
-        raise typer.Exit(1)
+    try:
+        if stop_service(label=label):
+            typer.echo("Daemon service stopped.")
+        else:
+            typer.echo("Failed to stop daemon service (may not be running).")
+            raise typer.Exit(1)
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        typer.echo(f"Failed to stop daemon: {exc}")
+        typer.echo("Run: spec-orch doctor")
+        raise typer.Exit(1) from None
 
 
 @daemon_app.command("status")
@@ -1034,9 +1080,17 @@ def daemon_status(
     repo_root: Path = typer.Option(".", "--repo-root", "-r", help="Repository root."),
 ) -> None:
     """Show daemon status (service + persisted state)."""
+    import tomllib
+
     from spec_orch.services.daemon_installer import service_status
 
-    info = service_status(label=label)
+    try:
+        info = service_status(label=label)
+    except Exception as exc:
+        typer.echo(f"Failed to query service status: {exc}")
+        typer.echo("Run: spec-orch doctor")
+        raise typer.Exit(1) from None
+
     typer.echo(f"Platform:  {info['platform']}")
     typer.echo(f"Installed: {info['installed']}")
     typer.echo(f"Running:   {info['running']}")
@@ -1046,6 +1100,12 @@ def daemon_status(
     try:
         cfg = DaemonConfig.from_toml(config)
         lockfile_dir = cfg.lockfile_dir
+    except FileNotFoundError:
+        typer.echo(f"Config:    not found ({config}). Run: spec-orch init")
+        lockfile_dir = ".spec_orch_locks/"
+    except tomllib.TOMLDecodeError as exc:
+        typer.echo(f"Config:    malformed TOML ({exc})")
+        lockfile_dir = ".spec_orch_locks/"
     except Exception:
         lockfile_dir = ".spec_orch_locks/"
 
@@ -1153,6 +1213,41 @@ def config_check(
 
     _print_check_report(results)
     if any(result.status == "fail" for result in results):
+        raise typer.Exit(1)
+
+
+@app.command("doctor")
+def doctor_cmd(
+    config: Path = typer.Option(
+        "spec-orch.toml", "--config", "-c", help="Path to spec-orch.toml config file."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
+    fix_hints: bool = typer.Option(False, "--fix-hints", help="Show fix commands."),
+) -> None:
+    """Comprehensive health check (superset of config check)."""
+    from spec_orch.services.doctor import Doctor
+
+    doc = Doctor(config_path=config)
+
+    if json_output:
+        import json as _json
+
+        data = doc.to_json()
+        typer.echo(_json.dumps(data, indent=2))
+        if data["summary"]["fail"] > 0:  # type: ignore[operator]
+            raise typer.Exit(1)
+        return
+
+    checks = doc.run_all()
+    counts = {"pass": 0, "warn": 0, "fail": 0}
+    for check in checks:
+        counts[check.status] += 1
+        line = f"[{check.status.upper()}] {check.name}: {check.message}"
+        typer.echo(line)
+        if fix_hints and check.fix_hint:
+            typer.echo(f"       fix: {check.fix_hint}")
+    typer.echo(f"Doctor: {counts['pass']} pass, {counts['warn']} warn, {counts['fail']} fail")
+    if counts["fail"] > 0:
         raise typer.Exit(1)
 
 
