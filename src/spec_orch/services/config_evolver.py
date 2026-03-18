@@ -96,9 +96,7 @@ class ConfigEvolver:
                         continue
         return reports
 
-    def _check_skipped_steps(
-        self, reports: list[dict[str, Any]]
-    ) -> list[ConfigSuggestion]:
+    def _check_skipped_steps(self, reports: list[dict[str, Any]]) -> list[ConfigSuggestion]:
         """Suggest removing verification steps that are always skipped."""
         suggestions: list[ConfigSuggestion] = []
         step_counts: dict[str, int] = {}
@@ -117,19 +115,19 @@ class ConfigEvolver:
         for step, total in step_counts.items():
             skipped = step_skipped.get(step, 0)
             if total >= _MIN_RUNS_FOR_SUGGESTION and skipped == total:
-                suggestions.append(ConfigSuggestion(
-                    section="verification",
-                    key=step,
-                    current_value="(configured but never executed)",
-                    suggested_value="(remove)",
-                    reason=f"Step '{step}' was skipped in all {total} runs",
-                    confidence="high",
-                ))
+                suggestions.append(
+                    ConfigSuggestion(
+                        section="verification",
+                        key=step,
+                        current_value="(configured but never executed)",
+                        suggested_value="(remove)",
+                        reason=f"Step '{step}' was skipped in all {total} runs",
+                        confidence="high",
+                    )
+                )
         return suggestions
 
-    def _check_timeout_fit(
-        self, reports: list[dict[str, Any]]
-    ) -> list[ConfigSuggestion]:
+    def _check_timeout_fit(self, reports: list[dict[str, Any]]) -> list[ConfigSuggestion]:
         """Suggest timeout adjustments based on actual durations."""
         suggestions: list[ConfigSuggestion] = []
         durations: list[float] = []
@@ -152,23 +150,23 @@ class ConfigEvolver:
         if max_duration < current_timeout * 0.3 and current_timeout > 300:
             suggested = int(max_duration * 2.5)
             suggested = max(suggested, 300)
-            suggestions.append(ConfigSuggestion(
-                section="builder",
-                key="timeout_seconds",
-                current_value=current_timeout,
-                suggested_value=suggested,
-                reason=(
-                    f"Max observed duration is {max_duration:.0f}s "
-                    f"(avg {avg_duration:.0f}s), current timeout {current_timeout}s "
-                    f"is {current_timeout / max_duration:.1f}x the max"
-                ),
-                confidence="medium",
-            ))
+            suggestions.append(
+                ConfigSuggestion(
+                    section="builder",
+                    key="timeout_seconds",
+                    current_value=current_timeout,
+                    suggested_value=suggested,
+                    reason=(
+                        f"Max observed duration is {max_duration:.0f}s "
+                        f"(avg {avg_duration:.0f}s), current timeout {current_timeout}s "
+                        f"is {current_timeout / max_duration:.1f}x the max"
+                    ),
+                    confidence="medium",
+                )
+            )
         return suggestions
 
-    def _check_consistent_failures(
-        self, reports: list[dict[str, Any]]
-    ) -> list[ConfigSuggestion]:
+    def _check_consistent_failures(self, reports: list[dict[str, Any]]) -> list[ConfigSuggestion]:
         """Flag verification steps that consistently fail."""
         suggestions: list[ConfigSuggestion] = []
         step_runs: dict[str, int] = {}
@@ -189,17 +187,19 @@ class ConfigEvolver:
         for step, total in step_runs.items():
             fails = step_fails.get(step, 0)
             if total >= _MIN_RUNS_FOR_SUGGESTION and fails == total:
-                suggestions.append(ConfigSuggestion(
-                    section="verification",
-                    key=step,
-                    current_value="(always failing)",
-                    suggested_value="(review command or fix toolchain)",
-                    reason=(
-                        f"Step '{step}' has failed in all {total} runs — "
-                        "the command may be misconfigured"
-                    ),
-                    confidence="high",
-                ))
+                suggestions.append(
+                    ConfigSuggestion(
+                        section="verification",
+                        key=step,
+                        current_value="(always failing)",
+                        suggested_value="(review command or fix toolchain)",
+                        reason=(
+                            f"Step '{step}' has failed in all {total} runs — "
+                            "the command may be misconfigured"
+                        ),
+                        confidence="high",
+                    )
+                )
         return suggestions
 
     def _load_current_config(self) -> dict[str, Any]:
@@ -208,6 +208,7 @@ class ConfigEvolver:
             return {}
         try:
             import tomllib
+
             with config_path.open("rb") as f:
                 return tomllib.load(f)
         except Exception:

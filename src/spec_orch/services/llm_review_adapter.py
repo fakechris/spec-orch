@@ -33,6 +33,7 @@ You will receive a git diff and the issue spec. Your job is to:
 Respond ONLY with the JSON object. No markdown fences, no extra text.\
 """
 
+
 class LLMReviewAdapter:
     ADAPTER_NAME = "llm"
     VALID_VERDICTS = {"pass", "changes_requested", "uncertain"}
@@ -131,7 +132,7 @@ class LLMReviewAdapter:
             )
             diff = result.stdout
             if len(diff) > self.max_diff_chars:
-                diff = diff[:self.max_diff_chars] + "\n... [truncated]"
+                diff = diff[: self.max_diff_chars] + "\n... [truncated]"
             return diff
         except (subprocess.SubprocessError, FileNotFoundError):
             return ""
@@ -142,7 +143,7 @@ class LLMReviewAdapter:
             return ""
         text = spec_path.read_text()
         if len(text) > self.max_spec_chars:
-            text = text[:self.max_spec_chars] + "\n... [truncated]"
+            text = text[: self.max_spec_chars] + "\n... [truncated]"
         return text
 
     @staticmethod

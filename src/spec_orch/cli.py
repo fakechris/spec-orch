@@ -2361,7 +2361,7 @@ def _load_conversation_planner(
                 f"  The LLM planner will not work until you provide an API key.\n"
                 f"  Option 1: Add to .env file   →  {hint_env}=your-key\n"
                 f"  Option 2: Export in shell     →  export {hint_env}=your-key\n"
-                f"  Option 3: Set token_command   →  [planner] token_command = \"...\"\n",
+                f'  Option 3: Set token_command   →  [planner] token_command = "..."\n',
             )
 
         return LiteLLMPlannerAdapter(
@@ -2431,12 +2431,15 @@ def discuss_tui(
         try:
             reply = svc.handle_message(msg)
         except Exception as exc:
-            typer.echo(
-                f"\n[error] {type(exc).__name__}: {exc}\n"
-                "Hint: check your .env file or environment variables.\n"
-                "Run `spec-orch config check` for a configuration health check.",
-                err=True,
-            )
+            error_message = f"\n[error] {type(exc).__name__}: {exc}\n"
+            if planner:
+                hint = (
+                    "Hint: check your .env file or environment variables.\n"
+                    "Run `spec-orch config check` for a configuration health check."
+                )
+            else:
+                hint = "An unexpected error occurred. This might be a bug in spec-orch."
+            typer.echo(error_message + hint, err=True)
             continue
         if reply:
             typer.echo(f"\nbot> {reply}")

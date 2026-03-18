@@ -100,15 +100,23 @@ def _file_tree(root: Path, max_depth: int = 2) -> str:
     return "\n".join(lines[:200])
 
 
-def _walk_tree(
-    base: Path, current: Path, depth: int, max_depth: int, lines: list[str]
-) -> None:
+def _walk_tree(base: Path, current: Path, depth: int, max_depth: int, lines: list[str]) -> None:
     if depth > max_depth:
         return
     skip_dirs = {
-        ".git", "node_modules", "__pycache__", ".venv", "venv",
-        ".tox", ".mypy_cache", ".ruff_cache", "dist", "build",
-        ".worktrees", ".spec_orch_runs", ".spec_orch_evolution",
+        ".git",
+        "node_modules",
+        "__pycache__",
+        ".venv",
+        "venv",
+        ".tox",
+        ".mypy_cache",
+        ".ruff_cache",
+        "dist",
+        "build",
+        ".worktrees",
+        ".spec_orch_runs",
+        ".spec_orch_evolution",
     }
     try:
         entries = sorted(current.iterdir(), key=lambda p: (not p.is_dir(), p.name))
@@ -238,9 +246,7 @@ def smart_detect_project(
     Returns (profile, method) where method is "llm" or "rules".
     """
     if not offline:
-        profile = analyze_project_with_llm(
-            root, model=model, api_key=api_key, api_base=api_base
-        )
+        profile = analyze_project_with_llm(root, model=model, api_key=api_key, api_base=api_base)
         if profile is not None:
             return profile, "llm"
 
