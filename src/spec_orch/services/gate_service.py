@@ -113,6 +113,7 @@ class GatePolicy:
             auto_merge_conditions=self.auto_merge_conditions,
             profiles=self.profiles,
             raw=self.raw,
+            demotion_diff_threshold=self.demotion_diff_threshold,
         )
 
     def available_profiles(self) -> list[str]:

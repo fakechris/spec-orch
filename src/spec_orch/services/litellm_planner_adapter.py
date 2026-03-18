@@ -210,7 +210,7 @@ class LiteLLMPlannerAdapter:
             vr = getattr(execution, "verification_results", None)
             if vr:
                 status = []
-                all_results = getattr(vr, "step_results", {})
+                all_results = dict(getattr(vr, "step_results", {}))
                 if not all_results:
                     for k in ("lint", "typecheck", "test", "build"):
                         v = getattr(vr, f"{k}_passed", None)

@@ -211,16 +211,17 @@ class ConfigEvolver:
             with config_path.open("rb") as f:
                 return tomllib.load(f)
         except Exception:
+            logger.warning("Could not load spec-orch.toml for config analysis", exc_info=True)
             return {}
 
     def _save_suggestions(self, result: ConfigEvolutionResult) -> None:
         self._evo_dir.mkdir(parents=True, exist_ok=True)
         existing: list[dict] = []
         if self._suggestions_path.exists():
-            import contextlib
-
-            with contextlib.suppress(json.JSONDecodeError, OSError):
+            try:
                 existing = json.loads(self._suggestions_path.read_text())
+            except (json.JSONDecodeError, OSError):
+                logger.warning("Could not load existing config suggestions", exc_info=True)
         entry = {
             "timestamp": result.timestamp,
             "runs_analyzed": result.runs_analyzed,

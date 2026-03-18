@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -87,7 +88,7 @@ def _gather_context(root: Path) -> str:
                     content = content[:_MAX_FILE_CHARS] + "\n... [truncated]"
                 parts.append(f"### {rel}\n```\n{content}\n```\n")
             except Exception:
-                pass
+                logger.debug("Could not read config file %s", rel, exc_info=True)
 
     return "\n".join(parts)
 
@@ -209,7 +210,6 @@ def _parse_llm_result(data: dict[str, Any], root: Path) -> ProjectProfile:
         if isinstance(cmd, list):
             verification[step_name] = [str(c) for c in cmd]
         elif isinstance(cmd, str):
-            import shlex
             verification[step_name] = shlex.split(cmd)
 
     notes = data.get("notes", "")

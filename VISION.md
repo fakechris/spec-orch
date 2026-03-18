@@ -75,6 +75,20 @@ If a process must be reliably executed, it cannot live only in a prompt. It must
 
 **SpecOrch's core is not "how to write better prompts." It is "how to turn critical execution logic into system-level rails."**
 
+### 4b. Agent-First decisions — LLM where context matters
+
+Every decision point in a delivery system falls into one of three layers:
+
+- **Skeleton**: State machines, protocols, safety checks — must be deterministic, never change at runtime.
+- **Configuration**: Thresholds, timeouts, tool names — externalized to `spec-orch.toml`, editable by humans.
+- **Intelligence**: Project detection, toolchain selection, verification strategy, readiness judgment — requires understanding the project to decide correctly.
+
+Most orchestration systems hardcode "intelligence" decisions as "skeleton." This makes the system brittle: it only works for the exact scenario the developer anticipated.
+
+**SpecOrch takes an Agent-First approach**: intelligence decisions are made by an LLM at initialization time, materialized as configuration, and evolved through run evidence. The skeleton stays stable. The config adapts. The intelligence learns.
+
+This means `spec-orch init` reads your project files, understands your build system, and generates the right verification commands — whether you use pytest or make, ruff or eslint, cargo or gradle. No hardcoded language profiles.
+
 ### 5. Context is a governed contract
 
 Context is not a blob of prompt text. It should be designed, constrained, and layered:
@@ -167,6 +181,7 @@ We do not pursue superficial agent autonomy. We pursue **delivery integrity**.
 | **Evidence-first** | No evidence, no completion |
 | **Human-governed, machine-executed** | Humans own goals, boundaries, judgment, approval. Machines own decomposition, execution, verification, reporting |
 | **Deterministic skeleton, adaptive intelligence** | The skeleton must be stable. Intelligence can evolve. Evolution must not break the skeleton |
+| **Agent-First decisions** | When a decision requires project context, let an LLM decide and materialize the result as config — not as hardcoded rules |
 | **Progressive operationalization** | Start as a Skill. Distill into a Policy. Harden into a Script/Gate/Hook. Move from experience to mechanism, not forever staying at the prompt layer |
 
 ---

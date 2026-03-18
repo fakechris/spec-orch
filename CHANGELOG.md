@@ -13,11 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **README.zh.md**: Full Chinese README matching English version
 - **Seven Planes Architecture** (`docs/architecture/seven-planes.md`): Complete codebase-to-plane mapping with competitor analysis (Capy, Fabro, Lody, Composio, Thariq, LangChain)
 - **Roadmap v2** (`docs/plans/2026-03-roadmap-v2.md`): Priority-ordered roadmap organized by 7 planes (P0–P6)
+- **Agent-First Decision Architecture** (SON-161 ~ SON-166):
+  - Phase A: Configuration externalization — gate thresholds, reviewer params, evolution triggers moved to `spec-orch.toml`
+  - Phase B1: `smart_project_analyzer.py` — LLM-driven project analysis reads file tree + config files to generate optimal verification commands; `--offline` flag for rule-based fallback
+  - Phase B2: Dynamic verification — `VerificationSummary.step_results` dict supports arbitrary step names (not limited to lint/typecheck/test/build)
+  - Phase B3: Monorepo / custom steps — `[verification]` accepts any key as a step name (security_scan, e2e, docker_test, format_check, etc.)
+  - Phase C: `config_evolver.py` — analyzes run evidence to suggest `spec-orch.toml` updates (skipped steps, timeout tuning, consistent failures)
+- **VISION.md** updated with "Agent-First decisions" thesis (4b) — three-layer decision model: Skeleton / Config / Intelligence
 
 ### Changed
 
 - **README.md**: Rewritten from feature-list style to control-plane narrative — seven-plane architecture, bilingual links, version corrected to 0.5.0, commands organized by plane
 - **pyproject.toml**: Description updated to control-plane positioning
+- `adapter_factory.load_verification_commands()` loads all keys from `[verification]` (not just 4); returns empty dict when section is absent
+- `VerificationService` iterates `issue.verification_commands` dynamically instead of hardcoded `STEP_NAMES`
+- `GatePolicy.demotion_diff_threshold` configurable via constructor (default 5)
+- `LLMReviewAdapter` accepts `max_diff_chars` / `max_spec_chars` from TOML config
+- `config_checker` sections aligned with `init` output (issue/builder/reviewer/verification/daemon)
+- `EvolutionTrigger` gains `config_evolver_enabled` flag and runs `ConfigEvolver` in evolution cycle
+- `ProjectProfile` dynamically detects git base branch
 
 ## [0.5.0] - 2026-03-18
 

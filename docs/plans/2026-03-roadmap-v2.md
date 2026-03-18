@@ -1,20 +1,36 @@
 # Roadmap v2 — 按 Seven Planes 组织
 
-> 制定于 2026-03-18，基于 v0.5.0 现状和战略分析。
+> 制定于 2026-03-18，基于 v0.5.0 现状和战略分析。  
+> 更新于 2026-03-18：v0.5.1 Agent-First Decision Architecture 落地。  
 > 参见 [Seven Planes 架构映射](../architecture/seven-planes.md)
 
 ---
 
 ## 当前状态总结
 
-spec-orch v0.5.0 已完成：
+spec-orch v0.5.1 已完成：
 - 7 个 Plane 全部有代码覆盖，其中 Contract / Task / Execution / Evolution 相对成熟
 - ACPX 统一 adapter 层支持 15+ agents
 - 项目 Profile 架构（`spec-orch init` + 可配置验证命令 + 可配置 issue 源）
+- **Agent-First Decision Architecture**：LLM-driven 项目分析（Smart Init）、动态验证步骤、Config Evolver
 - EODF 闭环自验证
-- 900+ 单元测试
+- 960+ 单元测试
 
-核心判断：**骨架已搭好，但各 Plane 之间的"最后一公里"连接未全面打通。**
+核心判断：**骨架已搭好，Agent-First 决策层已落地，各 Plane 之间的"最后一公里"连接正在打通。**
+
+### 已完成的 Agent-First 改造（SON-161 ~ SON-166）
+
+| Phase | 内容 | 状态 |
+|-------|------|------|
+| A | 配置外部化：gate 阈值、reviewer 参数、evolution 参数提取到 TOML | ✅ |
+| B1 | Smart Init：LLM-driven 项目分析，读取文件树+配置生成最优验证命令 | ✅ |
+| B2 | 动态验证步骤：VerificationSummary 支持任意步骤名（不限于 4 步） | ✅ |
+| B3 | Monorepo/自定义步骤：security_scan、e2e、docker_test 等 | ✅ |
+| C | Config Evolver：基于运行 evidence 建议配置更新 | ✅ |
+
+**决策边界三层模型**：骨架（确定性）→ 配置（可外部化）→ 智能（LLM 驱动）。
+项目检测、工具链选择、验证策略等"智能"决策不再写死为代码，而是由 LLM 在 `init` 时判断、
+固化为 `spec-orch.toml`，并通过 Config Evolver 持续演化。
 
 ---
 
