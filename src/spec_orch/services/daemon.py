@@ -528,9 +528,7 @@ class SpecOrchDaemon:
                             else None,
                             linear_client=getattr(self._write_back, "_client", None),
                         )
-                        conflict_files = cast(
-                            list[str], check["conflicting_files"]
-                        )
+                        conflict_files = cast(list[str], check["conflicting_files"])
                         cr = resolver.resolve(
                             issue=result.issue,
                             workspace=workspace,
@@ -538,9 +536,7 @@ class SpecOrchDaemon:
                             base=self.config.base_branch,
                         )
                         if cr.resolved:
-                            print(
-                                f"[daemon] {issue_id}: conflict resolved via {cr.method}"
-                            )
+                            print(f"[daemon] {issue_id}: conflict resolved via {cr.method}")
                         else:
                             print(
                                 f"[daemon] {issue_id}: conflict resolution failed "

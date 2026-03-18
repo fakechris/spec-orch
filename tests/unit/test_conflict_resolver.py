@@ -118,18 +118,14 @@ class TestExtractPaths:
 class TestResolveTrivial:
     @patch("spec_orch.services.conflict_resolver.subprocess.run")
     def test_trivial_resolve_success(self, mock_run: MagicMock) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="", stderr=""
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         resolver = ConflictResolver()
         result = resolver._resolve_trivial(Path("/fake"))
         assert result.resolved is True
         assert result.method == "trivial"
 
     @patch("spec_orch.services.conflict_resolver.subprocess.run")
-    def test_trivial_resolve_remaining_conflicts(
-        self, mock_run: MagicMock
-    ) -> None:
+    def test_trivial_resolve_remaining_conflicts(self, mock_run: MagicMock) -> None:
         def side_effect(cmd: list[str], **kwargs: object) -> MagicMock:
             if "diff" in cmd and "--diff-filter=U" in cmd:
                 return MagicMock(
@@ -169,9 +165,7 @@ class TestResolveWithBuilder:
             agent="test",
         )
 
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="", stderr=""
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         resolver = ConflictResolver(builder_adapter=mock_builder)
         result = resolver._resolve_with_builder(
@@ -195,9 +189,7 @@ class TestResolveWithBuilder:
             agent="test",
         )
 
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="", stderr=""
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         resolver = ConflictResolver(builder_adapter=mock_builder)
         result = resolver._resolve_with_builder(
@@ -234,9 +226,7 @@ class TestResolveOrchestration:
         self, mock_trivial: MagicMock, mock_prepare: MagicMock, tmp_path: Path
     ) -> None:
         file_a = tmp_path / "a.py"
-        file_a.write_text(
-            "<<<<<<< HEAD\nimport os\n=======\nimport sys\n>>>>>>> main\n"
-        )
+        file_a.write_text("<<<<<<< HEAD\nimport os\n=======\nimport sys\n>>>>>>> main\n")
         resolver = ConflictResolver()
         result = resolver.resolve(
             issue=_make_issue(),
@@ -247,9 +237,7 @@ class TestResolveOrchestration:
         assert result.method == "trivial"
 
     @patch.object(ConflictResolver, "_prepare_conflict_state", return_value=False)
-    def test_prepare_failed(
-        self, mock_prepare: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_prepare_failed(self, mock_prepare: MagicMock, tmp_path: Path) -> None:
         resolver = ConflictResolver()
         result = resolver.resolve(
             issue=_make_issue(),
@@ -271,9 +259,7 @@ class TestResolveOrchestration:
         result = resolver.resolve(
             issue=_make_issue(),
             workspace=tmp_path,
-            conflicting_files=[
-                "CONFLICT (content): Merge conflict in pyproject.toml"
-            ],
+            conflicting_files=["CONFLICT (content): Merge conflict in pyproject.toml"],
         )
         assert result.resolved is False
         assert result.method == "escalated"

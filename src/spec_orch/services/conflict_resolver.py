@@ -60,10 +60,7 @@ class ConflictResult:
         self.details = details
 
     def __repr__(self) -> str:
-        return (
-            f"ConflictResult(resolved={self.resolved}, "
-            f"method={self.method!r})"
-        )
+        return f"ConflictResult(resolved={self.resolved}, method={self.method!r})"
 
 
 class ConflictResolver:
@@ -90,10 +87,7 @@ class ConflictResolver:
         """
         file_paths = self._extract_paths(conflicting_files)
 
-        if any(
-            any(ind in fp for ind in _ARCHITECTURE_INDICATORS)
-            for fp in file_paths
-        ):
+        if any(any(ind in fp for ind in _ARCHITECTURE_INDICATORS) for fp in file_paths):
             return ConflictType.ARCHITECTURE
 
         if not file_paths:
@@ -104,11 +98,7 @@ class ConflictResolver:
         if not non_empty:
             return ConflictType.LOGIC
 
-        formatting_score = sum(
-            1
-            for text in non_empty
-            if _FORMATTING_PATTERNS.search(text)
-        )
+        formatting_score = sum(1 for text in non_empty if _FORMATTING_PATTERNS.search(text))
         ratio = formatting_score / len(non_empty)
         if ratio >= 0.8:
             return ConflictType.FORMATTING
@@ -146,13 +136,8 @@ class ConflictResolver:
 
         if conflict_type in (ConflictType.FORMATTING, ConflictType.LOGIC):
             file_paths = self._extract_paths(conflicting_files)
-            if (
-                len(file_paths) <= _MAX_CONFLICTING_FILES_FOR_BUILDER
-                and self._builder is not None
-            ):
-                result = self._resolve_with_builder(
-                    issue, workspace, file_paths
-                )
+            if len(file_paths) <= _MAX_CONFLICTING_FILES_FOR_BUILDER and self._builder is not None:
+                result = self._resolve_with_builder(issue, workspace, file_paths)
                 if result.resolved:
                     return result
 
@@ -163,9 +148,7 @@ class ConflictResolver:
             details=f"Conflict type: {conflict_type}",
         )
 
-    def _prepare_conflict_state(
-        self, workspace: Path, base: str
-    ) -> bool:
+    def _prepare_conflict_state(self, workspace: Path, base: str) -> bool:
         """Attempt a real merge to get conflict markers in the worktree."""
         merge = subprocess.run(
             ["git", "merge", f"origin/{base}", "--no-commit"],
@@ -346,9 +329,7 @@ class ConflictResolver:
 
         return ConflictResult(resolved=True, method="builder")
 
-    def _escalate(
-        self, issue_id: str, conflicting_files: list[str]
-    ) -> None:
+    def _escalate(self, issue_id: str, conflicting_files: list[str]) -> None:
         """Post a comment on Linear and add a conflict label."""
         if self._linear is None:
             logger.info(
@@ -391,9 +372,7 @@ class ConflictResolver:
         return paths
 
     @staticmethod
-    def _read_conflict_markers(
-        workspace: Path, file_paths: list[str]
-    ) -> list[str]:
+    def _read_conflict_markers(workspace: Path, file_paths: list[str]) -> list[str]:
         """Read conflict-marker regions from files."""
         results: list[str] = []
         for fp in file_paths:
