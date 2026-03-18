@@ -18,12 +18,7 @@ class LinearIssueSource:
         default_verification_commands: dict[str, list[str]] | None = None,
     ) -> None:
         self._client = client
-        self._default_verification = default_verification_commands or {
-            "lint": ["{python}", "-m", "ruff", "check", "src/"],
-            "typecheck": ["{python}", "-m", "mypy", "src/"],
-            "test": ["{python}", "-m", "pytest", "-q"],
-            "build": ["{python}", "-c", "print('build ok')"],
-        }
+        self._default_verification = default_verification_commands or {}
 
     def load(self, issue_id: str) -> Issue:
         raw = self._client.get_issue(issue_id)

@@ -119,10 +119,7 @@ class FullPipelinePacketExecutor:
     ) -> None:
         self._codex_bin = codex_bin
         self._workspace = workspace
-        self._default_verify = verify_commands or {
-            "lint": ["ruff", "check", "."],
-            "test": ["python", "-m", "pytest", "-x", "-q"],
-        }
+        self._default_verify = verify_commands or {}
 
     async def execute_packet(
         self,

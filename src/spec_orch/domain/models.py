@@ -178,7 +178,14 @@ class VerificationSummary:
 
     @property
     def all_passed(self) -> bool:
-        return self.lint_passed and self.typecheck_passed and self.test_passed and self.build_passed
+        """Only count steps that were actually configured (have a detail entry
+        with a non-empty command).  Unconfigured steps are treated as N/A
+        rather than as failures."""
+        for step in ("lint", "typecheck", "test", "build"):
+            detail = self.details.get(step)
+            if detail is not None and detail.command and not getattr(self, f"{step}_passed"):
+                return False
+        return True
 
 
 @dataclass(slots=True)

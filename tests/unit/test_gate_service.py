@@ -10,7 +10,6 @@ def test_default_policy_blocks_all_by_default() -> None:
     svc = GateService()
     result = svc.evaluate(GateInput())
     assert not result.mergeable
-    assert "verification" in result.failed_conditions
     assert "review" in result.failed_conditions
     assert "human_acceptance" in result.failed_conditions
 

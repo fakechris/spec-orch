@@ -98,10 +98,7 @@ def test_default_verification_commands():
     source, _ = _make_source(raw)
     issue = source.load("SPC-5")
 
-    assert "lint" in issue.verification_commands
-    assert "test" in issue.verification_commands
-    assert "typecheck" in issue.verification_commands
-    assert "build" in issue.verification_commands
+    assert issue.verification_commands == {}
 
 
 def test_context_parses_asterisk_bullet_files():

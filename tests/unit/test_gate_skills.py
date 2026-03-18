@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from spec_orch.domain.models import GateInput, ReviewSummary, VerificationSummary
+from spec_orch.domain.models import (
+    GateInput,
+    ReviewSummary,
+    VerificationDetail,
+    VerificationSummary,
+)
 from spec_orch.services.gate_builtin_skills import (
     BuilderSkill,
     ComplianceSkill,
@@ -34,7 +39,11 @@ class TestBuiltinSkills:
         assert r.passed
 
     def test_verification_fail(self) -> None:
-        r = VerificationSkill().run(GateInput(verification=VerificationSummary()))
+        summary = VerificationSummary()
+        summary.details["lint"] = VerificationDetail(
+            command=["ruff", "check"], exit_code=1, stdout="", stderr="error"
+        )
+        r = VerificationSkill().run(GateInput(verification=summary))
         assert not r.passed
 
     def test_review_pass(self) -> None:
