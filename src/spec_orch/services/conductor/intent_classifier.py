@@ -44,15 +44,19 @@ def classify_intent(
     *,
     conversation_history: list[dict[str, str]] | None = None,
     planner: Any | None = None,
+    context: Any | None = None,
 ) -> IntentSignal:
     """Classify a user message's intent.
 
     If *planner* is provided (any object with a ``chat_completion`` or
     ``brainstorm``-compatible method), uses the LLM. Otherwise falls back
     to rule-based heuristics.
+
+    *context* is an optional ``ContextBundle`` that enriches the LLM
+    prompt with task constraints and execution facts.
     """
     if planner is not None and hasattr(planner, "chat_completion"):
-        return _llm_classify(message, conversation_history or [], planner)
+        return _llm_classify(message, conversation_history or [], planner, context)
     return _rule_classify(message)
 
 
@@ -60,6 +64,7 @@ def _llm_classify(
     message: str,
     history: list[dict[str, str]],
     planner: Any,
+    context: Any | None = None,
 ) -> IntentSignal:
     """Use the LLM planner for classification."""
     context_lines = []
@@ -68,7 +73,30 @@ def _llm_classify(
         context_lines.append(f"[{role}] {turn.get('content', '')[:200]}")
     context_block = "\n".join(context_lines)
 
-    user_prompt = f"Recent conversation:\n{context_block}\n\nNew message to classify:\n{message}"
+    extra = ""
+    if context is not None:
+        parts: list[str] = []
+        task = getattr(context, "task", None)
+        if task:
+            issue = getattr(task, "issue", None)
+            if issue:
+                parts.append(
+                    f"Current issue: {getattr(issue, 'title', '')} "
+                    f"({getattr(issue, 'issue_id', '')})"
+                )
+            if getattr(task, "constraints", []):
+                parts.append("Constraints: " + "; ".join(task.constraints[:5]))
+        learning = getattr(context, "learning", None)
+        if learning:
+            hints = getattr(learning, "scoper_hints", [])
+            if hints:
+                parts.append(f"Active scoper hints: {len(hints)}")
+        if parts:
+            extra = "\n\nOrchestration context:\n" + "\n".join(parts) + "\n"
+
+    user_prompt = (
+        f"Recent conversation:\n{context_block}\n{extra}\nNew message to classify:\n{message}"
+    )
 
     try:
         raw: str = planner.chat_completion(

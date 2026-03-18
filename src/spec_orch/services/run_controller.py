@@ -946,7 +946,47 @@ class RunController:
             explain=explain,
             report=report,
         )
+        self._maybe_trigger_evolution(workspace)
         return gate, explain, report
+
+    def _maybe_trigger_evolution(self, workspace: Path) -> None:
+        """Run the evolution cycle if configured and threshold is met."""
+        try:
+            import tomllib
+        except ImportError:
+            try:
+                import tomli as tomllib  # type: ignore[no-redef]
+            except ImportError:
+                return
+        toml_path = self.repo_root / "spec-orch.toml"
+        if not toml_path.exists():
+            return
+        try:
+            with open(toml_path, "rb") as f:
+                toml_data = tomllib.load(f)
+        except Exception:
+            return
+        from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
+
+        config = EvolutionConfig.from_toml(toml_data)
+        if not config.enabled:
+            return
+        trigger = EvolutionTrigger(
+            self.repo_root,
+            config,
+            planner=self.planner_adapter,
+            latest_workspace=workspace,
+        )
+        result = trigger.run_evolution_cycle()
+        if result.triggered:
+            import logging
+
+            logging.getLogger(__name__).info(
+                "Evolution cycle triggered: prompt_evolved=%s, hints=%s, rules=%d",
+                result.prompt_evolved,
+                result.plan_hints_generated,
+                result.harness_rules_proposed,
+            )
 
     def _builder_status(self, builder) -> str:
         if builder.skipped:

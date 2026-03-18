@@ -100,6 +100,7 @@ class LiteLLMScoperAdapter:
         *,
         mission: Mission,
         codebase_context: dict[str, Any],
+        context: Any | None = None,
     ) -> ExecutionPlan:
         try:
             import litellm
@@ -118,6 +119,36 @@ class LiteLLMScoperAdapter:
             + "\n".join(f"- {c}" for c in mission.constraints)
             + f"\n\n### Codebase Structure\n```\n{file_tree}\n```"
         )
+
+        if context is not None:
+            ctx_parts: list[str] = []
+            learning = getattr(context, "learning", None)
+            execution = getattr(context, "execution", None)
+            if learning:
+                hints = getattr(learning, "scoper_hints", [])
+                if hints:
+                    hint_lines = "\n".join(
+                        f"- {h.get('hint', h) if isinstance(h, dict) else h}" for h in hints
+                    )
+                    ctx_parts.append(f"### Learned Planning Hints\n{hint_lines}")
+                samples = getattr(learning, "similar_failure_samples", [])
+                if samples:
+                    lines = [
+                        f"- {s.get('key', '?')}: {s.get('content', '')[:200]}" for s in samples[:3]
+                    ]
+                    ctx_parts.append("### Recent Failure Samples\n" + "\n".join(lines))
+            if execution:
+                vr = getattr(execution, "verification_results", None)
+                if vr:
+                    status = []
+                    for k in ("lint_passed", "typecheck_passed", "test_passed"):
+                        v = getattr(vr, k, None)
+                        if v is not None:
+                            status.append(f"- {k}: {'PASS' if v else 'FAIL'}")
+                    if status:
+                        ctx_parts.append("### Verification (previous run)\n" + "\n".join(status))
+            if ctx_parts:
+                user_msg += "\n\n## Orchestration Context\n\n" + "\n\n".join(ctx_parts)
 
         system_prompt = _SCOPER_SYSTEM_PROMPT
         if self._evidence_context:

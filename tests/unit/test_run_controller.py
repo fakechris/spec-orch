@@ -792,3 +792,162 @@ def test_harness_synthesizer_collect_failure_samples(tmp_path: Path) -> None:
     samples = synth._collect_failure_samples(["run-001"])
     assert "sudo" in samples
     assert "run-001" in samples
+
+
+# ── Phase 13 tests: Full context integration ──────────────────────────
+
+
+def test_readiness_checker_accepts_context_bundle() -> None:
+    """SON-137: ReadinessChecker.check() accepts an optional ContextBundle."""
+    from spec_orch.services.readiness_checker import ReadinessChecker
+
+    checker = ReadinessChecker()
+    result = checker.check(
+        "## Goal\nDo stuff\n## Acceptance Criteria\n- [ ] done\n## Files\n- `src/a.py`",
+        context=None,
+    )
+    assert result.ready is True
+
+
+def test_readiness_checker_uses_context_in_prompt() -> None:
+    """SON-137: When ContextBundle is provided, LLM prompt includes its data."""
+    from unittest.mock import MagicMock
+
+    from spec_orch.domain.context import (
+        ContextBundle,
+        ExecutionContext,
+        LearningContext,
+        TaskContext,
+    )
+    from spec_orch.services.readiness_checker import ReadinessChecker
+
+    mock_planner = MagicMock()
+    mock_planner.brainstorm.return_value = "READY"
+
+    issue = Issue(issue_id="RC-1", title="t", summary="s", context=IssueContext())
+    bundle = ContextBundle(
+        task=TaskContext(
+            issue=issue,
+            constraints=["no-sudo"],
+            acceptance_criteria=["All tests pass"],
+        ),
+        execution=ExecutionContext(file_tree="src/main.py\nsrc/utils.py"),
+        learning=LearningContext(
+            similar_failure_samples=[{"key": "run-fail-1", "content": "import error"}]
+        ),
+    )
+
+    checker = ReadinessChecker(planner=mock_planner)
+    result = checker.check(
+        "## Goal\nDo stuff\n## Acceptance Criteria\n- [ ] done\n## Files\n- `src/a.py`",
+        context=bundle,
+    )
+    assert result.ready is True
+    call_args = mock_planner.brainstorm.call_args
+    prompt = call_args.kwargs["conversation_history"][0]["content"]
+    assert "no-sudo" in prompt
+    assert "All tests pass" in prompt
+    assert "src/main.py" in prompt
+    assert "run-fail-1" in prompt
+
+
+def test_planner_plan_accepts_context() -> None:
+    """SON-138: LiteLLMPlannerAdapter.plan() accepts optional context parameter."""
+    from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
+
+    adapter = LiteLLMPlannerAdapter()
+    msg = adapter._build_user_message(
+        Issue(issue_id="P-1", title="t", summary="s", context=IssueContext()),
+        None,
+        context=None,
+    )
+    assert "Untrusted Issue Payload" in msg
+
+
+def test_planner_renders_context_block() -> None:
+    """SON-138: _render_context_block produces readable sections from ContextBundle."""
+    from spec_orch.domain.context import ContextBundle, ExecutionContext, TaskContext
+    from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
+
+    issue = Issue(issue_id="P-2", title="t", summary="s", context=IssueContext())
+    bundle = ContextBundle(
+        task=TaskContext(
+            issue=issue,
+            spec_snapshot_text="Build a widget",
+            constraints=["no-external-deps"],
+        ),
+        execution=ExecutionContext(file_tree="src/widget.py"),
+    )
+    parts = LiteLLMPlannerAdapter._render_context_block(bundle)
+    combined = "\n".join(parts)
+    assert "Build a widget" in combined
+    assert "no-external-deps" in combined
+    assert "src/widget.py" in combined
+
+
+def test_scoper_accepts_context_parameter() -> None:
+    """SON-139: LiteLLMScoperAdapter.scope() accepts optional context parameter."""
+    import inspect
+
+    from spec_orch.services.scoper_adapter import LiteLLMScoperAdapter
+
+    sig = inspect.signature(LiteLLMScoperAdapter.scope)
+    assert "context" in sig.parameters
+
+
+def test_intent_classifier_accepts_context() -> None:
+    """SON-140: classify_intent accepts optional context parameter."""
+    from spec_orch.services.conductor.intent_classifier import classify_intent
+
+    result = classify_intent("fix the bug", context=None)
+    assert result.category is not None
+
+
+def test_evolution_trigger_loads_manifest(tmp_path: Path) -> None:
+    """SON-141: EvolutionTrigger._load_latest_manifest reads artifact manifest."""
+    from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
+
+    ws = tmp_path / "workspace"
+    ws.mkdir()
+    manifest = {
+        "run_id": "run-1",
+        "issue_id": "I-1",
+        "artifacts": {"report": "/tmp/r.json", "builder_events": "/tmp/e.jsonl"},
+    }
+    (ws / "artifact_manifest.json").write_text(json.dumps(manifest))
+
+    cfg = EvolutionConfig(enabled=True)
+    trigger = EvolutionTrigger(repo_root=tmp_path, config=cfg, latest_workspace=ws)
+    loaded = trigger._load_latest_manifest()
+    assert loaded["report"] == "/tmp/r.json"
+    assert loaded["builder_events"] == "/tmp/e.jsonl"
+
+
+def test_evolution_trigger_without_manifest(tmp_path: Path) -> None:
+    """SON-141: Missing manifest returns empty dict."""
+    from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
+
+    cfg = EvolutionConfig(enabled=True)
+    trigger = EvolutionTrigger(repo_root=tmp_path, config=cfg, latest_workspace=tmp_path)
+    assert trigger._load_latest_manifest() == {}
+
+
+def test_finalize_run_triggers_evolution(tmp_path: Path) -> None:
+    """SON-142: _finalize_run calls _maybe_trigger_evolution."""
+    from unittest.mock import patch
+
+    controller = RunController(repo_root=tmp_path)
+    with patch.object(controller, "_maybe_trigger_evolution") as mock_evo:
+        fixtures_dir = tmp_path / "fixtures" / "issues"
+        fixtures_dir.mkdir(parents=True)
+        (fixtures_dir / "EVO-1.json").write_text(
+            json.dumps(
+                {
+                    "issue_id": "EVO-1",
+                    "title": "Test evolution trigger",
+                    "summary": "Test that evolution is called after finalize.",
+                }
+            )
+        )
+        controller.run_issue("EVO-1")
+        mock_evo.assert_called_once()
