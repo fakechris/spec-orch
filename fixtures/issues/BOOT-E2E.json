@@ -6,7 +6,7 @@
   "verification_commands": {
     "lint": ["{python}", "-m", "ruff", "check", "src/"],
     "typecheck": ["{python}", "-c", "print('typecheck ok')"],
-    "test": ["{python}", "-m", "pytest", "tests/unit/", "-q", "--timeout=60"],
+    "test": ["{python}", "-m", "pytest", "tests/unit/", "-q", "-x"],
     "build": ["{python}", "-c", "print('build ok')"]
   },
   "acceptance_criteria": [

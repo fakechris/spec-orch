@@ -158,7 +158,7 @@ python3 -m ruff check src/ || warn "ruff check had findings"
 ok "Lint completed"
 
 echo "Running tests (subset)..."
-python3 -m pytest tests/unit/ -q --timeout=60 -x 2>&1 | tail -5
+python3 -m pytest tests/unit/ -q -x 2>&1 | tail -5
 ok "Tests completed"
 
 # Try run-issue in fixture mode — this will fail at builder stage since
