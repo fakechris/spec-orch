@@ -1231,21 +1231,11 @@ class RunController:
 
     @staticmethod
     def _load_toml(path: Path) -> dict[str, Any]:
-        """Load a TOML file, supporting both Python 3.11+ and older versions."""
-        import sys
+        """Load a TOML file (requires Python 3.11+)."""
+        import tomllib
 
-        if sys.version_info >= (3, 11):
-            import tomllib
-
-            with open(path, "rb") as f:
-                return tomllib.load(f)  # type: ignore[no-any-return]
-        try:
-            import tomli
-
-            with open(path, "rb") as f:
-                return tomli.load(f)  # type: ignore[no-any-return]
-        except ImportError:
-            raise ImportError("tomli is required on Python < 3.11")
+        with open(path, "rb") as f:
+            return tomllib.load(f)  # type: ignore[no-any-return]
 
     @staticmethod
     def _write_artifact_manifest(
