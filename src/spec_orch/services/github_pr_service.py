@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json as _json
+import re as _re
 import subprocess
 from pathlib import Path
 from typing import Any, cast
@@ -262,10 +263,15 @@ class GitHubPRService:
         *,
         branch: str,
         base: str = "main",
-    ) -> dict:
+    ) -> dict[str, object]:
         """Dry-run merge to check for conflicts.
 
-        Returns {"mergeable": bool, "conflicting_files": list[str]}.
+        Returns ``{"mergeable": bool, "conflicting_files": list[str],
+        "conflicting_paths": list[str]}``.
+
+        ``conflicting_files`` contains the raw ``CONFLICT …`` lines from
+        ``git merge-tree``.  ``conflicting_paths`` contains just the
+        extracted file paths for downstream consumers.
         """
         fetch = subprocess.run(
             ["git", "fetch", "origin", base],
@@ -275,7 +281,11 @@ class GitHubPRService:
             check=False,
         )
         if fetch.returncode != 0:
-            return {"mergeable": False, "conflicting_files": ["git fetch failed"]}
+            return {
+                "mergeable": False,
+                "conflicting_files": ["git fetch failed"],
+                "conflicting_paths": [],
+            }
 
         merge_result = subprocess.run(
             ["git", "merge-tree", f"origin/{base}", branch],
@@ -286,13 +296,25 @@ class GitHubPRService:
         )
 
         if merge_result.returncode == 0:
-            return {"mergeable": True, "conflicting_files": []}
+            return {
+                "mergeable": True,
+                "conflicting_files": [],
+                "conflicting_paths": [],
+            }
 
         conflicts: list[str] = []
+        paths: list[str] = []
         for line in merge_result.stdout.splitlines():
             if line.startswith("CONFLICT"):
                 conflicts.append(line)
-        return {"mergeable": False, "conflicting_files": conflicts}
+                m = _re.search(r"(?:in|:)\s+(\S+)$", line)
+                if m:
+                    paths.append(m.group(1))
+        return {
+            "mergeable": False,
+            "conflicting_files": conflicts,
+            "conflicting_paths": paths,
+        }
 
     def auto_rebase(
         self,
