@@ -957,6 +957,12 @@ class RunController:
         try:
             toml_data = self._load_toml(toml_path)
         except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Failed to load spec-orch.toml for evolution trigger",
+                exc_info=True,
+            )
             return
         from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
 
