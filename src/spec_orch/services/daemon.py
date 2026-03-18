@@ -13,6 +13,7 @@ from typing import Any, cast
 from spec_orch.domain.models import TERMINAL_STATES, RunResult, RunState
 from spec_orch.domain.protocols import PlannerAdapter
 from spec_orch.services.adapter_factory import create_builder, create_reviewer
+from spec_orch.services.conflict_resolver import ConflictResolver
 from spec_orch.services.github_pr_service import GitHubPRService
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
@@ -520,9 +521,31 @@ class SpecOrchDaemon:
                     if rebased:
                         print(f"[daemon] {issue_id}: rebase succeeded")
                     else:
-                        print(
-                            f"[daemon] {issue_id}: rebase failed, PR will be created with conflicts"
+                        print(f"[daemon] {issue_id}: rebase failed, attempting AI resolution")
+                        resolver = ConflictResolver(
+                            builder_adapter=self._controller._builder
+                            if hasattr(self, "_controller")
+                            else None,
+                            linear_client=getattr(self._write_back, "_client", None),
                         )
+                        conflict_files = cast(
+                            list[str], check["conflicting_files"]
+                        )
+                        cr = resolver.resolve(
+                            issue=result.issue,
+                            workspace=workspace,
+                            conflicting_files=conflict_files,
+                            base=self.config.base_branch,
+                        )
+                        if cr.resolved:
+                            print(
+                                f"[daemon] {issue_id}: conflict resolved via {cr.method}"
+                            )
+                        else:
+                            print(
+                                f"[daemon] {issue_id}: conflict resolution failed "
+                                f"({cr.method}), PR will be created with conflicts"
+                            )
 
             title = f"[SpecOrch] {issue_id}: {result.issue.title}"
             body_lines = [
