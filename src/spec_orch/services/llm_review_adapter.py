@@ -15,7 +15,9 @@ from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.compliance import default_turn_contract_compliance
-from spec_orch.domain.models import ReviewSummary
+from spec_orch.domain.models import Issue, IssueContext, ReviewSummary
+from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.node_context_registry import get_node_context_spec
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +56,7 @@ class LLMReviewAdapter:
         self.temperature = temperature
         self.max_diff_chars = max_diff_chars
         self.max_spec_chars = max_spec_chars
+        self._context_assembler = ContextAssembler()
 
     def initialize(
         self,
@@ -76,7 +79,12 @@ class LLMReviewAdapter:
             )
             return summary
 
-        extra_context = self._collect_extra_context(workspace)
+        context_bundle = self._build_context_bundle(issue_id=issue_id, workspace=workspace)
+        extra_context = (
+            self._render_context_bundle(context_bundle)
+            if context_bundle is not None
+            else self._collect_extra_context(workspace)
+        )
         llm_result = self._call_llm(diff, spec, issue_id, extra_context=extra_context)
         verdict = llm_result.get("verdict", "uncertain")
         if verdict not in ("pass", "changes_requested", "uncertain"):
@@ -193,6 +201,96 @@ class LLMReviewAdapter:
                     parts.append(f"## Acceptance Criteria\n{items}")
             except (json.JSONDecodeError, KeyError):
                 pass
+
+        return "\n\n".join(parts)
+
+    def _build_context_bundle(self, *, issue_id: str, workspace: Path) -> Any | None:
+        """Build ContextBundle for llm reviewer; fallback to legacy context on errors."""
+        issue = self._issue_from_workspace(issue_id=issue_id, workspace=workspace)
+        try:
+            return self._context_assembler.assemble(
+                get_node_context_spec("llm_reviewer"),
+                issue,
+                workspace,
+            )
+        except Exception:
+            logger.debug("Failed to assemble review ContextBundle", exc_info=True)
+            return None
+
+    @staticmethod
+    def _issue_from_workspace(*, issue_id: str, workspace: Path) -> Issue:
+        summary = ""
+        acceptance_criteria: list[str] = []
+        constraints: list[str] = []
+        title = issue_id
+
+        spec_snap_path = workspace / "spec_snapshot.json"
+        if spec_snap_path.exists():
+            try:
+                snap = json.loads(spec_snap_path.read_text())
+                issue_data = snap.get("issue", {})
+                title = issue_data.get("title", title) or title
+                summary = issue_data.get("summary", "") or ""
+                criteria = issue_data.get("acceptance_criteria", [])
+                if isinstance(criteria, list):
+                    acceptance_criteria = [str(c) for c in criteria]
+                cts = issue_data.get("context", {}).get("constraints", [])
+                if isinstance(cts, list):
+                    constraints = [str(c) for c in cts]
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        return Issue(
+            issue_id=issue_id,
+            title=title,
+            summary=summary,
+            context=IssueContext(constraints=constraints),
+            acceptance_criteria=acceptance_criteria,
+        )
+
+    @staticmethod
+    def _render_context_bundle(context_bundle: Any) -> str:
+        """Render ContextBundle into review prompt-friendly markdown."""
+        parts: list[str] = []
+        task = getattr(context_bundle, "task", None)
+        execution = getattr(context_bundle, "execution", None)
+        learning = getattr(context_bundle, "learning", None)
+
+        if task:
+            if getattr(task, "acceptance_criteria", []):
+                lines = "\n".join(f"- {c}" for c in task.acceptance_criteria)
+                parts.append(f"## Acceptance Criteria\n{lines}")
+            if getattr(task, "constraints", []):
+                lines = "\n".join(f"- {c}" for c in task.constraints)
+                parts.append(f"## Constraints\n{lines}")
+
+        if execution:
+            vr = getattr(execution, "verification_results", None)
+            if vr:
+                lines = []
+                details = getattr(vr, "details", {})
+                for name, detail in details.items():
+                    exit_code = getattr(detail, "exit_code", -1)
+                    status = "pass" if exit_code == 0 else "FAIL"
+                    lines.append(f"  - {name}: {status}")
+                if lines:
+                    parts.append("## Verification Results (previous run)\n" + "\n".join(lines))
+
+            gate = getattr(execution, "gate_report", None)
+            if gate is not None:
+                mergeable = getattr(gate, "mergeable", False)
+                failed_conditions = getattr(gate, "failed_conditions", [])
+                parts.append(
+                    "## Gate Status (previous run)\n"
+                    f"mergeable={mergeable}, failed_conditions={failed_conditions}"
+                )
+
+        if learning and getattr(learning, "similar_failure_samples", []):
+            lines = []
+            for s in learning.similar_failure_samples[:3]:
+                lines.append(f"- {s.get('key', '?')}: {s.get('content', '')[:200]}")
+            if lines:
+                parts.append("## Recent Failure Samples\n" + "\n".join(lines))
 
         return "\n\n".join(parts)
 

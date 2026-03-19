@@ -433,6 +433,37 @@ class TestLLMReviewAdapter:
 
     @patch("spec_orch.services.llm_review_adapter.LLMReviewAdapter._get_diff")
     @patch("spec_orch.services.llm_review_adapter.LLMReviewAdapter._call_llm")
+    def test_initialize_prefers_context_bundle_when_available(
+        self, mock_llm, mock_diff, tmp_path: Path
+    ):
+        from spec_orch.domain.context import (
+            ContextBundle,
+            ExecutionContext,
+            LearningContext,
+            TaskContext,
+        )
+        from spec_orch.services.llm_review_adapter import LLMReviewAdapter
+
+        mock_diff.return_value = "diff --git a/foo.py b/foo.py\n+hello"
+        mock_llm.return_value = {"verdict": "pass", "summary": "ok", "issues": []}
+
+        adapter = LLMReviewAdapter()
+        fake_ctx = ContextBundle(
+            task=TaskContext(
+                issue=_make_issue(), acceptance_criteria=["AC-1"], constraints=["C-1"]
+            ),
+            execution=ExecutionContext(),
+            learning=LearningContext(),
+        )
+        with patch.object(adapter, "_build_context_bundle", return_value=fake_ctx):
+            adapter.initialize(issue_id="TEST-1", workspace=tmp_path)
+
+        _, kwargs = mock_llm.call_args
+        assert "Acceptance Criteria" in kwargs["extra_context"]
+        assert "Constraints" in kwargs["extra_context"]
+
+    @patch("spec_orch.services.llm_review_adapter.LLMReviewAdapter._get_diff")
+    @patch("spec_orch.services.llm_review_adapter.LLMReviewAdapter._call_llm")
     def test_invalid_verdict_falls_back_to_uncertain(self, mock_llm, mock_diff, tmp_path: Path):
         from spec_orch.services.llm_review_adapter import LLMReviewAdapter
 
