@@ -230,6 +230,7 @@ def _parse_llm_result(data: dict[str, Any], root: Path) -> ProjectProfile:
         verification=verification,
         extra_notes=notes,
         base_branch=_detect_base_branch(root),
+        detection_method="llm",
     )
 
 

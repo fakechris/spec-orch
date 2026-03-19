@@ -15,9 +15,10 @@ class ProjectProfile:
     builder_adapter: str = "codex_exec"
     extra_notes: str = ""
     base_branch: str = "main"
+    detection_method: str = ""
 
 
-_PROFILES: dict[str, dict] = {
+_PROFILES: dict[str, dict] = {  # fallback defaults — prefer LLM detection via --smart
     "python": {
         "markers": ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile"],
         "language": "python",
@@ -212,6 +213,7 @@ def detect_project(root: Path) -> ProjectProfile:
                 framework=framework,
                 verification=dict(spec["verification"]),
                 base_branch=base_branch,
+                detection_method="rules",
             )
             if profile.language == "node":
                 _refine_node_verification(root, profile)
@@ -225,6 +227,7 @@ def detect_project(root: Path) -> ProjectProfile:
         verification={},
         extra_notes="Could not detect project type. Configure [verification] manually.",
         base_branch=base_branch,
+        detection_method="rules",
     )
 
 
@@ -244,6 +247,8 @@ def generate_toml_config(profile: ProjectProfile, *, profile_level: str = "stand
     lines.append(
         f"# Detected: {profile.language}" + (f" ({profile.framework})" if profile.framework else "")
     )
+    if profile.detection_method:
+        lines.append(f"# Detection method: {profile.detection_method}")
     lines.append("")
 
     lines.append("[issue]")
