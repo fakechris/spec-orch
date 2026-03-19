@@ -386,11 +386,7 @@ class RunController:
         if not workspace.exists():
             raise FileNotFoundError(f"workspace not found for issue {issue_id}")
 
-        report_path = workspace / "report.json"
-        if not report_path.exists():
-            raise FileNotFoundError(f"report not found for issue {issue_id}")
-
-        report_data = json.loads(report_path.read_text())
+        report_data = self._load_persisted_run_payload(workspace)
         run_id: str = report_data["run_id"]
         builder = self._builder_from_report(report_data, workspace)
 
@@ -406,6 +402,45 @@ class RunController:
             issue = self._issue_from_report(report_data)
 
         return issue, workspace, report_data, run_id, builder, current_state
+
+    @staticmethod
+    def _load_persisted_run_payload(workspace: Path) -> dict[str, Any]:
+        """Load persisted run payload preferring unified live snapshot.
+
+        Preference order:
+        1) run_artifact/live.json
+        2) report.json
+        """
+        live_path = workspace / "run_artifact" / "live.json"
+        report_path = workspace / "report.json"
+
+        live_data = RunController._read_json_dict(live_path)
+        report_data = RunController._read_json_dict(report_path)
+
+        if live_data:
+            merged = dict(live_data)
+            # Legacy report still carries some compatibility fields.
+            for key in ("human_acceptance", "metadata", "title"):
+                if key in report_data and key not in merged:
+                    merged[key] = report_data[key]
+            if "run_id" not in merged and "run_id" in report_data:
+                merged["run_id"] = report_data["run_id"]
+            return merged
+
+        if report_data:
+            return report_data
+
+        raise FileNotFoundError(f"persisted run payload not found under {workspace}")
+
+    @staticmethod
+    def _read_json_dict(path: Path) -> dict[str, Any]:
+        if not path.exists():
+            return {}
+        try:
+            data = json.loads(path.read_text())
+            return data if isinstance(data, dict) else {}
+        except (json.JSONDecodeError, OSError):
+            return {}
 
     def _issue_from_report(self, report_data: dict) -> Issue:
         """Reconstruct a minimal Issue from persisted report.json."""
@@ -1278,11 +1313,11 @@ class RunController:
 
     @staticmethod
     def _read_state(workspace: Path) -> RunState | None:
-        """Read persisted run state from report.json, or None if absent."""
-        report_path = workspace / "report.json"
-        if not report_path.exists():
+        """Read persisted run state from unified artifacts or legacy report."""
+        try:
+            data = RunController._load_persisted_run_payload(workspace)
+        except FileNotFoundError:
             return None
-        data = json.loads(report_path.read_text())
         raw = data.get("state")
         if raw is None:
             return RunState.GATE_EVALUATED
