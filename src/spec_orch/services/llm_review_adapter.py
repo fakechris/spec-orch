@@ -183,13 +183,17 @@ class LLMReviewAdapter:
             except (json.JSONDecodeError, KeyError):
                 pass
 
-        manifest_path = workspace / "artifact_manifest.json"
-        if manifest_path.exists():
-            try:
-                manifest = json.loads(manifest_path.read_text())
-                parts.append(f"## Run ID\n{manifest.get('run_id', 'unknown')}")
-            except (json.JSONDecodeError, KeyError):
-                pass
+        for manifest_path in (
+            workspace / "run_artifact" / "manifest.json",
+            workspace / "artifact_manifest.json",
+        ):
+            if manifest_path.exists():
+                try:
+                    manifest = json.loads(manifest_path.read_text())
+                    parts.append(f"## Run ID\n{manifest.get('run_id', 'unknown')}")
+                    break
+                except (json.JSONDecodeError, KeyError):
+                    continue
 
         spec_snap_path = workspace / "spec_snapshot.json"
         if spec_snap_path.exists():

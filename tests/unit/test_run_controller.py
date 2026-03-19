@@ -929,6 +929,25 @@ def test_evolution_trigger_loads_manifest(tmp_path: Path) -> None:
     assert loaded["builder_events"] == "/tmp/e.jsonl"
 
 
+def test_evolution_trigger_prefers_unified_manifest(tmp_path: Path) -> None:
+    """P1: prefer run_artifact/manifest.json over legacy artifact_manifest.json."""
+    from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
+
+    ws = tmp_path / "workspace"
+    (ws / "run_artifact").mkdir(parents=True)
+    (ws / "artifact_manifest.json").write_text(
+        json.dumps({"artifacts": {"report": "/tmp/legacy-report.json"}})
+    )
+    (ws / "run_artifact" / "manifest.json").write_text(
+        json.dumps({"artifacts": {"report": "/tmp/unified-report.json"}})
+    )
+
+    cfg = EvolutionConfig(enabled=True)
+    trigger = EvolutionTrigger(repo_root=tmp_path, config=cfg, latest_workspace=ws)
+    loaded = trigger._load_latest_manifest()
+    assert loaded["report"] == "/tmp/unified-report.json"
+
+
 def test_evolution_trigger_without_manifest(tmp_path: Path) -> None:
     """SON-141: Missing manifest returns empty dict."""
     from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger

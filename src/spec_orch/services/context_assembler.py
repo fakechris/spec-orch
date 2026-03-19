@@ -75,19 +75,24 @@ class ContextAssembler:
 
     @staticmethod
     def _load_manifest(workspace: Path) -> ArtifactManifest | None:
-        manifest_path = workspace / "artifact_manifest.json"
-        if not manifest_path.exists():
-            return None
-        try:
-            data = json.loads(manifest_path.read_text())
-            return ArtifactManifest(
-                run_id=data.get("run_id", ""),
-                issue_id=data.get("issue_id", ""),
-                artifacts=data.get("artifacts", {}),
-                created_at=data.get("created_at", ""),
-            )
-        except (json.JSONDecodeError, KeyError):
-            return None
+        candidates = [
+            workspace / "run_artifact" / "manifest.json",
+            workspace / "artifact_manifest.json",
+        ]
+        for manifest_path in candidates:
+            if not manifest_path.exists():
+                continue
+            try:
+                data = json.loads(manifest_path.read_text())
+                return ArtifactManifest(
+                    run_id=data.get("run_id", ""),
+                    issue_id=data.get("issue_id", ""),
+                    artifacts=data.get("artifacts", {}),
+                    created_at=data.get("created_at", ""),
+                )
+            except (json.JSONDecodeError, KeyError):
+                continue
+        return None
 
     def _build_task_context(
         self,
