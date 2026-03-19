@@ -70,6 +70,18 @@ class TestDashboardAPI:
         assert data["total_runs"] == 1
         assert data["successful_runs"] == 1
 
+    def test_evolution_endpoint_falls_back_to_legacy_report(self, client, repo: Path):
+        run_dir = repo / ".spec_orch_runs" / "R101"
+        run_dir.mkdir(parents=True)
+        (run_dir / "report.json").write_text(
+            '{"state":"gate_evaluated","mergeable":false,"issue_id":"R101"}'
+        )
+        r = client.get("/api/evolution")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["total_runs"] == 1
+        assert data["successful_runs"] == 0
+
     def test_approve_unknown_mission(self, client):
         r = client.post("/api/missions/nonexistent/approve")
         assert r.status_code == 200

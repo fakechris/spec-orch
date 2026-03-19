@@ -208,22 +208,18 @@ def _load_run_trend(repo_root: Path, metrics: dict[str, Any]) -> None:
 
 
 def _read_run_summary(run_dir: Path) -> dict[str, Any] | None:
-    conclusion = run_dir / "run_artifact" / "conclusion.json"
-    if conclusion.exists():
+    for file_path, kind in (
+        (run_dir / "run_artifact" / "conclusion.json", "conclusion"),
+        (run_dir / "report.json", "report"),
+    ):
+        if not file_path.exists():
+            continue
         try:
-            data = json.loads(conclusion.read_text())
+            data = json.loads(file_path.read_text())
             if isinstance(data, dict):
                 return data
         except (json.JSONDecodeError, OSError):
-            logger.debug("Skipping malformed conclusion: %s", conclusion)
-    report = run_dir / "report.json"
-    if report.exists():
-        try:
-            data = json.loads(report.read_text())
-            if isinstance(data, dict):
-                return data
-        except (json.JSONDecodeError, OSError):
-            logger.debug("Skipping malformed report: %s", report)
+            logger.debug("Skipping malformed %s: %s", kind, file_path)
     return None
 
 
