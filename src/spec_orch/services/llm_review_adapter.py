@@ -230,7 +230,7 @@ class LLMReviewAdapter:
                 snap = json.loads(spec_snap_path.read_text())
                 issue_data = snap.get("issue", {})
                 title = issue_data.get("title", title) or title
-                summary = (issue_data.get("summary") or issue_data.get("intent") or "")
+                summary = issue_data.get("summary") or issue_data.get("intent") or ""
                 criteria = issue_data.get("acceptance_criteria", [])
                 if isinstance(criteria, list):
                     acceptance_criteria = [str(c) for c in criteria]
