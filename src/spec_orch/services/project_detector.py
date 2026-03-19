@@ -18,7 +18,7 @@ class ProjectProfile:
     detection_method: str = ""
 
 
-_PROFILES: dict[str, dict] = {  # fallback defaults — prefer LLM detection via --smart
+_PROFILES: dict[str, dict] = {  # fallback defaults — init now prefers LLM by default
     "python": {
         "markers": ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile"],
         "language": "python",
@@ -254,6 +254,11 @@ def generate_toml_config(profile: ProjectProfile, *, profile_level: str = "stand
     lines.append("[issue]")
     lines.append('source = "fixture"  # fixture | linear | github | jira')
     lines.append("")
+
+    if profile.detection_method:
+        lines.append("[init]")
+        lines.append(f'detection_mode = "{profile.detection_method}"  # llm | rules')
+        lines.append("")
 
     lines.append("# [linear]")
     lines.append('# token_env = "SPEC_ORCH_LINEAR_TOKEN"')

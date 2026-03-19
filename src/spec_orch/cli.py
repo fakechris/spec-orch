@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
@@ -124,10 +125,20 @@ def init_project(
         False, "--yes", "-y", help="Accept defaults without prompting."
     ),
     offline: bool = typer.Option(
-        False, "--offline", hidden=True, help="No-op (offline is now the default)."
+        False,
+        "--offline",
+        help="Use offline rule-based detection instead of LLM analysis.",
     ),
     smart: bool = typer.Option(
-        False, "--smart", help="Use LLM-based project analysis instead of rule-based detection."
+        False,
+        "--smart",
+        hidden=True,
+        help="Deprecated: LLM detection is now the default.",
+    ),
+    reconfigure: bool = typer.Option(
+        False,
+        "--reconfigure",
+        help="Re-run detection and overwrite existing spec-orch.toml.",
     ),
     profile: ProfileLevel = typer.Option(
         ProfileLevel.standard,
@@ -137,8 +148,9 @@ def init_project(
 ) -> None:
     """Detect project type and generate spec-orch.toml configuration.
 
-    By default, uses fast offline rule-based detection that requires no API key.
-    Use --smart to enable LLM-based analysis for more accurate results.
+    By default, uses LLM-based analysis for project detection when credentials
+    are available, and automatically falls back to rule-based detection.
+    Use --offline to force rule-based detection.
 
     Rule-based detection scans for marker files (pyproject.toml, package.json,
     Cargo.toml, go.mod, etc.) and applies language-specific defaults.
@@ -150,12 +162,16 @@ def init_project(
     root = Path(repo_root).resolve()
     config_path = root / "spec-orch.toml"
 
-    if config_path.exists() and not force:
+    if smart:
+        typer.echo("Warning: --smart is deprecated and no longer needed (LLM is default).")
+
+    if config_path.exists() and not (force or reconfigure):
         typer.echo(f"spec-orch.toml already exists at {config_path}")
-        typer.echo("Use --force to overwrite.")
+        typer.echo("Use --force or --reconfigure to overwrite.")
         raise typer.Exit(1)
 
-    use_offline = not smart
+    persisted_mode = _read_init_detection_mode(config_path) if config_path.exists() else None
+    use_offline = offline or persisted_mode == "rules"
     project_profile, method = smart_detect_project(root, offline=use_offline)
     method_label = "LLM analysis" if method == "llm" else "rule-based detection"
     typer.echo(
@@ -168,6 +184,15 @@ def init_project(
         typer.echo(f"  {step}: {' '.join(cmd)}")
     if project_profile.extra_notes:
         typer.echo(f"Notes: {project_profile.extra_notes}")
+
+    if not non_interactive and method == "llm" and project_profile.verification:
+        confirm_verify = typer.confirm(
+            "Accept inferred verification commands from LLM?",
+            default=True,
+        )
+        if not confirm_verify:
+            typer.echo("Aborted.")
+            raise typer.Exit(0)
 
     if not non_interactive:
         proceed = typer.confirm("Generate spec-orch.toml with these settings?", default=True)
@@ -190,6 +215,23 @@ def init_project(
             f"\nNote: '{profile.value}' profile omits optional sections. "
             "Run 'spec-orch init --profile full' for a complete config."
         )
+
+
+def _read_init_detection_mode(config_path: Path) -> str | None:
+    """Read persisted init detection mode from spec-orch.toml if present."""
+    if not config_path.exists():
+        return None
+    try:
+        raw = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    init_cfg = raw.get("init", {}) if isinstance(raw, dict) else {}
+    if not isinstance(init_cfg, dict):
+        return None
+    mode = init_cfg.get("detection_mode")
+    if isinstance(mode, str) and mode in {"llm", "rules"}:
+        return mode
+    return None
 
 
 @app.command("dashboard")
