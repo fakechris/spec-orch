@@ -474,6 +474,16 @@ class TestLLMReviewAdapter:
         summary = adapter.initialize(issue_id="TEST-1", workspace=tmp_path)
         assert summary.verdict == "uncertain"
 
+    def test_issue_from_workspace_falls_back_to_legacy_intent(self, tmp_path: Path):
+        from spec_orch.services.llm_review_adapter import LLMReviewAdapter
+
+        (tmp_path / "spec_snapshot.json").write_text(
+            json.dumps({"issue": {"intent": "Legacy intent summary"}})
+        )
+
+        issue = LLMReviewAdapter._issue_from_workspace(issue_id="TEST-1", workspace=tmp_path)
+        assert issue.summary == "Legacy intent summary"
+
 
 # ---------------------------------------------------------------------------
 # RunController injection
