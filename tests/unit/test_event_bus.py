@@ -83,6 +83,16 @@ class TestEventBus:
         assert len(recent) == 3
         assert recent[0].payload["i"] == 2
 
+    def test_query_history_by_issue_and_topic(self):
+        bus = EventBus()
+        bus.publish(Event(topic=EventTopic.SYSTEM, payload={"issue_id": "SON-1"}))
+        bus.publish(Event(topic=EventTopic.ISSUE_STATE, payload={"issue_id": "SON-1"}))
+        bus.publish(Event(topic=EventTopic.ISSUE_STATE, payload={"issue_id": "SON-2"}))
+
+        events = bus.query_history(topic=EventTopic.ISSUE_STATE, issue_id="SON-1", limit=10)
+        assert len(events) == 1
+        assert events[0].payload["issue_id"] == "SON-1"
+
     def test_history_capped(self):
         bus = EventBus()
         bus._max_history = 10

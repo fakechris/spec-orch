@@ -87,3 +87,8 @@ class TestDashboardAPI:
         r = client.get("/api/runs")
         assert r.status_code == 200
         assert isinstance(r.json(), list)
+
+    def test_events_endpoint(self, client):
+        r = client.get("/api/events")
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
