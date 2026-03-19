@@ -116,7 +116,7 @@ class GatePolicyEvolver:
             "fn_failed_conditions": dict(fn_failed_conditions),
         }
 
-    def evolve(self) -> GatePolicyEvolveResult | None:
+    def evolve(self, *, context: Any | None = None) -> GatePolicyEvolveResult | None:
         """Analyse gate verdicts and produce policy suggestions."""
         patterns = self.detect_false_patterns()
         total = patterns.get("total_verdicts", 0)

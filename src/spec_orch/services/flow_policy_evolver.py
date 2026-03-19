@@ -99,7 +99,7 @@ class FlowPolicyEvolver:
             "demotions_by_intent": dict(demotion_by_intent),
         }
 
-    def evolve(self) -> FlowPolicyEvolveResult | None:
+    def evolve(self, *, context: Any | None = None) -> FlowPolicyEvolveResult | None:
         """Analyse flow events and produce threshold suggestions."""
         patterns = self.analyse_patterns()
         total = patterns.get("total_events", 0)

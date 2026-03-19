@@ -222,7 +222,7 @@ class PromptEvolver:
 
         return samples
 
-    def evolve(self) -> PromptVariant | None:
+    def evolve(self, *, context: Any | None = None) -> PromptVariant | None:
         """Use an LLM to propose an improved prompt variant.
 
         Returns the new candidate variant, or ``None`` if evolution is not
@@ -264,6 +264,8 @@ class PromptEvolver:
             "Performance statistics:\n"
             f"```json\n{json.dumps(stats, indent=2)}\n```\n\n"
         )
+        if context is not None:
+            user_msg += self._render_context_for_prompt(context)
         if failure_samples:
             user_msg += (
                 "Recent failure samples (use these to target specific failure patterns):\n"
@@ -284,6 +286,32 @@ class PromptEvolver:
             return None
 
         return self._parse_evolve_response(response, history)
+
+    @staticmethod
+    def _render_context_for_prompt(context: Any) -> str:
+        parts: list[str] = []
+        task = getattr(context, "task", None)
+        execution = getattr(context, "execution", None)
+        learning = getattr(context, "learning", None)
+
+        if task and getattr(task, "constraints", []):
+            constraint_lines = "\n".join(f"- {c}" for c in task.constraints)
+            parts.append(f"Known constraints:\n{constraint_lines}")
+        if execution and getattr(execution, "deviation_slices", []):
+            parts.append(
+                "Recent deviation slices:\n"
+                + json.dumps(execution.deviation_slices[:5], ensure_ascii=False, indent=2)
+            )
+        if learning and getattr(learning, "similar_failure_samples", []):
+            failure_lines: list[str] = [
+                f"- {s.get('key', '?')}: {s.get('content', '')[:180]}"
+                for s in learning.similar_failure_samples[:3]
+            ]
+            parts.append("Similar failures:\n" + "\n".join(failure_lines))
+
+        if not parts:
+            return ""
+        return "ContextBundle evidence:\n" + "\n\n".join(parts) + "\n\n"
 
     def _parse_evolve_response(
         self, response: Any, history: list[PromptVariant]
