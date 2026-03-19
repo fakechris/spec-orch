@@ -416,6 +416,8 @@ def test_artifact_manifest_written_after_run(tmp_path: Path) -> None:
     assert manifest["run_id"]
     assert "report" in manifest["artifacts"]
     assert "explain" in manifest["artifacts"]
+    assert manifest["metadata"]["compatibility_mode"] == "legacy_manifest_bridge"
+    assert manifest["metadata"]["canonical_manifest"].endswith("run_artifact/manifest.json")
 
     unified_manifest = result.workspace / "run_artifact" / "manifest.json"
     assert unified_manifest.exists(), "run_artifact/manifest.json should be written"

@@ -498,6 +498,7 @@ class ArtifactManifest:
     run_id: str
     issue_id: str
     artifacts: dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     STANDARD_TYPES = (
@@ -517,6 +518,7 @@ class ArtifactManifest:
             "run_id": self.run_id,
             "issue_id": self.issue_id,
             "artifacts": self.artifacts,
+            "metadata": self.metadata,
             "created_at": self.created_at,
         }
 

@@ -1340,6 +1340,10 @@ class RunController:
             run_id=run_id,
             issue_id=issue.issue_id,
             artifacts=artifacts,
+            metadata={
+                "compatibility_mode": "legacy_manifest_bridge",
+                "canonical_manifest": str(workspace / "run_artifact" / "manifest.json"),
+            },
         )
         manifest_path = workspace / "artifact_manifest.json"
         manifest_path.write_text(
