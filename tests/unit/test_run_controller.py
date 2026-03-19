@@ -417,6 +417,12 @@ def test_artifact_manifest_written_after_run(tmp_path: Path) -> None:
     assert "report" in manifest["artifacts"]
     assert "explain" in manifest["artifacts"]
 
+    unified_manifest = result.workspace / "run_artifact" / "manifest.json"
+    assert unified_manifest.exists(), "run_artifact/manifest.json should be written"
+    unified = json.loads(unified_manifest.read_text())
+    assert unified["issue_id"] == "SPC-AM"
+    assert unified["run_id"] == manifest["run_id"]
+
 
 def test_flow_transition_writes_to_memory(tmp_path: Path) -> None:
     """SON-126: record_flow_transition stores event in MemoryService."""

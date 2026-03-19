@@ -216,10 +216,27 @@ def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
             continue
         for ws in sorted(base.iterdir()):
             report = ws / "report.json"
-            if not report.exists():
-                continue
+            conclusion = ws / "run_artifact" / "conclusion.json"
             try:
-                data = json.loads(report.read_text())
+                report_data: dict[str, Any] = {}
+                if report.exists():
+                    maybe_report = json.loads(report.read_text())
+                    if isinstance(maybe_report, dict):
+                        report_data = maybe_report
+                if conclusion.exists():
+                    cdata = json.loads(conclusion.read_text())
+                    data = {
+                        "issue_id": cdata.get("issue_id", ws.name),
+                        "title": report_data.get("title", ws.name),
+                        "state": cdata.get("state", "unknown"),
+                        "mergeable": cdata.get("mergeable", False),
+                        "failed_conditions": cdata.get("failed_conditions", []),
+                        "builder": report_data.get("builder", {}),
+                    }
+                elif report.exists():
+                    data = report_data
+                else:
+                    continue
                 runs.append(
                     {
                         "issue_id": data.get("issue_id", ws.name),
@@ -819,6 +836,42 @@ def create_app(repo_root: Path | None = None) -> Any:
                 "repo_root": str(root),
                 "missions": len(_gather_missions(root)),
             }
+        )
+
+    @app.get("/api/events")
+    async def api_events(
+        issue_id: str | None = None,
+        run_id: str | None = None,
+        topic: str | None = None,
+        limit: int = 100,
+    ) -> JSONResponse:
+        bus = _get_event_bus()
+        if bus is None:
+            return JSONResponse([])
+        parsed_topic = None
+        if topic:
+            try:
+                from spec_orch.services.event_bus import EventTopic
+
+                parsed_topic = EventTopic(topic)
+            except ValueError:
+                parsed_topic = None
+        events = bus.query_history(
+            topic=parsed_topic,
+            issue_id=issue_id,
+            run_id=run_id,
+            limit=limit,
+        )
+        return JSONResponse(
+            [
+                {
+                    "topic": ev.topic.value if hasattr(ev.topic, "value") else str(ev.topic),
+                    "payload": ev.payload,
+                    "timestamp": ev.timestamp,
+                    "source": ev.source,
+                }
+                for ev in events
+            ]
         )
 
     # ---- lifecycle & evolution endpoints ----

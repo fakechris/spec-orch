@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from spec_orch.services.event_bus import Event, EventTopic, get_event_bus
+
 try:
     from fastapi.testclient import TestClient
 
@@ -87,3 +89,24 @@ class TestDashboardAPI:
         r = client.get("/api/runs")
         assert r.status_code == 200
         assert isinstance(r.json(), list)
+
+    def test_events_endpoint(self, client):
+        bus = get_event_bus()
+        bus.publish(
+            Event(
+                topic=EventTopic.ISSUE_STATE,
+                payload={"issue_id": "SON-194", "run_id": "run-194", "state": "building"},
+                source="test",
+            )
+        )
+        r = client.get("/api/events")
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data, list)
+        assert len(data) >= 1
+
+        filtered = client.get("/api/events?issue_id=SON-194&topic=issue.state&limit=1")
+        assert filtered.status_code == 200
+        result = filtered.json()
+        assert len(result) == 1
+        assert result[0]["payload"]["issue_id"] == "SON-194"

@@ -40,6 +40,7 @@ from spec_orch.services.fixture_issue_source import FixtureIssueSource
 from spec_orch.services.gate_service import GateService
 from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.review_adapter import LocalReviewAdapter
+from spec_orch.services.run_artifact_service import RunArtifactService
 from spec_orch.services.spec_snapshot_service import (
     create_initial_snapshot,
     read_spec_snapshot,
@@ -124,6 +125,7 @@ class RunController:
         self.planner_adapter: PlannerAdapter | None = planner_adapter
         self.gate_service = GateService()
         self.review_adapter: ReviewAdapter = review_adapter or LocalReviewAdapter()
+        self.run_artifact_service = RunArtifactService()
         self.telemetry_service = TelemetryService()
         self.verification_service = VerificationService()
         self.workspace_service = WorkspaceService(repo_root=self.repo_root)
@@ -995,6 +997,13 @@ class RunController:
             review=review,
             explain=explain,
             report=report,
+        )
+        self.run_artifact_service.write_from_run(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            report_path=report,
+            explain_path=explain,
         )
         self._maybe_trigger_evolution(workspace)
         return gate, explain, report

@@ -109,6 +109,33 @@ class EventBus:
         with self._lock:
             return list(self._history[-limit:])
 
+    def query_history(
+        self,
+        *,
+        topic: EventTopic | None = None,
+        issue_id: str | None = None,
+        run_id: str | None = None,
+        since_ts: float | None = None,
+        limit: int = 100,
+    ) -> list[Event]:
+        """Query buffered history with optional filters."""
+        with self._lock:
+            events = list(self._history)
+
+        def _match(ev: Event) -> bool:
+            if topic is not None and ev.topic != topic:
+                return False
+            if since_ts is not None and ev.timestamp < since_ts:
+                return False
+            if issue_id is not None and ev.payload.get("issue_id") != issue_id:
+                return False
+            return run_id is None or ev.payload.get("run_id") == run_id
+
+        filtered = [ev for ev in events if _match(ev)]
+        if limit <= 0:
+            return []
+        return filtered[-limit:]
+
     def emit_mission_state(
         self, mission_id: str, old_state: str, new_state: str, **extra: Any
     ) -> None:
