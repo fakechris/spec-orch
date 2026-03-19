@@ -3,6 +3,7 @@
 > 日期: 2026-03-19
 > 基于: 10 篇前沿 AI 工程化文献 + 项目现状交叉审视
 > 前置: [七层架构](seven-planes.md) / [全局状态盘点](../plans/2026-03-18-overall-status-and-roadmap.md)
+> English version: [English](2026-03-19-directional-review.md)
 
 ---
 
@@ -73,7 +74,7 @@ YAML 这种极其详细的 spec，大多数实现仍不完全符合。Flakiness 
 
 **方向调整**: 把七层简化为"骨架三层"：
 
-```
+```text
 Contract（意图冻结）──→ Execution（隔离执行）──→ Evidence（证明完成）
 ```
 
