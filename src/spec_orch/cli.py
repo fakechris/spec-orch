@@ -1143,12 +1143,14 @@ def daemon_status(
         lockfile_dir = ".spec_orch_locks/"
 
     state_data: dict[str, object] | None = None
+    state_error: str | None = None
     state_path = repo_root.resolve() / lockfile_dir / "daemon_state.json"
     if state_path.exists():
         try:
             state_data = json.loads(state_path.read_text())
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError) as exc:
             state_data = None
+            state_error = f"corrupt state file ({exc})"
 
     def _safe_len(val: object) -> int:
         return len(val) if isinstance(val, (list, tuple)) else 0
@@ -1160,7 +1162,9 @@ def daemon_status(
             "running": info["running"],
             "config": config_status,
         }
-        if state_data is not None:
+        if state_error:
+            output["state_error"] = state_error
+        elif state_data is not None:
             output["last_poll"] = state_data.get("last_poll", "unknown")
             output["processed_count"] = _safe_len(state_data.get("processed"))
             output["triaged_count"] = _safe_len(state_data.get("triaged"))
@@ -1172,7 +1176,9 @@ def daemon_status(
     typer.echo(f"Running:   {info['running']}")
     if config_status != "ok":
         typer.echo(f"Config:    {config_status}")
-    if state_data is not None:
+    if state_error:
+        typer.echo(f"State:     {state_error}")
+    elif state_data is not None:
         typer.echo(f"Last poll: {state_data.get('last_poll', 'unknown')}")
         typer.echo(f"Processed: {_safe_len(state_data.get('processed'))} issues")
         typer.echo(f"Triaged:   {_safe_len(state_data.get('triaged'))} issues")
