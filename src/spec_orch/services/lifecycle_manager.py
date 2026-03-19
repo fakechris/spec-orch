@@ -14,7 +14,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.domain.models import Issue, IssueContext
+from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.event_bus import EventBus, get_event_bus
+from spec_orch.services.node_context_registry import get_node_context_spec
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +76,7 @@ class MissionLifecycleManager:
         self.repo_root = Path(repo_root)
         self._bus = event_bus or get_event_bus()
         self._states: dict[str, MissionState] = {}
+        self._context_assembler = ContextAssembler()
         self._load_state()
 
     def _state_path(self) -> Path:
@@ -263,6 +267,20 @@ class MissionLifecycleManager:
         plan = scoper.scope(
             mission=mission,
             codebase_context={"spec_content": spec_text, "file_tree": ""},
+            context=self._context_assembler.assemble(
+                get_node_context_spec("scoper"),
+                Issue(
+                    issue_id=mission.mission_id,
+                    title=mission.title,
+                    summary=spec_text,
+                    context=IssueContext(
+                        files_to_read=[],
+                        constraints=list(mission.constraints),
+                    ),
+                    acceptance_criteria=list(mission.acceptance_criteria),
+                ),
+                self.repo_root,
+            ),
         )
         plan_dir = self.repo_root / "docs" / "specs" / mission_id
         plan_dir.mkdir(parents=True, exist_ok=True)

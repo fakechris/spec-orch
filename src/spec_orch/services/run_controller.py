@@ -30,12 +30,14 @@ from spec_orch.flow_engine.mapper import FlowMapper
 from spec_orch.services.activity_logger import ActivityLogger
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
+from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.deviation_service import (
     detect_deviations,
     overwrite_deviations,
 )
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
 from spec_orch.services.gate_service import GateService
+from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.review_adapter import LocalReviewAdapter
 from spec_orch.services.spec_snapshot_service import (
     create_initial_snapshot,
@@ -130,6 +132,7 @@ class RunController:
         self._live_stream = live_stream
         self.flow_engine = flow_engine or FlowEngine()
         self.flow_mapper = flow_mapper or FlowMapper()
+        self.context_assembler = ContextAssembler()
 
     def _resolve_flow(self, issue: Issue) -> FlowType:
         """Determine the FlowType for an issue. Defaults to Standard."""
@@ -615,9 +618,15 @@ class RunController:
                 snapshot = read_spec_snapshot(workspace)
                 if snapshot and snapshot.has_unresolved_blocking_questions():
                     issue = self.issue_source.load(issue_id)
+                    planner_context = self.context_assembler.assemble(
+                        get_node_context_spec("planner"),
+                        issue,
+                        workspace,
+                    )
                     snapshot = self.planner_adapter.answer_questions(
                         snapshot=snapshot,
                         issue=issue,
+                        context=planner_context,
                     )
                     write_spec_snapshot(workspace, snapshot)
             result = self.advance(issue_id, flow_type=flow_type)
@@ -693,10 +702,16 @@ class RunController:
             )
 
         existing_snapshot = read_spec_snapshot(workspace)
+        planner_context = self.context_assembler.assemble(
+            get_node_context_spec("planner"),
+            issue,
+            workspace,
+        )
         planner_result = self.planner_adapter.plan(
             issue=issue,
             workspace=workspace,
             existing_snapshot=existing_snapshot,
+            context=planner_context,
         )
 
         snapshot = planner_result.spec_draft or create_initial_snapshot(issue)

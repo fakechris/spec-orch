@@ -209,7 +209,9 @@ cp .env.example .env
 # (详见 .env.example 中的各提供商配置示例)
 
 # 3. 初始化项目配置
-spec-orch init                    # 自动检测项目类型，生成 spec-orch.toml
+spec-orch init                    # LLM 优先检测（自动回退 rules）
+spec-orch init --offline          # 强制规则检测
+spec-orch init --reconfigure      # 重新检测并覆盖已有配置
 
 # 4. 验证一切正常
 spec-orch config check            # 验证配置
@@ -270,9 +272,14 @@ spec-orch config check
 SpecOrch 通过 `spec-orch.toml` 配置。运行 `spec-orch init` 自动检测项目并生成配置：
 
 ```bash
-spec-orch init          # 检测 Python/Node/Rust/Go/Java/Swift/.NET
-spec-orch init --force  # 覆盖已有配置
+spec-orch init               # LLM 优先检测，失败自动回退规则检测
+spec-orch init --offline     # 强制规则检测
+spec-orch init --reconfigure # 重新检测并覆盖已有配置
+spec-orch init --force       # 强制覆盖已有配置
 ```
+
+`spec-orch init` 会把检测模式写入 `spec-orch.toml` 的
+`[init].detection_mode`，用于后续重配时保持可复现行为。
 
 详见 [spec-orch.toml 参考](docs/reference/spec-orch-toml.md) 和 [AI 配置指南](docs/guides/ai-config-guide.md)。
 

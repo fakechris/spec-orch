@@ -10,14 +10,16 @@ import time
 from pathlib import Path
 from typing import Any, cast
 
-from spec_orch.domain.models import TERMINAL_STATES, RunResult, RunState
+from spec_orch.domain.models import TERMINAL_STATES, Issue, IssueContext, RunResult, RunState
 from spec_orch.domain.protocols import PlannerAdapter
 from spec_orch.services.adapter_factory import create_builder, create_reviewer
 from spec_orch.services.conflict_resolver import ConflictResolver
+from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.github_pr_service import GitHubPRService
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
 from spec_orch.services.linear_write_back import LinearWriteBackService
+from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.run_controller import RunController
 
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -83,6 +85,7 @@ class SpecOrchDaemon:
         self.repo_root = repo_root
         self._running = True
         self._readiness_checker: Any = None
+        self._context_assembler = ContextAssembler()
         self._lockdir = repo_root / config.lockfile_dir
         self._lockdir.mkdir(parents=True, exist_ok=True)
         self._state_path = self._lockdir / self.STATE_FILE
@@ -290,7 +293,7 @@ class SpecOrchDaemon:
             self._claim(issue_id)
 
             is_hotfix = self._is_hotfix(raw_issue)
-            if not is_hotfix and not self._triage_issue(client, raw_issue):
+            if not is_hotfix and not self._triage_issue(client, raw_issue, controller):
                 self._release(issue_id)
                 continue
 
@@ -609,6 +612,7 @@ class SpecOrchDaemon:
         self,
         client: LinearClient,
         raw_issue: dict[str, Any],
+        controller: RunController,
     ) -> bool:
         """Check issue readiness before execution.
 
@@ -619,7 +623,17 @@ class SpecOrchDaemon:
         linear_uid = raw_issue.get("id", "")
         description = raw_issue.get("description", "") or ""
 
-        result = self._readiness_checker.check(description)
+        issue = self._build_triage_issue(raw_issue)
+        raw_workspace = controller.workspace_service.issue_workspace_path(issue.issue_id)
+        workspace = raw_workspace if isinstance(raw_workspace, Path) else self.repo_root
+        context = self._context_assembler.assemble(
+            get_node_context_spec("readiness_checker"),
+            issue,
+            workspace,
+            memory=self._memory_service,
+            repo_root=self.repo_root,
+        )
+        result = self._readiness_checker.check(description, context=context)
         if result.ready:
             return True
 
@@ -643,6 +657,19 @@ class SpecOrchDaemon:
 
         self._triaged.add(issue_id)
         return False
+
+    @staticmethod
+    def _build_triage_issue(raw_issue: dict[str, Any]) -> Issue:
+        issue_id = raw_issue.get("identifier", "") or "unknown"
+        title = raw_issue.get("title", issue_id) or issue_id
+        summary = raw_issue.get("description", "") or ""
+        return Issue(
+            issue_id=issue_id,
+            title=title,
+            summary=summary,
+            context=IssueContext(),
+            acceptance_criteria=[],
+        )
 
     def _check_clarification_replies(self, client: LinearClient) -> None:
         """Check for user replies on issues waiting for clarification.

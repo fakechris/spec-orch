@@ -207,3 +207,47 @@ but adds directional constraints on top:
 - **Added**: Spec format standardization to IAC (Intent + Acceptance + Constraints)
 - **Demoted**: Skill system from P1 to P3; context governance first
 - **Demoted**: Dashboard / Control Tower from P2 to P3; core loop first
+
+---
+
+## VI. Execution Status Snapshot (2026-03-19)
+
+This status section tracks whether the directional adjustments above are already
+implemented in code and synchronized into planning execution systems (Linear).
+
+| Directional item | Status | Evidence |
+|------------------|--------|----------|
+| Project detection LLM-first + rules fallback | ✅ Done | Linear Epic `SON-175` + issues `SON-181~184` completed |
+| Spec format standardization to IAC | ✅ Done | Linear Epic `SON-176` + issues `SON-185~188` completed |
+| ContextAssembler full integration across LLM nodes | 🔄 In progress | Linear Epic `SON-174`; issues `SON-177~180` pending |
+| README / user-facing init docs synced to new behavior | ✅ Done | `README.md` / `README.zh.md` include `--offline` / `--reconfigure` |
+| Flywheel roadmap (P1/P2/P5/P6/P4-format) represented in Linear epics | ✅ Done | Planning epics `SON-189~193` created and labeled `epic` |
+
+### CEO Review Sync (2026-03-19)
+
+Source of truth:
+`~/.gstack/projects/fakechris-spec-orch/ceo-plans/2026-03-19-credibility-flywheel.md`
+
+CEO plan confirms a **Credibility Flywheel** roadmap in `SELECTIVE EXPANSION` mode.
+
+Accepted scope:
+
+- P0: Context contract full integration (`SON-174` / `SON-177~180`)
+- P1: Unified run artifact schema
+- P2: Reaction engine
+- P5: Control tower UI
+- P6: Harness evals
+- P4 (partial): Skill format definition (not full runtime)
+
+Explicitly deferred / skipped for now:
+
+- Preview interface abstraction
+- Sandbox abstraction
+- Full skill runtime
+- Broad external-beta expansion before P0/P1 stabilization
+
+Operational implications:
+
+1. Keep expansion selective: complete Context Governance (`SON-174`, `SON-177~180`) before broadening into flywheel implementation stages.
+2. Align planning epics with P0/P1/P2/P5/P6 and P4-format-only; avoid introducing non-approved tracks.
+3. Treat P0->P1->P6 as a loop, not isolated one-off phases.
