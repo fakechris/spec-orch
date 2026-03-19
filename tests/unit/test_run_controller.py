@@ -426,6 +426,42 @@ def test_artifact_manifest_written_after_run(tmp_path: Path) -> None:
     assert unified["run_id"] == manifest["run_id"]
 
 
+def test_load_existing_run_prefers_unified_live_payload(tmp_path: Path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SON-U1.json").write_text(
+        json.dumps({"issue_id": "SON-U1", "title": "Unified payload", "summary": "x"})
+    )
+    controller = RunController(repo_root=tmp_path)
+    workspace = controller.workspace_service.issue_workspace_path("SON-U1")
+    (workspace / "run_artifact").mkdir(parents=True)
+    (workspace / "run_artifact" / "live.json").write_text(
+        json.dumps(
+            {
+                "run_id": "run-u1",
+                "issue_id": "SON-U1",
+                "state": "gate_evaluated",
+                "mergeable": False,
+                "failed_conditions": ["review"],
+                "builder": {
+                    "succeeded": True,
+                    "adapter": "codex_exec",
+                    "agent": "codex",
+                    "metadata": {},
+                },
+                "verification": {},
+                "review": {"verdict": "pending", "reviewed_by": None},
+            }
+        )
+    )
+
+    issue, _ws, payload, run_id, _builder, state = controller._load_existing_run("SON-U1")
+    assert issue.issue_id == "SON-U1"
+    assert run_id == "run-u1"
+    assert payload["run_id"] == "run-u1"
+    assert state == RunState.GATE_EVALUATED
+
+
 def test_flow_transition_writes_to_memory(tmp_path: Path) -> None:
     """SON-126: record_flow_transition stores event in MemoryService."""
     from spec_orch.domain.models import FlowTransitionEvent
