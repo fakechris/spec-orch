@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -141,6 +142,13 @@ class RunController:
             labels=issue.labels,
         )
         return resolved or FlowType.STANDARD
+
+    @staticmethod
+    def _supports_context_kwarg(method: Any) -> bool:
+        try:
+            return "context" in inspect.signature(method).parameters
+        except (TypeError, ValueError):
+            return False
 
     def run_issue(self, issue_id: str, flow_type: FlowType | None = None) -> RunResult:
         issue = self.issue_source.load(issue_id)
@@ -623,11 +631,18 @@ class RunController:
                         issue,
                         workspace,
                     )
-                    snapshot = self.planner_adapter.answer_questions(
-                        snapshot=snapshot,
-                        issue=issue,
-                        context=planner_context,
-                    )
+                    answer_fn = self.planner_adapter.answer_questions
+                    if self._supports_context_kwarg(answer_fn):
+                        snapshot = answer_fn(
+                            snapshot=snapshot,
+                            issue=issue,
+                            context=planner_context,
+                        )
+                    else:
+                        snapshot = answer_fn(
+                            snapshot=snapshot,
+                            issue=issue,
+                        )
                     write_spec_snapshot(workspace, snapshot)
             result = self.advance(issue_id, flow_type=flow_type)
             if result.state == RunState.FAILED:
@@ -707,12 +722,20 @@ class RunController:
             issue,
             workspace,
         )
-        planner_result = self.planner_adapter.plan(
-            issue=issue,
-            workspace=workspace,
-            existing_snapshot=existing_snapshot,
-            context=planner_context,
-        )
+        plan_fn = self.planner_adapter.plan
+        if self._supports_context_kwarg(plan_fn):
+            planner_result = plan_fn(
+                issue=issue,
+                workspace=workspace,
+                existing_snapshot=existing_snapshot,
+                context=planner_context,
+            )
+        else:
+            planner_result = plan_fn(
+                issue=issue,
+                workspace=workspace,
+                existing_snapshot=existing_snapshot,
+            )
 
         snapshot = planner_result.spec_draft or create_initial_snapshot(issue)
         for q in planner_result.questions:

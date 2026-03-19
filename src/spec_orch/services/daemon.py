@@ -612,7 +612,7 @@ class SpecOrchDaemon:
         self,
         client: LinearClient,
         raw_issue: dict[str, Any],
-        controller: RunController,
+        controller: RunController | None = None,
     ) -> bool:
         """Check issue readiness before execution.
 
@@ -623,17 +623,20 @@ class SpecOrchDaemon:
         linear_uid = raw_issue.get("id", "")
         description = raw_issue.get("description", "") or ""
 
-        issue = self._build_triage_issue(raw_issue)
-        raw_workspace = controller.workspace_service.issue_workspace_path(issue.issue_id)
-        workspace = raw_workspace if isinstance(raw_workspace, Path) else self.repo_root
-        context = self._context_assembler.assemble(
-            get_node_context_spec("readiness_checker"),
-            issue,
-            workspace,
-            memory=self._memory_service,
-            repo_root=self.repo_root,
-        )
-        result = self._readiness_checker.check(description, context=context)
+        if controller is None:
+            result = self._readiness_checker.check(description)
+        else:
+            issue = self._build_triage_issue(raw_issue)
+            raw_workspace = controller.workspace_service.issue_workspace_path(issue.issue_id)
+            workspace = raw_workspace if isinstance(raw_workspace, Path) else self.repo_root
+            context = self._context_assembler.assemble(
+                get_node_context_spec("readiness_checker"),
+                issue,
+                workspace,
+                memory=self._memory_service,
+                repo_root=self.repo_root,
+            )
+            result = self._readiness_checker.check(description, context=context)
         if result.ready:
             return True
 
