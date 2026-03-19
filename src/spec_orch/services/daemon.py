@@ -20,6 +20,7 @@ from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
 from spec_orch.services.linear_write_back import LinearWriteBackService
 from spec_orch.services.node_context_registry import get_node_context_spec
+from spec_orch.services.reaction_engine import ReactionEngine
 from spec_orch.services.run_controller import RunController
 
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -97,6 +98,8 @@ class SpecOrchDaemon:
         self._retry_counts: dict[str, int] = dict(saved.get("retry_counts", {}))
         self._dead_letter: set[str] = set(saved.get("dead_letter", []))
         self._in_progress: set[str] = set(saved.get("in_progress", []))
+        self._reaction_marks: set[str] = set(saved.get("reaction_marks", []))
+        self._reaction_engine = ReactionEngine(repo_root)
 
         from spec_orch.services.event_bus import get_event_bus
 
@@ -129,6 +132,7 @@ class SpecOrchDaemon:
             "retry_counts": self._retry_counts,
             "dead_letter": sorted(self._dead_letter),
             "in_progress": sorted(self._in_progress),
+            "reaction_marks": sorted(self._reaction_marks),
             "last_poll": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
         try:
@@ -746,21 +750,23 @@ class SpecOrchDaemon:
             print(f"[daemon] review-update check error: {exc}")
             return
 
-        pr_by_issue: dict[str, str] = {}
+        pr_meta_by_issue: dict[str, dict[str, Any]] = {}
         for pr in open_prs:
             sha = pr.get("headRefOid", "")
             title = pr.get("title", "")
+            pr_number = pr.get("number")
             if sha and title:
                 match = _PR_ISSUE_ID_RE.search(title)
                 if match:
-                    pr_by_issue[match.group(1)] = sha
+                    pr_meta_by_issue[match.group(1)] = {"sha": sha, "number": pr_number}
 
         for issue_id in list(self._pr_commits):
             if issue_id not in self._processed:
                 continue
 
             stored_sha = self._pr_commits[issue_id]
-            current_sha = pr_by_issue.get(issue_id)
+            current = pr_meta_by_issue.get(issue_id)
+            current_sha = current.get("sha") if current else None
 
             if current_sha is None:
                 continue
@@ -789,6 +795,69 @@ class SpecOrchDaemon:
                             break
                 except Exception as exc:
                     print(f"[daemon] {issue_id}: state reset failed: {exc}")
+
+        self._run_reactions(client, gh, pr_meta_by_issue)
+
+    def _run_reactions(
+        self,
+        client: LinearClient,
+        gh: GitHubPRService,
+        pr_meta_by_issue: dict[str, dict[str, Any]],
+    ) -> None:
+        for issue_id, meta in pr_meta_by_issue.items():
+            pr_number = meta.get("number")
+            if not isinstance(pr_number, int):
+                continue
+            signal = gh.get_pr_signal(self.repo_root, pr_number)
+            if not signal:
+                continue
+            decisions = self._reaction_engine.evaluate(signal)
+            for decision in decisions:
+                mark = f"{issue_id}:{meta.get('sha', '')}:{decision.action}"
+                if mark in self._reaction_marks:
+                    continue
+                if decision.action == "auto_merge":
+                    merged = gh.merge_pr(self.repo_root, pr_number=pr_number, method="squash")
+                    if merged:
+                        self._mark_issue_done_if_in_review(client, issue_id)
+                        print(f"[daemon] reaction auto-merge applied for {issue_id}")
+                        self._reaction_marks.add(mark)
+                elif decision.action in {"comment_ci_failed", "comment_changes_requested"}:
+                    self._comment_reaction(client, issue_id, decision.action)
+                    self._reaction_marks.add(mark)
+
+    def _mark_issue_done_if_in_review(self, client: LinearClient, issue_id: str) -> None:
+        try:
+            issues = client.list_issues(team_key=self.config.team_key, filter_state="In Review")
+            for raw in issues:
+                if raw.get("identifier") == issue_id and raw.get("id"):
+                    client.update_issue_state(raw["id"], "Done")
+                    break
+        except Exception as exc:
+            print(f"[daemon] {issue_id}: failed to set Done after auto-merge: {exc}")
+
+    def _comment_reaction(self, client: LinearClient, issue_id: str, action: str) -> None:
+        try:
+            issues = client.list_issues(team_key=self.config.team_key, filter_state="In Review")
+            for raw in issues:
+                if raw.get("identifier") != issue_id or not raw.get("id"):
+                    continue
+                if action == "comment_ci_failed":
+                    body = (
+                        "## SpecOrch Reaction: CI failed\n\n"
+                        "Detected failed checks on the PR. Please push a fix commit; "
+                        "daemon will re-enter the review loop automatically."
+                    )
+                else:
+                    body = (
+                        "## SpecOrch Reaction: Changes requested\n\n"
+                        "Detected `CHANGES_REQUESTED` review state. Please address feedback "
+                        "and push updates; daemon will pick up new commits."
+                    )
+                client.add_comment(raw["id"], body)
+                break
+        except Exception as exc:
+            print(f"[daemon] {issue_id}: reaction comment failed: {exc}")
 
     def _is_locked(self, issue_id: str) -> bool:
         return (self._lockdir / f"{issue_id}.lock").exists()

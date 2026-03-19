@@ -367,3 +367,51 @@ class GitHubPRService:
             text=True,
             check=False,
         )
+
+    def get_pr_signal(self, workspace: Path, pr_number: int) -> dict[str, Any]:
+        """Get coarse-grained reaction signal for a PR."""
+        result = subprocess.run(
+            [
+                self.gh,
+                "pr",
+                "view",
+                str(pr_number),
+                "--json",
+                "reviewDecision,mergeStateStatus,statusCheckRollup,isDraft",
+            ],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return {}
+        try:
+            data = _json.loads(result.stdout)
+        except _json.JSONDecodeError:
+            return {}
+        review_decision = str(data.get("reviewDecision", "") or "")
+        merge_state = str(data.get("mergeStateStatus", "") or "")
+        checks = data.get("statusCheckRollup", []) or []
+        conclusions: list[str] = []
+        if isinstance(checks, list):
+            for item in checks:
+                if isinstance(item, dict):
+                    c = item.get("conclusion")
+                    if isinstance(c, str):
+                        conclusions.append(c.upper())
+        checks_failed = any(
+            c in {"FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "CANCELLED"} for c in conclusions
+        )
+        checks_passed = bool(conclusions) and all(
+            c in {"SUCCESS", "SKIPPED", "NEUTRAL"} for c in conclusions
+        )
+        mergeable = merge_state in {"CLEAN", "HAS_HOOKS", "UNKNOWN"} and not data.get(
+            "isDraft", False
+        )
+        return {
+            "review_decision": review_decision,
+            "checks_passed": checks_passed,
+            "checks_failed": checks_failed,
+            "mergeable": mergeable,
+        }

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from spec_orch.services.reaction_engine import ReactionDecision
 from spec_orch.services.readiness_checker import ReadinessChecker, ReadinessResult
 
 # ── ReadinessResult formatting ──
@@ -397,3 +398,51 @@ def test_check_clarification_replies_handles_api_error(tmp_path: Path) -> None:
     client.list_issues.side_effect = RuntimeError("API error")
 
     daemon._check_clarification_replies(client)
+
+
+def test_daemon_run_reactions_auto_merge_once(tmp_path: Path) -> None:
+    from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
+
+    daemon = SpecOrchDaemon(
+        config=DaemonConfig({"linear": {"team_key": "SON"}}), repo_root=tmp_path
+    )
+    daemon._reaction_engine = MagicMock()
+    daemon._reaction_engine.evaluate.return_value = [
+        ReactionDecision(rule_name="approved-and-green", action="auto_merge", reason="ok")
+    ]
+
+    client = MagicMock()
+    client.list_issues.return_value = [{"identifier": "SON-1", "id": "uid-1"}]
+    gh = MagicMock()
+    gh.get_pr_signal.return_value = {"review_decision": "APPROVED", "checks_passed": True}
+    gh.merge_pr.return_value = True
+
+    pr_meta = {"SON-1": {"number": 12, "sha": "abc123"}}
+    daemon._run_reactions(client, gh, pr_meta)
+    daemon._run_reactions(client, gh, pr_meta)
+
+    gh.merge_pr.assert_called_once()
+    client.update_issue_state.assert_called_once_with("uid-1", "Done")
+
+
+def test_daemon_run_reactions_comment_once(tmp_path: Path) -> None:
+    from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
+
+    daemon = SpecOrchDaemon(
+        config=DaemonConfig({"linear": {"team_key": "SON"}}), repo_root=tmp_path
+    )
+    daemon._reaction_engine = MagicMock()
+    daemon._reaction_engine.evaluate.return_value = [
+        ReactionDecision(rule_name="ci-failed", action="comment_ci_failed", reason="ci")
+    ]
+
+    client = MagicMock()
+    client.list_issues.return_value = [{"identifier": "SON-2", "id": "uid-2"}]
+    gh = MagicMock()
+    gh.get_pr_signal.return_value = {"checks_failed": True}
+
+    pr_meta = {"SON-2": {"number": 21, "sha": "def456"}}
+    daemon._run_reactions(client, gh, pr_meta)
+    daemon._run_reactions(client, gh, pr_meta)
+
+    assert client.add_comment.call_count == 1
