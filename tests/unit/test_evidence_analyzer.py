@@ -102,6 +102,31 @@ def test_worktrees_dir_also_scanned(tmp_path: Path) -> None:
     assert summary.successful_runs == 1
 
 
+def test_unified_artifacts_scanned_without_legacy_report(tmp_path: Path) -> None:
+    rd = tmp_path / ".spec_orch_runs" / "U1"
+    (rd / "run_artifact").mkdir(parents=True)
+    (rd / "run_artifact" / "conclusion.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "U1",
+                "run_id": "run-u1",
+                "state": "gate_evaluated",
+                "mergeable": False,
+                "failed_conditions": ["verification"],
+            }
+        )
+    )
+    (rd / "run_artifact" / "live.json").write_text(
+        json.dumps({"verification": {"pytest": {"exit_code": 1, "command": "pytest"}}})
+    )
+
+    summary = EvidenceAnalyzer(tmp_path).analyze()
+    assert summary.total_runs == 1
+    assert summary.successful_runs == 0
+    assert summary.top_failure_reasons[0] == ("verification", 1)
+    assert summary.average_verification_pass_rate == 0.0
+
+
 def test_both_dirs_combined(tmp_path: Path) -> None:
     _write_report(
         tmp_path / ".spec_orch_runs" / "R1",

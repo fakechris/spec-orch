@@ -138,6 +138,39 @@ class TestImportRunReports:
         assert "failed" in entry.tags
         assert entry.metadata["deviation_count"] == 1
 
+    def test_imports_unified_artifacts_without_legacy_report(self, provider, repo):
+        run_dir = repo / ".spec_orch_runs" / "SON-52"
+        (run_dir / "run_artifact").mkdir(parents=True)
+        (run_dir / "run_artifact" / "conclusion.json").write_text(
+            json.dumps(
+                {
+                    "issue_id": "SON-52",
+                    "run_id": "r3",
+                    "state": "gate_evaluated",
+                    "mergeable": True,
+                    "failed_conditions": [],
+                }
+            )
+        )
+        (run_dir / "run_artifact" / "live.json").write_text(
+            json.dumps(
+                {
+                    "builder": {"succeeded": True, "adapter": "codex_exec"},
+                    "verification": {"lint": {"exit_code": 0}},
+                    "review": {"verdict": "pass"},
+                }
+            )
+        )
+
+        count = import_run_reports(provider, repo)
+        assert count == 1
+        entry = provider.get("run-report-SON-52-r3")
+        assert entry is not None
+        assert "succeeded" in entry.tags
+        assert entry.metadata["builder_adapter"] == "codex_exec"
+        assert entry.metadata["review_verdict"] == "pass"
+        assert entry.metadata["source_path"].endswith("run_artifact/conclusion.json")
+
 
 class TestImportPolicies:
     def test_imports_policies(self, provider, repo):
