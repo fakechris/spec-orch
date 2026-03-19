@@ -161,7 +161,27 @@ class EvidenceAnalyzer:
         return dirs
 
     def read_report(self, run_dir: Path) -> dict | None:
-        """Read and parse report.json from a run directory."""
+        """Read run result from unified artifacts or legacy report.json."""
+        conclusion_path = run_dir / "run_artifact" / "conclusion.json"
+        live_path = run_dir / "run_artifact" / "live.json"
+        if conclusion_path.exists():
+            try:
+                conclusion = json.loads(conclusion_path.read_text())
+                if not isinstance(conclusion, dict):
+                    logger.warning("Skipping non-object conclusion %s", conclusion_path)
+                    return None
+                merged = dict(conclusion)
+                if live_path.exists():
+                    live = json.loads(live_path.read_text())
+                    if isinstance(live, dict):
+                        for key in ("verification", "builder", "review"):
+                            if key in live:
+                                merged[key] = live.get(key)
+                return merged
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.warning("Skipping malformed unified artifacts under %s: %s", run_dir, exc)
+                return None
+
         report_path = run_dir / "report.json"
         if not report_path.exists():
             return None

@@ -81,12 +81,31 @@ class ConfigEvolver:
         return result
 
     def _load_reports(self) -> list[dict[str, Any]]:
-        """Load report.json from all run directories."""
+        """Load unified run artifacts with legacy report fallback."""
         reports: list[dict[str, Any]] = []
         for run_dir in self._run_dirs:
             if not run_dir.exists():
                 continue
             for child in run_dir.iterdir():
+                conclusion_path = child / "run_artifact" / "conclusion.json"
+                live_path = child / "run_artifact" / "live.json"
+                if conclusion_path.exists():
+                    try:
+                        conclusion = json.loads(conclusion_path.read_text())
+                        if not isinstance(conclusion, dict):
+                            continue
+                        merged = dict(conclusion)
+                        if live_path.exists():
+                            live = json.loads(live_path.read_text())
+                            if isinstance(live, dict):
+                                for key in ("verification", "builder", "review"):
+                                    if key in live:
+                                        merged[key] = live.get(key)
+                        reports.append(merged)
+                        continue
+                    except (json.JSONDecodeError, OSError):
+                        continue
+
                 report_path = child / "report.json"
                 if report_path.exists():
                     try:

@@ -132,12 +132,36 @@ def import_run_reports(provider: MemoryProvider, repo_root: Path) -> int:
             if not run_dir.is_dir():
                 continue
             report_path = run_dir / "report.json"
-            if not report_path.exists():
-                continue
-            try:
-                report: dict[str, Any] = json.loads(report_path.read_text("utf-8"))
-            except (json.JSONDecodeError, OSError):
-                continue
+            conclusion_path = run_dir / "run_artifact" / "conclusion.json"
+            live_path = run_dir / "run_artifact" / "live.json"
+
+            report: dict[str, Any]
+            source_path: Path
+            if conclusion_path.exists():
+                try:
+                    conclusion = json.loads(conclusion_path.read_text("utf-8"))
+                    if not isinstance(conclusion, dict):
+                        continue
+                    report = dict(conclusion)
+                    if live_path.exists():
+                        live = json.loads(live_path.read_text("utf-8"))
+                        if isinstance(live, dict):
+                            for key in ("builder", "verification", "review"):
+                                if key in live:
+                                    report[key] = live.get(key)
+                    source_path = conclusion_path
+                except (json.JSONDecodeError, OSError):
+                    continue
+            else:
+                if not report_path.exists():
+                    continue
+                try:
+                    report = json.loads(report_path.read_text("utf-8"))
+                    if not isinstance(report, dict):
+                        continue
+                    source_path = report_path
+                except (json.JSONDecodeError, OSError):
+                    continue
 
             issue_id = report.get("issue_id", run_dir.name)
             run_id = report.get("run_id", run_dir.name)
@@ -198,7 +222,7 @@ def import_run_reports(provider: MemoryProvider, repo_root: Path) -> int:
                     "review_verdict": review.get("verdict", "") if review else "",
                     "deviation_count": len(deviations),
                     "source": "evidence_analyzer",
-                    "source_path": str(report_path),
+                    "source_path": str(source_path),
                 },
             )
             provider.store(entry)
