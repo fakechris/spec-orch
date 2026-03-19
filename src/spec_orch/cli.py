@@ -894,16 +894,14 @@ def run_full(
     result = controller.advance_to_completion(issue_id, flow_type=resolved_flow)
 
     failed: list[str] = list(result.gate.failed_conditions)
-    run_summary = {
+    run_summary: dict[str, object] = {
         "issue_id": result.issue.issue_id,
         "state": result.state.value,
         "mergeable": result.gate.mergeable,
         "failed_conditions": failed,
     }
 
-    if json_output:
-        typer.echo(json.dumps(run_summary, indent=2))
-    else:
+    if not json_output:
         typer.echo(
             " ".join(
                 [
@@ -948,15 +946,19 @@ def run_full(
                 draft=not should_merge,
             )
             if pr_url:
-                typer.echo(f"PR created: {pr_url}")
+                if not json_output:
+                    typer.echo(f"PR created: {pr_url}")
+                run_summary["pr_url"] = pr_url
                 gh_svc.set_gate_status(workspace=workspace, gate=gate_verdict)
 
                 if should_merge:
                     merged = gh_svc.merge_pr(workspace, method="squash")
-                    if merged:
-                        typer.echo("auto-merge: enabled (waiting for checks)")
-                    else:
-                        typer.echo("auto-merge: could not enable")
+                    run_summary["auto_merge"] = merged
+                    if not json_output:
+                        if merged:
+                            typer.echo("auto-merge: enabled (waiting for checks)")
+                        else:
+                            typer.echo("auto-merge: could not enable")
 
                 _linear_writeback_on_pr(
                     issue_id,
@@ -966,9 +968,16 @@ def run_full(
                     Path(repo_root),
                 )
             else:
-                typer.echo("could not create PR (branch may be main)")
+                if not json_output:
+                    typer.echo("could not create PR (branch may be main)")
+                run_summary["pr_error"] = "could not create PR (branch may be main)"
         except RuntimeError as exc:
-            typer.echo(f"auto-PR failed: {exc}")
+            if not json_output:
+                typer.echo(f"auto-PR failed: {exc}")
+            run_summary["pr_error"] = str(exc)
+
+    if json_output:
+        typer.echo(json.dumps(run_summary, indent=2))
 
 
 @app.command("diff")
@@ -1141,6 +1150,9 @@ def daemon_status(
         except (json.JSONDecodeError, OSError):
             state_data = None
 
+    def _safe_len(val: object) -> int:
+        return len(val) if isinstance(val, (list, tuple)) else 0
+
     if json_output:
         output: dict[str, object] = {
             "platform": info["platform"],
@@ -1148,10 +1160,10 @@ def daemon_status(
             "running": info["running"],
             "config": config_status,
         }
-        if state_data:
+        if state_data is not None:
             output["last_poll"] = state_data.get("last_poll", "unknown")
-            output["processed_count"] = len(state_data.get("processed", []))  # type: ignore[arg-type]
-            output["triaged_count"] = len(state_data.get("triaged", []))  # type: ignore[arg-type]
+            output["processed_count"] = _safe_len(state_data.get("processed"))
+            output["triaged_count"] = _safe_len(state_data.get("triaged"))
         typer.echo(json.dumps(output, indent=2))
         return
 
@@ -1160,10 +1172,10 @@ def daemon_status(
     typer.echo(f"Running:   {info['running']}")
     if config_status != "ok":
         typer.echo(f"Config:    {config_status}")
-    if state_data:
+    if state_data is not None:
         typer.echo(f"Last poll: {state_data.get('last_poll', 'unknown')}")
-        typer.echo(f"Processed: {len(state_data.get('processed', []))} issues")  # type: ignore[arg-type]
-        typer.echo(f"Triaged:   {len(state_data.get('triaged', []))} issues")  # type: ignore[arg-type]
+        typer.echo(f"Processed: {_safe_len(state_data.get('processed'))} issues")
+        typer.echo(f"Triaged:   {_safe_len(state_data.get('triaged'))} issues")
     else:
         typer.echo("State:     no persisted state found")
 
@@ -1304,12 +1316,10 @@ def config_check(
         for r in results:
             counts[r.status] = counts.get(r.status, 0) + 1
         typer.echo(json.dumps({"checks": checks, "summary": counts}, indent=2))
-        if any(r.status == "fail" for r in results):
-            raise typer.Exit(1)
-        return
+    else:
+        _print_check_report(results)
 
-    _print_check_report(results)
-    if any(result.status == "fail" for result in results):
+    if any(r.status == "fail" for r in results):
         raise typer.Exit(1)
 
 
