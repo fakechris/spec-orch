@@ -869,6 +869,7 @@ def run_full(
         "--flow",
         help="Override flow type: full, standard, or hotfix.",
     ),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Run an issue through the full pipeline in one shot.
 
@@ -888,18 +889,29 @@ def run_full(
     from spec_orch.domain.models import FlowType as _FlowType
 
     resolved_flow = _FlowType(flow) if flow else None
-    typer.echo(f"running full pipeline for {issue_id}...")
+    if not json_output:
+        typer.echo(f"running full pipeline for {issue_id}...")
     result = controller.advance_to_completion(issue_id, flow_type=resolved_flow)
-    typer.echo(
-        " ".join(
-            [
-                f"issue={result.issue.issue_id}",
-                f"state={result.state.value}",
-                f"mergeable={result.gate.mergeable}",
-                f"blocked={','.join(result.gate.failed_conditions) or 'none'}",
-            ]
+
+    failed: list[str] = list(result.gate.failed_conditions)
+    run_summary: dict[str, object] = {
+        "issue_id": result.issue.issue_id,
+        "state": result.state.value,
+        "mergeable": result.gate.mergeable,
+        "failed_conditions": failed,
+    }
+
+    if not json_output:
+        typer.echo(
+            " ".join(
+                [
+                    f"issue={result.issue.issue_id}",
+                    f"state={result.state.value}",
+                    f"mergeable={result.gate.mergeable}",
+                    f"blocked={','.join(failed) or 'none'}",
+                ]
+            )
         )
-    )
 
     if auto_pr and result.state == RunState.GATE_EVALUATED:
         from spec_orch.services.github_pr_service import GitHubPRService
@@ -934,15 +946,19 @@ def run_full(
                 draft=not should_merge,
             )
             if pr_url:
-                typer.echo(f"PR created: {pr_url}")
+                if not json_output:
+                    typer.echo(f"PR created: {pr_url}")
+                run_summary["pr_url"] = pr_url
                 gh_svc.set_gate_status(workspace=workspace, gate=gate_verdict)
 
                 if should_merge:
                     merged = gh_svc.merge_pr(workspace, method="squash")
-                    if merged:
-                        typer.echo("auto-merge: enabled (waiting for checks)")
-                    else:
-                        typer.echo("auto-merge: could not enable")
+                    run_summary["auto_merge"] = merged
+                    if not json_output:
+                        if merged:
+                            typer.echo("auto-merge: enabled (waiting for checks)")
+                        else:
+                            typer.echo("auto-merge: could not enable")
 
                 _linear_writeback_on_pr(
                     issue_id,
@@ -952,9 +968,16 @@ def run_full(
                     Path(repo_root),
                 )
             else:
-                typer.echo("could not create PR (branch may be main)")
+                if not json_output:
+                    typer.echo("could not create PR (branch may be main)")
+                run_summary["pr_error"] = "could not create PR (branch may be main)"
         except RuntimeError as exc:
-            typer.echo(f"auto-PR failed: {exc}")
+            if not json_output:
+                typer.echo(f"auto-PR failed: {exc}")
+            run_summary["pr_error"] = str(exc)
+
+    if json_output:
+        typer.echo(json.dumps(run_summary, indent=2))
 
 
 @app.command("diff")
@@ -1086,6 +1109,7 @@ def daemon_status(
         "spec-orch.toml", "--config", "-c", help="Path to spec-orch.toml config file."
     ),
     repo_root: Path = typer.Option(".", "--repo-root", "-r", help="Repository root."),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Show daemon status (service + persisted state)."""
     import tomllib
@@ -1095,41 +1119,69 @@ def daemon_status(
     try:
         info = service_status(label=label)
     except Exception as exc:
-        typer.echo(f"Failed to query service status: {exc}")
-        typer.echo("Run: spec-orch doctor")
+        if json_output:
+            typer.echo(json.dumps({"error": str(exc)}))
+        else:
+            typer.echo(f"Failed to query service status: {exc}")
+            typer.echo("Run: spec-orch doctor")
         raise typer.Exit(1) from None
 
-    typer.echo(f"Platform:  {info['platform']}")
-    typer.echo(f"Installed: {info['installed']}")
-    typer.echo(f"Running:   {info['running']}")
-
+    config_status = "ok"
     from spec_orch.services.daemon import DaemonConfig
 
     try:
         cfg = DaemonConfig.from_toml(config)
         lockfile_dir = cfg.lockfile_dir
     except FileNotFoundError:
-        typer.echo(f"Config:    not found ({config}). Run: spec-orch init")
+        config_status = f"not found ({config})"
         lockfile_dir = ".spec_orch_locks/"
     except tomllib.TOMLDecodeError as exc:
-        typer.echo(f"Config:    malformed TOML ({exc})")
+        config_status = f"malformed TOML ({exc})"
         lockfile_dir = ".spec_orch_locks/"
     except (KeyError, ValueError) as exc:
-        typer.echo(f"Config:    invalid ({exc}). Run: spec-orch doctor")
+        config_status = f"invalid ({exc})"
         lockfile_dir = ".spec_orch_locks/"
 
+    state_data: dict[str, object] | None = None
+    state_error: str | None = None
     state_path = repo_root.resolve() / lockfile_dir / "daemon_state.json"
     if state_path.exists():
-        import json as _json
-
         try:
-            data = _json.loads(state_path.read_text())
-        except (_json.JSONDecodeError, OSError) as exc:
-            typer.echo(f"State:     corrupt state file ({exc})")
-            return
-        typer.echo(f"Last poll: {data.get('last_poll', 'unknown')}")
-        typer.echo(f"Processed: {len(data.get('processed', []))} issues")
-        typer.echo(f"Triaged:   {len(data.get('triaged', []))} issues")
+            state_data = json.loads(state_path.read_text())
+        except (json.JSONDecodeError, OSError) as exc:
+            state_data = None
+            state_error = f"corrupt state file ({exc})"
+
+    def _safe_len(val: object) -> int:
+        return len(val) if isinstance(val, (list, tuple)) else 0
+
+    if json_output:
+        output: dict[str, object] = {
+            "platform": info["platform"],
+            "installed": info["installed"],
+            "running": info["running"],
+            "config": config_status,
+        }
+        if state_error:
+            output["state_error"] = state_error
+        elif state_data is not None:
+            output["last_poll"] = state_data.get("last_poll", "unknown")
+            output["processed_count"] = _safe_len(state_data.get("processed"))
+            output["triaged_count"] = _safe_len(state_data.get("triaged"))
+        typer.echo(json.dumps(output, indent=2))
+        return
+
+    typer.echo(f"Platform:  {info['platform']}")
+    typer.echo(f"Installed: {info['installed']}")
+    typer.echo(f"Running:   {info['running']}")
+    if config_status != "ok":
+        typer.echo(f"Config:    {config_status}")
+    if state_error:
+        typer.echo(f"State:     {state_error}")
+    elif state_data is not None:
+        typer.echo(f"Last poll: {state_data.get('last_poll', 'unknown')}")
+        typer.echo(f"Processed: {_safe_len(state_data.get('processed'))} issues")
+        typer.echo(f"Triaged:   {_safe_len(state_data.get('triaged'))} issues")
     else:
         typer.echo("State:     no persisted state found")
 
@@ -1163,8 +1215,11 @@ def config_check(
     config: Path = typer.Option(
         "spec-orch.toml", "--config", "-c", help="Path to spec-orch.toml config file."
     ),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Validate spec-orch.toml and related external dependencies."""
+    import shutil
+
     from spec_orch.services.config_checker import CheckResult, ConfigChecker
 
     checker = ConfigChecker()
@@ -1220,8 +1275,57 @@ def config_check(
     )
     results.extend(checker.check_planner(planner_model, planner_api_key_env, planner_api_type))
 
-    _print_check_report(results)
-    if any(result.status == "fail" for result in results):
+    verification = raw.get("verification", {}) if isinstance(raw, dict) else {}
+    if isinstance(verification, dict):
+        for step_name, cmd_list in verification.items():
+            if not isinstance(cmd_list, list) or not cmd_list:
+                results.append(
+                    CheckResult(
+                        name=f"verify:{step_name}",
+                        status="warn",
+                        message=f"Invalid command definition for {step_name}",
+                    )
+                )
+                continue
+            token = cmd_list[0]
+            if not isinstance(token, str):
+                results.append(
+                    CheckResult(
+                        name=f"verify:{step_name}",
+                        status="warn",
+                        message=f"Non-string executable: {token!r}",
+                    )
+                )
+                continue
+            exe = token.replace("{python}", sys.executable)
+            found = shutil.which(exe)
+            if found:
+                results.append(
+                    CheckResult(
+                        name=f"verify:{step_name}",
+                        status="pass",
+                        message=f"Executable found: {found}",
+                    )
+                )
+            else:
+                results.append(
+                    CheckResult(
+                        name=f"verify:{step_name}",
+                        status="fail",
+                        message=f"Executable not found: {exe}",
+                    )
+                )
+
+    if json_output:
+        checks = [{"name": r.name, "status": r.status, "message": r.message} for r in results]
+        counts = {"pass": 0, "warn": 0, "fail": 0}
+        for r in results:
+            counts[r.status] = counts.get(r.status, 0) + 1
+        typer.echo(json.dumps({"checks": checks, "summary": counts}, indent=2))
+    else:
+        _print_check_report(results)
+
+    if any(r.status == "fail" for r in results):
         raise typer.Exit(1)
 
 
