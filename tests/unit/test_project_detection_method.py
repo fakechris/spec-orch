@@ -10,7 +10,9 @@ from spec_orch.services.smart_project_analyzer import _parse_llm_result
 
 def test_detect_project_sets_rules_detection_method(tmp_path, monkeypatch) -> None:
     (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n")
-    monkeypatch.setattr("spec_orch.services.project_detector._detect_base_branch", lambda _r: "main")
+    monkeypatch.setattr(
+        "spec_orch.services.project_detector._detect_base_branch", lambda _r: "main"
+    )
 
     profile = detect_project(tmp_path)
 
