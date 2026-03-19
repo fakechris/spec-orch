@@ -50,8 +50,7 @@ class MissionService:
         if not spec_path.exists():
             spec_path.write_text(
                 f"# {title}\n\n"
-                "## Goal\n\n<!-- describe the user value -->\n\n"
-                "## Scope\n\n<!-- what's in and out -->\n\n"
+                "## Intent\n\n<!-- describe the user value -->\n\n"
                 "## Acceptance Criteria\n\n"
                 + "".join(f"- {c}\n" for c in (acceptance_criteria or []))
                 + "\n## Constraints\n\n"

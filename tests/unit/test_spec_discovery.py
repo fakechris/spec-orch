@@ -28,8 +28,7 @@ def _seed_template(svc: MissionService, template_id: str = "tpl-demo") -> Path:
     spec = tpl_dir / "spec.md"
     spec.write_text(
         "# Template Title\n\n"
-        "## Goal\n\nDeliver value X.\n\n"
-        "## Scope\n\nIn: A. Out: B.\n\n"
+        "## Intent\n\nDeliver value X.\n\n"
         "## Acceptance Criteria\n\n- AC1\n- AC2\n\n"
         "## Constraints\n\n- C1\n"
     )
@@ -60,8 +59,7 @@ class TestCreateMissionFromTemplate:
         spec_path = svc.specs_dir / m.mission_id / "spec.md"
         content = spec_path.read_text()
         assert content.startswith("# New Mission\n")
-        assert "## Goal" in content
-        assert "## Scope" in content
+        assert "## Intent" in content
         assert "AC1" in content
 
     def test_template_not_found_raises(self, svc: MissionService) -> None:
@@ -95,7 +93,7 @@ class TestCreateMissionFromTemplate:
 class TestCreateMissionFromExample:
     def test_with_planner(self, svc: MissionService) -> None:
         planner = MagicMock()
-        planner.generate.return_value = "# Test\n\n## Goal\n\nSome goal.\n"
+        planner.generate.return_value = "# Test\n\n## Intent\n\nSome goal.\n"
         m = svc.create_mission_from_example("Test Mission", "example content", planner=planner)
         spec = (svc.specs_dir / m.mission_id / "spec.md").read_text()
         assert "Some goal." in spec
@@ -113,13 +111,13 @@ class TestCreateMissionFromExample:
         m = svc.create_mission_from_example("Fail", "content", planner=planner)
         spec = (svc.specs_dir / m.mission_id / "spec.md").read_text()
         assert "# Fail" in spec
-        assert "## Goal" in spec
+        assert "## Intent" in spec
 
 
 class TestReverseEngineerSpec:
     def test_with_planner(self) -> None:
         planner = MagicMock()
-        planner.generate.return_value = "# Spec\n\n## Goal\n\nDone.\n"
+        planner.generate.return_value = "# Spec\n\n## Intent\n\nDone.\n"
         result = reverse_engineer_spec("content", "Spec", planner=planner)
         assert "Done." in result
 

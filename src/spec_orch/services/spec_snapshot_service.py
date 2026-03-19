@@ -19,6 +19,8 @@ def write_spec_snapshot(workspace: Path, snapshot: SpecSnapshot) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     data = asdict(snapshot)
     data["issue"]["context"] = asdict(snapshot.issue.context)
+    # IAC migration: "intent" is the canonical name; keep "summary" for compatibility.
+    data["issue"]["intent"] = snapshot.issue.summary
     path.write_text(json.dumps(data, indent=2, default=str) + "\n")
     return path
 
@@ -39,7 +41,7 @@ def read_spec_snapshot(workspace: Path) -> SpecSnapshot | None:
     issue = Issue(
         issue_id=data["issue"]["issue_id"],
         title=data["issue"]["title"],
-        summary=data["issue"]["summary"],
+        summary=data["issue"].get("summary") or data["issue"].get("intent", ""),
         builder_prompt=data["issue"].get("builder_prompt"),
         verification_commands=data["issue"].get("verification_commands", {}),
         context=context,

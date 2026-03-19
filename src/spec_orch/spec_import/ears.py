@@ -32,10 +32,10 @@ class EarsParser:
         acceptance_criteria = [m.strip().rstrip(".") for m in matches]
 
         title_match = re.match(r"^#\s+(.+)$", content, re.MULTILINE)
-        goal = title_match.group(1).strip() if title_match else ""
+        intent = title_match.group(1).strip() if title_match else ""
 
         return SpecStructure(
-            goal=goal,
+            intent=intent,
             acceptance_criteria=acceptance_criteria,
             raw_sections={"Original EARS Content": content[:2000]},
             source_format="ears",
