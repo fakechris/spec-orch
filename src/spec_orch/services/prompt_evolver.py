@@ -15,6 +15,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.domain.context import ContextBundle
+
 logger = logging.getLogger(__name__)
 
 _PROMPT_HISTORY_FILE = "prompt_history.json"
@@ -222,7 +224,7 @@ class PromptEvolver:
 
         return samples
 
-    def evolve(self) -> PromptVariant | None:
+    def evolve(self, context: ContextBundle | None = None) -> PromptVariant | None:
         """Use an LLM to propose an improved prompt variant.
 
         Returns the new candidate variant, or ``None`` if evolution is not

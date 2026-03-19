@@ -619,7 +619,8 @@ class SpecOrchDaemon:
         linear_uid = raw_issue.get("id", "")
         description = raw_issue.get("description", "") or ""
 
-        result = self._readiness_checker.check(description)
+        # TODO: assemble ContextBundle once daemon has workspace/issue objects for triage
+        result = self._readiness_checker.check(description, context=None)
         if result.ready:
             return True
 

@@ -112,6 +112,7 @@ class PlannerAdapter(Protocol):
         issue: Issue,
         workspace: Path,
         existing_snapshot: SpecSnapshot | None = None,
+        context: Any | None = None,
     ) -> PlannerResult:
         """Analyse the issue and return questions + optional spec draft."""
         ...
@@ -121,6 +122,7 @@ class PlannerAdapter(Protocol):
         *,
         snapshot: SpecSnapshot,
         issue: Issue,
+        context: Any | None = None,
     ) -> SpecSnapshot:
         """Use the LLM to autonomously answer unresolved blocking questions.
 

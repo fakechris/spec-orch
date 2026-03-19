@@ -30,6 +30,8 @@ from spec_orch.flow_engine.mapper import FlowMapper
 from spec_orch.services.activity_logger import ActivityLogger
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
+from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.context_registry import get_context_spec
 from spec_orch.services.deviation_service import (
     detect_deviations,
     overwrite_deviations,
@@ -128,6 +130,7 @@ class RunController:
             repo_root=self.repo_root
         )
         self._live_stream = live_stream
+        self._context_assembler = ContextAssembler()
         self.flow_engine = flow_engine or FlowEngine()
         self.flow_mapper = flow_mapper or FlowMapper()
 
@@ -615,9 +618,17 @@ class RunController:
                 snapshot = read_spec_snapshot(workspace)
                 if snapshot and snapshot.has_unresolved_blocking_questions():
                     issue = self.issue_source.load(issue_id)
+                    ctx_bundle = self._context_assembler.assemble(
+                        spec=get_context_spec("planner"),
+                        issue=issue,
+                        workspace=workspace,
+                        memory=getattr(self, "_memory", None),
+                        repo_root=self.repo_root,
+                    )
                     snapshot = self.planner_adapter.answer_questions(
                         snapshot=snapshot,
                         issue=issue,
+                        context=ctx_bundle,
                     )
                     write_spec_snapshot(workspace, snapshot)
             result = self.advance(issue_id, flow_type=flow_type)
@@ -693,10 +704,18 @@ class RunController:
             )
 
         existing_snapshot = read_spec_snapshot(workspace)
+        ctx_bundle = self._context_assembler.assemble(
+            spec=get_context_spec("planner"),
+            issue=issue,
+            workspace=workspace,
+            memory=getattr(self, "_memory", None),
+            repo_root=self.repo_root,
+        )
         planner_result = self.planner_adapter.plan(
             issue=issue,
             workspace=workspace,
             existing_snapshot=existing_snapshot,
+            context=ctx_bundle,
         )
 
         snapshot = planner_result.spec_draft or create_initial_snapshot(issue)

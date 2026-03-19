@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.compliance import default_turn_contract_compliance
+from spec_orch.domain.context import ContextBundle
 from spec_orch.domain.models import ReviewSummary
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,7 @@ class LLMReviewAdapter:
         issue_id: str,
         workspace: Path,
         builder_turn_contract_compliance: dict[str, Any] | None = None,
+        context: ContextBundle | None = None,
     ) -> ReviewSummary:
         diff = self._get_diff(workspace)
         spec = self._get_spec(workspace)
@@ -77,7 +79,13 @@ class LLMReviewAdapter:
             return summary
 
         extra_context = self._collect_extra_context(workspace)
-        llm_result = self._call_llm(diff, spec, issue_id, extra_context=extra_context)
+        llm_result = self._call_llm(
+            diff,
+            spec,
+            issue_id,
+            extra_context=extra_context,
+            context=context,
+        )
         verdict = llm_result.get("verdict", "uncertain")
         if verdict not in ("pass", "changes_requested", "uncertain"):
             verdict = "uncertain"
@@ -197,13 +205,25 @@ class LLMReviewAdapter:
         return "\n\n".join(parts)
 
     def _call_llm(
-        self, diff: str, spec: str, issue_id: str, *, extra_context: str = ""
+        self,
+        diff: str,
+        spec: str,
+        issue_id: str,
+        *,
+        extra_context: str = "",
+        context: ContextBundle | None = None,
     ) -> dict[str, Any]:
         try:
             import litellm
         except ImportError:
             logger.warning("litellm not installed; falling back to 'uncertain' verdict")
             return {"verdict": "uncertain", "summary": "LLM not available", "issues": []}
+
+        if context and context.task.acceptance_criteria:
+            extra_parts = [extra_context] if extra_context else []
+            ac_text = "\n".join(f"- {ac}" for ac in context.task.acceptance_criteria)
+            extra_parts.append(f"Acceptance Criteria:\n{ac_text}")
+            extra_context = "\n\n".join(extra_parts)
 
         user_msg = f"## Issue: {issue_id}\n\n"
         if spec:

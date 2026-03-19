@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypedDict
 
+from spec_orch.domain.context import ContextBundle
 from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -180,7 +181,11 @@ class PolicyDistiller:
         candidates.sort(key=lambda x: x["occurrences"], reverse=True)
         return candidates
 
-    def distill(self, task_description: str | None = None) -> Policy | None:
+    def distill(
+        self,
+        task_description: str | None = None,
+        context: ContextBundle | None = None,
+    ) -> Policy | None:
         """Use an LLM to generate a deterministic policy for a recurring task.
 
         If ``task_description`` is ``None``, the distiller picks the most

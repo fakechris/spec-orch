@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.domain.context import ContextBundle
 from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -210,7 +211,7 @@ class PlanStrategyEvolver:
 
         return samples
 
-    def analyze(self, last_n: int = 20) -> HintSet | None:
+    def analyze(self, last_n: int = 20, context: ContextBundle | None = None) -> HintSet | None:
         """Use an LLM to analyze plan outcomes and generate hints.
 
         Returns the new ``HintSet``, or ``None`` if analysis is not possible.

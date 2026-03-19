@@ -16,6 +16,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.domain.context import ContextBundle
+
 logger = logging.getLogger(__name__)
 
 _HISTORY_FILE = "classifier_prompt_history.json"
@@ -172,7 +174,7 @@ class IntentEvolver:
             "demotion_correlations": dict(demotion_intents),
         }
 
-    def evolve(self) -> ClassifierVariant | None:
+    def evolve(self, context: ContextBundle | None = None) -> ClassifierVariant | None:
         """Use LLM to propose an improved classifier prompt."""
         if self._planner is None:
             logger.info("No planner configured, skipping intent evolution")

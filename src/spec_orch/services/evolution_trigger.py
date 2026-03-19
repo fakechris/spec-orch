@@ -15,6 +15,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.domain.context import ContextBundle
+from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.context_registry import get_context_spec
 from spec_orch.services.harness_synthesizer import HarnessSynthesizer, RuleValidator
 from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
 from spec_orch.services.prompt_evolver import PromptEvolver
@@ -80,6 +83,7 @@ class EvolutionTrigger:
         self._planner = planner
         self._latest_workspace = latest_workspace
         self._counter_path = repo_root / ".spec_orch_evolution" / "run_counter.json"
+        self._context_assembler = ContextAssembler()
 
     def _read_counter(self) -> int:
         if not self._counter_path.exists():
@@ -117,6 +121,27 @@ class EvolutionTrigger:
     def reset_counter(self) -> None:
         self._write_counter(0)
 
+    def _build_context(self, node_name: str) -> ContextBundle | None:
+        """Build a ContextBundle for *node_name* if a workspace is available."""
+        if self._latest_workspace is None:
+            return None
+        try:
+            from spec_orch.domain.models import Issue
+
+            manifest = self._context_assembler._load_manifest(self._latest_workspace)
+            issue_id = manifest.issue_id if manifest else "evolution"
+            issue = Issue(issue_id=issue_id, title="evolution-cycle", summary="")
+            spec = get_context_spec(node_name)
+            return self._context_assembler.assemble(
+                spec=spec,
+                issue=issue,
+                workspace=self._latest_workspace,
+                repo_root=self._repo_root,
+            )
+        except Exception:
+            logger.debug("Failed to build context for %s", node_name, exc_info=True)
+            return None
+
     def run_evolution_cycle(self) -> EvolutionResult:
         """Execute all enabled evolvers and return results."""
         if not self._config.enabled:
@@ -138,7 +163,8 @@ class EvolutionTrigger:
         if self._config.prompt_evolver_enabled and self._planner is not None:
             try:
                 evolver = PromptEvolver(self._repo_root, planner=self._planner)
-                variant = evolver.evolve()
+                ctx = self._build_context("prompt_evolver")
+                variant = evolver.evolve(context=ctx)
                 if variant is not None:
                     result.prompt_evolved = True
                     if self._config.auto_promote:
@@ -150,7 +176,8 @@ class EvolutionTrigger:
         if self._config.plan_strategy_evolver_enabled and self._planner is not None:
             try:
                 pse = PlanStrategyEvolver(self._repo_root, planner=self._planner)
-                hint_set = pse.analyze()
+                ctx = self._build_context("plan_strategy_evolver")
+                hint_set = pse.analyze(context=ctx)
                 if hint_set is not None and hint_set.hints:
                     result.plan_hints_generated = True
             except Exception as exc:
@@ -160,7 +187,8 @@ class EvolutionTrigger:
         if self._config.harness_synthesizer_enabled and self._planner is not None:
             try:
                 synth = HarnessSynthesizer(self._repo_root, planner=self._planner)
-                candidates = synth.synthesize()
+                ctx = self._build_context("harness_synthesizer")
+                candidates = synth.synthesize(context=ctx)
                 if candidates:
                     validator = RuleValidator(self._repo_root)
                     accepted, _ = validator.validate(candidates)

@@ -18,6 +18,7 @@ from typing import Any
 
 import yaml
 
+from spec_orch.domain.context import ContextBundle
 from spec_orch.services.compliance_engine import load_contracts
 from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
 
@@ -156,7 +157,11 @@ class HarnessSynthesizer:
             "deviations": deviations,
         }
 
-    def synthesize(self, last_n: int = 20) -> list[CandidateRule]:
+    def synthesize(
+        self,
+        last_n: int = 20,
+        context: ContextBundle | None = None,
+    ) -> list[CandidateRule]:
         """Generate candidate compliance rules from failure patterns."""
         if self._planner is None:
             return []

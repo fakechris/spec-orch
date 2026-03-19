@@ -138,10 +138,12 @@ class Conductor:
         self._intercept_cache[input_hash] = now
 
         try:
+            # TODO: assemble ContextBundle once conductor has workspace/issue for intercept
             signal = classify_intent(
                 user_input,
                 conversation_history=(context or {}).get("history", []),
                 planner=self._planner,
+                context=None,
             )
         except Exception:
             logger.warning("intercept: classify_intent failed, degrading to continue")
@@ -201,10 +203,12 @@ class Conductor:
 
         # Classify intent
         history = self._build_history(thread)
+        # TODO: assemble ContextBundle once conductor has workspace/issue for process_message
         signal = classify_intent(
             msg.content,
             conversation_history=history,
             planner=self._planner,
+            context=None,
         )
         state.intent_history.append(signal)
 
