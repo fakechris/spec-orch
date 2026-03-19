@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -30,12 +31,14 @@ from spec_orch.flow_engine.mapper import FlowMapper
 from spec_orch.services.activity_logger import ActivityLogger
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
+from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.deviation_service import (
     detect_deviations,
     overwrite_deviations,
 )
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
 from spec_orch.services.gate_service import GateService
+from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.review_adapter import LocalReviewAdapter
 from spec_orch.services.spec_snapshot_service import (
     create_initial_snapshot,
@@ -130,6 +133,7 @@ class RunController:
         self._live_stream = live_stream
         self.flow_engine = flow_engine or FlowEngine()
         self.flow_mapper = flow_mapper or FlowMapper()
+        self.context_assembler = ContextAssembler()
 
     def _resolve_flow(self, issue: Issue) -> FlowType:
         """Determine the FlowType for an issue. Defaults to Standard."""
@@ -138,6 +142,13 @@ class RunController:
             labels=issue.labels,
         )
         return resolved or FlowType.STANDARD
+
+    @staticmethod
+    def _supports_context_kwarg(method: Any) -> bool:
+        try:
+            return "context" in inspect.signature(method).parameters
+        except (TypeError, ValueError):
+            return False
 
     def run_issue(self, issue_id: str, flow_type: FlowType | None = None) -> RunResult:
         issue = self.issue_source.load(issue_id)
@@ -615,10 +626,23 @@ class RunController:
                 snapshot = read_spec_snapshot(workspace)
                 if snapshot and snapshot.has_unresolved_blocking_questions():
                     issue = self.issue_source.load(issue_id)
-                    snapshot = self.planner_adapter.answer_questions(
-                        snapshot=snapshot,
-                        issue=issue,
+                    planner_context = self.context_assembler.assemble(
+                        get_node_context_spec("planner"),
+                        issue,
+                        workspace,
                     )
+                    answer_fn = self.planner_adapter.answer_questions
+                    if self._supports_context_kwarg(answer_fn):
+                        snapshot = answer_fn(
+                            snapshot=snapshot,
+                            issue=issue,
+                            context=planner_context,
+                        )
+                    else:
+                        snapshot = answer_fn(
+                            snapshot=snapshot,
+                            issue=issue,
+                        )
                     write_spec_snapshot(workspace, snapshot)
             result = self.advance(issue_id, flow_type=flow_type)
             if result.state == RunState.FAILED:
@@ -693,11 +717,25 @@ class RunController:
             )
 
         existing_snapshot = read_spec_snapshot(workspace)
-        planner_result = self.planner_adapter.plan(
-            issue=issue,
-            workspace=workspace,
-            existing_snapshot=existing_snapshot,
+        planner_context = self.context_assembler.assemble(
+            get_node_context_spec("planner"),
+            issue,
+            workspace,
         )
+        plan_fn = self.planner_adapter.plan
+        if self._supports_context_kwarg(plan_fn):
+            planner_result = plan_fn(
+                issue=issue,
+                workspace=workspace,
+                existing_snapshot=existing_snapshot,
+                context=planner_context,
+            )
+        else:
+            planner_result = plan_fn(
+                issue=issue,
+                workspace=workspace,
+                existing_snapshot=existing_snapshot,
+            )
 
         snapshot = planner_result.spec_draft or create_initial_snapshot(issue)
         for q in planner_result.questions:

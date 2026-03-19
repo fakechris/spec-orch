@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from spec_orch.domain.models import ConversationMessage, ConversationThread
+from spec_orch.domain.models import ConversationMessage, ConversationThread, Issue, IssueContext
 from spec_orch.services.conductor.intent_classifier import classify_intent
 from spec_orch.services.conductor.types import (
     ACTIONABLE_INTENTS,
@@ -36,6 +36,8 @@ from spec_orch.services.conductor.types import (
     InterceptAction,
     InterceptResult,
 )
+from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.node_context_registry import get_node_context_spec
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +94,7 @@ class Conductor:
         self._states: dict[str, ConductorState] = {}
         self._fork_timestamps: dict[str, float] = {}
         self._intercept_cache: dict[str, float] = {}
+        self._context_assembler = ContextAssembler()
 
     def intercept(
         self,
@@ -138,10 +141,12 @@ class Conductor:
         self._intercept_cache[input_hash] = now
 
         try:
+            assembled_context = self._assemble_intent_context(context or {})
             signal = classify_intent(
                 user_input,
                 conversation_history=(context or {}).get("history", []),
                 planner=self._planner,
+                context=assembled_context,
             )
         except Exception:
             logger.warning("intercept: classify_intent failed, degrading to continue")
@@ -205,6 +210,7 @@ class Conductor:
             msg.content,
             conversation_history=history,
             planner=self._planner,
+            context=self._assemble_intent_context(msg.metadata),
         )
         state.intent_history.append(signal)
 
@@ -442,6 +448,39 @@ class Conductor:
     def _signal_hash(signal: IntentSignal) -> str:
         raw = f"{signal.category.value}:{signal.summary}"
         return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+    def _assemble_intent_context(self, metadata: dict[str, Any] | None) -> Any | None:
+        """Best-effort ContextAssembler integration for intent classification."""
+        if not metadata:
+            return None
+        issue_id = str(metadata.get("issue_id", "")).strip()
+        if not issue_id:
+            return None
+        workspace_path = metadata.get("workspace")
+        workspace = Path(workspace_path) if isinstance(workspace_path, str) else self._repo_root
+        issue = Issue(
+            issue_id=issue_id,
+            title=str(metadata.get("issue_title", issue_id)),
+            summary=str(metadata.get("issue_summary", "")),
+            context=IssueContext(
+                constraints=list(metadata.get("constraints", []))
+                if isinstance(metadata.get("constraints"), list)
+                else []
+            ),
+            acceptance_criteria=list(metadata.get("acceptance_criteria", []))
+            if isinstance(metadata.get("acceptance_criteria"), list)
+            else [],
+        )
+        try:
+            return self._context_assembler.assemble(
+                get_node_context_spec("intent_classifier"),
+                issue,
+                workspace,
+                repo_root=self._repo_root,
+            )
+        except Exception:
+            logger.debug("Failed to assemble intent context", exc_info=True)
+            return None
 
     def _build_fork_description(
         self,

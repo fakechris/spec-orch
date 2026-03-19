@@ -6,6 +6,23 @@
 
 ---
 
+## 0.1 CEO 正式规划基线（2026-03-19 补充）
+
+为避免后续方向漂移，后续执行统一以以下文档为准：
+
+- `~/.gstack/projects/fakechris-spec-orch/ceo-plans/2026-03-19-credibility-flywheel.md`
+
+执行口径更新为：
+
+- 主线范围：P0 / P1 / P2 / P5 / P6
+- P4 仅保留 Skill Format Definition（不进入 Full Runtime）
+- 明确延后：Preview abstraction、Sandbox abstraction、Full Skill Runtime
+- 运行模式：`SELECTIVE_EXPANSION`
+- 节奏约束：先完成 P0 Context Contract（`SON-174`, `SON-177~180`），再推进飞轮后续阶段
+- 思维模型：P0 -> P1 -> P6 为持续闭环，不是一次性串行阶段
+
+---
+
 ## 一、Linear 清理结果
 
 ### 1.1 本次清理统计

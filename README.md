@@ -209,7 +209,9 @@ cp .env.example .env
 # (see .env.example for provider-specific examples)
 
 # 3. Initialize project config
-spec-orch init                    # Auto-detect project type, writes spec-orch.toml
+spec-orch init                    # LLM-first detection (auto fallback to rules)
+spec-orch init --offline          # Force rule-based detection
+spec-orch init --reconfigure      # Re-detect and overwrite existing config
 
 # 4. Verify everything works
 spec-orch config check            # Validate configuration
@@ -270,9 +272,14 @@ spec-orch config check
 SpecOrch is configured via `spec-orch.toml`. Run `spec-orch init` to auto-detect your project and generate config:
 
 ```bash
-spec-orch init          # Detects Python/Node/Rust/Go/Java/Swift/.NET
-spec-orch init --force  # Overwrite existing config
+spec-orch init               # LLM-first detection; auto fallback to rules
+spec-orch init --offline     # Force rule-based detection
+spec-orch init --reconfigure # Re-run detection and overwrite existing config
+spec-orch init --force       # Force overwrite existing config
 ```
+
+`spec-orch init` persists selected detection mode into `[init].detection_mode`
+inside `spec-orch.toml` for deterministic future reconfiguration.
 
 See [spec-orch.toml Reference](docs/reference/spec-orch-toml.md) and [AI Config Guide](docs/guides/ai-config-guide.md) for full documentation.
 
