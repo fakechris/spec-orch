@@ -22,7 +22,7 @@ class BddParser:
         content = path.read_text()
 
         feature_match = re.match(r"Feature:\s*(.+?)(?:\n|$)", content, re.IGNORECASE)
-        goal = feature_match.group(1).strip() if feature_match else ""
+        intent = feature_match.group(1).strip() if feature_match else ""
 
         scenarios = re.findall(
             r"Scenario(?:\s+Outline)?:\s*(.+?)(?:\n|$)",
@@ -45,7 +45,7 @@ class BddParser:
                 acceptance_criteria.append(step.strip())
 
         return SpecStructure(
-            goal=goal,
+            intent=intent,
             acceptance_criteria=acceptance_criteria,
             raw_sections={"Original Gherkin": content[:2000]},
             source_format="bdd",

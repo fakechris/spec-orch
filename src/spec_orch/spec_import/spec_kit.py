@@ -23,31 +23,32 @@ class SpecKitParser:
         spec_md = path / "spec.md"
         plan_md = path / "plan.md"
 
-        goal = ""
-        scope = ""
+        intent = ""
         acceptance_criteria: list[str] = []
+        constraints: list[str] = []
         raw_sections: dict[str, str] = {}
 
         if spec_md.exists():
             content = spec_md.read_text()
-            goal, ac_list, sections = self._parse_spec(content)
+            intent, ac_list, c_list, sections = self._parse_spec(content)
             acceptance_criteria = ac_list
+            constraints = c_list
             raw_sections.update(sections)
 
         if plan_md.exists():
-            scope = plan_md.read_text().strip()
+            raw_sections["Implementation Notes"] = plan_md.read_text().strip()
 
         return SpecStructure(
-            goal=goal,
-            scope=scope,
+            intent=intent,
             acceptance_criteria=acceptance_criteria,
+            constraints=constraints,
             raw_sections=raw_sections,
             source_format="spec-kit",
             source_path=str(path),
         )
 
     @staticmethod
-    def _parse_spec(content: str) -> tuple[str, list[str], dict[str, str]]:
+    def _parse_spec(content: str) -> tuple[str, list[str], list[str], dict[str, str]]:
         sections: dict[str, str] = {}
         current_heading = ""
         current_lines: list[str] = []
@@ -65,12 +66,20 @@ class SpecKitParser:
         if current_heading:
             sections[current_heading] = "\n".join(current_lines).strip()
 
-        goal = sections.pop("Goal", sections.pop("goal", ""))
+        intent = sections.pop("Intent", sections.pop("intent", ""))
+        if not intent:
+            intent = sections.pop("Goal", sections.pop("goal", ""))
         ac_text = sections.pop("Requirements", sections.pop("Acceptance Criteria", ""))
         ac_list = [
             line.strip().removeprefix("-").strip()
             for line in ac_text.split("\n")
             if line.strip().startswith("-")
         ]
+        constraints_text = sections.pop("Constraints", sections.pop("constraints", ""))
+        constraints = [
+            line.strip().removeprefix("-").strip()
+            for line in constraints_text.split("\n")
+            if line.strip().startswith("-")
+        ]
 
-        return goal, ac_list, sections
+        return intent, ac_list, constraints, sections

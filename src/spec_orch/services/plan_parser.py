@@ -55,7 +55,7 @@ def _extract_title(lines: list[str]) -> str:
 
 def _extract_summary(lines: list[str]) -> str:
     for heading_index, heading in _iter_h2_sections(lines):
-        if _heading_matches(heading, ["background", "overview"]):
+        if _heading_matches(heading, ["intent", "background", "overview", "goal"]):
             paragraph = _extract_first_paragraph_after(lines, heading_index + 1)
             if paragraph:
                 return paragraph

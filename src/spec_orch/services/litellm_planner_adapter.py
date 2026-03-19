@@ -476,9 +476,9 @@ class LiteLLMPlannerAdapter:
                     "brainstorming conversation into a structured spec "
                     "using this template:\n\n"
                     f"# {title}\n\n"
-                    "## Goal\n\n## Scope\n\n### In scope\n\n"
-                    "### Out of scope\n\n"
-                    "## Acceptance Criteria\n\n## Constraints\n\n"
+                    "## Intent\n\n"
+                    "## Acceptance Criteria\n\n"
+                    "## Constraints\n\n"
                     "## Interface Contracts\n\n"
                     "Output ONLY the markdown spec, no preamble."
                 ),

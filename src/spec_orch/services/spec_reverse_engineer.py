@@ -14,11 +14,8 @@ produce a structured spec in Markdown with these sections:
 
 # {title}
 
-## Goal
+## Intent
 (What user value does this deliver?)
-
-## Scope
-(What is in scope and out of scope?)
 
 ## Acceptance Criteria
 (Bullet list of verifiable conditions)
@@ -105,8 +102,7 @@ def _rule_based_fallback(title: str, content: str) -> str:
         preview += "\n..."
     return (
         f"# {title}\n\n"
-        "## Goal\n\n<!-- describe the user value -->\n\n"
-        "## Scope\n\n<!-- what's in and out -->\n\n"
+        "## Intent\n\n<!-- describe the user value -->\n\n"
         "## Acceptance Criteria\n\n"
         "- <!-- criterion 1 -->\n\n"
         "## Constraints\n\n"

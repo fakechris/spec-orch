@@ -9,18 +9,24 @@ from dataclasses import dataclass, field
 class SpecStructure:
     """Format-agnostic representation of a specification."""
 
-    goal: str = ""
-    scope: str = ""
+    # IAC canonical fields
+    intent: str = ""
     acceptance_criteria: list[str] = field(default_factory=list)
     constraints: list[str] = field(default_factory=list)
+    # Legacy aliases (kept for backward compatibility during migration)
+    goal: str = ""
+    scope: str = ""
     raw_sections: dict[str, str] = field(default_factory=dict)
     source_format: str = ""
     source_path: str = ""
 
     def to_markdown(self, title: str) -> str:
+        intent = self.intent or self.goal
+        if not intent and self.scope:
+            intent = self.scope
+
         lines = [f"# {title}", ""]
-        lines += ["## Goal", "", self.goal or "<!-- describe the user value -->", ""]
-        lines += ["## Scope", "", self.scope or "<!-- what's in and out -->", ""]
+        lines += ["## Intent", "", intent or "<!-- describe the user value -->", ""]
         lines += ["## Acceptance Criteria", ""]
         for ac in self.acceptance_criteria:
             lines.append(f"- {ac}")
@@ -35,5 +41,7 @@ class SpecStructure:
         lines.append("")
         lines += ["## Interface Contracts", "", "<!-- frozen APIs / schemas -->", ""]
         for section_name, content in self.raw_sections.items():
+            if section_name.strip().lower() in {"goal", "scope", "intent"}:
+                continue
             lines += [f"## {section_name}", "", content, ""]
         return "\n".join(lines)

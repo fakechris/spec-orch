@@ -14,14 +14,13 @@ from spec_orch.spec_import.spec_kit import SpecKitParser
 class TestSpecStructure:
     def test_to_markdown(self) -> None:
         s = SpecStructure(
-            goal="Ship feature",
-            scope="Module A",
+            intent="Ship feature",
             acceptance_criteria=["AC1", "AC2"],
             constraints=["C1"],
         )
         md = s.to_markdown("Test Feature")
         assert md.startswith("# Test Feature")
-        assert "## Goal" in md
+        assert "## Intent" in md
         assert "Ship feature" in md
         assert "- AC1" in md
         assert "- C1" in md
@@ -39,7 +38,7 @@ class TestSpecKitParser:
         specify.mkdir()
         (specify / "spec.md").write_text(
             "# Login Feature\n\n"
-            "## Goal\n\nUsers can log in.\n\n"
+            "## Intent\n\nUsers can log in.\n\n"
             "## Requirements\n\n- Must support OAuth\n- Must support email\n"
         )
         (specify / "plan.md").write_text("Use OAuth2 + email auth flow.\n")
@@ -48,19 +47,19 @@ class TestSpecKitParser:
         result = parser.parse(specify)
 
         assert result.source_format == "spec-kit"
-        assert "log in" in result.goal.lower() or "Users can log in" in result.goal
+        assert "log in" in result.intent.lower() or "Users can log in" in result.intent
         assert len(result.acceptance_criteria) == 2
-        assert "OAuth2" in result.scope
+        assert "OAuth2" in result.raw_sections.get("Implementation Notes", "")
 
     def test_parse_file_in_dir(self, tmp_path: Path) -> None:
         specify = tmp_path / ".specify"
         specify.mkdir()
         spec = specify / "spec.md"
-        spec.write_text("# X\n\n## Goal\n\nDo Y.\n")
+        spec.write_text("# X\n\n## Intent\n\nDo Y.\n")
 
         parser = SpecKitParser()
         result = parser.parse(spec)
-        assert "Do Y" in result.goal
+        assert "Do Y" in result.intent
 
 
 class TestEarsParser:
@@ -76,7 +75,7 @@ class TestEarsParser:
         result = parser.parse(ears_file)
 
         assert result.source_format == "ears"
-        assert result.goal == "System Requirements"
+        assert result.intent == "System Requirements"
         assert len(result.acceptance_criteria) >= 2
 
     def test_no_ears_yields_empty_ac(self, tmp_path: Path) -> None:
@@ -105,7 +104,7 @@ class TestBddParser:
         result = parser.parse(feature)
 
         assert result.source_format == "bdd"
-        assert result.goal == "User Login"
+        assert result.intent == "User Login"
         assert len(result.acceptance_criteria) == 2
         assert any("Successful login" in ac for ac in result.acceptance_criteria)
 
@@ -168,7 +167,7 @@ class TestSpecImportCLI:
             ],
         )
         assert result.exit_code == 0
-        assert "## Goal" in result.output
+        assert "## Intent" in result.output
 
     def test_import_creates_mission(self, tmp_path: Path) -> None:
         from typer.testing import CliRunner
