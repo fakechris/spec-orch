@@ -490,9 +490,9 @@ class ExecutionPlanResult:
 class ArtifactManifest:
     """Records all artifacts produced by a single run.
 
-    Written to ``{workspace}/artifact_manifest.json`` at the end of each run
-    so that downstream consumers (ContextAssembler, Evolvers, Review) can
-    locate artifacts by type without hard-coding paths.
+    Canonical location is ``{workspace}/run_artifact/manifest.json`` with a
+    legacy compatibility copy at ``{workspace}/artifact_manifest.json`` so
+    downstream consumers can locate artifacts by type without hard-coding paths.
     """
 
     run_id: str

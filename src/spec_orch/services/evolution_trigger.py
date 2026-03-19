@@ -200,16 +200,21 @@ class EvolutionTrigger:
         """Load artifacts dict from the latest workspace's manifest, if any."""
         if not self._latest_workspace:
             return {}
-        manifest_path = self._latest_workspace / "artifact_manifest.json"
-        if not manifest_path.exists():
-            return {}
-        try:
-            data = json.loads(manifest_path.read_text())
-            artifacts: dict[str, str] = data.get("artifacts", {})
-            return artifacts
-        except (json.JSONDecodeError, OSError):
-            logger.debug("Failed to load artifact manifest from %s", manifest_path, exc_info=True)
-            return {}
+        for manifest_path in (
+            self._latest_workspace / "run_artifact" / "manifest.json",
+            self._latest_workspace / "artifact_manifest.json",
+        ):
+            if not manifest_path.exists():
+                continue
+            try:
+                data = json.loads(manifest_path.read_text())
+                artifacts: dict[str, str] = data.get("artifacts", {})
+                return artifacts
+            except (json.JSONDecodeError, OSError):
+                logger.debug(
+                    "Failed to load artifact manifest from %s", manifest_path, exc_info=True
+                )
+        return {}
 
     def _write_result(self, result: EvolutionResult) -> None:
         log_dir = self._repo_root / ".spec_orch_evolution"
