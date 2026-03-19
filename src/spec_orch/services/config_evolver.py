@@ -55,7 +55,7 @@ class ConfigEvolver:
             repo_root / ".worktrees",
         ]
 
-    def evolve(self) -> ConfigEvolutionResult | None:
+    def evolve(self, *, context: Any | None = None) -> ConfigEvolutionResult | None:
         """Analyse historical runs and propose config changes."""
         reports = self._load_reports()
         if len(reports) < _MIN_RUNS_FOR_SUGGESTION:

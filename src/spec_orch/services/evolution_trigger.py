@@ -15,7 +15,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.domain.models import Issue, IssueContext
+from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.harness_synthesizer import HarnessSynthesizer, RuleValidator
+from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
 from spec_orch.services.prompt_evolver import PromptEvolver
 
@@ -80,6 +83,7 @@ class EvolutionTrigger:
         self._planner = planner
         self._latest_workspace = latest_workspace
         self._counter_path = repo_root / ".spec_orch_evolution" / "run_counter.json"
+        self._context_assembler = ContextAssembler()
 
     def _read_counter(self) -> int:
         if not self._counter_path.exists():
@@ -138,7 +142,7 @@ class EvolutionTrigger:
         if self._config.prompt_evolver_enabled and self._planner is not None:
             try:
                 evolver = PromptEvolver(self._repo_root, planner=self._planner)
-                variant = evolver.evolve()
+                variant = evolver.evolve(context=self._assemble_evolver_context("prompt_evolver"))
                 if variant is not None:
                     result.prompt_evolved = True
                     if self._config.auto_promote:
@@ -150,7 +154,9 @@ class EvolutionTrigger:
         if self._config.plan_strategy_evolver_enabled and self._planner is not None:
             try:
                 pse = PlanStrategyEvolver(self._repo_root, planner=self._planner)
-                hint_set = pse.analyze()
+                hint_set = pse.analyze(
+                    context=self._assemble_evolver_context("plan_strategy_evolver")
+                )
                 if hint_set is not None and hint_set.hints:
                     result.plan_hints_generated = True
             except Exception as exc:
@@ -177,7 +183,7 @@ class EvolutionTrigger:
                 from spec_orch.services.config_evolver import ConfigEvolver
 
                 cev = ConfigEvolver(self._repo_root)
-                cev_result = cev.evolve()
+                cev_result = cev.evolve(context=self._assemble_evolver_context("config_evolver"))
                 if cev_result and cev_result.suggestions:
                     logger.info(
                         "ConfigEvolver proposed %d suggestion(s)",
@@ -220,3 +226,51 @@ class EvolutionTrigger:
         }
         with log_path.open("a") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    def _assemble_evolver_context(self, node_name: str) -> Any | None:
+        """Best-effort ContextBundle assembly for evolver nodes."""
+        if self._latest_workspace is None:
+            return None
+        try:
+            issue = self._build_issue_from_latest_workspace()
+            return self._context_assembler.assemble(
+                get_node_context_spec(node_name),
+                issue,
+                self._latest_workspace,
+                repo_root=self._repo_root,
+            )
+        except Exception:
+            logger.debug("Failed to assemble context for %s", node_name, exc_info=True)
+            return None
+
+    def _build_issue_from_latest_workspace(self) -> Issue:
+        if self._latest_workspace is None:
+            raise ValueError("latest workspace is required for evolver context assembly")
+        issue_id = "evolver-context"
+        title = "evolver context"
+        summary = ""
+        acceptance_criteria: list[str] = []
+        constraints: list[str] = []
+
+        spec_snapshot_path = self._latest_workspace / "spec_snapshot.json"
+        if spec_snapshot_path.exists():
+            with spec_snapshot_path.open("r", encoding="utf-8") as f:
+                snap = json.load(f)
+            issue_data = snap.get("issue", {})
+            issue_id = issue_data.get("issue_id", issue_id)
+            title = issue_data.get("title", title)
+            summary = issue_data.get("summary") or issue_data.get("intent") or ""
+            raw_ac = issue_data.get("acceptance_criteria", [])
+            if isinstance(raw_ac, list):
+                acceptance_criteria = [str(v) for v in raw_ac]
+            raw_constraints = issue_data.get("context", {}).get("constraints", [])
+            if isinstance(raw_constraints, list):
+                constraints = [str(v) for v in raw_constraints]
+
+        return Issue(
+            issue_id=issue_id,
+            title=title,
+            summary=summary,
+            context=IssueContext(constraints=constraints),
+            acceptance_criteria=acceptance_criteria,
+        )

@@ -210,7 +210,7 @@ class PlanStrategyEvolver:
 
         return samples
 
-    def analyze(self, last_n: int = 20) -> HintSet | None:
+    def analyze(self, last_n: int = 20, *, context: Any | None = None) -> HintSet | None:
         """Use an LLM to analyze plan outcomes and generate hints.
 
         Returns the new ``HintSet``, or ``None`` if analysis is not possible.
@@ -239,6 +239,8 @@ class PlanStrategyEvolver:
             )
         if evidence_ctx:
             user_msg += f"Additional evidence context:\n{evidence_ctx}\n\n"
+        if context is not None:
+            user_msg += self._render_context_for_analysis(context)
         user_msg += "Analyze these outcomes and generate scoper hints."
 
         try:
@@ -297,6 +299,31 @@ class PlanStrategyEvolver:
             generated_at=now,
         )
         return self.merge_hints(new_hint_set)
+
+    @staticmethod
+    def _render_context_for_analysis(context: Any) -> str:
+        parts: list[str] = []
+        task = getattr(context, "task", None)
+        execution = getattr(context, "execution", None)
+        learning = getattr(context, "learning", None)
+
+        if task and getattr(task, "constraints", []):
+            parts.append("Constraints:\n" + "\n".join(f"- {c}" for c in task.constraints))
+        if execution and getattr(execution, "deviation_slices", []):
+            parts.append(
+                "Deviation slices:\n"
+                + json.dumps(execution.deviation_slices[:5], ensure_ascii=False, indent=2)
+            )
+        if learning and getattr(learning, "similar_failure_samples", []):
+            lines = [
+                f"- {s.get('key', '?')}: {s.get('content', '')[:180]}"
+                for s in learning.similar_failure_samples[:3]
+            ]
+            parts.append("Failure samples:\n" + "\n".join(lines))
+
+        if not parts:
+            return ""
+        return "ContextBundle evidence:\n" + "\n\n".join(parts) + "\n\n"
 
     def format_hints_for_prompt(self, hint_set: HintSet | None = None) -> str:
         """Format active hints as text for injection into scoper system prompt."""

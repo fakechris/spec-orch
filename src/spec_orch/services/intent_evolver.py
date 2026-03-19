@@ -172,7 +172,7 @@ class IntentEvolver:
             "demotion_correlations": dict(demotion_intents),
         }
 
-    def evolve(self) -> ClassifierVariant | None:
+    def evolve(self, *, context: Any | None = None) -> ClassifierVariant | None:
         """Use LLM to propose an improved classifier prompt."""
         if self._planner is None:
             logger.info("No planner configured, skipping intent evolution")
