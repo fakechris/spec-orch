@@ -90,6 +90,14 @@ class TestDashboardAPI:
         assert r.status_code == 200
         assert isinstance(r.json(), list)
 
+    def test_runs_endpoint_tolerates_non_object_conclusion(self, client, repo: Path):
+        run_dir = repo / ".spec_orch_runs" / "R1" / "run_artifact"
+        run_dir.mkdir(parents=True)
+        (run_dir / "conclusion.json").write_text("[]")
+        r = client.get("/api/runs")
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
     def test_events_endpoint(self, client):
         bus = get_event_bus()
         bus.publish(

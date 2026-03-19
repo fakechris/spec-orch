@@ -626,17 +626,21 @@ class SpecOrchDaemon:
         if controller is None:
             result = self._readiness_checker.check(description)
         else:
-            issue = self._build_triage_issue(raw_issue)
-            raw_workspace = controller.workspace_service.issue_workspace_path(issue.issue_id)
-            workspace = raw_workspace if isinstance(raw_workspace, Path) else self.repo_root
-            context = self._context_assembler.assemble(
-                get_node_context_spec("readiness_checker"),
-                issue,
-                workspace,
-                memory=self._memory_service,
-                repo_root=self.repo_root,
-            )
-            result = self._readiness_checker.check(description, context=context)
+            try:
+                issue = self._build_triage_issue(raw_issue)
+                raw_workspace = controller.workspace_service.issue_workspace_path(issue.issue_id)
+                workspace = raw_workspace if isinstance(raw_workspace, Path) else self.repo_root
+                context = self._context_assembler.assemble(
+                    get_node_context_spec("readiness_checker"),
+                    issue,
+                    workspace,
+                    memory=self._memory_service,
+                    repo_root=self.repo_root,
+                )
+                result = self._readiness_checker.check(description, context=context)
+            except Exception as exc:
+                print(f"[daemon] {issue_id}: triage context assembly failed: {exc}")
+                result = self._readiness_checker.check(description)
         if result.ready:
             return True
 
