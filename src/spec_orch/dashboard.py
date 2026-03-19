@@ -185,27 +185,42 @@ def _load_run_trend(repo_root: Path, metrics: dict[str, Any]) -> None:
     total = 0
     success = 0
     trend: list[dict[str, Any]] = []
-    for report in sorted(runs_dir.glob("*/report.json")):
-        try:
-            data = json.loads(report.read_text())
-            total += 1
-            ok = data.get("state") == "merged" or data.get("mergeable")
-            if ok:
-                success += 1
-            trend.append(
-                {
-                    "run": report.parent.name,
-                    "ok": bool(ok),
-                    "cumulative_rate": round(success / total * 100, 1),
-                }
-            )
-        except (json.JSONDecodeError, OSError):
-            logger.debug("Skipping malformed report: %s", report)
+    for run_dir in sorted(p for p in runs_dir.iterdir() if p.is_dir()):
+        data = _read_run_summary(run_dir)
+        if data is None:
+            continue
+        total += 1
+        ok = data.get("state") == "merged" or data.get("mergeable")
+        if ok:
+            success += 1
+        trend.append(
+            {
+                "run": run_dir.name,
+                "ok": bool(ok),
+                "cumulative_rate": round(success / total * 100, 1),
+            }
+        )
     metrics["total_runs"] = total
     metrics["successful_runs"] = success
     if total > 0:
         metrics["success_rate"] = round(success / total * 100, 1)
     metrics["run_trend"] = trend[-30:]
+
+
+def _read_run_summary(run_dir: Path) -> dict[str, Any] | None:
+    for file_path, kind in (
+        (run_dir / "run_artifact" / "conclusion.json", "conclusion"),
+        (run_dir / "report.json", "report"),
+    ):
+        if not file_path.exists():
+            continue
+        try:
+            data = json.loads(file_path.read_text())
+            if isinstance(data, dict):
+                return data
+        except (json.JSONDecodeError, OSError):
+            logger.debug("Skipping malformed %s: %s", kind, file_path)
+    return None
 
 
 def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
