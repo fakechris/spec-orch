@@ -164,9 +164,24 @@ class ContextAssembler:
                     ctx.gate_report = self._parse_gate(report)
                 except (json.JSONDecodeError, KeyError):
                     pass
+        elif manifest and "live" in manifest.artifacts:
+            live_path = Path(manifest.artifacts["live"])
+            if live_path.exists():
+                try:
+                    live = json.loads(live_path.read_text())
+                    if isinstance(live, dict):
+                        ctx.verification_results = self._parse_verification(live)
+                        ctx.gate_report = self._parse_gate(live)
+                except (json.JSONDecodeError, KeyError):
+                    pass
 
         if manifest and "builder_events" in manifest.artifacts:
             events_path = Path(manifest.artifacts["builder_events"])
+            if events_path.exists():
+                raw = events_path.read_text()
+                ctx.builder_events_summary = _truncate(raw, budget // 6)
+        elif manifest and "events" in manifest.artifacts:
+            events_path = Path(manifest.artifacts["events"])
             if events_path.exists():
                 raw = events_path.read_text()
                 ctx.builder_events_summary = _truncate(raw, budget // 6)

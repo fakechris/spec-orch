@@ -293,6 +293,31 @@ def test_daemon_triage_passes_complete_issue(tmp_path: Path) -> None:
     client.add_label.assert_not_called()
 
 
+def test_daemon_triage_context_assembly_error_falls_back_to_plain_check(tmp_path: Path) -> None:
+    from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
+
+    config = DaemonConfig({})
+    daemon = SpecOrchDaemon(config=config, repo_root=tmp_path)
+    daemon._triaged = set()
+    daemon._readiness_checker = MagicMock()
+    daemon._readiness_checker.check.return_value = ReadinessResult(ready=True)
+    daemon._context_assembler = MagicMock()
+    daemon._context_assembler.assemble.side_effect = RuntimeError("boom")
+
+    controller = MagicMock()
+    controller.workspace_service.issue_workspace_path.return_value = tmp_path
+    client = MagicMock()
+    raw_issue = {
+        "identifier": "SON-CTX",
+        "id": "uuid-ctx",
+        "description": COMPLETE_DESCRIPTION,
+    }
+
+    result = daemon._triage_issue(client, raw_issue, controller)
+    assert result is True
+    daemon._readiness_checker.check.assert_called_with(COMPLETE_DESCRIPTION)
+
+
 def test_daemon_triage_skips_already_triaged_without_reposting(tmp_path: Path) -> None:
     from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
 

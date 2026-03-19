@@ -99,6 +99,23 @@ class RunArtifactService:
         events_count: int,
         artifact_dir: Path,
     ) -> dict[str, Any]:
+        workspace = artifact_dir.parent
+        artifacts: dict[str, str] = {
+            "events": str(artifact_dir / "events.jsonl"),
+            "live": str(artifact_dir / "live.json"),
+            "retro": str(artifact_dir / "retro.json"),
+            "conclusion": str(artifact_dir / "conclusion.json"),
+            # Compatibility aliases used by existing context consumers.
+            "report": str(artifact_dir / "live.json"),
+            "builder_events": str(artifact_dir / "events.jsonl"),
+        }
+        review_report = workspace / "review_report.json"
+        if review_report.exists():
+            artifacts["review_report"] = str(review_report)
+        deviations = workspace / "deviations.jsonl"
+        if deviations.exists():
+            artifacts["deviations"] = str(deviations)
+
         return {
             "schema_version": "1.0",
             "run_id": run_id,
@@ -107,12 +124,7 @@ class RunArtifactService:
             "mergeable": bool(report.get("mergeable", False)),
             "events_count": events_count,
             "generated_at": datetime.now(UTC).isoformat(),
-            "artifacts": {
-                "events": str(artifact_dir / "events.jsonl"),
-                "live": str(artifact_dir / "live.json"),
-                "retro": str(artifact_dir / "retro.json"),
-                "conclusion": str(artifact_dir / "conclusion.json"),
-            },
+            "artifacts": artifacts,
         }
 
     @staticmethod

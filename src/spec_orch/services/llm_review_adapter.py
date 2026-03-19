@@ -210,8 +210,8 @@ class LLMReviewAdapter:
 
     def _build_context_bundle(self, *, issue_id: str, workspace: Path) -> Any | None:
         """Build ContextBundle for llm reviewer; fallback to legacy context on errors."""
-        issue = self._issue_from_workspace(issue_id=issue_id, workspace=workspace)
         try:
+            issue = self._issue_from_workspace(issue_id=issue_id, workspace=workspace)
             return self._context_assembler.assemble(
                 get_node_context_spec("llm_reviewer"),
                 issue,
@@ -233,15 +233,20 @@ class LLMReviewAdapter:
             try:
                 snap = json.loads(spec_snap_path.read_text())
                 issue_data = snap.get("issue", {})
+                if not isinstance(issue_data, dict):
+                    issue_data = {}
                 title = issue_data.get("title", title) or title
                 summary = issue_data.get("summary") or issue_data.get("intent") or ""
                 criteria = issue_data.get("acceptance_criteria", [])
                 if isinstance(criteria, list):
                     acceptance_criteria = [str(c) for c in criteria]
-                cts = issue_data.get("context", {}).get("constraints", [])
+                context_data = issue_data.get("context", {})
+                if not isinstance(context_data, dict):
+                    context_data = {}
+                cts = context_data.get("constraints", [])
                 if isinstance(cts, list):
                     constraints = [str(c) for c in cts]
-            except (json.JSONDecodeError, KeyError):
+            except (json.JSONDecodeError, KeyError, TypeError):
                 pass
 
         return Issue(

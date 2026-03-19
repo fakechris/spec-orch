@@ -484,6 +484,14 @@ class TestLLMReviewAdapter:
         issue = LLMReviewAdapter._issue_from_workspace(issue_id="TEST-1", workspace=tmp_path)
         assert issue.summary == "Legacy intent summary"
 
+    def test_issue_from_workspace_handles_null_issue_block(self, tmp_path: Path):
+        from spec_orch.services.llm_review_adapter import LLMReviewAdapter
+
+        (tmp_path / "spec_snapshot.json").write_text(json.dumps({"issue": None}))
+        issue = LLMReviewAdapter._issue_from_workspace(issue_id="TEST-2", workspace=tmp_path)
+        assert issue.issue_id == "TEST-2"
+        assert issue.summary == ""
+
 
 # ---------------------------------------------------------------------------
 # RunController injection

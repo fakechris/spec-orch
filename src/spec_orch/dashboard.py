@@ -225,6 +225,8 @@ def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
                         report_data = maybe_report
                 if conclusion.exists():
                     cdata = json.loads(conclusion.read_text())
+                    if not isinstance(cdata, dict):
+                        cdata = {}
                     data = {
                         "issue_id": cdata.get("issue_id", ws.name),
                         "title": report_data.get("title", ws.name),

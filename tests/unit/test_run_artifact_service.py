@@ -48,3 +48,6 @@ def test_write_from_run_creates_unified_artifacts(tmp_path: Path) -> None:
     assert manifest["run_id"] == "run-1"
     assert manifest["issue_id"] == "SON-1"
     assert manifest["mergeable"] is True
+    assert "report" in manifest["artifacts"]
+    assert "builder_events" in manifest["artifacts"]
+    assert manifest["artifacts"]["report"].endswith("run_artifact/live.json")
