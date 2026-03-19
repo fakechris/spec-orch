@@ -229,7 +229,7 @@ def _read_init_detection_mode(config_path: Path) -> str | None:
     if not isinstance(init_cfg, dict):
         return None
     mode = init_cfg.get("detection_mode")
-    if mode in {"llm", "rules"}:
+    if isinstance(mode, str) and mode in {"llm", "rules"}:
         return mode
     return None
 
