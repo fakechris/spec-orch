@@ -218,17 +218,23 @@ def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
             report = ws / "report.json"
             conclusion = ws / "run_artifact" / "conclusion.json"
             try:
+                report_data: dict[str, Any] = {}
+                if report.exists():
+                    maybe_report = json.loads(report.read_text())
+                    if isinstance(maybe_report, dict):
+                        report_data = maybe_report
                 if conclusion.exists():
                     cdata = json.loads(conclusion.read_text())
                     data = {
                         "issue_id": cdata.get("issue_id", ws.name),
+                        "title": report_data.get("title", ws.name),
                         "state": cdata.get("state", "unknown"),
                         "mergeable": cdata.get("mergeable", False),
                         "failed_conditions": cdata.get("failed_conditions", []),
-                        "builder": {},
+                        "builder": report_data.get("builder", {}),
                     }
                 elif report.exists():
-                    data = json.loads(report.read_text())
+                    data = report_data
                 else:
                     continue
                 runs.append(
@@ -848,7 +854,7 @@ def create_app(repo_root: Path | None = None) -> Any:
                 from spec_orch.services.event_bus import EventTopic
 
                 parsed_topic = EventTopic(topic)
-            except Exception:
+            except ValueError:
                 parsed_topic = None
         events = bus.query_history(
             topic=parsed_topic,

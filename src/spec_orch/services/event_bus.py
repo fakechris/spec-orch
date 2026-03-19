@@ -133,7 +133,7 @@ class EventBus:
 
         filtered = [ev for ev in events if _match(ev)]
         if limit <= 0:
-            return filtered
+            return []
         return filtered[-limit:]
 
     def emit_mission_state(
