@@ -267,14 +267,16 @@ class LLMReviewAdapter:
         if execution:
             vr = getattr(execution, "verification_results", None)
             if vr:
-                lines = []
+                verification_lines: list[str] = []
                 details = getattr(vr, "details", {})
                 for name, detail in details.items():
                     exit_code = getattr(detail, "exit_code", -1)
                     status = "pass" if exit_code == 0 else "FAIL"
-                    lines.append(f"  - {name}: {status}")
-                if lines:
-                    parts.append("## Verification Results (previous run)\n" + "\n".join(lines))
+                    verification_lines.append(f"  - {name}: {status}")
+                if verification_lines:
+                    parts.append(
+                        "## Verification Results (previous run)\n" + "\n".join(verification_lines)
+                    )
 
             gate = getattr(execution, "gate_report", None)
             if gate is not None:
@@ -286,11 +288,11 @@ class LLMReviewAdapter:
                 )
 
         if learning and getattr(learning, "similar_failure_samples", []):
-            lines = []
+            failure_lines: list[str] = []
             for s in learning.similar_failure_samples[:3]:
-                lines.append(f"- {s.get('key', '?')}: {s.get('content', '')[:200]}")
-            if lines:
-                parts.append("## Recent Failure Samples\n" + "\n".join(lines))
+                failure_lines.append(f"- {s.get('key', '?')}: {s.get('content', '')[:200]}")
+            if failure_lines:
+                parts.append("## Recent Failure Samples\n" + "\n".join(failure_lines))
 
         return "\n\n".join(parts)
 
