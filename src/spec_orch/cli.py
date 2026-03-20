@@ -3637,8 +3637,9 @@ def eval_compare(
     c_dev = c.get("avg_deviation_count", 0)
     typer.echo(f"Avg deviations: {b_dev:.1f} → {c_dev:.1f}")
 
-    if delta < -0.05:
-        typer.echo("⚠ Candidate regressed by more than 5%")
+    eval_regression_threshold = -0.05
+    if delta < eval_regression_threshold:
+        typer.echo(f"⚠ Candidate regressed by more than {-eval_regression_threshold:.0%}")
         raise typer.Exit(1)
 
 
