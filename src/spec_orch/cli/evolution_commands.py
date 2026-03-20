@@ -419,7 +419,7 @@ def prompt_promote(
     from spec_orch.services.prompt_evolver import PromptEvolver
 
     evolver = PromptEvolver(repo_root)
-    if evolver.promote(variant_id):
+    if evolver.promote_variant(variant_id):
         typer.echo(f"Promoted {variant_id} to active.")
     else:
         typer.echo(f"Variant {variant_id} not found.", err=True)

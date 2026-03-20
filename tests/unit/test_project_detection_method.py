@@ -68,7 +68,5 @@ def test_parse_llm_result_rejects_non_dict_verification(tmp_path, monkeypatch) -
         "spec_orch.services.smart_project_analyzer._detect_base_branch",
         lambda _r: "main",
     )
-    result = _parse_llm_result(
-        {"languages": ["python"], "verification": ["pytest"]}, tmp_path
-    )
+    result = _parse_llm_result({"languages": ["python"], "verification": ["pytest"]}, tmp_path)
     assert result is None
