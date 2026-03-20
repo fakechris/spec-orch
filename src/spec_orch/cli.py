@@ -221,15 +221,18 @@ def init_project(
             typer.echo("Tip: create a .env file with SPEC_ORCH_LLM_API_KEY=your-key")
 
     typer.echo("\nRunning preflight check...")
-    from click import get_current_context
+    try:
+        from click import get_current_context
 
-    ctx = get_current_context()
-    ctx.invoke(
-        preflight_cmd,
-        repo_root=root,
-        json_output=False,
-        try_llm=False,
-    )
+        ctx = get_current_context()
+        ctx.invoke(
+            preflight_cmd,
+            repo_root=root,
+            json_output=False,
+            try_llm=False,
+        )
+    except SystemExit:
+        pass
 
 
 def _read_init_detection_mode(config_path: Path) -> str | None:
