@@ -2,30 +2,20 @@
 
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
-from unittest.mock import patch
-
-import pytest
 
 from spec_orch.domain.context import CompactRetentionPriority, NodeContextSpec
 from spec_orch.domain.models import Issue
 from spec_orch.services.context_assembler import ContextAssembler, _detect_chars_per_token
-from spec_orch.services.context_ranker import (
-    ContextRanker,
-    RankedSection,
-    _detect_chars_per_token as cr_detect,
-)
+from spec_orch.services.context_ranker import _detect_chars_per_token as cr_detect
 from spec_orch.services.event_bus import Event, EventBus, EventTopic
 from spec_orch.services.run_progress import RunProgressSnapshot
 from spec_orch.services.trace_sampler import TraceSampler
 
-
 # --------------------------------------------------------------------------
 # CJK-aware token estimation
 # --------------------------------------------------------------------------
+
 
 class TestCJKDetection:
     def test_english_text_uses_default(self) -> None:
@@ -46,9 +36,33 @@ class TestCJKDetection:
         assert cr_detect("这是中文" * 50) == 2
 
 
+class TestTruncateEdgeCases:
+    def test_truncate_tiny_budget_no_negative_slice(self) -> None:
+        from spec_orch.services.context_assembler import _truncate
+
+        text = "A" * 10000
+        result = _truncate(text, max_tokens=1)
+        assert len(result) < 100
+
+    def test_truncate_zero_budget(self) -> None:
+        from spec_orch.services.context_assembler import _truncate
+
+        result = _truncate("hello world", max_tokens=0)
+        assert result == ""
+
+    def test_truncate_normal(self) -> None:
+        from spec_orch.services.context_assembler import _truncate
+
+        text = "X" * 500
+        result = _truncate(text, max_tokens=50)
+        assert "[truncated]" in result
+        assert len(result) <= 50 * 4 + 5
+
+
 # --------------------------------------------------------------------------
 # ContextRanker integration with ContextAssembler
 # --------------------------------------------------------------------------
+
 
 class TestContextRankerIntegration:
     def _make_issue(self) -> Issue:
@@ -77,7 +91,7 @@ class TestContextRankerIntegration:
         assert bundle.task.spec_snapshot_text
 
     def test_ranked_sections_built_correctly(self) -> None:
-        from spec_orch.domain.context import ExecutionContext, LearningContext, TaskContext
+        from spec_orch.domain.context import ExecutionContext, TaskContext
 
         task = TaskContext(
             issue=self._make_issue(),
@@ -89,9 +103,9 @@ class TestContextRankerIntegration:
             git_diff="diff output",
             builder_events_summary="events",
         )
-        learn = LearningContext()
+        contexts = {"task": task, "execution": exec_ctx}
 
-        sections = ContextAssembler._collect_ranked_sections(task, exec_ctx, learn)
+        sections = ContextAssembler._collect_ranked_sections(contexts)
         names = {s.name for s in sections}
         assert names == {
             "spec_snapshot_text",
@@ -110,6 +124,7 @@ class TestContextRankerIntegration:
 # --------------------------------------------------------------------------
 # RunProgressSnapshot integration
 # --------------------------------------------------------------------------
+
 
 class TestRunProgressIntegration:
     def test_snapshot_records_pipeline_stages(self, tmp_path: Path) -> None:
@@ -141,6 +156,7 @@ class TestRunProgressIntegration:
 # TraceSampler integration
 # --------------------------------------------------------------------------
 
+
 class TestTraceSamplerIntegration:
     def test_failed_gate_triggers_sample(self) -> None:
         sampler = TraceSampler()
@@ -160,6 +176,7 @@ class TestTraceSamplerIntegration:
 # --------------------------------------------------------------------------
 # Fallback observability (EventBus)
 # --------------------------------------------------------------------------
+
 
 class TestFallbackObservability:
     def test_emit_fallback_publishes_event(self) -> None:
@@ -198,6 +215,7 @@ class TestFallbackObservability:
 # --------------------------------------------------------------------------
 # pathlib-based file tree (cross-platform)
 # --------------------------------------------------------------------------
+
 
 class TestPathLibFileTree:
     def test_read_file_tree_uses_pathlib(self, tmp_path: Path) -> None:

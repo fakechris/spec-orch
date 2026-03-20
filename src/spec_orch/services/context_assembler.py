@@ -43,6 +43,8 @@ def _truncate(text: str, max_tokens: int) -> str:
     if len(text) <= limit:
         return text
     suffix = "\n... [truncated]"
+    if limit <= len(suffix) + 10:
+        return text[: max(limit, 0)]
     return text[: limit - len(suffix)] + suffix
 
 
@@ -80,79 +82,49 @@ class ContextAssembler:
             repo_root or workspace, memory, oversized_budget, spec.required_learning_fields
         )
 
-        sections = self._collect_ranked_sections(task_ctx, exec_ctx, learn_ctx)
+        contexts = {"task": task_ctx, "execution": exec_ctx}
+        sections = self._collect_ranked_sections(contexts)
         if sections:
             ranked = ContextRanker.allocate(sections, budget)
-            self._apply_ranked_budget(task_ctx, exec_ctx, learn_ctx, ranked)
+            self._apply_ranked_budget(contexts, ranked)
 
         return ContextBundle(task=task_ctx, execution=exec_ctx, learning=learn_ctx)
 
+    _SECTION_DEFS: list[tuple[str, str, int]] = []
+
     @staticmethod
-    def _collect_ranked_sections(
-        task: TaskContext, exec_ctx: ExecutionContext, learn: LearningContext
-    ) -> list[RankedSection]:
+    def _section_definitions() -> list[tuple[str, str, int]]:
         from spec_orch.domain.context import CompactRetentionPriority as P
 
+        return [
+            ("spec_snapshot_text", "task", P.ARCHITECTURE_DECISIONS),
+            ("architecture_notes", "task", P.ARCHITECTURE_DECISIONS),
+            ("file_tree", "execution", P.MODIFIED_FILES),
+            ("git_diff", "execution", P.MODIFIED_FILES),
+            ("builder_events_summary", "execution", P.TOOL_OUTPUT),
+        ]
+
+    @classmethod
+    def _collect_ranked_sections(
+        cls,
+        contexts: dict[str, Any],
+    ) -> list[RankedSection]:
         sections: list[RankedSection] = []
-        if task.spec_snapshot_text:
-            sections.append(
-                RankedSection(
-                    "spec_snapshot_text",
-                    task.spec_snapshot_text,
-                    P.ARCHITECTURE_DECISIONS,
-                )
-            )
-        if task.architecture_notes:
-            sections.append(
-                RankedSection(
-                    "architecture_notes",
-                    task.architecture_notes,
-                    P.ARCHITECTURE_DECISIONS,
-                )
-            )
-        if exec_ctx.file_tree:
-            sections.append(
-                RankedSection(
-                    "file_tree",
-                    exec_ctx.file_tree,
-                    P.MODIFIED_FILES,
-                )
-            )
-        if exec_ctx.git_diff:
-            sections.append(
-                RankedSection(
-                    "git_diff",
-                    exec_ctx.git_diff,
-                    P.MODIFIED_FILES,
-                )
-            )
-        if exec_ctx.builder_events_summary:
-            sections.append(
-                RankedSection(
-                    "builder_events_summary",
-                    exec_ctx.builder_events_summary,
-                    P.TOOL_OUTPUT,
-                )
-            )
+        for name, ctx_key, priority in cls._section_definitions():
+            content = getattr(contexts.get(ctx_key), name, None)
+            if content:
+                sections.append(RankedSection(name, content, priority))
         return sections
 
-    @staticmethod
+    @classmethod
     def _apply_ranked_budget(
-        task: TaskContext,
-        exec_ctx: ExecutionContext,
-        learn: LearningContext,
+        cls,
+        contexts: dict[str, Any],
         ranked: dict[str, str],
     ) -> None:
-        if "spec_snapshot_text" in ranked:
-            task.spec_snapshot_text = ranked["spec_snapshot_text"]
-        if "architecture_notes" in ranked:
-            task.architecture_notes = ranked["architecture_notes"]
-        if "file_tree" in ranked:
-            exec_ctx.file_tree = ranked["file_tree"]
-        if "git_diff" in ranked:
-            exec_ctx.git_diff = ranked["git_diff"]
-        if "builder_events_summary" in ranked:
-            exec_ctx.builder_events_summary = ranked["builder_events_summary"]
+        for name, ctx_key, _ in cls._section_definitions():
+            if name in ranked:
+                setattr(contexts[ctx_key], name, ranked[name])
 
     @staticmethod
     def _load_manifest(workspace: Path) -> ArtifactManifest | None:

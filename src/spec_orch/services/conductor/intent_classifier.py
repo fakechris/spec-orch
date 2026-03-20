@@ -57,18 +57,14 @@ def classify_intent(
     """
     if planner is not None and hasattr(planner, "chat_completion"):
         return _llm_classify(message, conversation_history or [], planner, context)
-    logger.warning("FALLBACK [IntentClassifier]: llm → rules — no planner available")
-    try:
-        from spec_orch.services.event_bus import get_event_bus
+    from spec_orch.services.event_bus import emit_fallback_safe
 
-        get_event_bus().emit_fallback(
-            component="IntentClassifier",
-            primary="llm_classification",
-            fallback="rule_heuristics",
-            reason="No planner adapter with chat_completion",
-        )
-    except Exception:
-        pass
+    emit_fallback_safe(
+        "IntentClassifier",
+        "llm_classification",
+        "rule_heuristics",
+        "No planner adapter with chat_completion",
+    )
     return _rule_classify(message)
 
 

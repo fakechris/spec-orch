@@ -155,8 +155,9 @@ class RunController:
 
             self._memory_service = get_memory_service(repo_root=self.repo_root)
         except Exception:
-            logger.warning("MemoryService unavailable — running without memory", exc_info=True)
-            self._emit_fallback(
+            from spec_orch.services.event_bus import emit_fallback_safe
+
+            emit_fallback_safe(
                 "MemoryService",
                 "memory_service",
                 "no_memory",
@@ -206,35 +207,23 @@ class RunController:
         )
         return resolved or FlowType.STANDARD
 
+    @staticmethod
     def _emit_fallback(
-        self,
         component: str,
         primary: str,
         fallback: str,
         reason: str,
         issue_id: str = "",
     ) -> None:
-        """Emit a fallback event for observability."""
-        logger.warning(
-            "FALLBACK [%s]: %s → %s — %s (issue=%s)",
-            component,
-            primary,
-            fallback,
-            reason,
-            issue_id,
-        )
-        try:
-            from spec_orch.services.event_bus import get_event_bus
+        from spec_orch.services.event_bus import emit_fallback_safe
 
-            get_event_bus().emit_fallback(
-                component=component,
-                primary=primary,
-                fallback=fallback,
-                reason=reason,
-                issue_id=issue_id,
-            )
-        except Exception:
-            logger.debug("Failed to emit fallback event", exc_info=True)
+        emit_fallback_safe(
+            component=component,
+            primary=primary,
+            fallback=fallback,
+            reason=reason,
+            issue_id=issue_id,
+        )
 
     @staticmethod
     def _supports_context_kwarg(method: Any) -> bool:

@@ -291,3 +291,36 @@ def reset_event_bus() -> None:
     global _global_bus
     with _global_lock:
         _global_bus = None
+
+
+def emit_fallback_safe(
+    component: str,
+    primary: str,
+    fallback: str,
+    reason: str,
+    issue_id: str = "",
+    **extra: Any,
+) -> None:
+    """Log a fallback event at WARNING level and publish to EventBus.
+
+    Safe to call from any context — never raises.
+    """
+    logger.warning(
+        "FALLBACK [%s]: %s → %s — %s (issue=%s)",
+        component,
+        primary,
+        fallback,
+        reason,
+        issue_id,
+    )
+    try:
+        get_event_bus().emit_fallback(
+            component=component,
+            primary=primary,
+            fallback=fallback,
+            reason=reason,
+            issue_id=issue_id,
+            **extra,
+        )
+    except Exception:
+        logger.debug("Failed to emit fallback event", exc_info=True)

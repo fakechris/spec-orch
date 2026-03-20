@@ -252,16 +252,12 @@ def smart_detect_project(
             return profile, "llm"
 
     reason = "offline mode" if offline else "LLM analysis unavailable or failed"
-    logger.warning("FALLBACK [SmartProjectAnalyzer]: llm → rules — %s", reason)
-    try:
-        from spec_orch.services.event_bus import get_event_bus
+    from spec_orch.services.event_bus import emit_fallback_safe
 
-        get_event_bus().emit_fallback(
-            component="SmartProjectAnalyzer",
-            primary="llm_analysis",
-            fallback="rule_detection",
-            reason=reason,
-        )
-    except Exception:
-        pass
+    emit_fallback_safe(
+        "SmartProjectAnalyzer",
+        "llm_analysis",
+        "rule_detection",
+        reason,
+    )
     return detect_project(root), "rules"
