@@ -223,6 +223,130 @@ def _read_run_summary(run_dir: Path) -> dict[str, Any] | None:
     return None
 
 
+def _control_overview(repo_root: Path) -> dict[str, Any]:
+    """Aggregate overview for the Control Tower (P5)."""
+    overview: dict[str, Any] = {
+        "flywheel": {},
+        "run_summary": {},
+        "skills_count": 0,
+        "reactions_count": 0,
+    }
+    try:
+        from spec_orch.services.eval_runner import EvalRunner
+
+        runner = EvalRunner(repo_root)
+        report = runner.evaluate()
+        overview["run_summary"] = {
+            "total": report.total,
+            "passed": report.passed,
+            "failed": report.failed,
+            "pass_rate": round(report.pass_rate * 100, 1),
+        }
+    except Exception:
+        logger.debug("Control tower: eval runner unavailable", exc_info=True)
+
+    try:
+        from spec_orch.services.skill_format import default_skills_dir, load_skills_from_dir
+
+        skills_dir = default_skills_dir(repo_root)
+        manifests, _ = load_skills_from_dir(skills_dir)
+        overview["skills_count"] = len(manifests)
+    except Exception:
+        logger.debug("Control tower: skill loader unavailable", exc_info=True)
+
+    reactions_path = repo_root / ".spec_orch" / "reactions.yaml"
+    if reactions_path.exists():
+        try:
+            import yaml
+
+            raw = yaml.safe_load(reactions_path.read_text()) or {}
+            items = raw.get("reactions", [])
+            overview["reactions_count"] = len(items) if isinstance(items, list) else 0
+        except Exception:
+            pass
+
+    overview["flywheel"] = {
+        "P0_context_contract": "done",
+        "P1_unified_artifact": "done",
+        "P2_reaction_engine": "done",
+        "P4_skill_format": "done",
+        "P5_control_tower": "active",
+        "P6_harness_evals": "done",
+    }
+    return overview
+
+
+def _control_skills(repo_root: Path) -> dict[str, Any]:
+    """List loaded skill manifests for the Control Tower."""
+    try:
+        from spec_orch.services.skill_format import default_skills_dir, load_skills_from_dir
+
+        skills_dir = default_skills_dir(repo_root)
+        manifests, warnings = load_skills_from_dir(skills_dir)
+        return {
+            "skills": [m.to_dict() for m in manifests],
+            "warnings": warnings,
+        }
+    except Exception:
+        return {"skills": [], "warnings": ["skill_format module unavailable"]}
+
+
+def _control_eval(repo_root: Path) -> dict[str, Any]:
+    """Latest eval report for the Control Tower."""
+    eval_path = repo_root / "eval_report.json"
+    if eval_path.exists():
+        try:
+            data: dict[str, Any] = json.loads(eval_path.read_text())
+            return data
+        except (json.JSONDecodeError, OSError):
+            pass
+    try:
+        from spec_orch.services.eval_runner import EvalRunner
+
+        runner = EvalRunner(repo_root)
+        return runner.evaluate().to_dict()
+    except Exception:
+        return {"total": 0, "error": "eval runner unavailable"}
+
+
+def _control_eval_trigger(repo_root: Path) -> dict[str, Any]:
+    """Trigger a fresh eval run and return the report."""
+    try:
+        from spec_orch.services.eval_runner import EvalRunner
+
+        runner = EvalRunner(repo_root)
+        report = runner.evaluate()
+        out = repo_root / "eval_report.json"
+        runner.write_report(report, out)
+        return {"triggered": True, "report": report.to_dict()}
+    except Exception as exc:
+        return {"triggered": False, "error": str(exc)}
+
+
+def _control_reactions(repo_root: Path) -> dict[str, Any]:
+    """Return loaded reaction rules for the Control Tower."""
+    try:
+        from spec_orch.services.reaction_engine import ReactionEngine
+
+        engine = ReactionEngine(repo_root)
+        rules = [
+            {
+                "name": r.name,
+                "trigger": r.trigger,
+                "action": r.action,
+                "enabled": r.enabled,
+                "params": r.params,
+            }
+            for r in engine.rules
+        ]
+        return {
+            "rules": rules,
+            "warnings": engine.load_warnings,
+        }
+    except Exception:
+        return {"rules": [], "warnings": ["reaction engine unavailable"]}
+
+
 def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
     """Scan workspace directories for run reports."""
     runs: list[dict[str, Any]] = []
@@ -900,6 +1024,28 @@ def create_app(repo_root: Path | None = None) -> Any:
     @app.get("/api/evolution")
     async def api_evolution() -> JSONResponse:
         return JSONResponse(_gather_evolution_metrics(root))
+
+    # ---- control tower endpoints (P5) ----
+
+    @app.get("/api/control/overview")
+    async def api_control_overview() -> JSONResponse:
+        return JSONResponse(_control_overview(root))
+
+    @app.get("/api/control/skills")
+    async def api_control_skills() -> JSONResponse:
+        return JSONResponse(_control_skills(root))
+
+    @app.get("/api/control/eval")
+    async def api_control_eval() -> JSONResponse:
+        return JSONResponse(_control_eval(root))
+
+    @app.post("/api/control/eval/run")
+    async def api_control_eval_run() -> JSONResponse:
+        return JSONResponse(_control_eval_trigger(root))
+
+    @app.get("/api/control/reactions")
+    async def api_control_reactions() -> JSONResponse:
+        return JSONResponse(_control_reactions(root))
 
     # ---- action endpoints ----
 
