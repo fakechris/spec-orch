@@ -142,3 +142,46 @@ class TestDashboardAPI:
         result = filtered.json()
         assert len(result) == 1
         assert result[0]["payload"]["issue_id"] == "SON-194"
+
+    # ---- Control Tower (P5) tests ----
+
+    def test_control_overview(self, client):
+        r = client.get("/api/control/overview")
+        assert r.status_code == 200
+        data = r.json()
+        assert "flywheel" in data
+        assert "run_summary" in data
+        assert "skills_count" in data
+
+    def test_control_skills(self, client, repo: Path):
+        skills_dir = repo / ".spec_orch" / "skills"
+        skills_dir.mkdir(parents=True)
+        (skills_dir / "s1.yaml").write_text("id: s1\nname: S1\nkind: gate_check\n")
+        r = client.get("/api/control/skills")
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["skills"]) == 1
+        assert data["skills"][0]["id"] == "s1"
+
+    def test_control_eval(self, client, repo: Path):
+        run_dir = repo / ".spec_orch_runs" / "eval-test" / "run_artifact"
+        run_dir.mkdir(parents=True)
+        (run_dir / "conclusion.json").write_text(
+            '{"run_id":"e1","issue_id":"eval-test","mergeable":true,"verdict":"pass"}'
+        )
+        r = client.get("/api/control/eval")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["total"] >= 1
+
+    def test_control_eval_trigger(self, client):
+        r = client.post("/api/control/eval/run")
+        assert r.status_code == 200
+        data = r.json()
+        assert "triggered" in data
+
+    def test_control_reactions(self, client):
+        r = client.get("/api/control/reactions")
+        assert r.status_code == 200
+        data = r.json()
+        assert "rules" in data
