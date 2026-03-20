@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-from spec_orch.services.evolver_protocol import Evolver
+from spec_orch.domain.protocols import LifecycleEvolver
 from spec_orch.services.flow_policy_evolver import (
     FlowPolicyEvolver,
     FlowPolicyEvolveResult,
@@ -122,15 +122,15 @@ def _issue_result_entry(
 class TestEvolverProtocol:
     def test_intent_evolver_conforms(self, tmp_path: Path):
         e = IntentEvolver(tmp_path)
-        assert isinstance(e, Evolver)
+        assert isinstance(e, LifecycleEvolver)
 
     def test_flow_policy_evolver_conforms(self, tmp_path: Path):
         e = FlowPolicyEvolver(tmp_path)
-        assert isinstance(e, Evolver)
+        assert isinstance(e, LifecycleEvolver)
 
     def test_gate_policy_evolver_conforms(self, tmp_path: Path):
         e = GatePolicyEvolver(tmp_path)
-        assert isinstance(e, Evolver)
+        assert isinstance(e, LifecycleEvolver)
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +165,7 @@ class TestIntentEvolver:
                 ClassifierVariant(variant_id="v1", prompt_text="p1", is_candidate=True),
             ]
         )
-        assert e.promote("v1") is True
+        assert e.promote_variant("v1") is True
         active = e.get_active()
         assert active is not None
         assert active.variant_id == "v1"
@@ -173,7 +173,7 @@ class TestIntentEvolver:
     def test_promote_nonexistent(self, tmp_path: Path):
         e = IntentEvolver(tmp_path)
         e.save_history([ClassifierVariant(variant_id="v0", prompt_text="p0")])
-        assert e.promote("v99") is False
+        assert e.promote_variant("v99") is False
 
     def test_evolve_no_planner(self, tmp_path: Path):
         e = IntentEvolver(tmp_path, planner=None)

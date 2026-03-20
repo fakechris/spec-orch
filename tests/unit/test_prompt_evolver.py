@@ -212,7 +212,7 @@ def test_promote_variant(tmp_path: Path) -> None:
     ]
     evolver.save_history(variants)
 
-    assert evolver.promote("v1") is True
+    assert evolver.promote_variant("v1") is True
     history = evolver.load_history()
     assert history[0].is_active is False
     assert history[1].is_active is True
@@ -221,7 +221,7 @@ def test_promote_variant(tmp_path: Path) -> None:
 
 def test_promote_nonexistent(tmp_path: Path) -> None:
     evolver = PromptEvolver(tmp_path)
-    assert evolver.promote("v99") is False
+    assert evolver.promote_variant("v99") is False
 
 
 def test_auto_promote_if_ready(tmp_path: Path) -> None:

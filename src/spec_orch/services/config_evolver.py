@@ -12,16 +12,24 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.domain.models import (
+    EvolutionChangeType,
+    EvolutionOutcome,
+    EvolutionProposal,
+    EvolutionValidationMethod,
+)
 from spec_orch.services.io import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
 _MIN_RUNS_FOR_SUGGESTION = 5
+_CONFIDENCE_MAP = {"high": 0.9, "medium": 0.7, "low": 0.3}
 
 
 @dataclass(slots=True)
@@ -47,6 +55,8 @@ class ConfigEvolutionResult:
 
 class ConfigEvolver:
     """Analyses run artifacts and proposes spec-orch.toml updates."""
+
+    EVOLVER_NAME: str = "config_evolver"
 
     def __init__(self, repo_root: Path) -> None:
         self._repo_root = repo_root
@@ -81,6 +91,64 @@ class ConfigEvolver:
             self._save_suggestions(result)
 
         return result
+
+    # -- LifecycleEvolver protocol --
+
+    def observe(self, run_dirs: list[Path], *, context: Any | None = None) -> list[dict[str, Any]]:
+        return self._load_reports()
+
+    def propose(
+        self, evidence: list[dict[str, Any]], *, context: Any | None = None
+    ) -> list[EvolutionProposal]:
+        if len(evidence) < _MIN_RUNS_FOR_SUGGESTION:
+            return []
+        suggestions: list[ConfigSuggestion] = []
+        suggestions.extend(self._check_skipped_steps(evidence))
+        suggestions.extend(self._check_timeout_fit(evidence))
+        suggestions.extend(self._check_consistent_failures(evidence))
+        proposals: list[EvolutionProposal] = []
+        for s in suggestions:
+            proposals.append(
+                EvolutionProposal(
+                    proposal_id=uuid.uuid4().hex,
+                    evolver_name=self.EVOLVER_NAME,
+                    change_type=EvolutionChangeType.CONFIG_SUGGESTION,
+                    content={
+                        "section": s.section,
+                        "key": s.key,
+                        "suggested_value": s.suggested_value,
+                        "reason": s.reason,
+                    },
+                    confidence=_CONFIDENCE_MAP.get(s.confidence, 0.7),
+                )
+            )
+        return proposals
+
+    def validate(self, proposal: EvolutionProposal) -> EvolutionOutcome:
+        accepted = proposal.confidence >= 0.5
+        return EvolutionOutcome(
+            proposal_id=proposal.proposal_id,
+            accepted=accepted,
+            validation_method=EvolutionValidationMethod.AUTO,
+            reason="confidence >= 0.5" if accepted else "confidence < 0.5",
+        )
+
+    def promote(self, proposal: EvolutionProposal) -> bool:
+        content = proposal.content
+        suggestion = ConfigSuggestion(
+            section=content.get("section", ""),
+            key=content.get("key", ""),
+            current_value=content.get("current_value", ""),
+            suggested_value=content.get("suggested_value", ""),
+            reason=content.get("reason", ""),
+        )
+        result = ConfigEvolutionResult(
+            suggestions=[suggestion],
+            runs_analyzed=0,
+            timestamp=proposal.created_at,
+        )
+        self._save_suggestions(result)
+        return True
 
     def _load_reports(self) -> list[dict[str, Any]]:
         """Load unified run artifacts with legacy report fallback."""

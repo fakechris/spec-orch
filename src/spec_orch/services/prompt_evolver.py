@@ -10,11 +10,18 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.domain.models import (
+    EvolutionChangeType,
+    EvolutionOutcome,
+    EvolutionProposal,
+    EvolutionValidationMethod,
+)
 from spec_orch.services.io import atomic_write_json
 
 logger = logging.getLogger(__name__)
@@ -80,6 +87,7 @@ class ABTestResult:
 class PromptEvolver:
     """Manages versioned builder prompts and A/B testing."""
 
+    EVOLVER_NAME: str = "prompt_evolver"
     MIN_RUNS_FOR_COMPARISON = 5
 
     def __init__(self, repo_root: Path, planner: Any | None = None) -> None:
@@ -399,7 +407,7 @@ class PromptEvolver:
             confidence=confidence,
         )
 
-    def promote(self, variant_id: str) -> bool:
+    def promote_variant(self, variant_id: str) -> bool:
         """Promote a variant to active, deactivating the current active."""
         history = self.load_history()
         target = None
@@ -440,7 +448,7 @@ class PromptEvolver:
             return None
 
         if result.winner_id == candidate.variant_id:
-            self.promote(candidate.variant_id)
+            self.promote_variant(candidate.variant_id)
             logger.info(
                 "Auto-promoted %s (%.1f%%) over %s (%.1f%%)",
                 candidate.variant_id,
@@ -450,3 +458,57 @@ class PromptEvolver:
             )
 
         return result
+
+    # ------------------------------------------------------------------
+    # LifecycleEvolver protocol
+    # ------------------------------------------------------------------
+
+    def observe(
+        self,
+        run_dirs: list[Path],
+        *,
+        context: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        """Collect evidence from recent run directories."""
+        return self._collect_failure_samples()
+
+    def propose(
+        self,
+        evidence: list[dict[str, Any]],
+        *,
+        context: Any | None = None,
+    ) -> list[EvolutionProposal]:
+        """Generate prompt variant proposals from evidence."""
+        variant = self.evolve(context=context)
+        if variant is None:
+            return []
+        return [
+            EvolutionProposal(
+                proposal_id=f"prompt-{uuid.uuid4().hex[:8]}",
+                evolver_name=self.EVOLVER_NAME,
+                change_type=EvolutionChangeType.PROMPT_VARIANT,
+                content={
+                    "variant_id": variant.variant_id,
+                    "prompt_text": variant.prompt_text,
+                    "rationale": variant.rationale,
+                },
+                evidence=evidence,
+                confidence=0.5,
+            )
+        ]
+
+    def validate(self, proposal: EvolutionProposal) -> EvolutionOutcome:
+        """Rule-based validation: accept if confidence >= 0.5."""
+        accepted = proposal.confidence >= 0.5
+        return EvolutionOutcome(
+            proposal_id=proposal.proposal_id,
+            accepted=accepted,
+            validation_method=EvolutionValidationMethod.RULE_VALIDATOR,
+            metrics={"confidence": proposal.confidence},
+            reason="confidence >= 0.5" if accepted else "confidence < 0.5",
+        )
+
+    def promote(self, proposal: EvolutionProposal) -> bool:
+        """Apply a validated proposal by promoting the variant."""
+        variant_id = proposal.content.get("variant_id", "")
+        return self.promote_variant(variant_id)

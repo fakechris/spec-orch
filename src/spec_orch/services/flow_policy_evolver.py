@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -17,6 +18,12 @@ from typing import Any
 
 import yaml
 
+from spec_orch.domain.models import (
+    EvolutionChangeType,
+    EvolutionOutcome,
+    EvolutionProposal,
+    EvolutionValidationMethod,
+)
 from spec_orch.services.io import atomic_write_json
 
 logger = logging.getLogger(__name__)
@@ -46,6 +53,7 @@ class FlowPolicyEvolveResult:
 class FlowPolicyEvolver:
     """Produces flow mapping threshold suggestions from historical evidence."""
 
+    EVOLVER_NAME: str = "flow_policy_evolver"
     MIN_EVENTS_FOR_EVOLVE = 5
     _MIN_EVENTS_FOR_SUGGESTION = 2
 
@@ -156,6 +164,102 @@ class FlowPolicyEvolver:
         )
         self._save_suggestions(result)
         return result
+
+    # -- LifecycleEvolver protocol --
+
+    def observe(self, run_dirs: list[Path], *, context: Any | None = None) -> list[dict[str, Any]]:
+        patterns = self.analyse_patterns()
+        return [patterns] if patterns else []
+
+    def propose(
+        self, evidence: list[dict[str, Any]], *, context: Any | None = None
+    ) -> list[EvolutionProposal]:
+        if not evidence:
+            return []
+        patterns = evidence[0]
+        total = patterns.get("total_events", 0)
+        if total < self.MIN_EVENTS_FOR_EVOLVE:
+            return []
+
+        mapping = self.load_flow_mapping()
+        intent_to_flow = mapping.get("intent_to_flow", {})
+
+        proposals: list[EvolutionProposal] = []
+        promotions = patterns.get("promotions_by_intent", {})
+        for intent, count in promotions.items():
+            if count < self._MIN_EVENTS_FOR_SUGGESTION:
+                continue
+            current = intent_to_flow.get(intent, "standard")
+            suggested = "full" if current != "full" else current
+            if suggested != current:
+                proposals.append(
+                    EvolutionProposal(
+                        proposal_id=uuid.uuid4().hex,
+                        evolver_name=self.EVOLVER_NAME,
+                        change_type=EvolutionChangeType.POLICY,
+                        content={
+                            "intent_category": intent,
+                            "current_flow": current,
+                            "suggested_flow": suggested,
+                            "rationale": (
+                                f"{count} promotions detected — consider upgrading default flow"
+                            ),
+                        },
+                        confidence=0.7,
+                    )
+                )
+
+        demotions = patterns.get("demotions_by_intent", {})
+        for intent, count in demotions.items():
+            if count < self._MIN_EVENTS_FOR_SUGGESTION:
+                continue
+            current = intent_to_flow.get(intent, "standard")
+            suggested = (
+                "hotfix" if current == "standard" else "standard" if current == "full" else current
+            )
+            if suggested != current:
+                proposals.append(
+                    EvolutionProposal(
+                        proposal_id=uuid.uuid4().hex,
+                        evolver_name=self.EVOLVER_NAME,
+                        change_type=EvolutionChangeType.POLICY,
+                        content={
+                            "intent_category": intent,
+                            "current_flow": current,
+                            "suggested_flow": suggested,
+                            "rationale": (
+                                f"{count} demotions detected — consider downgrading default flow"
+                            ),
+                        },
+                        confidence=0.7,
+                    )
+                )
+        return proposals
+
+    def validate(self, proposal: EvolutionProposal) -> EvolutionOutcome:
+        accepted = proposal.confidence >= 0.5
+        return EvolutionOutcome(
+            proposal_id=proposal.proposal_id,
+            accepted=accepted,
+            validation_method=EvolutionValidationMethod.AUTO,
+            reason="confidence >= 0.5" if accepted else "confidence < 0.5",
+        )
+
+    def promote(self, proposal: EvolutionProposal) -> bool:
+        content = proposal.content
+        suggestion = FlowPolicySuggestion(
+            intent_category=content.get("intent_category", ""),
+            current_flow=content.get("current_flow", ""),
+            suggested_flow=content.get("suggested_flow", ""),
+            rationale=content.get("rationale", ""),
+        )
+        result = FlowPolicyEvolveResult(
+            suggestions=[suggestion],
+            total_events_analysed=0,
+            created_at=datetime.now(UTC).isoformat(),
+        )
+        self._save_suggestions(result)
+        return True
 
     def _save_suggestions(self, result: FlowPolicyEvolveResult) -> None:
         data = {

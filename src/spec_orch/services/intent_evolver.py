@@ -16,6 +16,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.domain.models import (
+    EvolutionChangeType,
+    EvolutionOutcome,
+    EvolutionProposal,
+    EvolutionValidationMethod,
+)
 from spec_orch.services.io import atomic_write_json
 
 logger = logging.getLogger(__name__)
@@ -67,6 +73,7 @@ class ClassifierVariant:
 class IntentEvolver:
     """Evolves the Conductor's intent classifier prompt."""
 
+    EVOLVER_NAME: str = "intent_evolver"
     MIN_ENTRIES_FOR_EVOLVE = 10
 
     def __init__(self, repo_root: Path, planner: Any | None = None) -> None:
@@ -219,7 +226,7 @@ class IntentEvolver:
         self.save_history(history)
         return variant
 
-    def promote(self, variant_id: str) -> bool:
+    def promote_variant(self, variant_id: str) -> bool:
         history = self.load_history()
         target = None
         for v in history:
@@ -234,3 +241,91 @@ class IntentEvolver:
         target.is_active = True
         self.save_history(history)
         return True
+
+    # ------------------------------------------------------------------
+    # LifecycleEvolver protocol
+    # ------------------------------------------------------------------
+
+    def observe(
+        self,
+        run_dirs: list[Path],
+        *,
+        context: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        patterns = self.compute_error_patterns()
+        return [patterns] if patterns else []
+
+    def propose(
+        self,
+        evidence: list[dict[str, Any]],
+        *,
+        context: Any | None = None,
+    ) -> list[EvolutionProposal]:
+        if self._planner is None:
+            logger.info("No planner configured, skipping intent proposal")
+            return []
+
+        if not evidence:
+            return []
+
+        patterns = evidence[0]
+
+        active = self.get_active()
+        current_prompt = active.prompt_text if active else "(no active prompt)"
+
+        user_msg = (
+            f"Current classifier prompt:\n{current_prompt}\n\n"
+            f"Error patterns:\n{json.dumps(patterns, indent=2)}\n\n"
+            f"Propose an improved version."
+        )
+
+        try:
+            text = self._planner.chat_completion(
+                system_prompt=_EVOLVE_SYSTEM_PROMPT,
+                user_prompt=user_msg,
+            )
+            data = json.loads(text)
+        except Exception:
+            logger.warning("LLM call for intent proposal failed", exc_info=True)
+            return []
+
+        history = self.load_history()
+        next_id = f"v{len(history)}"
+        variant = ClassifierVariant(
+            variant_id=data.get("variant_id", next_id),
+            prompt_text=data.get("prompt_text", ""),
+            rationale=data.get("rationale", ""),
+            created_at=datetime.now(UTC).isoformat(),
+            is_candidate=True,
+            target_improvements=data.get("target_improvements", []),
+        )
+        history.append(variant)
+        self.save_history(history)
+
+        proposal = EvolutionProposal(
+            proposal_id=variant.variant_id,
+            evolver_name=self.EVOLVER_NAME,
+            change_type=EvolutionChangeType.PROMPT_VARIANT,
+            content={
+                "variant_id": variant.variant_id,
+                "prompt_text": variant.prompt_text,
+                "rationale": variant.rationale,
+            },
+            evidence=evidence,
+            confidence=0.5,
+        )
+        return [proposal]
+
+    def validate(self, proposal: EvolutionProposal) -> EvolutionOutcome:
+        accepted = proposal.confidence >= 0.5
+        return EvolutionOutcome(
+            proposal_id=proposal.proposal_id,
+            accepted=accepted,
+            validation_method=EvolutionValidationMethod.RULE_VALIDATOR,
+            metrics={"confidence": proposal.confidence},
+            reason="confidence >= 0.5" if accepted else "confidence < 0.5",
+        )
+
+    def promote(self, proposal: EvolutionProposal) -> bool:
+        variant_id = proposal.content["variant_id"]
+        return self.promote_variant(variant_id)

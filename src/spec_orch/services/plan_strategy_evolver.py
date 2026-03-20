@@ -12,13 +12,16 @@ import logging
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+from spec_orch.domain.models import (
+    EvolutionChangeType,
+    EvolutionOutcome,
+    EvolutionProposal,
+    EvolutionValidationMethod,
+)
 from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
 from spec_orch.services.io import atomic_write_json
-
-if TYPE_CHECKING:
-    from spec_orch.domain.models import EvolutionOutcome, EvolutionProposal
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +83,8 @@ class HintSet:
 
 class PlanStrategyEvolver:
     """Analyze historical plan outcomes and generate scoper hints."""
+
+    EVOLVER_NAME: str = "plan_strategy_evolver"
 
     def __init__(self, repo_root: Path, planner: Any | None = None) -> None:
         self._repo_root = repo_root
@@ -360,10 +365,46 @@ class PlanStrategyEvolver:
         self.save_hints(existing)
         return existing
 
+    # ------------------------------------------------------------------
+    # LifecycleEvolver protocol
+    # ------------------------------------------------------------------
+
+    def observe(
+        self,
+        run_dirs: list[Path],
+        *,
+        context: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        """Collect plan-outcome evidence from recent runs."""
+        plan_data = self.collect_plan_outcomes()
+        return [plan_data] if plan_data else []
+
+    def propose(
+        self,
+        evidence: list[dict[str, Any]],
+        *,
+        context: Any | None = None,
+    ) -> list[EvolutionProposal]:
+        """Generate scoper-hint proposals from observed evidence."""
+        hint_set = self.analyze(context=context)
+        if hint_set is None:
+            return []
+        return self.to_proposals(hint_set)
+
+    def validate(self, proposal: EvolutionProposal) -> EvolutionOutcome:
+        """Validate a scoper-hint proposal (delegates to validate_proposal)."""
+        return self.validate_proposal(proposal)
+
+    def promote(self, proposal: EvolutionProposal) -> bool:
+        """Promote a validated proposal (delegates to promote_proposal)."""
+        return self.promote_proposal(proposal)
+
+    # ------------------------------------------------------------------
+    # Legacy / internal helpers (kept for backward compatibility)
+    # ------------------------------------------------------------------
+
     def to_proposals(self, hint_set: HintSet) -> list[EvolutionProposal]:
         """Convert a HintSet into EvolutionProposals for lifecycle validation."""
-        from spec_orch.domain.models import EvolutionChangeType, EvolutionProposal
-
         proposals: list[EvolutionProposal] = []
         for h in hint_set.hints:
             proposals.append(
@@ -384,8 +425,6 @@ class PlanStrategyEvolver:
         Currently uses a lightweight rule-based check: reject low-confidence
         proposals.  Future: A/B test via EvalRunner.
         """
-        from spec_orch.domain.models import EvolutionOutcome, EvolutionValidationMethod
-
         accepted = proposal.confidence >= 0.5
         return EvolutionOutcome(
             proposal_id=proposal.proposal_id,

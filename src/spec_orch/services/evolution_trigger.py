@@ -16,12 +16,11 @@ from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.models import Issue, IssueContext
+from spec_orch.domain.protocols import LifecycleEvolver
 from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.evolution_policy import EvolutionPolicy
 from spec_orch.services.harness_synthesizer import HarnessSynthesizer, RuleValidator
 from spec_orch.services.node_context_registry import get_node_context_spec
-from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
-from spec_orch.services.prompt_evolver import PromptEvolver
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +38,9 @@ class EvolutionConfig:
     harness_dry_run: bool = True
     policy_distiller_enabled: bool = False
     config_evolver_enabled: bool = True
+    intent_evolver_enabled: bool = True
+    gate_policy_evolver_enabled: bool = False
+    flow_policy_evolver_enabled: bool = False
 
     @classmethod
     def from_toml(cls, data: dict[str, Any]) -> EvolutionConfig:
@@ -53,6 +55,9 @@ class EvolutionConfig:
             harness_dry_run=evo.get("harness_synthesizer", {}).get("dry_run", True),
             policy_distiller_enabled=evo.get("policy_distiller", {}).get("enabled", False),
             config_evolver_enabled=evo.get("config_evolver", {}).get("enabled", True),
+            intent_evolver_enabled=evo.get("intent_evolver", {}).get("enabled", True),
+            gate_policy_evolver_enabled=evo.get("gate_policy_evolver", {}).get("enabled", False),
+            flow_policy_evolver_enabled=evo.get("flow_policy_evolver", {}).get("enabled", False),
         )
 
 
@@ -109,9 +114,11 @@ class EvolutionTrigger:
             return 0
 
     def _write_counter(self, count: int) -> None:
-        self._counter_path.parent.mkdir(parents=True, exist_ok=True)
-        self._counter_path.write_text(
-            json.dumps({"count": count, "updated_at": datetime.now(UTC).isoformat()}) + "\n"
+        from spec_orch.services.io import atomic_write_json
+
+        atomic_write_json(
+            self._counter_path,
+            {"count": count, "updated_at": datetime.now(UTC).isoformat()},
         )
 
     def increment_and_check(self) -> bool:
@@ -148,8 +155,8 @@ class EvolutionTrigger:
         )
         self.reset_counter()
 
-        enabled_evolvers = self._get_enabled_evolvers()
-        ordered = self._policy.priority_order(enabled_evolvers, metrics)
+        enabled_names = self._get_enabled_evolvers()
+        ordered = self._policy.priority_order(enabled_names, metrics)
 
         for evolver_name in ordered:
             if not self._policy.should_trigger(
@@ -174,48 +181,129 @@ class EvolutionTrigger:
             evolvers.append("policy_distiller")
         if self._config.config_evolver_enabled:
             evolvers.append("config_evolver")
+        if self._config.intent_evolver_enabled:
+            evolvers.append("intent_evolver")
+        if self._config.gate_policy_evolver_enabled:
+            evolvers.append("gate_policy_evolver")
+        if self._config.flow_policy_evolver_enabled:
+            evolvers.append("flow_policy_evolver")
         return evolvers
 
+    def _build_lifecycle_evolver(self, name: str) -> LifecycleEvolver | None:
+        """Instantiate a lifecycle-conforming evolver by name, or ``None``."""
+        try:
+            if name == "prompt_evolver":
+                from spec_orch.services.prompt_evolver import PromptEvolver
+
+                return PromptEvolver(self._repo_root, planner=self._planner)
+            if name == "plan_strategy_evolver":
+                from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
+
+                return PlanStrategyEvolver(self._repo_root, planner=self._planner)
+            if name == "config_evolver":
+                from spec_orch.services.config_evolver import ConfigEvolver
+
+                return ConfigEvolver(self._repo_root)
+            if name == "intent_evolver":
+                from spec_orch.services.intent_evolver import IntentEvolver
+
+                return IntentEvolver(self._repo_root, planner=self._planner)
+            if name == "gate_policy_evolver":
+                from spec_orch.services.gate_policy_evolver import GatePolicyEvolver
+
+                return GatePolicyEvolver(self._repo_root, planner=self._planner)
+            if name == "flow_policy_evolver":
+                from spec_orch.services.flow_policy_evolver import FlowPolicyEvolver
+
+                return FlowPolicyEvolver(self._repo_root, planner=self._planner)
+        except Exception:
+            logger.warning("Failed to instantiate evolver %s", name, exc_info=True)
+        return None
+
     def _run_single_evolver(self, name: str, result: EvolutionResult) -> None:
-        """Dispatch to the appropriate evolver by name."""
-        dispatch = {
-            "prompt_evolver": self._run_prompt_evolver,
-            "plan_strategy_evolver": self._run_plan_strategy_evolver,
+        """Dispatch to the appropriate evolver by name.
+
+        Lifecycle-conforming evolvers go through observe → propose → validate
+        → promote.  HarnessSynthesizer and PolicyDistiller use legacy handlers.
+        """
+        legacy_dispatch: dict[str, Any] = {
             "harness_synthesizer": self._run_harness_synthesizer,
             "policy_distiller": self._run_policy_distiller,
-            "config_evolver": self._run_config_evolver,
         }
-        handler = dispatch.get(name)
-        if handler:
-            handler(result)
-        else:
-            logger.warning("Unknown evolver: %s", name)
-
-    def _run_prompt_evolver(self, result: EvolutionResult) -> None:
-        if self._planner is None:
+        legacy = legacy_dispatch.get(name)
+        if legacy:
+            legacy(result)
             return
-        try:
-            evolver = PromptEvolver(self._repo_root, planner=self._planner)
-            variant = evolver.evolve(context=self._assemble_evolver_context("prompt_evolver"))
-            if variant is not None:
-                result.prompt_evolved = True
-                if self._config.auto_promote:
-                    evolver.auto_promote_if_ready()
-        except Exception as exc:
-            result.errors.append(f"PromptEvolver: {exc}")
-            logger.warning("PromptEvolver failed", exc_info=True)
 
-    def _run_plan_strategy_evolver(self, result: EvolutionResult) -> None:
-        if self._planner is None:
+        evolver = self._build_lifecycle_evolver(name)
+        if evolver is None:
+            logger.warning("Unknown or unavailable evolver: %s", name)
             return
+        self._run_lifecycle(evolver, result)
+
+    def _run_lifecycle(self, evolver: LifecycleEvolver, result: EvolutionResult) -> None:
+        """Execute the four-phase lifecycle for a single evolver."""
+        name = evolver.EVOLVER_NAME
+        context = self._assemble_evolver_context(name)
+        run_dirs = self._collect_run_dirs()
         try:
-            pse = PlanStrategyEvolver(self._repo_root, planner=self._planner)
-            hint_set = pse.analyze(context=self._assemble_evolver_context("plan_strategy_evolver"))
-            if hint_set is not None and hint_set.hints:
-                result.plan_hints_generated = True
+            evidence = evolver.observe(run_dirs, context=context)
+            if not evidence:
+                logger.debug("%s: no evidence collected, skipping", name)
+                return
+
+            proposals = evolver.propose(evidence, context=context)
+            if not proposals:
+                logger.debug("%s: no proposals generated", name)
+                return
+
+            promoted_any = False
+            for proposal in proposals:
+                outcome = evolver.validate(proposal)
+                if outcome.accepted:
+                    if self._config.auto_promote:
+                        ok = evolver.promote(proposal)
+                        if ok:
+                            promoted_any = True
+                            logger.info(
+                                "%s: promoted proposal %s",
+                                name,
+                                proposal.proposal_id,
+                            )
+                    else:
+                        logger.info(
+                            "%s: proposal %s accepted (auto_promote off)",
+                            name,
+                            proposal.proposal_id,
+                        )
+
+            self._update_result_flags(name, result, proposals, promoted_any)
         except Exception as exc:
-            result.errors.append(f"PlanStrategyEvolver: {exc}")
-            logger.warning("PlanStrategyEvolver failed", exc_info=True)
+            result.errors.append(f"{name}: {exc}")
+            logger.warning("%s failed", name, exc_info=True)
+
+    def _collect_run_dirs(self) -> list[Path]:
+        """Gather recent run directories for evolver observation."""
+        dirs: list[Path] = []
+        for parent in (
+            self._repo_root / ".spec_orch_runs",
+            self._repo_root / ".worktrees",
+        ):
+            if parent.is_dir():
+                dirs.extend(sorted(parent.iterdir())[-20:])
+        return dirs
+
+    @staticmethod
+    def _update_result_flags(
+        name: str,
+        result: EvolutionResult,
+        proposals: list[Any],
+        promoted: bool,
+    ) -> None:
+        if name == "prompt_evolver" and proposals:
+            result.prompt_evolved = True
+        elif name == "plan_strategy_evolver" and proposals:
+            result.plan_hints_generated = True
 
     def _run_harness_synthesizer(self, result: EvolutionResult) -> None:
         if self._planner is None:
@@ -250,21 +338,6 @@ class EvolutionTrigger:
         except Exception as exc:
             result.errors.append(f"PolicyDistiller: {exc}")
             logger.warning("PolicyDistiller failed", exc_info=True)
-
-    def _run_config_evolver(self, result: EvolutionResult) -> None:
-        try:
-            from spec_orch.services.config_evolver import ConfigEvolver
-
-            cev = ConfigEvolver(self._repo_root)
-            cev_result = cev.evolve(context=self._assemble_evolver_context("config_evolver"))
-            if cev_result and cev_result.suggestions:
-                logger.info(
-                    "ConfigEvolver proposed %d suggestion(s)",
-                    len(cev_result.suggestions),
-                )
-        except Exception as exc:
-            result.errors.append(f"ConfigEvolver: {exc}")
-            logger.warning("ConfigEvolver failed", exc_info=True)
 
     def _load_latest_manifest(self) -> dict[str, str]:
         """Load artifacts dict from the latest workspace's manifest, if any."""

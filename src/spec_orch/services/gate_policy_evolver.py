@@ -9,18 +9,26 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.domain.models import (
+    EvolutionChangeType,
+    EvolutionOutcome,
+    EvolutionProposal,
+    EvolutionValidationMethod,
+)
 from spec_orch.services.io import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
 _EVOLUTION_DIR = ".spec_orch_evolution"
 _SUGGESTIONS_FILE = "gate_policy_suggestions.json"
+_CONFIDENCE_MAP = {"high": 0.9, "medium": 0.7, "low": 0.3}
 
 
 @dataclass
@@ -44,6 +52,7 @@ class GatePolicyEvolveResult:
 class GatePolicyEvolver:
     """Produces gate policy suggestions from historical verdict + outcome data."""
 
+    EVOLVER_NAME: str = "gate_policy_evolver"
     MIN_VERDICTS_FOR_EVOLVE = 5
     _FP_CONFIDENCE_THRESHOLD = 3
     _MAX_SOURCE_ISSUES = 10
@@ -169,6 +178,88 @@ class GatePolicyEvolver:
         )
         self._save_suggestions(result)
         return result
+
+    # -- LifecycleEvolver protocol --
+
+    def observe(self, run_dirs: list[Path], *, context: Any | None = None) -> list[dict[str, Any]]:
+        patterns = self.detect_false_patterns()
+        return [patterns] if patterns else []
+
+    def propose(
+        self, evidence: list[dict[str, Any]], *, context: Any | None = None
+    ) -> list[EvolutionProposal]:
+        if not evidence:
+            return []
+        patterns = evidence[0]
+        total = patterns.get("total_verdicts", 0)
+        if total < self.MIN_VERDICTS_FOR_EVOLVE:
+            return []
+
+        proposals: list[EvolutionProposal] = []
+        fp_issues = patterns.get("false_positives", [])
+
+        if fp_issues:
+            conf_str = "high" if len(fp_issues) >= self._FP_CONFIDENCE_THRESHOLD else "medium"
+            proposals.append(
+                EvolutionProposal(
+                    proposal_id=uuid.uuid4().hex,
+                    evolver_name=self.EVOLVER_NAME,
+                    change_type=EvolutionChangeType.POLICY,
+                    content={
+                        "suggestion_type": "add_condition",
+                        "condition": "regression_check",
+                        "rationale": (
+                            f"{len(fp_issues)} issues passed gate but failed downstream — "
+                            "consider adding post-merge regression verification"
+                        ),
+                    },
+                    confidence=_CONFIDENCE_MAP.get(conf_str, 0.7),
+                )
+            )
+
+        fn_conds: dict[str, int] = patterns.get("fn_failed_conditions", {})
+        for cond, count in fn_conds.items():
+            if count >= self._FN_CONDITION_THRESHOLD:
+                proposals.append(
+                    EvolutionProposal(
+                        proposal_id=uuid.uuid4().hex,
+                        evolver_name=self.EVOLVER_NAME,
+                        change_type=EvolutionChangeType.POLICY,
+                        content={
+                            "suggestion_type": "adjust_severity",
+                            "condition": cond,
+                            "rationale": (
+                                f"Condition '{cond}' failed {count} times but overrides succeeded"
+                            ),
+                        },
+                        confidence=_CONFIDENCE_MAP.get("medium", 0.7),
+                    )
+                )
+        return proposals
+
+    def validate(self, proposal: EvolutionProposal) -> EvolutionOutcome:
+        accepted = proposal.confidence >= 0.5
+        return EvolutionOutcome(
+            proposal_id=proposal.proposal_id,
+            accepted=accepted,
+            validation_method=EvolutionValidationMethod.AUTO,
+            reason="confidence >= 0.5" if accepted else "confidence < 0.5",
+        )
+
+    def promote(self, proposal: EvolutionProposal) -> bool:
+        content = proposal.content
+        suggestion = GatePolicySuggestion(
+            suggestion_type=content.get("suggestion_type", ""),
+            condition=content.get("condition", ""),
+            rationale=content.get("rationale", ""),
+        )
+        result = GatePolicyEvolveResult(
+            suggestions=[suggestion],
+            total_verdicts=0,
+            created_at=datetime.now(UTC).isoformat(),
+        )
+        self._save_suggestions(result)
+        return True
 
     def _save_suggestions(self, result: GatePolicyEvolveResult) -> None:
         data = {
