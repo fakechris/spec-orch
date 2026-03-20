@@ -111,6 +111,20 @@ NODE_CONTEXT_SPEC_REGISTRY: dict[str, NodeContextSpec] = {
         required_learning_fields=["similar_failure_samples", "relevant_policies"],
         max_tokens_budget=7000,
     ),
+    "harness_synthesizer": NodeContextSpec(
+        node_name="harness_synthesizer",
+        required_task_fields=["constraints"],
+        required_execution_fields=["verification_results", "deviation_slices"],
+        required_learning_fields=["similar_failure_samples"],
+        max_tokens_budget=8000,
+    ),
+    "policy_distiller": NodeContextSpec(
+        node_name="policy_distiller",
+        required_task_fields=["constraints"],
+        required_execution_fields=["verification_results"],
+        required_learning_fields=["relevant_policies"],
+        max_tokens_budget=7000,
+    ),
 }
 
 
