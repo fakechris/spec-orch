@@ -255,3 +255,17 @@ class Doctor:
             "checks": [asdict(c) for c in checks],
             "summary": counts,
         }
+
+    def write_health_file(self, output_dir: Path | None = None) -> Path:
+        """Write structured health report to .spec_orch/health.json."""
+        report = self.to_json()
+        target_dir = output_dir or Path(".spec_orch")
+        target_dir.mkdir(parents=True, exist_ok=True)
+        health_path = target_dir / "health.json"
+        import json
+
+        health_path.write_text(
+            json.dumps(report, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        return health_path

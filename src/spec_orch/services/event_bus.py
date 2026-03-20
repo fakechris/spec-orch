@@ -28,6 +28,10 @@ class EventTopic(enum.StrEnum):
     CONDUCTOR = "conductor"
     MEMORY = "memory"
     SYSTEM = "system"
+    TOOL_START = "tool.start"
+    TOOL_END = "tool.end"
+    TURN_END = "turn.end"
+    EVAL_SAMPLE = "eval.sample"
 
 
 @dataclass(frozen=True)
@@ -184,6 +188,60 @@ class EventBus:
                     "channel": channel,
                 },
                 source=channel,
+            )
+        )
+
+    def emit_tool_start(self, tool_name: str, issue_id: str = "", **extra: Any) -> None:
+        self.publish(
+            Event(
+                topic=EventTopic.TOOL_START,
+                payload={"tool_name": tool_name, "issue_id": issue_id, **extra},
+                source="agent",
+            )
+        )
+
+    def emit_tool_end(
+        self,
+        tool_name: str,
+        issue_id: str = "",
+        duration_ms: float = 0,
+        success: bool = True,
+        **extra: Any,
+    ) -> None:
+        self.publish(
+            Event(
+                topic=EventTopic.TOOL_END,
+                payload={
+                    "tool_name": tool_name,
+                    "issue_id": issue_id,
+                    "duration_ms": duration_ms,
+                    "success": success,
+                    **extra,
+                },
+                source="agent",
+            )
+        )
+
+    def emit_turn_end(self, issue_id: str = "", token_count: int = 0, **extra: Any) -> None:
+        self.publish(
+            Event(
+                topic=EventTopic.TURN_END,
+                payload={
+                    "issue_id": issue_id,
+                    "token_count": token_count,
+                    **extra,
+                },
+                source="agent",
+            )
+        )
+
+    def emit_eval_sample(self, run_id: str, reason: str, **extra: Any) -> None:
+        """Mark a run for online evaluation sampling."""
+        self.publish(
+            Event(
+                topic=EventTopic.EVAL_SAMPLE,
+                payload={"run_id": run_id, "reason": reason, **extra},
+                source="eval_sampler",
             )
         )
 

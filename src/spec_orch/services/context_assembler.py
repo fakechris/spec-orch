@@ -66,7 +66,11 @@ class ContextAssembler:
             issue, workspace, task_budget, spec.required_task_fields
         )
         exec_ctx = self._build_execution_context(
-            workspace, manifest, exec_budget, spec.required_execution_fields
+            workspace,
+            manifest,
+            exec_budget,
+            spec.required_execution_fields,
+            exclude_framework_events=spec.exclude_framework_events,
         )
         learn_ctx = self._build_learning_context(
             repo_root or workspace, memory, learn_budget, spec.required_learning_fields
@@ -140,12 +144,40 @@ class ContextAssembler:
             ),
         )
 
+    @staticmethod
+    def _filter_framework_events(raw: str) -> str:
+        """Remove framework-internal events that LLM nodes should not see."""
+        framework_topics = {
+            "system",
+            "conductor",
+            "memory",
+            "eval.sample",
+            "tool.start",
+            "tool.end",
+        }
+        lines = []
+        for line in raw.splitlines():
+            line_stripped = line.strip()
+            if not line_stripped:
+                continue
+            try:
+                obj = json.loads(line_stripped)
+                topic = obj.get("topic", "")
+                if topic in framework_topics:
+                    continue
+            except (json.JSONDecodeError, ValueError):
+                pass
+            lines.append(line)
+        return "\n".join(lines)
+
     def _build_execution_context(
         self,
         workspace: Path,
         manifest: ArtifactManifest | None,
         budget: int,
         required: list[str],
+        *,
+        exclude_framework_events: bool = True,
     ) -> ExecutionContext:
         ctx = ExecutionContext()
 
@@ -179,11 +211,15 @@ class ContextAssembler:
             events_path = Path(manifest.artifacts["builder_events"])
             if events_path.exists():
                 raw = events_path.read_text()
+                if exclude_framework_events:
+                    raw = self._filter_framework_events(raw)
                 ctx.builder_events_summary = _truncate(raw, budget // 6)
         elif manifest and "events" in manifest.artifacts:
             events_path = Path(manifest.artifacts["events"])
             if events_path.exists():
                 raw = events_path.read_text()
+                if exclude_framework_events:
+                    raw = self._filter_framework_events(raw)
                 ctx.builder_events_summary = _truncate(raw, budget // 6)
 
         if manifest and "review_report" in manifest.artifacts:
