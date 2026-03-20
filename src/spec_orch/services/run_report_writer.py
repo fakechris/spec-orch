@@ -60,8 +60,12 @@ class RunReportWriter:
             return {}
         try:
             data = json.loads(path.read_text())
-            return data if isinstance(data, dict) else {}
+            if isinstance(data, dict):
+                return data
+            logger.warning("Non-dict JSON in %s, resetting to empty", path)
+            return {}
         except (json.JSONDecodeError, OSError):
+            logger.warning("Failed to read %s, resetting to empty", path, exc_info=True)
             return {}
 
     @staticmethod
@@ -73,9 +77,7 @@ class RunReportWriter:
     ) -> None:
         """Write a minimal report.json to persist the current state."""
         report_path = workspace / "report.json"
-        existing: dict[str, Any] = {}
-        if report_path.exists():
-            existing = json.loads(report_path.read_text())
+        existing = RunReportWriter.read_json_dict(report_path)
         existing.update(
             {
                 "state": state.value,

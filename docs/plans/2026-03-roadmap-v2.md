@@ -14,9 +14,10 @@ spec-orch v0.5.1 已完成：
 - 项目 Profile 架构（`spec-orch init` + 可配置验证命令 + 可配置 issue 源）
 - **Agent-First Decision Architecture**：LLM-driven 项目分析（Smart Init）、动态验证步骤、Config Evolver
 - EODF 闭环自验证
-- 960+ 单元测试
+- 架构债务清理：原子写入 / Evolver 协议对齐 / CLI 模块化 / LLM JSON 验证
+- 1176+ 单元测试
 
-核心判断：**骨架已搭好，Agent-First 决策层已落地，各 Plane 之间的"最后一公里"连接正在打通。**
+核心判断：**骨架已搭好，Agent-First 决策层已落地，架构债务已清理，飞轮各环均有基线实现。**
 
 ### 已完成的 Agent-First 改造（SON-161 ~ SON-166）
 

@@ -47,12 +47,14 @@
 
 ### 1.2 清理后残余 Backlog
 
-| Issue | 标题 | 类型 | 评估 |
-|-------|------|------|------|
-| SON-44 | Daemon & 持续运行 | Epic | 大部分子 issue 已 Done，仅 SON-46 待做 |
-| SON-46 | Daemon 健壮性: 重启恢复 + 错误重试 + 死信队列 | 子 issue | 真实 Backlog |
-| SON-68 | AI-Assisted Conflict Resolution | Epic | 真实 Backlog，优先级中 |
-| SON-72 | Daemon Hotfix Mode | Epic | 真实 Backlog，优先级中 |
+> **2026-03-20 更新**：以下 issue 已全部关闭为 Done（SON-44/46/68/72 + SON-162~166）。Linear 中当前无 open issue（170 Done / 16 Canceled）。
+
+| Issue | 标题 | 类型 | 状态（2026-03-20） |
+|-------|------|------|---------------------|
+| SON-44 | Daemon & 持续运行 | Epic | ✅ Done |
+| SON-46 | Daemon 健壮性: 重启恢复 + 错误重试 + 死信队列 | 子 issue | ✅ Done |
+| SON-68 | AI-Assisted Conflict Resolution | Epic | ✅ Done |
+| SON-72 | Daemon Hotfix Mode | Epic | ✅ Done |
 
 ---
 
@@ -111,15 +113,17 @@ spec-orch 当前能力矩阵:
 
 ### 3.2 真正缺失的能力
 
-| 缺失 | 对应文档/Issue | 重要性 |
-|------|--------------|--------|
-| Daemon 健壮性 (重启恢复/重试/死信) | SON-46 | 生产可用前提 |
-| Contract 自动生成 | spec-contract-integration.md Phase 2 | 减少人工，提升 agent 安全性 |
-| AI Conflict Resolution | SON-68 | Daemon 无人值守的前提 |
-| Daemon Hotfix Mode | SON-72 | 紧急场景支持 |
-| Daemon + MiniMax 实测 | 路线图 Phase 11 🔲 | 低成本自动化验证 |
-| Gate 通过 → 自动 PR → 自动 merge | 路线图 Phase 11 🔲 | 真正的无人值守闭环 |
-| ContextAssembler 全面接入 | context-contract-design.md 延伸 | 消除 ad-hoc prompt |
+> **2026-03-22 更新**：SON-46/68/72 已完成；ContextAssembler 已全面接入。下表保留为历史快照。
+
+| 缺失 | 对应文档/Issue | 重要性 | 状态（2026-03-22） |
+|------|--------------|--------|---------------------|
+| Daemon 健壮性 (重启恢复/重试/死信) | SON-46 | 生产可用前提 | ✅ Done |
+| Contract 自动生成 | spec-contract-integration.md Phase 2 | 减少人工，提升 agent 安全性 | 🟡 Phase 15 待做 |
+| AI Conflict Resolution | SON-68 | Daemon 无人值守的前提 | ✅ Done |
+| Daemon Hotfix Mode | SON-72 | 紧急场景支持 | ✅ Done |
+| Daemon + MiniMax 实测 | 路线图 Phase 11 🔲 | 低成本自动化验证 | ❌ 未做 |
+| Gate 通过 → 自动 PR → 自动 merge | 路线图 Phase 11 🔲 | 真正的无人值守闭环 | 🟡 Reaction engine 基线有 |
+| ContextAssembler 全面接入 | context-contract-design.md 延伸 | 消除 ad-hoc prompt | ✅ Phase 13 完成 |
 
 ---
 
@@ -148,22 +152,17 @@ spec-orch 当前能力矩阵:
 - EvolutionTrigger 在每 N 次 run 后自动触发 — **🟡 策略与深度仍可增强**
 - Daemon 模式下 MiniMax 实测成功记录 — **❌ 仍缺**
 
-### Phase 14: 生产健壮性
+### Phase 14: 生产健壮性 ✅
 
-**目标**: 让 Daemon 具备生产环境所需的健壮性，支持紧急场景。
+**状态（2026-03-20）**: 全部完成。
 
-| 编号 | 任务 | Linear | 优先级 |
-|------|------|--------|--------|
-| 14-1 | Daemon 重启恢复: 持久化进行中 issue 状态 | SON-46 | P0 |
-| 14-2 | 错误重试策略: 指数退避 + 最大重试次数 | SON-46 | P0 |
-| 14-3 | 死信队列: 多次失败的 issue 移入 dead letter | SON-46 | P1 |
-| 14-4 | Daemon Hotfix Mode: 跳过 triage + 最小 gate | SON-72 | P1 |
-| 14-5 | AI Conflict Resolution: Builder 自动解决 merge conflict | SON-68 | P2 |
-
-**验收标准**:
-- Daemon 重启后恢复之前的执行状态
-- 失败 issue 在 N 次重试后进入 dead letter
-- Hotfix 流程从 issue 到 merge < 5 分钟
+| 编号 | 任务 | Linear | 状态 |
+|------|------|--------|------|
+| 14-1 | Daemon 重启恢复: 持久化进行中 issue 状态 | SON-46 | ✅ |
+| 14-2 | 错误重试策略: 指数退避 + 最大重试次数 | SON-46 | ✅ |
+| 14-3 | 死信队列: 多次失败的 issue 移入 dead letter | SON-46 | ✅ |
+| 14-4 | Daemon Hotfix Mode: 跳过 triage + 最小 gate | SON-72 | ✅ |
+| 14-5 | AI Conflict Resolution: Builder 自动解决 merge conflict | SON-68 | ✅ |
 
 ### Phase 15: Contract 自动化 + Spec 增强
 
@@ -197,16 +196,18 @@ spec-orch 当前能力矩阵:
 ```
 Phase 13 (上下文全面接入)     ← ✅ 主线已完成（2026-03-22）
     ↓
-飞轮：P6 Eval / P5 Control / P4 format（见 SON-190~193 与方向性 §6.3）
+飞轮：P6 Eval / P5 Control / P4 format ← ✅ 全部基线完成（SON-190~193/202~204）
     ↓
-Phase 14 (生产健壮性)         ← Daemon 可靠性（SON-46 等），无人值守前提
+架构债务清理                  ← ✅ 完成（PR #116，SON-206）
     ↓
-Phase 15 (Contract 自动化)
+Phase 14 (生产健壮性)         ← ✅ 完成（SON-44/46/68/72 Done）
     ↓
-Phase 16 (产品化)
+Phase 15 (Contract 自动化)    ← 待做
+    ↓
+Phase 16 (产品化)             ← 待做
 ```
 
-**Phase 13 已完成**；当前更紧迫的「方向性缺口」见 **[方向性文档 §6.3](../architecture/2026-03-19-directional-review.zh.md)**（外部 E2E、P6/P5/P4、Skill 退化检测、context Phase 2~3 等）。**Phase 14** 仍是无人值守 Daemon 的硬前提。
+**Phase 13~14 + 飞轮基线 + 架构债务均已完成**。当前阶段进入 **Phase 15 Contract 自动化** 和 **Phase 16 产品化**。外部用户端到端验证仍是关键缺口——见 **[方向性文档 §6.4](../architecture/2026-03-19-directional-review.zh.md)**。
 
 ---
 
@@ -216,7 +217,7 @@ Phase 16 (产品化)
 |----------|------------|---------|
 | orchestration-brain-design.md | 三流程骨架 ✅, 6 Evolver ✅, 升降级 ✅ | Memory→Evolution 数据管道的深度连接 |
 | context-contract-design.md | Phase 0-3 基础设施 ✅ | ContextAssembler 全面接入 (Phase 13) |
-| evolution-trigger-architecture.md | Config-driven trigger ✅ | Trigger 未接入 RunController 主流程 |
+| evolution-trigger-architecture.md | Config-driven trigger ✅ | ✅ LifecycleEvolver protocol + 跨平台文件锁 |
 | spec-contract-integration.md | 手动 contract ✅ (T3.3 实验) | 自动生成 (Phase 15) |
 | skill-driven-vs-spec-driven.md | 混合取舍已确认 ✅ | Skill 化的深入 (长期) |
 | sdd-landscape-and-positioning.md | 行业定位确认 ✅ | — |
@@ -228,4 +229,18 @@ Phase 16 (产品化)
 spec-orch 已经完成了从"原型"到"功能完备的编排系统"的跨越。12 个 Phase/Epic
 全部完成，覆盖了核心管线、可插拔适配器、自进化体系、上下文治理等关键能力。
 
-**2026-03-22**：**Phase 13 主线（ContextAssembler 全节点 + 统一 artifact 消费路径）已落地**，不再处于「全面接入待做」。当前阶段更接近 **「方向性飞轮中 P5/P6/P4 与外部验证、进化深度、生产级 Daemon」** — 以 [方向性文档 §6](../architecture/2026-03-19-directional-review.zh.md) 为准。
+**2026-03-22**：**Phase 13 主线（ContextAssembler 全节点 + 统一 artifact 消费路径）已落地**，不再处于「全面接入待做」。
+
+**2026-03-20 架构债务清理**（PR #116，SON-206）：
+- 原子文件写入（`atomic_write_json/text`，跨平台文件锁）
+- LifecycleEvolver 4 阶段协议对齐（6 个 Evolver + 多态分发）
+- RunController 拆分（RunEventLogger + RunReportWriter）
+- `services/` 子包化（evolution/ builders/ context/）
+- CLI 模块化（`cli/` 10 个子模块替代 4092 行单文件）
+- LLM JSON 输出 schema 验证 + fallback
+- 删除废弃 `pi_codex` adapter
+- Evolution counter 进程锁 + PlanStrategyEvolver propose 修复
+
+Linear 中 170 个 issue Done / 16 个 Canceled，无 open issue。1176+ 测试通过。
+
+当前阶段更接近 **「方向性飞轮中 P5/P6/P4 与外部验证、进化深度」** — 以 [方向性文档 §6](../architecture/2026-03-19-directional-review.zh.md) 为准。

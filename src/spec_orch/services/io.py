@@ -4,6 +4,9 @@ Provides ``atomic_write_json`` and ``atomic_write_text`` which write to a
 temporary file first, then use ``os.replace`` (POSIX atomic rename) to
 swap into place.  This guarantees that readers never see a partially-written
 file — even if the process is killed mid-write.
+
+Also provides ``file_lock`` — a cross-platform advisory file lock
+(``fcntl.flock`` on POSIX, ``msvcrt.locking`` on Windows).
 """
 
 from __future__ import annotations
@@ -11,9 +14,11 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import sys
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 
 def atomic_write_json(
@@ -77,3 +82,36 @@ def atomic_write_text(
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise
+
+
+@contextlib.contextmanager
+def file_lock(lock_path: Path) -> Generator[IO[str], None, None]:
+    """Cross-platform advisory file lock.
+
+    Uses ``fcntl.flock`` on POSIX and ``msvcrt.locking`` on Windows.
+    The lock file is created if it does not exist.
+    """
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = open(lock_path, "w")  # noqa: SIM115
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+
+            msvcrt.locking(fd.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        yield fd
+    finally:
+        if sys.platform == "win32":
+            import msvcrt
+
+            with contextlib.suppress(OSError):
+                msvcrt.locking(fd.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            with contextlib.suppress(OSError):
+                fcntl.flock(fd, fcntl.LOCK_UN)
+        fd.close()

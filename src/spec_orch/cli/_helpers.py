@@ -217,9 +217,9 @@ def _run_preflight(
 
     report_dir = root / ".spec_orch"
     report_dir.mkdir(parents=True, exist_ok=True)
-    (report_dir / "preflight.json").write_text(
-        json.dumps(report, indent=2, ensure_ascii=False) + "\n"
-    )
+    from spec_orch.services.io import atomic_write_json
+
+    atomic_write_json(report_dir / "preflight.json", report, ensure_ascii=False)
 
     return report
 
