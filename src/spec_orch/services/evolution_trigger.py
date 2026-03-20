@@ -17,6 +17,7 @@ from typing import Any
 
 from spec_orch.domain.models import Issue, IssueContext
 from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.evolution_policy import EvolutionPolicy
 from spec_orch.services.harness_synthesizer import HarnessSynthesizer, RuleValidator
 from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
@@ -78,6 +79,7 @@ class EvolutionTrigger:
         config: EvolutionConfig,
         planner: Any | None = None,
         latest_workspace: Path | None = None,
+        policy: EvolutionPolicy | None = None,
     ):
         self._repo_root = repo_root
         self._config = config
@@ -85,6 +87,7 @@ class EvolutionTrigger:
         self._latest_workspace = latest_workspace
         self._counter_path = repo_root / ".spec_orch_evolution" / "run_counter.json"
         self._context_assembler = ContextAssembler()
+        self._policy = policy or EvolutionPolicy(global_min_runs=config.trigger_after_n_runs)
 
     def _read_counter(self) -> int:
         if not self._counter_path.exists():
@@ -122,8 +125,12 @@ class EvolutionTrigger:
     def reset_counter(self) -> None:
         self._write_counter(0)
 
-    def run_evolution_cycle(self) -> EvolutionResult:
-        """Execute all enabled evolvers and return results."""
+    def run_evolution_cycle(self, metrics: dict[str, float] | None = None) -> EvolutionResult:
+        """Execute all enabled evolvers and return results.
+
+        Uses EvolutionPolicy to determine which evolvers should run and in
+        what order, based on configured trigger conditions and current metrics.
+        """
         if not self._config.enabled:
             return EvolutionResult(timestamp=datetime.now(UTC).isoformat())
 
@@ -133,84 +140,129 @@ class EvolutionTrigger:
                 timestamp=datetime.now(UTC).isoformat(),
             )
 
+        run_count = self._read_counter()
         result = EvolutionResult(
-            run_count=self._read_counter(),
+            run_count=run_count,
             triggered=True,
             timestamp=datetime.now(UTC).isoformat(),
         )
         self.reset_counter()
 
-        if self._config.prompt_evolver_enabled and self._planner is not None:
-            try:
-                evolver = PromptEvolver(self._repo_root, planner=self._planner)
-                variant = evolver.evolve(context=self._assemble_evolver_context("prompt_evolver"))
-                if variant is not None:
-                    result.prompt_evolved = True
-                    if self._config.auto_promote:
-                        evolver.auto_promote_if_ready()
-            except Exception as exc:
-                result.errors.append(f"PromptEvolver: {exc}")
-                logger.warning("PromptEvolver failed", exc_info=True)
+        enabled_evolvers = self._get_enabled_evolvers()
+        ordered = self._policy.priority_order(enabled_evolvers, metrics)
 
-        if self._config.plan_strategy_evolver_enabled and self._planner is not None:
-            try:
-                pse = PlanStrategyEvolver(self._repo_root, planner=self._planner)
-                hint_set = pse.analyze(
-                    context=self._assemble_evolver_context("plan_strategy_evolver")
-                )
-                if hint_set is not None and hint_set.hints:
-                    result.plan_hints_generated = True
-            except Exception as exc:
-                result.errors.append(f"PlanStrategyEvolver: {exc}")
-                logger.warning("PlanStrategyEvolver failed", exc_info=True)
-
-        if self._config.harness_synthesizer_enabled and self._planner is not None:
-            try:
-                synth = HarnessSynthesizer(self._repo_root, planner=self._planner)
-                hs_context = self._assemble_evolver_context("harness_synthesizer")
-                candidates = synth.synthesize(context=hs_context)
-                if candidates:
-                    validator = RuleValidator(self._repo_root)
-                    accepted, _ = validator.validate(candidates)
-                    result.harness_rules_proposed = len(accepted)
-                    if accepted and not self._config.harness_dry_run:
-                        contracts_path = self._repo_root / "compliance.contracts.yaml"
-                        validator.apply(accepted, contracts_path)
-            except Exception as exc:
-                result.errors.append(f"HarnessSynthesizer: {exc}")
-                logger.warning("HarnessSynthesizer failed", exc_info=True)
-
-        if self._config.policy_distiller_enabled and self._planner is not None:
-            try:
-                from spec_orch.services.policy_distiller import PolicyDistiller
-
-                pd = PolicyDistiller(self._repo_root, planner=self._planner)
-                pd_context = self._assemble_evolver_context("policy_distiller")
-                policy = pd.distill(context=pd_context)
-                if policy:
-                    result.policies_distilled = 1
-                    logger.info("PolicyDistiller produced policy: %s", policy.policy_id)
-            except Exception as exc:
-                result.errors.append(f"PolicyDistiller: {exc}")
-                logger.warning("PolicyDistiller failed", exc_info=True)
-
-        if self._config.config_evolver_enabled:
-            try:
-                from spec_orch.services.config_evolver import ConfigEvolver
-
-                cev = ConfigEvolver(self._repo_root)
-                cev_result = cev.evolve(context=self._assemble_evolver_context("config_evolver"))
-                if cev_result and cev_result.suggestions:
-                    logger.info(
-                        "ConfigEvolver proposed %d suggestion(s)",
-                        len(cev_result.suggestions),
-                    )
-            except Exception as exc:
-                result.errors.append(f"ConfigEvolver: {exc}")
-                logger.warning("ConfigEvolver failed", exc_info=True)
+        for evolver_name in ordered:
+            if not self._policy.should_trigger(evolver_name, run_count, metrics):
+                continue
+            self._run_single_evolver(evolver_name, result)
 
         self._write_result(result)
         return result
+
+    def _get_enabled_evolvers(self) -> list[str]:
+        """Return list of evolver names that are enabled in config."""
+        evolvers: list[str] = []
+        if self._config.prompt_evolver_enabled:
+            evolvers.append("prompt_evolver")
+        if self._config.plan_strategy_evolver_enabled:
+            evolvers.append("plan_strategy_evolver")
+        if self._config.harness_synthesizer_enabled:
+            evolvers.append("harness_synthesizer")
+        if self._config.policy_distiller_enabled:
+            evolvers.append("policy_distiller")
+        if self._config.config_evolver_enabled:
+            evolvers.append("config_evolver")
+        return evolvers
+
+    def _run_single_evolver(self, name: str, result: EvolutionResult) -> None:
+        """Dispatch to the appropriate evolver by name."""
+        dispatch = {
+            "prompt_evolver": self._run_prompt_evolver,
+            "plan_strategy_evolver": self._run_plan_strategy_evolver,
+            "harness_synthesizer": self._run_harness_synthesizer,
+            "policy_distiller": self._run_policy_distiller,
+            "config_evolver": self._run_config_evolver,
+        }
+        handler = dispatch.get(name)
+        if handler:
+            handler(result)
+        else:
+            logger.warning("Unknown evolver: %s", name)
+
+    def _run_prompt_evolver(self, result: EvolutionResult) -> None:
+        if self._planner is None:
+            return
+        try:
+            evolver = PromptEvolver(self._repo_root, planner=self._planner)
+            variant = evolver.evolve(context=self._assemble_evolver_context("prompt_evolver"))
+            if variant is not None:
+                result.prompt_evolved = True
+                if self._config.auto_promote:
+                    evolver.auto_promote_if_ready()
+        except Exception as exc:
+            result.errors.append(f"PromptEvolver: {exc}")
+            logger.warning("PromptEvolver failed", exc_info=True)
+
+    def _run_plan_strategy_evolver(self, result: EvolutionResult) -> None:
+        if self._planner is None:
+            return
+        try:
+            pse = PlanStrategyEvolver(self._repo_root, planner=self._planner)
+            hint_set = pse.analyze(context=self._assemble_evolver_context("plan_strategy_evolver"))
+            if hint_set is not None and hint_set.hints:
+                result.plan_hints_generated = True
+        except Exception as exc:
+            result.errors.append(f"PlanStrategyEvolver: {exc}")
+            logger.warning("PlanStrategyEvolver failed", exc_info=True)
+
+    def _run_harness_synthesizer(self, result: EvolutionResult) -> None:
+        if self._planner is None:
+            return
+        try:
+            synth = HarnessSynthesizer(self._repo_root, planner=self._planner)
+            hs_context = self._assemble_evolver_context("harness_synthesizer")
+            candidates = synth.synthesize(context=hs_context)
+            if candidates:
+                validator = RuleValidator(self._repo_root)
+                accepted, _ = validator.validate(candidates)
+                result.harness_rules_proposed = len(accepted)
+                if accepted and not self._config.harness_dry_run:
+                    contracts_path = self._repo_root / "compliance.contracts.yaml"
+                    validator.apply(accepted, contracts_path)
+        except Exception as exc:
+            result.errors.append(f"HarnessSynthesizer: {exc}")
+            logger.warning("HarnessSynthesizer failed", exc_info=True)
+
+    def _run_policy_distiller(self, result: EvolutionResult) -> None:
+        if self._planner is None:
+            return
+        try:
+            from spec_orch.services.policy_distiller import PolicyDistiller
+
+            pd = PolicyDistiller(self._repo_root, planner=self._planner)
+            pd_context = self._assemble_evolver_context("policy_distiller")
+            policy = pd.distill(context=pd_context)
+            if policy:
+                result.policies_distilled = 1
+                logger.info("PolicyDistiller produced policy: %s", policy.policy_id)
+        except Exception as exc:
+            result.errors.append(f"PolicyDistiller: {exc}")
+            logger.warning("PolicyDistiller failed", exc_info=True)
+
+    def _run_config_evolver(self, result: EvolutionResult) -> None:
+        try:
+            from spec_orch.services.config_evolver import ConfigEvolver
+
+            cev = ConfigEvolver(self._repo_root)
+            cev_result = cev.evolve(context=self._assemble_evolver_context("config_evolver"))
+            if cev_result and cev_result.suggestions:
+                logger.info(
+                    "ConfigEvolver proposed %d suggestion(s)",
+                    len(cev_result.suggestions),
+                )
+        except Exception as exc:
+            result.errors.append(f"ConfigEvolver: {exc}")
+            logger.warning("ConfigEvolver failed", exc_info=True)
 
     def _load_latest_manifest(self) -> dict[str, str]:
         """Load artifacts dict from the latest workspace's manifest, if any."""
