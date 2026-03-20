@@ -150,9 +150,9 @@ class RunController:
         try:
             from spec_orch.services.memory.service import get_memory_service
 
-            self._memory_service = get_memory_service()
+            self._memory_service = get_memory_service(repo_root=self.repo_root)
         except Exception:
-            pass
+            logger.debug("MemoryService unavailable", exc_info=True)
         return self._memory_service
 
     def _resolve_flow(self, issue: Issue) -> FlowType:

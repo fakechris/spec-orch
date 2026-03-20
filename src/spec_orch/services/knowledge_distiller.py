@@ -87,7 +87,7 @@ class KnowledgeDistiller:
                     lines.append(f"- `{filepath}` ({count} deviations)")
             return "\n".join(lines)
         except Exception:
-            logger.debug("Evidence analysis failed", exc_info=True)
+            logger.warning("Evidence analysis failed during distillation", exc_info=True)
             return ""
 
     def _distill_prompt_history(self) -> str:

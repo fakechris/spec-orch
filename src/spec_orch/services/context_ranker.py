@@ -71,8 +71,12 @@ class ContextRanker:
                 result[section.name] = section.content
                 remaining_budget -= content_len
             else:
-                if alloc > 20:
-                    result[section.name] = section.content[:alloc] + "\n... [truncated]"
+                _TRUNCATION_SUFFIX = "\n... [truncated]"
+                suffix_len = len(_TRUNCATION_SUFFIX)
+                if alloc > suffix_len + 10:
+                    result[section.name] = (
+                        section.content[: alloc - suffix_len] + _TRUNCATION_SUFFIX
+                    )
                 else:
                     result[section.name] = ""
                 remaining_budget = max(0, remaining_budget - alloc)

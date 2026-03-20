@@ -478,7 +478,7 @@ class Conductor:
 
                 memory = get_memory_service(repo_root=self._repo_root)
             except Exception:
-                pass
+                logger.debug("MemoryService unavailable for conductor", exc_info=True)
             return self._context_assembler.assemble(
                 get_node_context_spec("intent_classifier"),
                 issue,

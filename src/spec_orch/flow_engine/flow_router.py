@@ -135,6 +135,8 @@ class FlowRouter:
             kwargs["api_base"] = self._api_base
 
         response = litellm.completion(**kwargs)
+        if not response.choices:
+            raise ValueError("LLM returned empty choices")
         raw = response.choices[0].message.content or "{}"
         return self._parse_llm_response(raw)
 

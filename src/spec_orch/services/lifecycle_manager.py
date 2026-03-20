@@ -88,7 +88,7 @@ class MissionLifecycleManager:
 
             self._memory = get_memory_service(repo_root=self.repo_root)
         except Exception:
-            pass
+            logger.debug("MemoryService unavailable for lifecycle", exc_info=True)
         return self._memory
 
     def _state_path(self) -> Path:
