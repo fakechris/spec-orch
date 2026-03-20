@@ -203,7 +203,7 @@ def test_gate_verdict_fields() -> None:
 
 
 def test_build_gate_input_from_report() -> None:
-    from spec_orch.cli import _build_gate_input_from_report
+    from spec_orch.cli._helpers import _build_gate_input_from_report
 
     data = {
         "builder": {"succeeded": True},
@@ -224,7 +224,7 @@ def test_build_gate_input_from_report() -> None:
 
 
 def test_build_gate_input_from_empty_report() -> None:
-    from spec_orch.cli import _build_gate_input_from_report
+    from spec_orch.cli._helpers import _build_gate_input_from_report
 
     gate_input = _build_gate_input_from_report({})
     assert gate_input.builder_succeeded is False

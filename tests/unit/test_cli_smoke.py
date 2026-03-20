@@ -11,7 +11,7 @@ from spec_orch.services.finding_store import append_finding, fingerprint_from, l
 
 def test_cli_version_flag_prints_version() -> None:
     runner = CliRunner()
-    with patch("spec_orch.cli._resolve_version", return_value="1.2.3"):
+    with patch("spec_orch.cli._helpers._resolve_version", return_value="1.2.3"):
         result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
     assert "1.2.3" in result.stdout
@@ -443,7 +443,7 @@ def test_watch_command_keeps_lines_appended_during_initial_read(tmp_path) -> Non
             autospec=True,
             side_effect=racing_read_text,
         ),
-        patch("spec_orch.cli.time.sleep", side_effect=finish_watch),
+        patch("spec_orch.cli.dashboard_commands.time.sleep", side_effect=finish_watch),
     ):
         result = runner.invoke(app, ["watch", "SPC-RACE", "--repo-root", str(tmp_path)])
 
@@ -655,7 +655,7 @@ def test_plan_to_spec_edit_uses_shell_style_editor_splitting(tmp_path) -> None:
     runner = CliRunner()
     with (
         patch.dict("os.environ", {"EDITOR": "python -c \"print('ok')\""}),
-        patch("spec_orch.cli.subprocess.run", side_effect=fake_run),
+        patch("spec_orch.cli._helpers.subprocess.run", side_effect=fake_run),
     ):
         result = runner.invoke(
             app,
@@ -690,7 +690,7 @@ def test_discuss_help_shows_subcommands() -> None:
 
 
 def test_create_pr_triggers_linear_writeback(tmp_path: Path) -> None:
-    from spec_orch.cli import _linear_writeback_on_pr
+    from spec_orch.cli._helpers import _linear_writeback_on_pr
     from spec_orch.domain.models import GateVerdict
 
     config = tmp_path / "spec-orch.toml"
