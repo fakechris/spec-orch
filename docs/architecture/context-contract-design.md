@@ -1,7 +1,7 @@
 # 上下文治理重构：从"写死 prompt"到"可装配、可追溯的 context contract"
 
 > 日期: 2026-03-17
-> 状态（2026-03-22）: **Phase 0~1 大体已随 Phase 13 / `SON-174` / `SON-177~180` 与统一 artifact 落地**；**Phase 2~3**（进化管线案例化、统一 lifecycle、全自动触发）**仍为深度待办**。总览与「未完成方向性条目」见 [方向性深度拷问 §6.2–6.3](2026-03-19-directional-review.zh.md)。
+> 状态（2026-03-18）: **Phase 0~3 已完成**。Phase 0~1 随 Phase 13 / `SON-174` / `SON-177~180` 与统一 artifact 落地；**Phase 2~3 已通过 PR #106~#110 实现**：LifecycleEvolver protocol、ContextAssembler 全面接入、案例驱动改造（轨迹挖掘 + validate/promote + false-positive guard）、EvolutionPolicy engine + config 驱动触发。
 > 前置文档:
 > - [编排大脑设计](orchestration-brain-design.md) — 骨架确定性 + 肌肉智能化
 > - [进化管线架构](evolution-trigger-architecture.md) — LLM 决策点审计 + 触发模型
@@ -313,20 +313,25 @@ class ContextAssembler:
 3. **HarnessSynthesizer** (E2) — 从 failure summary 改为带原始失败样本
    的证据包
 
-### Phase 2: 进化管线从"报表驱动"升级到"案例驱动"
+### Phase 2: 进化管线从"报表驱动"升级到"案例驱动" ✅
 
-- **PromptEvolver**：按任务类型 + adapter + 失败模式分桶；feed 原始失败样本
-- **HarnessSynthesizer**：触发失败的原始文本 + 成功对照 + false positive guard
-- **PlanStrategyEvolver**：具体 packet/依赖设计与失败的关联
-- **PolicyDistiller**：从频次统计改为"失败→修复→成功"轨迹挖掘
-- 统一 evolution lifecycle: `observe → propose → validate → promote`
+> 已通过 PR #106 (W1), #107 (W2), #108 (W3) 实现。
 
-### Phase 3: 配置驱动触发 + 可选 EvolutionAgent
+- ✅ **LifecycleEvolver** protocol + `EvolutionProposal` / `EvolutionOutcome` dataclass
+- ✅ **HarnessSynthesizer** 接入 ContextBundle + 成功对照 + false positive guard
+- ✅ **PolicyDistiller** 接入 ContextBundle + "失败→修复→成功"轨迹挖掘
+- ✅ **PlanStrategyEvolver** validate/promote lifecycle
+- ✅ `LearningContext.relevant_policies` 填充
+- ✅ `EvolutionTrigger` 对所有 evolver 传递 context
 
-在 Phase 0-2 稳定后：
-- `spec-orch.toml` 的 `[evolution]` 段控制触发策略
-- EvolutionPolicy engine 按配置触发 Evolver
-- 可选的薄 EvolutionAgent 层做排序和优先级判断
+### Phase 3: 配置驱动触发 + EvolutionPolicy engine ✅
+
+> 已通过 PR #109 (W4), #110 (W5) 实现。
+
+- ✅ `EvolutionPolicy` engine 支持 5 种触发条件
+- ✅ `spec-orch.toml [evolution.policies]` 配置扩展
+- ✅ `EvolutionTrigger` 重构为 policy 驱动 + dispatch 架构
+- ✅ `spec-orch evolution status` CLI 命令
 
 ### 建议路径
 
