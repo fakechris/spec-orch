@@ -168,7 +168,7 @@ spec-orch policy distill          # Zero-LLM deterministic scripts
 
 **v0.5.1** — Alpha, dogfood-first (EODF) mode.
 
-The system is used to develop itself and improves itself with each iteration. 1100+ tests, 65+ commands.
+The system is used to develop itself and improves itself with each iteration. 1170+ tests, 65+ commands.
 
 What works on `main`:
 
@@ -200,6 +200,10 @@ What works on `main`:
 - SkillDegradationDetector: routing audit, baseline tracking
 - TraceSampler: online evaluation sampling with configurable rules
 - CompactRetentionPriority: architecture-aware context compression
+- Atomic JSON writes across all 28 state files (crash-safe daemon)
+- LifecycleEvolver protocol: unified 4-phase observe/propose/validate/promote for all 6 evolvers
+- Modular CLI: `cli/` package with 8 command submodules replacing single 4092-line file
+- LLM JSON output schema validation with fallback + observability events
 
 ## Installation
 
@@ -370,6 +374,10 @@ spec-orch policy distill              # Zero-LLM scripts
 - [Change Management Policy](docs/architecture/change-management-policy.md)
 - [SDD Landscape & Positioning](docs/architecture/sdd-landscape-and-positioning.md)
 - [Directional Review (Agent Engineering)](docs/architecture/2026-03-19-directional-review.zh.md)
+
+### Reviews
+
+- [Architecture Deep Review (2026-03-20)](docs/reviews/2026-03-20-architecture-deep-review.md)
 
 ### Reference & Guides
 
