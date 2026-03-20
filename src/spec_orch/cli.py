@@ -58,6 +58,8 @@ strategy_app = typer.Typer(help="Plan strategy evolution and scoper hints.")
 app.add_typer(strategy_app, name="strategy")
 policy_app = typer.Typer(help="Policy distiller — deterministic code policies.")
 app.add_typer(policy_app, name="policy")
+eval_app = typer.Typer(help="Harness eval — offline quality evaluation of historical runs.")
+app.add_typer(eval_app, name="eval")
 contract_app = typer.Typer(help="Task contract generation and management.")
 app.add_typer(contract_app, name="contract")
 
@@ -3480,6 +3482,88 @@ def contract_assess_risk(
         run_class=issue.run_class or "",
     )
     typer.echo(f"Issue {issue_id}: risk_level={risk}")
+
+
+# ── eval commands ────────────────────────────────────────────────────────────
+
+
+@eval_app.command("run")
+def eval_run(
+    repo_root: Path = typer.Option(".", "--repo-root", "-r"),
+    output: Path = typer.Option("eval_report.json", "--output", "-o", help="Output JSON path."),
+    tag: list[str] = typer.Option(
+        [], "--tag", "-t", help="Filter by tag=value (e.g. adapter=codex)."
+    ),
+    output_json: bool = typer.Option(False, "--json", help="Print JSON to stdout."),
+) -> None:
+    """Evaluate historical runs and produce a quality report."""
+    from spec_orch.services.eval_runner import EvalRunner
+
+    filter_tags: dict[str, str] = {}
+    for t in tag:
+        if "=" in t:
+            k, v = t.split("=", 1)
+            filter_tags[k.strip()] = v.strip()
+
+    runner = EvalRunner(repo_root)
+    report = runner.evaluate(filter_tags=filter_tags or None)
+    runner.write_report(report, output)
+
+    if output_json:
+        typer.echo(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+    else:
+        typer.echo(
+            f"Eval: {report.total} runs, {report.passed} passed, "
+            f"{report.failed} failed — pass rate {report.pass_rate:.1%}"
+        )
+        if report.failure_breakdown:
+            typer.echo("Failure breakdown:")
+            for reason, count in sorted(report.failure_breakdown.items(), key=lambda x: -x[1]):
+                typer.echo(f"  {reason}: {count}")
+        if report.adapter_breakdown:
+            typer.echo("Adapter breakdown:")
+            for adapter, stats in sorted(report.adapter_breakdown.items()):
+                total = stats.get("total", 0)
+                ok = stats.get("passed", 0)
+                rate = ok / total if total else 0
+                typer.echo(f"  {adapter}: {ok}/{total} ({rate:.0%})")
+        typer.echo(f"Report written to {output}")
+
+
+@eval_app.command("compare")
+def eval_compare(
+    baseline: Path = typer.Argument(..., help="Baseline eval_report.json"),
+    candidate: Path = typer.Argument(..., help="Candidate eval_report.json"),
+) -> None:
+    """Compare two eval reports (A/B or regression check)."""
+    import json as _json
+
+    def _load(p: Path) -> dict[str, Any]:
+        data: dict[str, Any] = _json.loads(p.read_text(encoding="utf-8"))
+        return data
+
+    b = _load(baseline)
+    c = _load(candidate)
+    b_rate = b.get("pass_rate", 0)
+    c_rate = c.get("pass_rate", 0)
+    delta = c_rate - b_rate
+    arrow = "↑" if delta > 0 else ("↓" if delta < 0 else "=")
+
+    typer.echo(f"Baseline:  {b.get('total', 0)} runs, pass rate {b_rate:.1%}")
+    typer.echo(f"Candidate: {c.get('total', 0)} runs, pass rate {c_rate:.1%}")
+    typer.echo(f"Delta:     {delta:+.1%} {arrow}")
+
+    b_avr = b.get("avg_verification_rate", 0)
+    c_avr = c.get("avg_verification_rate", 0)
+    typer.echo(f"Avg verify: {b_avr:.1%} → {c_avr:.1%}")
+
+    b_dev = b.get("avg_deviation_count", 0)
+    c_dev = c.get("avg_deviation_count", 0)
+    typer.echo(f"Avg deviations: {b_dev:.1f} → {c_dev:.1f}")
+
+    if delta < -0.05:
+        typer.echo("⚠ Candidate regressed by more than 5%")
+        raise typer.Exit(1)
 
 
 def main() -> None:
