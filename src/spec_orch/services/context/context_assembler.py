@@ -137,6 +137,9 @@ class ContextAssembler:
                 continue
             try:
                 data = json.loads(manifest_path.read_text())
+                if not isinstance(data, dict):
+                    logger.warning("Manifest %s is not a JSON object", manifest_path)
+                    continue
                 return ArtifactManifest(
                     run_id=data.get("run_id", ""),
                     issue_id=data.get("issue_id", ""),
@@ -241,8 +244,9 @@ class ContextAssembler:
             if report_path.exists():
                 try:
                     report = json.loads(report_path.read_text())
-                    ctx.verification_results = self._parse_verification(report)
-                    ctx.gate_report = self._parse_gate(report)
+                    if isinstance(report, dict):
+                        ctx.verification_results = self._parse_verification(report)
+                        ctx.gate_report = self._parse_gate(report)
                 except (json.JSONDecodeError, KeyError):
                     pass
         elif manifest and "live" in manifest.artifacts:
@@ -276,11 +280,12 @@ class ContextAssembler:
             if rr_path.exists():
                 try:
                     rdata = json.loads(rr_path.read_text())
-                    ctx.review_summary = ReviewSummary(
-                        verdict=rdata.get("verdict", "pending"),
-                        reviewed_by=rdata.get("reviewed_by"),
-                        report_path=rr_path,
-                    )
+                    if isinstance(rdata, dict):
+                        ctx.review_summary = ReviewSummary(
+                            verdict=rdata.get("verdict", "pending"),
+                            reviewed_by=rdata.get("reviewed_by"),
+                            report_path=rr_path,
+                        )
                 except (json.JSONDecodeError, KeyError):
                     pass
 

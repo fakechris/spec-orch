@@ -192,7 +192,21 @@ def analyze_project_with_llm(
         if content.endswith("```"):
             content = content[:-3]
 
-        parsed: dict[str, Any] = json.loads(content)
+        parsed = json.loads(content)
+        if not isinstance(parsed, dict):
+            logger.warning(
+                "LLM project analysis returned %s instead of JSON object",
+                type(parsed).__name__,
+            )
+            from spec_orch.services.event_bus import emit_fallback_safe
+
+            emit_fallback_safe(
+                "SmartProjectAnalyzer",
+                "llm_json_schema",
+                "rule_detection",
+                f"Expected JSON object, got {type(parsed).__name__}",
+            )
+            return None
         return _parse_llm_result(parsed, root)
 
     except json.JSONDecodeError:
@@ -203,8 +217,22 @@ def analyze_project_with_llm(
         return None
 
 
-def _parse_llm_result(data: dict[str, Any], root: Path) -> ProjectProfile:
+def _parse_llm_result(data: dict[str, Any], root: Path) -> ProjectProfile | None:
     """Convert the LLM JSON response into a ProjectProfile."""
+    if not isinstance(data.get("languages"), list):
+        logger.warning(
+            "LLM response missing or invalid 'languages' field: %s",
+            type(data.get("languages")).__name__,
+        )
+        return None
+
+    if "verification" in data and not isinstance(data["verification"], dict):
+        logger.warning(
+            "LLM response 'verification' is %s, expected dict",
+            type(data["verification"]).__name__,
+        )
+        return None
+
     languages = data.get("languages", [])
     language = languages[0] if languages else "unknown"
 
