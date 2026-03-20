@@ -15,12 +15,17 @@ from spec_orch.domain.protocols import PlannerAdapter
 from spec_orch.services.adapter_factory import create_builder, create_reviewer
 from spec_orch.services.conflict_resolver import ConflictResolver
 from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.event_bus import Event, EventTopic
 from spec_orch.services.github_pr_service import GitHubPRService
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
 from spec_orch.services.linear_write_back import LinearWriteBackService
 from spec_orch.services.node_context_registry import get_node_context_spec
-from spec_orch.services.reaction_engine import ReactionEngine
+from spec_orch.services.reaction_engine import (
+    ReactionDecision,
+    ReactionEngine,
+    interpolate_template,
+)
 from spec_orch.services.run_controller import RunController
 
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -798,6 +803,45 @@ class SpecOrchDaemon:
 
         self._run_reactions(client, gh, pr_meta_by_issue)
 
+    def _reaction_template_context(
+        self,
+        *,
+        issue_id: str,
+        pr_number: int,
+        sha: str,
+        signal: dict[str, Any],
+    ) -> dict[str, Any]:
+        return {
+            "issue_id": issue_id,
+            "pr_number": pr_number,
+            "sha": sha,
+            "consume_state": self.config.consume_state,
+            "review_decision": str(signal.get("review_decision", "") or ""),
+            "merge_state": str(signal.get("merge_state", "") or ""),
+            "checks_passed": signal.get("checks_passed", False),
+            "checks_failed": signal.get("checks_failed", False),
+            "mergeable": signal.get("mergeable", False),
+        }
+
+    def _append_reaction_trace(self, record: dict[str, Any]) -> None:
+        """Append JSONL trace for replay / evaluation (P2-D)."""
+        trace_path = self.repo_root / ".spec_orch" / "reactions_trace.jsonl"
+        try:
+            trace_path.parent.mkdir(parents=True, exist_ok=True)
+            with trace_path.open("a", encoding="utf-8") as fh:
+                fh.write(_json.dumps(record, ensure_ascii=False) + "\n")
+        except OSError as exc:
+            print(f"[daemon] reaction trace write failed: {exc}")
+        try:
+            self._event_bus.publish(
+                Event(
+                    topic=EventTopic.SYSTEM,
+                    payload={"kind": "reaction.executed", **record},
+                )
+            )
+        except Exception as exc:
+            print(f"[daemon] reaction event publish failed: {exc}")
+
     def _run_reactions(
         self,
         client: LinearClient,
@@ -811,20 +855,100 @@ class SpecOrchDaemon:
             signal = gh.get_pr_signal(self.repo_root, pr_number)
             if not signal:
                 continue
+            tpl_ctx = self._reaction_template_context(
+                issue_id=issue_id,
+                pr_number=pr_number,
+                sha=str(meta.get("sha", "")),
+                signal=signal,
+            )
             decisions = self._reaction_engine.evaluate(signal)
             for decision in decisions:
-                mark = f"{issue_id}:{meta.get('sha', '')}:{decision.action}"
+                mark = f"{issue_id}:{meta.get('sha', '')}:{decision.rule_name}:{decision.action}"
                 if mark in self._reaction_marks:
                     continue
-                if decision.action == "auto_merge":
-                    merged = gh.merge_pr(self.repo_root, pr_number=pr_number, method="squash")
-                    if merged:
-                        self._mark_issue_done_if_in_review(client, issue_id)
-                        print(f"[daemon] reaction auto-merge applied for {issue_id}")
-                        self._reaction_marks.add(mark)
-                elif decision.action in {"comment_ci_failed", "comment_changes_requested"}:
-                    self._comment_reaction(client, issue_id, decision.action)
+                consumed = self._apply_reaction_decision(
+                    client,
+                    gh,
+                    issue_id=issue_id,
+                    pr_number=pr_number,
+                    decision=decision,
+                    tpl_ctx=tpl_ctx,
+                )
+                if consumed:
                     self._reaction_marks.add(mark)
+
+    def _apply_reaction_decision(
+        self,
+        client: LinearClient,
+        gh: GitHubPRService,
+        *,
+        issue_id: str,
+        pr_number: int,
+        decision: ReactionDecision,
+        tpl_ctx: dict[str, Any],
+    ) -> bool:
+        """Execute one reaction; return True if the mark should be consumed."""
+        base_record: dict[str, Any] = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "issue_id": issue_id,
+            "pr_number": pr_number,
+            "rule_name": decision.rule_name,
+            "action": decision.action,
+            "reason": decision.reason,
+        }
+
+        if decision.action == "noop":
+            rec = {**base_record, "result": "noop"}
+            self._append_reaction_trace(rec)
+            return True
+
+        if decision.action == "auto_merge":
+            method = str(decision.params.get("merge_method", "squash")).strip() or "squash"
+            merged = gh.merge_pr(
+                self.repo_root,
+                pr_number=pr_number,
+                method=method,
+            )
+            rec = {
+                **base_record,
+                "result": "merged" if merged else "merge_failed",
+                "merge_method": method,
+            }
+            self._append_reaction_trace(rec)
+            if merged:
+                self._mark_issue_done_if_in_review(client, issue_id)
+                print(f"[daemon] reaction auto-merge applied for {issue_id}")
+            return merged
+
+        if decision.action == "requeue_ready":
+            ok = self._requeue_issue_to_consume_state(client, issue_id)
+            rec = {**base_record, "result": "requeued" if ok else "requeue_failed"}
+            self._append_reaction_trace(rec)
+            if ok:
+                print(f"[daemon] reaction requeue → {self.config.consume_state} for {issue_id}")
+            return ok
+
+        if decision.action in {"comment_ci_failed", "comment_changes_requested"}:
+            ok = self._comment_reaction(client, issue_id, decision, tpl_ctx)
+            rec = {**base_record, "result": "commented" if ok else "comment_failed"}
+            self._append_reaction_trace(rec)
+            return ok
+
+        rec = {**base_record, "result": "unknown_action"}
+        self._append_reaction_trace(rec)
+        return False
+
+    def _requeue_issue_to_consume_state(self, client: LinearClient, issue_id: str) -> bool:
+        """Move an In Review issue back to consume_state (re-enter main loop)."""
+        try:
+            issues = client.list_issues(team_key=self.config.team_key, filter_state="In Review")
+            for raw in issues:
+                if raw.get("identifier") == issue_id and raw.get("id"):
+                    client.update_issue_state(raw["id"], self.config.consume_state)
+                    return True
+        except Exception as exc:
+            print(f"[daemon] {issue_id}: requeue reaction failed: {exc}")
+        return False
 
     def _mark_issue_done_if_in_review(self, client: LinearClient, issue_id: str) -> None:
         try:
@@ -836,28 +960,45 @@ class SpecOrchDaemon:
         except Exception as exc:
             print(f"[daemon] {issue_id}: failed to set Done after auto-merge: {exc}")
 
-    def _comment_reaction(self, client: LinearClient, issue_id: str, action: str) -> None:
+    def _comment_reaction(
+        self,
+        client: LinearClient,
+        issue_id: str,
+        decision: ReactionDecision,
+        tpl_ctx: dict[str, Any],
+    ) -> bool:
+        """Post a Linear comment from rule params or built-in defaults."""
+        action = decision.action
+        params = decision.params
+        template_key = "comment_template"
+        if action == "comment_ci_failed":
+            default_body = (
+                "## SpecOrch Reaction: CI failed\n\n"
+                "Detected failed checks on the PR. Please push a fix commit; "
+                "daemon will re-enter the review loop automatically."
+            )
+        else:
+            default_body = (
+                "## SpecOrch Reaction: Changes requested\n\n"
+                "Detected `CHANGES_REQUESTED` review state. Please address feedback "
+                "and push updates; daemon will pick up new commits."
+            )
+        raw_tpl = params.get(template_key)
+        if isinstance(raw_tpl, str) and raw_tpl.strip():
+            body = interpolate_template(raw_tpl, tpl_ctx)
+        else:
+            body = default_body
+
         try:
             issues = client.list_issues(team_key=self.config.team_key, filter_state="In Review")
             for raw in issues:
                 if raw.get("identifier") != issue_id or not raw.get("id"):
                     continue
-                if action == "comment_ci_failed":
-                    body = (
-                        "## SpecOrch Reaction: CI failed\n\n"
-                        "Detected failed checks on the PR. Please push a fix commit; "
-                        "daemon will re-enter the review loop automatically."
-                    )
-                else:
-                    body = (
-                        "## SpecOrch Reaction: Changes requested\n\n"
-                        "Detected `CHANGES_REQUESTED` review state. Please address feedback "
-                        "and push updates; daemon will pick up new commits."
-                    )
                 client.add_comment(raw["id"], body)
-                break
+                return True
         except Exception as exc:
             print(f"[daemon] {issue_id}: reaction comment failed: {exc}")
+        return False
 
     def _is_locked(self, issue_id: str) -> bool:
         return (self._lockdir / f"{issue_id}.lock").exists()

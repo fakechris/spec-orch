@@ -411,6 +411,7 @@ class GitHubPRService:
         )
         return {
             "review_decision": review_decision,
+            "merge_state": merge_state,
             "checks_passed": checks_passed,
             "checks_failed": checks_failed,
             "mergeable": mergeable,
