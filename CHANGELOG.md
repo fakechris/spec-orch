@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **VISION.md** (EN/ZH): Project manifesto — 7 theses, 7-plane architecture, north star, positioning as "the control plane for spec-driven software delivery"
 - **README.zh.md**: Full Chinese README matching English version
 - **Seven Planes Architecture** (`docs/architecture/seven-planes.md`): Complete codebase-to-plane mapping with competitor analysis (Capy, Fabro, Lody, Composio, Thariq, LangChain)
-- **Roadmap v2** (`docs/plans/2026-03-roadmap-v2.md`): Priority-ordered roadmap organized by 7 planes (P0–P6)
+- **Roadmap & Milestones** (`docs/plans/roadmap.md`): Priority-ordered roadmap with milestone tracking and Linear mapping
 - **Agent-First Decision Architecture** (SON-161 ~ SON-166):
   - Phase A: Configuration externalization — gate thresholds, reviewer params, evolution triggers moved to `spec-orch.toml`
   - Phase B1: `smart_project_analyzer.py` — LLM-driven project analysis reads file tree + config files to generate optimal verification commands; `--offline` flag for rule-based fallback

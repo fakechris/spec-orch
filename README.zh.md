@@ -358,7 +358,7 @@ spec-orch policy distill              # 零 LLM 脚本
 
 - [Project Vision](VISION.md) / [项目愿景](VISION.zh.md)
 - [Seven Planes 架构映射](docs/architecture/seven-planes.md)
-- [Roadmap v2](docs/plans/2026-03-roadmap-v2.md)
+- [Roadmap & Milestones](docs/plans/roadmap.md)
 
 ### 设计（当前）
 
