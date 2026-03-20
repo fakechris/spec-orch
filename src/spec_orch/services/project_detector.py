@@ -283,8 +283,9 @@ def generate_toml_config(profile: ProjectProfile, *, profile_level: str = "stand
 
     if profile_level in ("standard", "full"):
         lines.append("[planner]")
-        lines.append('# model = "anthropic/claude-sonnet-4-20250514"')
-        lines.append('# api_key_env = "ANTHROPIC_API_KEY"')
+        lines.append('model = "anthropic/claude-sonnet-4-20250514"')
+        lines.append('api_key_env = "SPEC_ORCH_LLM_API_KEY"')
+        lines.append('api_base_env = "SPEC_ORCH_LLM_API_BASE"')
         lines.append("")
 
     lines.append("[github]")
