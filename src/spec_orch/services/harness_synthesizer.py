@@ -14,12 +14,15 @@ import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from spec_orch.services.compliance_engine import load_contracts
 from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
+
+if TYPE_CHECKING:
+    from spec_orch.domain.context import ContextBundle
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +159,12 @@ class HarnessSynthesizer:
             "deviations": deviations,
         }
 
-    def synthesize(self, last_n: int = 20) -> list[CandidateRule]:
+    def synthesize(
+        self,
+        last_n: int = 20,
+        *,
+        context: ContextBundle | None = None,
+    ) -> list[CandidateRule]:
         """Generate candidate compliance rules from failure patterns."""
         if self._planner is None:
             return []
@@ -182,6 +190,11 @@ class HarnessSynthesizer:
                 "(use these to craft precise regex patterns):\n"
                 f"```\n{raw_samples}\n```\n\n"
             )
+
+        context_block = self._render_context(context)
+        if context_block:
+            user_msg += context_block
+
         user_msg += "Propose new pattern-based compliance rules that would catch these failures."
 
         try:
@@ -238,6 +251,32 @@ class HarnessSynthesizer:
                 break
 
         return "\n".join(samples)
+
+    @staticmethod
+    def _render_context(context: ContextBundle | None) -> str:
+        """Render ContextBundle fields relevant to harness synthesis."""
+        if context is None:
+            return ""
+        parts: list[str] = []
+        if context.learning.similar_failure_samples:
+            lines = []
+            for s in context.learning.similar_failure_samples[:5]:
+                lines.append(f"- {s.get('key', '?')}: {s.get('content', '')[:200]}")
+            parts.append(
+                "### Historical failure samples (from ContextAssembler)\n" + "\n".join(lines)
+            )
+        if context.task.constraints:
+            parts.append(
+                "### Constraints\n" + "\n".join(f"- {c}" for c in context.task.constraints)
+            )
+        if context.execution.deviation_slices:
+            lines = [str(d)[:200] for d in context.execution.deviation_slices[:5]]
+            parts.append("### Recent deviations\n" + "\n".join(lines))
+        if not parts:
+            return ""
+        return (
+            "\nAdditional context from the orchestration system:\n\n" + "\n\n".join(parts) + "\n\n"
+        )
 
     def _parse_response(self, response: Any, run_ids: list[str]) -> list[CandidateRule]:
         """Parse LLM JSON response into CandidateRule objects."""

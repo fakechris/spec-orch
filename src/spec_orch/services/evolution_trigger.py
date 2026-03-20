@@ -64,6 +64,7 @@ class EvolutionResult:
     prompt_evolved: bool = False
     plan_hints_generated: bool = False
     harness_rules_proposed: int = 0
+    policies_distilled: int = 0
     errors: list[str] = field(default_factory=list)
     timestamp: str = ""
 
@@ -166,7 +167,8 @@ class EvolutionTrigger:
         if self._config.harness_synthesizer_enabled and self._planner is not None:
             try:
                 synth = HarnessSynthesizer(self._repo_root, planner=self._planner)
-                candidates = synth.synthesize()
+                hs_context = self._assemble_evolver_context("harness_synthesizer")
+                candidates = synth.synthesize(context=hs_context)
                 if candidates:
                     validator = RuleValidator(self._repo_root)
                     accepted, _ = validator.validate(candidates)
@@ -177,6 +179,20 @@ class EvolutionTrigger:
             except Exception as exc:
                 result.errors.append(f"HarnessSynthesizer: {exc}")
                 logger.warning("HarnessSynthesizer failed", exc_info=True)
+
+        if self._config.policy_distiller_enabled and self._planner is not None:
+            try:
+                from spec_orch.services.policy_distiller import PolicyDistiller
+
+                pd = PolicyDistiller(self._repo_root, planner=self._planner)
+                pd_context = self._assemble_evolver_context("policy_distiller")
+                policy = pd.distill(context=pd_context)
+                if policy:
+                    result.policies_distilled = 1
+                    logger.info("PolicyDistiller produced policy: %s", policy.policy_id)
+            except Exception as exc:
+                result.errors.append(f"PolicyDistiller: {exc}")
+                logger.warning("PolicyDistiller failed", exc_info=True)
 
         if self._config.config_evolver_enabled:
             try:

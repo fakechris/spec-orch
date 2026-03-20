@@ -260,7 +260,34 @@ class ContextAssembler:
                     elif isinstance(raw, list):
                         ctx.scoper_hints = raw
 
+        if not required or "relevant_policies" in required:
+            ctx.relevant_policies = self._load_relevant_policies(workspace)
+
         return ctx
+
+    @staticmethod
+    def _load_relevant_policies(repo_root: Path) -> list[str]:
+        """Load policy IDs from the repo-level policies_index.json."""
+        index_path = repo_root / "policies" / "policies_index.json"
+        if not index_path.exists():
+            return []
+        try:
+            raw = json.loads(index_path.read_text())
+            if isinstance(raw, list):
+                policies: list[str] = []
+                for p in raw[:50]:
+                    if isinstance(p, dict):
+                        pid = p.get("policy_id")
+                        if pid:
+                            policies.append(str(pid))
+                    elif isinstance(p, str):
+                        policies.append(p)
+                return policies
+            if isinstance(raw, dict):
+                return list(raw.keys())[:50]
+        except (json.JSONDecodeError, OSError):
+            logger.debug("Failed to load policies_index.json", exc_info=True)
+        return []
 
     @staticmethod
     def _read_file_tree(workspace: Path) -> str:

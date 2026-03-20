@@ -17,9 +17,12 @@ import subprocess
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
+
+if TYPE_CHECKING:
+    from spec_orch.domain.context import ContextBundle
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +183,12 @@ class PolicyDistiller:
         candidates.sort(key=lambda x: x["occurrences"], reverse=True)
         return candidates
 
-    def distill(self, task_description: str | None = None) -> Policy | None:
+    def distill(
+        self,
+        task_description: str | None = None,
+        *,
+        context: ContextBundle | None = None,
+    ) -> Policy | None:
         """Use an LLM to generate a deterministic policy for a recurring task.
 
         If ``task_description`` is ``None``, the distiller picks the most
@@ -199,9 +207,11 @@ class PolicyDistiller:
                 f"Example commands: {candidates[0].get('examples', [])}"
             )
 
+        context_block = self._render_context(context)
         user_msg = (
             "Task to distill into a deterministic policy:\n\n"
             f"{task_description}\n\n"
+            f"{context_block}"
             "Generate a self-contained Python script for this task."
         )
 
@@ -218,6 +228,26 @@ class PolicyDistiller:
             return None
 
         return self._parse_response(response)
+
+    @staticmethod
+    def _render_context(context: ContextBundle | None) -> str:
+        """Render ContextBundle fields relevant to policy distillation."""
+        if context is None:
+            return ""
+        parts: list[str] = []
+        if context.learning.relevant_policies:
+            existing = [f"- {p}" for p in context.learning.relevant_policies[:10]]
+            parts.append("### Existing policies (avoid duplication)\n" + "\n".join(existing))
+        vr = context.execution.verification_results
+        if vr is not None:
+            failed_steps = [name for name, passed in vr.step_results.items() if not passed]
+            if failed_steps:
+                parts.append(
+                    "### Verification failures\n" + "\n".join(f"- {s}" for s in failed_steps)
+                )
+        if not parts:
+            return ""
+        return "\nAdditional context:\n\n" + "\n\n".join(parts) + "\n\n"
 
     def _parse_response(self, response: Any) -> Policy | None:
         if not isinstance(response, str):
