@@ -62,6 +62,8 @@ eval_app = typer.Typer(help="Harness eval — offline quality evaluation of hist
 app.add_typer(eval_app, name="eval")
 contract_app = typer.Typer(help="Task contract generation and management.")
 app.add_typer(contract_app, name="contract")
+evolution_app = typer.Typer(help="Evolution pipeline status and lifecycle management.")
+app.add_typer(evolution_app, name="evolution")
 
 
 def _resolve_version() -> str:
@@ -3687,6 +3689,88 @@ def eval_degradation(
 
     if report.degraded:
         raise typer.Exit(1)
+
+
+# ── evolution commands ──
+
+
+@evolution_app.command("status")
+def evolution_status(
+    repo_root: Path = typer.Option(".", "--repo-root", "-r"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
+) -> None:
+    """Show evolution pipeline status: policy rules, recent activity, and proposals."""
+    import tomllib as _tomllib
+
+    from spec_orch.services.evolution_policy import EvolutionPolicy
+
+    repo = repo_root.resolve()
+    toml_path = repo / "spec-orch.toml"
+    toml_data: dict[str, Any] = {}
+    if toml_path.exists():
+        with toml_path.open("rb") as f:
+            toml_data = _tomllib.load(f)
+
+    policy = EvolutionPolicy.from_toml(toml_data)
+
+    import contextlib
+
+    log_path = repo / ".spec_orch_evolution" / "evolution_log.jsonl"
+    recent_runs: list[dict[str, Any]] = []
+    if log_path.exists():
+        lines = log_path.read_text().strip().splitlines()
+        for line in lines[-5:]:
+            with contextlib.suppress(json.JSONDecodeError):
+                recent_runs.append(json.loads(line))
+
+    counter_path = repo / ".spec_orch_evolution" / "run_counter.json"
+    current_count = 0
+    if counter_path.exists():
+        with contextlib.suppress(json.JSONDecodeError, OSError):
+            current_count = json.loads(counter_path.read_text()).get("count", 0)
+
+    status_data = {
+        "global_min_runs": policy.global_min_runs,
+        "current_run_count": current_count,
+        "policy_rules": {
+            name: {
+                "enabled": rule.enabled,
+                "min_runs": rule.min_runs,
+                "trigger_on": rule.trigger_on,
+                "threshold": rule.threshold,
+            }
+            for name, rule in policy.rules.items()
+        },
+        "recent_cycles": recent_runs,
+    }
+
+    if json_output:
+        typer.echo(json.dumps(status_data, indent=2))
+        return
+
+    typer.echo(f"Evolution Pipeline Status (counter: {current_count}/{policy.global_min_runs})")
+    typer.echo()
+
+    if policy.rules:
+        typer.echo("Policy Rules:")
+        for name, rule in policy.rules.items():
+            flag = "✅" if rule.enabled else "❌"
+            typer.echo(
+                f"  {flag} {name}: trigger_on={rule.trigger_on}, "
+                f"min_runs={rule.min_runs}, threshold={rule.threshold}"
+            )
+    else:
+        typer.echo("Policy Rules: (none configured, using defaults)")
+
+    if recent_runs:
+        typer.echo()
+        typer.echo("Recent Cycles:")
+        for entry in recent_runs:
+            ts = entry.get("timestamp", "?")[:19]
+            triggered = "triggered" if entry.get("triggered") else "skipped"
+            errors = entry.get("errors", [])
+            err_txt = f" ({len(errors)} error(s))" if errors else ""
+            typer.echo(f"  [{ts}] {triggered}{err_txt}")
 
 
 if __name__ == "__main__":
