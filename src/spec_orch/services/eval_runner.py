@@ -9,6 +9,7 @@ and outputs a structured eval report. Designed for:
 
 from __future__ import annotations
 
+import enum
 import json
 import logging
 from dataclasses import asdict, dataclass, field
@@ -19,13 +20,22 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+class Verdict(enum.StrEnum):
+    """Run outcome classification."""
+
+    PASS = "pass"
+    FAIL = "fail"
+    SKIP = "skip"
+    ERROR = "error"
+
+
 @dataclass(slots=True)
 class RunScore:
     """Per-run scoring record."""
 
     run_id: str
     issue_id: str
-    verdict: str
+    verdict: Verdict
     mergeable: bool
     failed_conditions: list[str]
     verification_pass_rate: float | None
@@ -53,7 +63,7 @@ class EvalReport:
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
-        d["run_scores"] = [asdict(s) for s in self.run_scores]
+        d["run_scores"] = [{**asdict(s), "verdict": s.verdict.value} for s in self.run_scores]
         return d
 
 
@@ -110,7 +120,11 @@ class EvalRunner:
         live_data = live or report or {}
         run_id = str(data.get("run_id") or report.get("run_id") or run_dir.name)
         issue_id = str(data.get("issue_id") or run_dir.name)
-        verdict = str(data.get("verdict", "fail" if not data.get("mergeable") else "pass"))
+        raw_verdict = str(data.get("verdict", "fail" if not data.get("mergeable") else "pass"))
+        try:
+            verdict = Verdict(raw_verdict)
+        except ValueError:
+            verdict = Verdict.FAIL
         mergeable = bool(data.get("mergeable", False))
         failed_conditions = data.get("failed_conditions", [])
         if not isinstance(failed_conditions, list):
