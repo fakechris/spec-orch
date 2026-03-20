@@ -152,7 +152,9 @@ class EvolutionTrigger:
         ordered = self._policy.priority_order(enabled_evolvers, metrics)
 
         for evolver_name in ordered:
-            if not self._policy.should_trigger(evolver_name, run_count, metrics):
+            if not self._policy.should_trigger(
+                evolver_name, run_count, metrics, skip_min_runs=True
+            ):
                 continue
             self._run_single_evolver(evolver_name, result)
 
@@ -295,6 +297,7 @@ class EvolutionTrigger:
             "prompt_evolved": result.prompt_evolved,
             "plan_hints_generated": result.plan_hints_generated,
             "harness_rules_proposed": result.harness_rules_proposed,
+            "policies_distilled": result.policies_distilled,
             "errors": result.errors,
         }
         with log_path.open("a") as f:

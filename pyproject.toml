@@ -38,6 +38,7 @@ planner = [
 dashboard = [
   "fastapi>=0.115",
   "uvicorn>=0.34",
+  "websockets>=12",
 ]
 slack = [
   "slack-bolt>=1.21",
