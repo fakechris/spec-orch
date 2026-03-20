@@ -9,6 +9,8 @@ from spec_orch.domain.models import (
     BuilderEvent,
     BuilderResult,
     ConversationMessage,
+    EvolutionOutcome,
+    EvolutionProposal,
     ExecutionPlan,
     Issue,
     Mission,
@@ -172,6 +174,47 @@ class WaveExecutor(Protocol):
         config: ParallelConfig,
         cancel_event: asyncio.Event,
     ) -> WaveResult: ...
+
+
+@runtime_checkable
+class LifecycleEvolver(Protocol):
+    """Unified lifecycle for all evolution pipeline nodes.
+
+    Supersedes the simpler ``services.evolver_protocol.Evolver`` with a
+    structured four-phase lifecycle:
+      observe  → collect evidence from recent runs
+      propose  → generate change proposals from evidence
+      validate → verify a proposal before applying
+      promote  → apply a validated proposal
+    """
+
+    EVOLVER_NAME: str
+
+    def observe(
+        self,
+        run_dirs: list[Path],
+        *,
+        context: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        """Collect evidence from recent runs."""
+        ...
+
+    def propose(
+        self,
+        evidence: list[dict[str, Any]],
+        *,
+        context: Any | None = None,
+    ) -> list[EvolutionProposal]:
+        """Generate change proposals from evidence."""
+        ...
+
+    def validate(self, proposal: EvolutionProposal) -> EvolutionOutcome:
+        """Validate a proposal before promoting."""
+        ...
+
+    def promote(self, proposal: EvolutionProposal) -> bool:
+        """Apply a validated proposal."""
+        ...
 
 
 @runtime_checkable
