@@ -3646,5 +3646,47 @@ def main() -> None:
     app()
 
 
+@eval_app.command("degradation")
+def eval_degradation(
+    repo_root: Path = typer.Option(".", "--repo-root", "-r"),
+    recent: int = typer.Option(10, "--recent", help="Recent window size."),
+    baseline: int = typer.Option(30, "--baseline", help="Baseline window size."),
+    threshold: float = typer.Option(0.10, "--threshold", help="Regression threshold."),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Write JSON report."),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
+) -> None:
+    """Detect quality degradation by comparing recent runs against baseline."""
+    from spec_orch.services.degradation_detector import DegradationDetector
+
+    detector = DegradationDetector(
+        repo_root.resolve(),
+        recent_window=recent,
+        baseline_window=baseline,
+        threshold=threshold,
+    )
+    report = detector.detect()
+
+    if output:
+        detector.write_report(report, output)
+
+    if json_output:
+        typer.echo(json.dumps(report.to_dict(), indent=2))
+    elif not report.degraded:
+        typer.echo(
+            f"No degradation detected. "
+            f"(baseline={report.baseline_runs} runs, recent={report.recent_runs} runs)"
+        )
+    else:
+        typer.echo(f"⚠️  Degradation detected ({len(report.signals)} signal(s)):")
+        for sig in report.signals:
+            typer.echo(
+                f"  - {sig.metric}: {sig.baseline_value:.3f} → {sig.recent_value:.3f} "
+                f"(Δ={sig.delta:+.3f}, severity={sig.severity})"
+            )
+
+    if report.degraded:
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     main()
