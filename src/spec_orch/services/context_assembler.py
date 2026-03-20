@@ -274,9 +274,15 @@ class ContextAssembler:
         try:
             raw = json.loads(index_path.read_text())
             if isinstance(raw, list):
-                return [
-                    p.get("policy_id", str(p)) if isinstance(p, dict) else str(p) for p in raw[:50]
-                ]
+                policies: list[str] = []
+                for p in raw[:50]:
+                    if isinstance(p, dict):
+                        pid = p.get("policy_id")
+                        if pid:
+                            policies.append(str(pid))
+                    elif isinstance(p, str):
+                        policies.append(p)
+                return policies
             if isinstance(raw, dict):
                 return list(raw.keys())[:50]
         except (json.JSONDecodeError, OSError):

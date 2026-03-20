@@ -236,16 +236,15 @@ class PolicyDistiller:
             return ""
         parts: list[str] = []
         if context.learning.relevant_policies:
-            existing = [
-                f"- {p}" if isinstance(p, str) else f"- {p.get('policy_id', '?')}"
-                for p in context.learning.relevant_policies[:10]
-            ]
+            existing = [f"- {p}" for p in context.learning.relevant_policies[:10]]
             parts.append("### Existing policies (avoid duplication)\n" + "\n".join(existing))
-        if context.execution.verification_results:
-            lines = []
-            for r in context.execution.verification_results[:5]:
-                lines.append(f"- {r}" if isinstance(r, str) else f"- {json.dumps(r)[:200]}")
-            parts.append("### Recent verification failures\n" + "\n".join(lines))
+        vr = context.execution.verification_results
+        if vr is not None:
+            failed_steps = [name for name, passed in vr.step_results.items() if not passed]
+            if failed_steps:
+                parts.append(
+                    "### Verification failures\n" + "\n".join(f"- {s}" for s in failed_steps)
+                )
         if not parts:
             return ""
         return "\nAdditional context:\n\n" + "\n\n".join(parts) + "\n\n"
