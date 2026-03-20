@@ -140,3 +140,22 @@ def test_get_rule_default() -> None:
     assert rule.evolver_name == "unknown_evolver"
     assert rule.min_runs == 7
     assert rule.trigger_on == "run_count"
+
+
+def test_skip_min_runs_bypasses_gate() -> None:
+    """When global gate already passed, per-evolver min_runs should not block."""
+    policy = EvolutionPolicy(
+        rules={
+            "harness_synthesizer": EvolverPolicyRule(
+                evolver_name="harness_synthesizer",
+                min_runs=10,
+                trigger_on="new_failure_pattern",
+            )
+        }
+    )
+    # run_count=5 < min_runs=10 → normally blocked
+    assert not policy.should_trigger("harness_synthesizer", 5, {"new_failure_patterns": 3})
+    # with skip_min_runs=True → only checks metrics
+    assert policy.should_trigger(
+        "harness_synthesizer", 5, {"new_failure_patterns": 3}, skip_min_runs=True
+    )

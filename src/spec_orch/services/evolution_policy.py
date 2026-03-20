@@ -70,12 +70,19 @@ class EvolutionPolicy:
         evolver_name: str,
         run_count: int,
         metrics: dict[str, float] | None = None,
+        *,
+        skip_min_runs: bool = False,
     ) -> bool:
-        """Evaluate whether an evolver should run based on its policy rule."""
+        """Evaluate whether an evolver should run based on its policy rule.
+
+        When called from within an already-triggered evolution cycle
+        (``skip_min_runs=True``), the ``min_runs`` gate is skipped because the
+        global trigger threshold has already been satisfied.
+        """
         rule = self.get_rule(evolver_name)
         if not rule.enabled:
             return False
-        if run_count < rule.min_runs:
+        if not skip_min_runs and run_count < rule.min_runs:
             return False
 
         metrics = metrics or {}

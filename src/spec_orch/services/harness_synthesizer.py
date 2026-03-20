@@ -203,10 +203,15 @@ class HarnessSynthesizer:
         if context_block:
             user_msg += context_block
 
-        user_msg += (
-            "Propose new pattern-based compliance rules that would catch these failures. "
-            "Ensure each proposed rule does NOT match the success samples above."
-        )
+        if success_samples:
+            user_msg += (
+                "Propose new pattern-based compliance rules that would catch these failures. "
+                "Ensure each proposed rule does NOT match the success samples above."
+            )
+        else:
+            user_msg += (
+                "Propose new pattern-based compliance rules that would catch these failures."
+            )
 
         try:
             response = self._planner.brainstorm(

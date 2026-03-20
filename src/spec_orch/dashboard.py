@@ -1135,9 +1135,10 @@ def create_app(repo_root: Path | None = None) -> Any:
             return JSONResponse({"error": "BTW injection failed"}, status_code=500)
 
     # ---- websocket ----
+    # Registered via add_api_websocket_route for maximum compatibility
+    # with starlette/uvicorn version combinations (avoids 403 in some versions).
 
-    @app.websocket("/ws")
-    async def websocket_endpoint(websocket: WebSocket) -> None:
+    async def _ws_handler(websocket: WebSocket) -> None:
         await websocket.accept()
         bus = _get_event_bus()
         if bus is None:
@@ -1172,5 +1173,7 @@ def create_app(repo_root: Path | None = None) -> Any:
             logger.exception("Error in websocket endpoint")
         finally:
             bus.remove_async_queue(queue)
+
+    app.add_api_websocket_route("/ws", _ws_handler)
 
     return app
