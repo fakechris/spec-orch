@@ -121,6 +121,8 @@ class SpecOrchDaemon:
         self._memory_service = get_memory_service(repo_root=repo_root)
         self._memory_service.subscribe_to_event_bus()
 
+    HEARTBEAT_FILE = "daemon_heartbeat.json"
+
     def _load_state(self) -> dict[str, Any]:
         if self._state_path.exists():
             try:
@@ -184,18 +186,39 @@ class SpecOrchDaemon:
         if self._dead_letter:
             print(f"[daemon] dead letter queue: {sorted(self._dead_letter)}")
 
+        self._consecutive_loop_errors = 0
+        self._write_heartbeat(status="starting")
         self.resume_in_progress(controller)
 
         try:
             while self._running:
-                self._tick_missions()
-                self._check_clarification_replies(client)
-                self._check_review_updates(client)
-                self._poll_and_run(client, controller)
-                self._save_state()
+                try:
+                    self._tick_missions()
+                    self._check_clarification_replies(client)
+                    self._check_review_updates(client)
+                    self._poll_and_run(client, controller)
+                    self._save_state()
+                    self._write_heartbeat(status="healthy")
+                    self._consecutive_loop_errors = 0
+                except Exception as exc:
+                    self._consecutive_loop_errors += 1
+                    self._emit_error_event(
+                        "daemon.loop_error",
+                        str(exc),
+                        transient=self._consecutive_loop_errors < 5,
+                    )
+                    print(f"[daemon] loop error ({self._consecutive_loop_errors}): {exc}")
+                    self._write_heartbeat(
+                        status="degraded",
+                        error=str(exc),
+                    )
+                    if self._consecutive_loop_errors >= 10:
+                        print("[daemon] 10 consecutive loop errors — exiting")
+                        break
                 self._sleep(self.config.poll_interval_seconds)
         finally:
             self._save_state()
+            self._write_heartbeat(status="stopped")
             client.close()
             print("[daemon] stopped")
 
@@ -1027,6 +1050,119 @@ class SpecOrchDaemon:
             print(f"[daemon] evidence analysis skipped: {exc}")
         return None
 
+    def _write_heartbeat(
+        self,
+        *,
+        status: str = "healthy",
+        error: str = "",
+    ) -> None:
+        """Write a heartbeat file for external health monitoring."""
+        heartbeat_path = self._lockdir / self.HEARTBEAT_FILE
+        data = {
+            "status": status,
+            "pid": os.getpid(),
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "epoch": time.time(),
+            "processed_count": len(self._processed),
+            "in_progress": sorted(self._in_progress),
+            "dead_letter_count": len(self._dead_letter),
+            "consecutive_errors": getattr(self, "_consecutive_loop_errors", 0),
+        }
+        if error:
+            data["last_error"] = error[:500]
+        import contextlib
+
+        with contextlib.suppress(OSError):
+            heartbeat_path.write_text(_json.dumps(data, indent=2) + "\n")
+
+    def _emit_error_event(
+        self,
+        kind: str,
+        message: str,
+        *,
+        issue_id: str = "",
+        transient: bool = True,
+    ) -> None:
+        """Publish a structured error event to the EventBus."""
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            self._event_bus.publish(
+                Event(
+                    topic=EventTopic.SYSTEM,
+                    payload={
+                        "kind": kind,
+                        "message": message[:500],
+                        "issue_id": issue_id,
+                        "transient": transient,
+                        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    },
+                )
+            )
+
+    # ---- Dead letter queue management ----
+
+    def get_dead_letter_issues(self) -> list[str]:
+        """Return the current dead letter queue."""
+        return sorted(self._dead_letter)
+
+    def retry_dead_letter(self, issue_id: str) -> bool:
+        """Move an issue out of the dead letter queue for retry."""
+        if issue_id not in self._dead_letter:
+            return False
+        self._dead_letter.discard(issue_id)
+        self._processed.discard(issue_id)
+        self._retry_counts.pop(issue_id, None)
+        retry_file = self._lockdir / f"{issue_id}.retry_at"
+        retry_file.unlink(missing_ok=True)
+        self._release(issue_id)
+        self._save_state()
+        print(f"[daemon] {issue_id} removed from dead letter queue for retry")
+        return True
+
+    def clear_dead_letter(self) -> int:
+        """Clear all issues from the dead letter queue. Returns count removed."""
+        count = len(self._dead_letter)
+        for issue_id in list(self._dead_letter):
+            self._release(issue_id)
+            retry_file = self._lockdir / f"{issue_id}.retry_at"
+            retry_file.unlink(missing_ok=True)
+        self._dead_letter.clear()
+        self._save_state()
+        return count
+
+    @classmethod
+    def read_heartbeat(
+        cls, repo_root: Path, lockfile_dir: str = ".spec_orch_locks/"
+    ) -> dict[str, Any]:
+        """Read the heartbeat file (static — can be called without a running daemon)."""
+        heartbeat_path = repo_root / lockfile_dir / cls.HEARTBEAT_FILE
+        if not heartbeat_path.exists():
+            return {"status": "not_running"}
+        try:
+            data = _json.loads(heartbeat_path.read_text())
+            if isinstance(data, dict):
+                age = time.time() - data.get("epoch", 0)
+                data["age_seconds"] = round(age, 1)
+                if data.get("status") == "healthy" and age > 300:
+                    data["status"] = "stale"
+                return data
+            return {"status": "unknown"}
+        except (_json.JSONDecodeError, OSError):
+            return {"status": "unknown"}
+
+    @classmethod
+    def read_state(cls, repo_root: Path, lockfile_dir: str = ".spec_orch_locks/") -> dict[str, Any]:
+        """Read the daemon state file (static — can be called without a running daemon)."""
+        state_path = repo_root / lockfile_dir / cls.STATE_FILE
+        if not state_path.exists():
+            return {}
+        try:
+            data = _json.loads(state_path.read_text())
+            return data if isinstance(data, dict) else {}
+        except (_json.JSONDecodeError, OSError):
+            return {}
+
     def _handle_signal(self, signum: int, _frame: Any) -> None:
         print(f"\n[daemon] received signal {signum}, shutting down gracefully...")
         self._running = False
@@ -1086,6 +1222,12 @@ class SpecOrchDaemon:
         """Record an issue failure, increment retry counter, move to dead letter if max exceeded."""
         count = self._retry_counts.get(issue_id, 0) + 1
         self._retry_counts[issue_id] = count
+        self._emit_error_event(
+            "daemon.issue_failed",
+            error_msg,
+            issue_id=issue_id,
+            transient=count < self.config.max_retries,
+        )
 
         if count >= self.config.max_retries:
             print(
@@ -1117,11 +1259,20 @@ class SpecOrchDaemon:
             )
 
     def resume_in_progress(self, controller: RunController) -> None:
-        """Resume issues that were in_progress when the daemon last stopped."""
+        """Resume issues that were in_progress when the daemon last stopped.
+
+        Before blindly re-executing, check if a run_artifact already exists
+        with a terminal state — if so, skip the re-execution.
+        """
         if not self._in_progress:
             return
         print(f"[daemon] resuming {len(self._in_progress)} in-progress issues")
         for issue_id in list(self._in_progress):
+            if self._run_already_completed(issue_id, controller):
+                print(f"[daemon] {issue_id}: already completed (found terminal artifact)")
+                self._in_progress.discard(issue_id)
+                self._processed.add(issue_id)
+                continue
             try:
                 result = controller.advance_to_completion(issue_id)
                 print(f"[daemon] resumed {issue_id}: state={result.state.value}")
@@ -1129,7 +1280,26 @@ class SpecOrchDaemon:
                 self._processed.add(issue_id)
             except Exception as exc:
                 print(f"[daemon] resume {issue_id} failed: {exc}")
+                self._emit_error_event("daemon.resume_failed", str(exc), issue_id=issue_id)
                 self._in_progress.discard(issue_id)
+
+    def _run_already_completed(self, issue_id: str, controller: RunController) -> bool:
+        """Check if a run has already reached a terminal state via artifacts."""
+        try:
+            ws = controller.workspace_service.issue_workspace_path(issue_id)
+        except Exception:
+            return False
+        conclusion = ws / "run_artifact" / "conclusion.json"
+        if not conclusion.exists():
+            return False
+        try:
+            data = _json.loads(conclusion.read_text())
+            if not isinstance(data, dict):
+                return False
+            state = data.get("state", "")
+            return state in ("merged", "gate_evaluated", "reviewed", "completed")
+        except (_json.JSONDecodeError, OSError):
+            return False
 
     def _notify(self, issue_id: str, mergeable: bool) -> None:
         status = "mergeable=true" if mergeable else "mergeable=false"
