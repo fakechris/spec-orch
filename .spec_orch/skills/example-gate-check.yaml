@@ -1,0 +1,20 @@
+# Example SpecOrch skill manifest (P4 format-only).
+#
+# Place skill files in `.spec_orch/skills/` as YAML, YML, or JSON.
+# The current system validates format but does NOT auto-load at runtime.
+# See: src/spec_orch/services/skill_format.py
+
+schema_version: "1.0"
+id: example-lint-gate
+name: Lint Gate Check
+kind: gate_check
+version: "0.1.0"
+description: >-
+  Verify that the linter exits 0 before allowing merge.
+  This is an example skill; builtin gate checks already cover this.
+author: spec-orch
+triggers:
+  - gate.evaluate
+params:
+  command: "ruff check ."
+  fail_severity: error
