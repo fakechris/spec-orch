@@ -191,11 +191,22 @@ class HarnessSynthesizer:
                 f"```\n{raw_samples}\n```\n\n"
             )
 
+        success_samples = self._collect_success_samples(failure_data.get("run_ids", []))
+        if success_samples:
+            user_msg += (
+                "Here are samples from SUCCESSFUL runs (rules must NOT flag these "
+                "as violations — use them to avoid false positives):\n"
+                f"```\n{success_samples}\n```\n\n"
+            )
+
         context_block = self._render_context(context)
         if context_block:
             user_msg += context_block
 
-        user_msg += "Propose new pattern-based compliance rules that would catch these failures."
+        user_msg += (
+            "Propose new pattern-based compliance rules that would catch these failures. "
+            "Ensure each proposed rule does NOT match the success samples above."
+        )
 
         try:
             response = self._planner.brainstorm(
@@ -240,6 +251,47 @@ class HarnessSynthesizer:
                         text = obj.get("text") or obj.get("excerpt") or ""
                         if text and len(text) > 10:
                             samples.append(f"[{rd.name}] {text[:300]}")
+                            if len(samples) >= max_samples:
+                                break
+                    except json.JSONDecodeError:
+                        continue
+            except OSError:
+                continue
+
+            if len(samples) >= max_samples:
+                break
+
+        return "\n".join(samples)
+
+    def _collect_success_samples(self, run_ids: list[str], max_samples: int = 10) -> str:
+        """Extract builder event text from successful runs for false-positive guarding."""
+        analyzer = EvidenceAnalyzer(self._repo_root)
+        run_dirs = analyzer._collect_run_dirs()
+        run_id_set = set(run_ids)
+        target_dirs = [d for d in run_dirs if d.name in run_id_set]
+
+        samples: list[str] = []
+        for rd in target_dirs:
+            report = analyzer._read_report(rd)
+            if report is None or not report.get("mergeable", False):
+                continue
+
+            events_path = rd / "telemetry" / "incoming_events.jsonl"
+            if not events_path.exists():
+                events_path = rd / "builder_events.jsonl"
+            if not events_path.exists():
+                continue
+
+            try:
+                for line in events_path.read_text().splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                        text = obj.get("text") or obj.get("excerpt") or ""
+                        if text and len(text) > 10:
+                            samples.append(f"[{rd.name}/OK] {text[:300]}")
                             if len(samples) >= max_samples:
                                 break
                     except json.JSONDecodeError:
