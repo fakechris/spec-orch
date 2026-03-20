@@ -244,23 +244,24 @@ Strategic choice ≠ shipped feature:
 | Source | Direction | Status | Notes |
 |--------|-----------|--------|-------|
 | §IV P1 | **External user end-to-end validation** | ❌ Not done | Product hypothesis; distinct from internal dogfood |
-| §IV P2 | **Run trace + eval harness** | 🟡 Partial | Unified artifacts + events + reaction traces exist; **SON-190 (P6 Harness Evals)** and systematic offline eval still missing |
+| §IV P2 | **Run trace + eval harness** | ✅ Baseline done | `EvalRunner` + `spec-orch eval` CLI merged (PR `#99`, `SON-202`) |
 | §IV P2 | **Skill degradation detection** | ❌ Not done | “Monitor before you optimize” (article 7) — not a standalone system yet |
-| §IV P3 | **Skill system** | ⏸️ Explicitly deferred | Matches CEO “P4 format only” |
-| §IV P3 | **Dashboard / Control Tower** | ❌ Not done | **SON-193 (P5)**; deferred until core loop is stable |
-| CEO flywheel | **P4 Skill Format Definition (format-only)** | ❌ Not done | **SON-192** |
-| CEO flywheel | **P5 Control Tower UI** | ❌ Not done | **SON-193** |
-| CEO flywheel | **P6 Harness Evals** | ❌ Not done | **SON-190** |
+| §IV P3 | **Skill system** | ✅ ✅ P4 format done | Matches CEO “P4 format only” |
+| §IV P3 | **Dashboard / Control Tower** | ✅ Baseline done | Control Tower API merged (PR `#101`, `SON-204`) |
+| CEO flywheel | **P4 Skill Format Definition (format-only)** | ✅ Done | PR `#100`, **SON-192** Done |
+| CEO flywheel | **P5 Control Tower UI** | ✅ Done | PR `#101`, **SON-193** Done |
+| CEO flywheel | **P6 Harness Evals** | ✅ Done | PR `#99`, **SON-190** Done |
 | [context-contract-design](context-contract-design.md) | **Phases 2–3** (case-driven evolution, unified lifecycle, full auto-trigger) | 🟡 Partial / not deep | Phase 1 wiring advanced; evolution still skewed “report-driven” |
 | [Overall roadmap](../plans/2026-03-18-overall-status-and-roadmap.md) **Phase 14+** | **Daemon production hardening, hotfix, conflict resolution** | 🟡 Partial | e.g. **SON-46** still in backlog |
 
 **“Seven planes → three-layer skeleton”**: narrative and progressive simplification, **not** a single checkbox.
 
-### 6.4 Overall snapshot & suggested priority (2026-03-22)
+### 6.4 Overall snapshot & suggested priority (2026-03-23 update)
 
-1. **Direction**: 3/19 + CEO **Credibility Flywheel** + **SELECTIVE_EXPANSION** remain the main line; **P0/P1 code-path items from the directional review are largely landed**.
-2. **Largest gaps**: **external validation**, **eval / harness (P6)**, **Control Tower (P5)**, **skill format (P4)**, **skill degradation detection**, **context-contract Phases 2–3 depth**, **Phase 14 production daemon**.
-3. **Suggested next “most important” slices** (when opening issues): pick one cross-cutting bet — **P6 eval baseline (small step: aligned with existing artifacts)** **or** **P5 minimal control surface**; parallelize **SON-46**-class work if the goal is unattended operation.
+1. **Direction**: 3/19 + CEO **Credibility Flywheel** + **SELECTIVE_EXPANSION** remain the main line.
+2. **CEO Flywheel P0→P6 all baselines landed**: P0 Context Contract ✅ → P1 Unified Artifact ✅ → P2 Reaction Engine ✅ → P4 Skill Format ✅ → P5 Control Tower ✅ → P6 Harness Evals ✅ (PR `#99~101`).
+3. **Remaining gaps**: **external user end-to-end validation**, **skill degradation detection**, **context-contract Phases 2–3 depth**, **Phase 14 production daemon (SON-46)**.
+4. **Suggested next priorities**: (a) **external validation** (dogfood → real users); (b) **SON-46 daemon hardening** (prerequisite for unattended operation); (c) **skill degradation detection** (monitor first).
 
 ### CEO Review Sync (2026-03-19)
 
