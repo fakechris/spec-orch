@@ -57,6 +57,14 @@ def classify_intent(
     """
     if planner is not None and hasattr(planner, "chat_completion"):
         return _llm_classify(message, conversation_history or [], planner, context)
+    from spec_orch.services.event_bus import emit_fallback_safe
+
+    emit_fallback_safe(
+        "IntentClassifier",
+        "llm_classification",
+        "rule_heuristics",
+        "No planner adapter with chat_completion",
+    )
     return _rule_classify(message)
 
 

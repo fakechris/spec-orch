@@ -32,6 +32,7 @@ class EventTopic(enum.StrEnum):
     TOOL_END = "tool.end"
     TURN_END = "turn.end"
     EVAL_SAMPLE = "eval.sample"
+    FALLBACK = "fallback"
 
 
 @dataclass(frozen=True)
@@ -245,6 +246,31 @@ class EventBus:
             )
         )
 
+    def emit_fallback(
+        self,
+        component: str,
+        primary: str,
+        fallback: str,
+        reason: str,
+        issue_id: str = "",
+        **extra: Any,
+    ) -> None:
+        """Record a degradation / fallback event for observability."""
+        self.publish(
+            Event(
+                topic=EventTopic.FALLBACK,
+                payload={
+                    "component": component,
+                    "primary": primary,
+                    "fallback": fallback,
+                    "reason": reason,
+                    "issue_id": issue_id,
+                    **extra,
+                },
+                source=component,
+            )
+        )
+
 
 _global_bus: EventBus | None = None
 _global_lock = threading.Lock()
@@ -265,3 +291,36 @@ def reset_event_bus() -> None:
     global _global_bus
     with _global_lock:
         _global_bus = None
+
+
+def emit_fallback_safe(
+    component: str,
+    primary: str,
+    fallback: str,
+    reason: str,
+    issue_id: str = "",
+    **extra: Any,
+) -> None:
+    """Log a fallback event at WARNING level and publish to EventBus.
+
+    Safe to call from any context — never raises.
+    """
+    logger.warning(
+        "FALLBACK [%s]: %s → %s — %s (issue=%s)",
+        component,
+        primary,
+        fallback,
+        reason,
+        issue_id,
+    )
+    try:
+        get_event_bus().emit_fallback(
+            component=component,
+            primary=primary,
+            fallback=fallback,
+            reason=reason,
+            issue_id=issue_id,
+            **extra,
+        )
+    except Exception:
+        logger.debug("Failed to emit fallback event", exc_info=True)

@@ -92,6 +92,14 @@ def reverse_engineer_spec(
         result: str = planner.generate(prompt)
         return result
 
+    from spec_orch.services.event_bus import emit_fallback_safe
+
+    emit_fallback_safe(
+        "SpecReverseEngineer",
+        "llm_generation",
+        "rule_skeleton",
+        "No planner adapter available",
+    )
     return _rule_based_fallback(title, extracted)
 
 

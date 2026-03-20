@@ -28,21 +28,29 @@ from spec_orch.domain.models import (
     VerificationDetail,
     VerificationSummary,
 )
+from spec_orch.services.context_ranker import (
+    ContextRanker,
+    RankedSection,
+    _detect_chars_per_token,
+)
 
 logger = logging.getLogger(__name__)
 
-_CHARS_PER_TOKEN = 4
-
 
 def _truncate(text: str, max_tokens: int) -> str:
-    limit = max_tokens * _CHARS_PER_TOKEN
+    cpt = _detect_chars_per_token(text)
+    limit = max_tokens * cpt
     if len(text) <= limit:
         return text
-    return text[:limit] + "\n... [truncated]"
+    suffix = "\n... [truncated]"
+    if limit <= len(suffix) + 10:
+        return text[: max(limit, 0)]
+    return text[: limit - len(suffix)] + suffix
 
 
 def _estimate_tokens(text: str) -> int:
-    return len(text) // _CHARS_PER_TOKEN
+    cpt = _detect_chars_per_token(text)
+    return len(text) // cpt
 
 
 class ContextAssembler:
@@ -58,24 +66,65 @@ class ContextAssembler:
     ) -> ContextBundle:
         manifest = self._load_manifest(workspace)
         budget = spec.max_tokens_budget
-        task_budget = budget // 3
-        exec_budget = budget // 3
-        learn_budget = budget - task_budget - exec_budget
+        oversized_budget = budget * 2
 
         task_ctx = self._build_task_context(
-            issue, workspace, task_budget, spec.required_task_fields
+            issue, workspace, oversized_budget, spec.required_task_fields
         )
         exec_ctx = self._build_execution_context(
             workspace,
             manifest,
-            exec_budget,
+            oversized_budget,
             spec.required_execution_fields,
             exclude_framework_events=spec.exclude_framework_events,
         )
         learn_ctx = self._build_learning_context(
-            repo_root or workspace, memory, learn_budget, spec.required_learning_fields
+            repo_root or workspace, memory, oversized_budget, spec.required_learning_fields
         )
+
+        contexts = {"task": task_ctx, "execution": exec_ctx}
+        sections = self._collect_ranked_sections(contexts)
+        if sections:
+            ranked = ContextRanker.allocate(sections, budget)
+            self._apply_ranked_budget(contexts, ranked)
+
         return ContextBundle(task=task_ctx, execution=exec_ctx, learning=learn_ctx)
+
+    _SECTION_DEFS: list[tuple[str, str, int]] = []
+
+    @staticmethod
+    def _section_definitions() -> list[tuple[str, str, int]]:
+        from spec_orch.domain.context import CompactRetentionPriority as P
+
+        return [
+            ("spec_snapshot_text", "task", P.ARCHITECTURE_DECISIONS),
+            ("architecture_notes", "task", P.ARCHITECTURE_DECISIONS),
+            ("file_tree", "execution", P.MODIFIED_FILES),
+            ("git_diff", "execution", P.MODIFIED_FILES),
+            ("builder_events_summary", "execution", P.TOOL_OUTPUT),
+        ]
+
+    @classmethod
+    def _collect_ranked_sections(
+        cls,
+        contexts: dict[str, Any],
+    ) -> list[RankedSection]:
+        sections: list[RankedSection] = []
+        for name, ctx_key, priority in cls._section_definitions():
+            content = getattr(contexts.get(ctx_key), name, None)
+            if content:
+                sections.append(RankedSection(name, content, priority))
+        return sections
+
+    @classmethod
+    def _apply_ranked_budget(
+        cls,
+        contexts: dict[str, Any],
+        ranked: dict[str, str],
+    ) -> None:
+        for name, ctx_key, _ in cls._section_definitions():
+            if name in ranked:
+                setattr(contexts[ctx_key], name, ranked[name])
 
     @staticmethod
     def _load_manifest(workspace: Path) -> ArtifactManifest | None:
@@ -326,17 +375,19 @@ class ContextAssembler:
         return []
 
     @staticmethod
-    def _read_file_tree(workspace: Path) -> str:
+    def _read_file_tree(workspace: Path, *, max_entries: int = 2000) -> str:
         try:
-            result = subprocess.run(
-                ["find", ".", "-type", "f", "-not", "-path", "./.git/*"],
-                cwd=workspace,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            return result.stdout
-        except (subprocess.SubprocessError, FileNotFoundError):
+            lines: list[str] = []
+            for p in sorted(workspace.rglob("*")):
+                if ".git" in p.parts:
+                    continue
+                if p.is_file():
+                    lines.append(str(p.relative_to(workspace)))
+                    if len(lines) >= max_entries:
+                        lines.append(f"... ({max_entries}+ files, truncated)")
+                        break
+            return "\n".join(lines)
+        except OSError:
             return ""
 
     @staticmethod

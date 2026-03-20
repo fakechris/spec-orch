@@ -88,7 +88,14 @@ class MissionLifecycleManager:
 
             self._memory = get_memory_service(repo_root=self.repo_root)
         except Exception:
-            logger.debug("MemoryService unavailable for lifecycle", exc_info=True)
+            from spec_orch.services.event_bus import emit_fallback_safe
+
+            emit_fallback_safe(
+                "LifecycleManager",
+                "memory_service",
+                "no_memory",
+                "MemoryService initialization failed",
+            )
         return self._memory
 
     def _state_path(self) -> Path:

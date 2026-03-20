@@ -149,7 +149,15 @@ class Conductor:
                 context=assembled_context,
             )
         except Exception:
-            logger.warning("intercept: classify_intent failed, degrading to continue")
+            from spec_orch.services.event_bus import emit_fallback_safe
+
+            emit_fallback_safe(
+                "Conductor",
+                "classify_intent",
+                "noop",
+                "classify_intent raised an exception",
+                issue_id=(context or {}).get("issue_id", ""),
+            )
             return _noop
 
         action = self._intent_to_action(signal, stage)
@@ -337,7 +345,14 @@ class Conductor:
                     f"Run `spec-orch mission approve {mission.mission_id}` to start planning."
                 )
             except (ImportError, OSError, ValueError) as exc:
-                logger.warning("Failed to create mission, falling back: %s", exc)
+                from spec_orch.services.event_bus import emit_fallback_safe
+
+                emit_fallback_safe(
+                    "Conductor",
+                    "MissionService",
+                    "local_issue",
+                    str(exc),
+                )
 
         issue_id = f"conductor-{uuid.uuid4().hex[:8]}"
         state.formalized_issues.append(issue_id)

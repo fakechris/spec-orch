@@ -315,7 +315,14 @@ class EvolutionTrigger:
 
                 memory = get_memory_service(repo_root=self._repo_root)
             except Exception:
-                logger.debug("MemoryService unavailable for evolver", exc_info=True)
+                from spec_orch.services.event_bus import emit_fallback_safe
+
+                emit_fallback_safe(
+                    "EvolutionTrigger",
+                    "memory_service",
+                    "no_memory",
+                    "MemoryService initialization failed for evolver",
+                )
             return self._context_assembler.assemble(
                 get_node_context_spec(node_name),
                 issue,

@@ -251,4 +251,13 @@ def smart_detect_project(
         if profile is not None:
             return profile, "llm"
 
+    reason = "offline mode" if offline else "LLM analysis unavailable or failed"
+    from spec_orch.services.event_bus import emit_fallback_safe
+
+    emit_fallback_safe(
+        "SmartProjectAnalyzer",
+        "llm_analysis",
+        "rule_detection",
+        reason,
+    )
     return detect_project(root), "rules"
