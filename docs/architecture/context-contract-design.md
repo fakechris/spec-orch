@@ -1,7 +1,7 @@
 # 上下文治理重构：从"写死 prompt"到"可装配、可追溯的 context contract"
 
 > 日期: 2026-03-17
-> 状态: 设计方案确认，待按 Phase 执行
+> 状态（2026-03-22）: **Phase 0~1 大体已随 Phase 13 / `SON-174` / `SON-177~180` 与统一 artifact 落地**；**Phase 2~3**（进化管线案例化、统一 lifecycle、全自动触发）**仍为深度待办**。总览与「未完成方向性条目」见 [方向性深度拷问 §6.2–6.3](2026-03-19-directional-review.zh.md)。
 > 前置文档:
 > - [编排大脑设计](orchestration-brain-design.md) — 骨架确定性 + 肌肉智能化
 > - [进化管线架构](evolution-trigger-architecture.md) — LLM 决策点审计 + 触发模型
