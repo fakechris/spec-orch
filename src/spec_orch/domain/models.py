@@ -618,16 +618,18 @@ class EvolutionProposal:
     confidence: float = 0.5
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
+    def to_dict(self, *, include_content: bool = True) -> dict[str, Any]:
+        d: dict[str, Any] = {
             "proposal_id": self.proposal_id,
             "evolver_name": self.evolver_name,
             "change_type": self.change_type.value,
-            "content": self.content,
             "evidence_count": len(self.evidence),
             "confidence": self.confidence,
             "created_at": self.created_at,
         }
+        if include_content:
+            d["content"] = self.content
+        return d
 
 
 @dataclass

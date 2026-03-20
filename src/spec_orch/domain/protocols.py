@@ -177,10 +177,11 @@ class WaveExecutor(Protocol):
 
 
 @runtime_checkable
-class Evolver(Protocol):
+class LifecycleEvolver(Protocol):
     """Unified lifecycle for all evolution pipeline nodes.
 
-    Every evolver follows a four-phase lifecycle:
+    Supersedes the simpler ``services.evolver_protocol.Evolver`` with a
+    structured four-phase lifecycle:
       observe  → collect evidence from recent runs
       propose  → generate change proposals from evidence
       validate → verify a proposal before applying

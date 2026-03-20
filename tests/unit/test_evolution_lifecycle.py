@@ -11,7 +11,7 @@ from spec_orch.domain.models import (
     EvolutionProposal,
     EvolutionValidationMethod,
 )
-from spec_orch.domain.protocols import Evolver
+from spec_orch.domain.protocols import LifecycleEvolver
 
 
 class FakeEvolver:
@@ -50,7 +50,7 @@ class FakeEvolver:
 
 def test_fake_evolver_satisfies_protocol() -> None:
     e = FakeEvolver()
-    assert isinstance(e, Evolver)
+    assert isinstance(e, LifecycleEvolver)
 
 
 def test_evolution_proposal_to_dict() -> None:
@@ -88,9 +88,9 @@ def test_change_type_enum_values() -> None:
     assert EvolutionChangeType.HARNESS_RULE == "harness_rule"
 
 
-def test_full_lifecycle_flow() -> None:
+def test_full_lifecycle_flow(tmp_path: Path) -> None:
     e = FakeEvolver()
-    evidence = e.observe([Path("/tmp/run1")])
+    evidence = e.observe([tmp_path / "run1"])
     proposals = e.propose(evidence)
     assert len(proposals) == 1
     outcome = e.validate(proposals[0])
