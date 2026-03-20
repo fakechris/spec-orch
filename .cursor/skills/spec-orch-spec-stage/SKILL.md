@@ -127,6 +127,10 @@ spec-orch rerun SPC-FEAT-1
 | Build complete | `review-issue` → `accept-issue` |
 | Need to re-verify | `rerun` |
 
+## See also (complementary)
+
+- **MR → Review → CI → Merge → Linear**：仓库内 **`.cursor/skills/spec-orch-mr-closed-loop/SKILL.md`**。本 Skill 只管 Spec/问题/批准与 CLI 状态机；合入 `main` 的交付节奏由该 Skill 约束。
+
 ## Key Principle
 
 The coding environment AI is the planner. There is no need for LiteLLM or any
