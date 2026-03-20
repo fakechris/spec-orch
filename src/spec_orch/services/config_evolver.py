@@ -17,6 +17,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.services.io import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 _MIN_RUNS_FOR_SUGGESTION = 5
@@ -258,4 +260,4 @@ class ConfigEvolver:
             ],
         }
         existing.append(entry)
-        self._suggestions_path.write_text(json.dumps(existing, indent=2) + "\n")
+        atomic_write_json(self._suggestions_path, existing)

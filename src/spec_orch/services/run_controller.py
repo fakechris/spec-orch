@@ -40,6 +40,7 @@ from spec_orch.services.deviation_service import (
 )
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
 from spec_orch.services.gate_service import GateService
+from spec_orch.services.io import atomic_write_json
 from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.review_adapter import LocalReviewAdapter
 from spec_orch.services.run_artifact_service import RunArtifactService
@@ -950,7 +951,7 @@ class RunController:
                 "title": issue.title,
             }
         )
-        report_path.write_text(json.dumps(existing, indent=2) + "\n")
+        atomic_write_json(report_path, existing)
 
     def _stub_result(
         self,

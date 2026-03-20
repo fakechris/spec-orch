@@ -16,6 +16,7 @@ from typing import Any
 import yaml
 
 from spec_orch.domain.models import BuilderEvent
+from spec_orch.services.io import atomic_write_json
 
 
 @dataclass(slots=True)
@@ -78,7 +79,7 @@ class ComplianceReport:
         }
 
     def save(self, path: Path) -> None:
-        path.write_text(json.dumps(self.to_dict(), indent=2) + "\n")
+        atomic_write_json(path, self.to_dict())
 
     @classmethod
     def load(cls, path: Path) -> ComplianceReport:

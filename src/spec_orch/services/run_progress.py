@@ -16,6 +16,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from spec_orch.services.io import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,10 +73,7 @@ class RunProgressSnapshot:
         path = workspace / "progress.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         data = asdict(self)
-        path.write_text(
-            json.dumps(data, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        atomic_write_json(path, data)
         return path
 
     @classmethod

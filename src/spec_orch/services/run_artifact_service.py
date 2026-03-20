@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.services.io import atomic_write_json
+
 
 class RunArtifactService:
     """Write unified run artifacts under workspace/run_artifact/."""
@@ -88,7 +90,7 @@ class RunArtifactService:
 
     @staticmethod
     def _write_json(path: Path, payload: dict[str, Any]) -> None:
-        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        atomic_write_json(path, payload)
 
     @staticmethod
     def _build_manifest(

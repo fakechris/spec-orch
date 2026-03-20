@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
+from spec_orch.services.io import atomic_write_json
 
 if TYPE_CHECKING:
     from spec_orch.domain.models import EvolutionOutcome, EvolutionProposal
@@ -130,7 +131,7 @@ class PlanStrategyEvolver:
             "analysis_summary": hint_set.analysis_summary,
             "generated_at": hint_set.generated_at,
         }
-        self._hints_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        atomic_write_json(self._hints_path, data)
 
     def collect_plan_outcomes(self, last_n: int = 20) -> dict[str, Any]:
         """Gather historical plan outcome data for analysis."""

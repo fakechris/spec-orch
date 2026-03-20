@@ -17,6 +17,8 @@ from typing import Any
 
 import yaml
 
+from spec_orch.services.io import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 _EVOLUTION_DIR = ".spec_orch_evolution"
@@ -161,7 +163,7 @@ class FlowPolicyEvolver:
             "created_at": result.created_at,
             "suggestions": [asdict(s) for s in result.suggestions],
         }
-        self._suggestions_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        atomic_write_json(self._suggestions_path, data)
 
     def load_suggestions(self) -> FlowPolicyEvolveResult | None:
         if not self._suggestions_path.exists():

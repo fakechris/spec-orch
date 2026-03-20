@@ -28,6 +28,7 @@ from spec_orch.services.finding_store import (
     resolve_finding,
 )
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
+from spec_orch.services.io import atomic_write_json
 from spec_orch.services.run_controller import RunController
 from spec_orch.services.spec_snapshot_service import (
     create_initial_snapshot,
@@ -1488,7 +1489,7 @@ def daemon_dlq_retry(
     state["processed"] = sorted(processed)
     state_path = repo_root.resolve() / ".spec_orch_locks" / "daemon_state.json"
     try:
-        state_path.write_text(json.dumps(state, indent=2) + "\n")
+        atomic_write_json(state_path, state)
         typer.echo(f"{issue_id} removed from DLQ. Will be retried on next daemon poll.")
     except OSError as exc:
         typer.echo(f"Failed to update state: {exc}")
@@ -1750,7 +1751,7 @@ def selftest_cmd(
     report_dir = root / ".spec_orch"
     report_dir.mkdir(parents=True, exist_ok=True)
     selftest_path = report_dir / "selftest.json"
-    selftest_path.write_text(json.dumps(selftest_report, indent=2, ensure_ascii=False) + "\n")
+    atomic_write_json(selftest_path, selftest_report)
 
     if json_output:
         typer.echo(json.dumps(selftest_report, indent=2, ensure_ascii=False))

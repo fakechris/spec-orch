@@ -27,6 +27,7 @@ from typing import Any
 
 from spec_orch.domain.compliance import default_turn_contract_compliance
 from spec_orch.domain.models import BuilderEvent, BuilderResult, Issue
+from spec_orch.services.io import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +182,7 @@ class AcpxBuilderAdapter:
             "event_count": len(raw_events),
             "session_name": self.session_name,
         }
-        report_path.write_text(json.dumps(report_data, indent=2))
+        atomic_write_json(report_path, report_data)
 
         return BuilderResult(
             succeeded=succeeded,

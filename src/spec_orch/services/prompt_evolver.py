@@ -15,6 +15,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.services.io import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 _PROMPT_HISTORY_FILE = "prompt_history.json"
@@ -124,7 +126,7 @@ class PromptEvolver:
     def save_history(self, variants: list[PromptVariant]) -> None:
         """Persist prompt variant history to disk."""
         data = [asdict(v) for v in variants]
-        self._history_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        atomic_write_json(self._history_path, data)
 
     def get_active_prompt(self) -> PromptVariant | None:
         """Return the currently active prompt variant."""

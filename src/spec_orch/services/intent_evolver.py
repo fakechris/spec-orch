@@ -16,6 +16,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.services.io import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 _HISTORY_FILE = "classifier_prompt_history.json"
@@ -107,9 +109,7 @@ class IntentEvolver:
         return variants
 
     def save_history(self, variants: list[ClassifierVariant]) -> None:
-        self._history_path.write_text(
-            json.dumps([asdict(v) for v in variants], indent=2, ensure_ascii=False) + "\n"
-        )
+        atomic_write_json(self._history_path, [asdict(v) for v in variants])
 
     def get_active(self) -> ClassifierVariant | None:
         for v in self.load_history():
