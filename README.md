@@ -363,7 +363,7 @@ spec-orch policy distill              # Zero-LLM scripts
 
 - [Project Vision](VISION.md) / [项目愿景](VISION.zh.md)
 - [Seven Planes Architecture](docs/architecture/seven-planes.md)
-- [Roadmap v2](docs/plans/2026-03-roadmap-v2.md)
+- [Roadmap & Milestones](docs/plans/2026-03-roadmap-v2.md)
 
 ### Design (Current)
 
