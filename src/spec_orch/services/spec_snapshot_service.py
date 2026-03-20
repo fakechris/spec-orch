@@ -11,6 +11,7 @@ from spec_orch.domain.models import (
     Question,
     SpecSnapshot,
 )
+from spec_orch.services.io import atomic_write_json
 
 
 def write_spec_snapshot(workspace: Path, snapshot: SpecSnapshot) -> Path:
@@ -21,7 +22,7 @@ def write_spec_snapshot(workspace: Path, snapshot: SpecSnapshot) -> Path:
     data["issue"]["context"] = asdict(snapshot.issue.context)
     # IAC migration: "intent" is the canonical name; keep "summary" for compatibility.
     data["issue"]["intent"] = snapshot.issue.summary
-    path.write_text(json.dumps(data, indent=2, default=str) + "\n")
+    atomic_write_json(path, data, default=str)
     return path
 
 

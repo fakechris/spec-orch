@@ -48,5 +48,25 @@ def test_parse_llm_result_sets_llm_detection_method(tmp_path, monkeypatch) -> No
 
     profile = _parse_llm_result(data, tmp_path)
 
+    assert profile is not None
     assert profile.detection_method == "llm"
     assert profile.verification["test"] == ["pytest", "-q"]
+
+
+def test_parse_llm_result_rejects_missing_languages(tmp_path) -> None:
+    result = _parse_llm_result({"verification": {}}, tmp_path)
+    assert result is None
+
+
+def test_parse_llm_result_rejects_non_list_languages(tmp_path) -> None:
+    result = _parse_llm_result({"languages": "python"}, tmp_path)
+    assert result is None
+
+
+def test_parse_llm_result_rejects_non_dict_verification(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "spec_orch.services.smart_project_analyzer._detect_base_branch",
+        lambda _r: "main",
+    )
+    result = _parse_llm_result({"languages": ["python"], "verification": ["pytest"]}, tmp_path)
+    assert result is None

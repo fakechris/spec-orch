@@ -37,6 +37,7 @@ from spec_orch.services.conductor.types import (
     InterceptResult,
 )
 from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.io import atomic_write_json
 from spec_orch.services.node_context_registry import get_node_context_spec
 
 logger = logging.getLogger(__name__)
@@ -721,10 +722,7 @@ class Conductor:
     def _persist_state(self, state: ConductorState) -> None:
         state.updated_at = datetime.now(UTC).isoformat()
         path = self._state_dir / f"{state.thread_id}.json"
-        path.write_text(
-            json.dumps(state.to_dict(), indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        atomic_write_json(path, state.to_dict())
 
     def _load_state(self, path: Path) -> ConductorState:
         try:

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from spec_orch.domain.models import ExecutionPlan, PlanStatus, Wave, WorkPacket
+from spec_orch.services.io import atomic_write_json
 
 
 class PromotionService:
@@ -224,7 +225,7 @@ def save_plan(plan: ExecutionPlan, path: Path) -> None:
             for w in plan.waves
         ],
     }
-    path.write_text(json.dumps(data, indent=2) + "\n")
+    atomic_write_json(path, data)
 
 
 def load_plan(path: Path) -> ExecutionPlan:

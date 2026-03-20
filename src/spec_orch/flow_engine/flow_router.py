@@ -169,11 +169,47 @@ class FlowRouter:
             lines = cleaned.split("\n")
             cleaned = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
 
-        data = json.loads(cleaned)
+        try:
+            data = json.loads(cleaned)
+        except json.JSONDecodeError:
+            logger.warning("LLM routing response is not valid JSON: %s", cleaned[:200])
+            from spec_orch.services.event_bus import emit_fallback_safe
+
+            emit_fallback_safe(
+                "FlowRouter",
+                "llm_json_parse",
+                "default_standard",
+                "LLM returned non-JSON response",
+            )
+            return FlowRoutingDecision(
+                recommended_flow=FlowType.STANDARD,
+                confidence=0.0,
+                reasoning="LLM response was not valid JSON",
+                source="fallback",
+            )
+
+        if not isinstance(data, dict):
+            logger.warning("LLM routing response is not a JSON object: %s", type(data).__name__)
+            from spec_orch.services.event_bus import emit_fallback_safe
+
+            emit_fallback_safe(
+                "FlowRouter",
+                "llm_json_schema",
+                "default_standard",
+                f"Expected JSON object, got {type(data).__name__}",
+            )
+            return FlowRoutingDecision(
+                recommended_flow=FlowType.STANDARD,
+                confidence=0.0,
+                reasoning="LLM response was not a JSON object",
+                source="fallback",
+            )
+
         flow_str = data.get("recommended_flow", "standard")
         try:
             flow = FlowType(flow_str)
         except ValueError:
+            logger.warning("LLM returned unknown flow type %r, defaulting to standard", flow_str)
             flow = FlowType.STANDARD
         return FlowRoutingDecision(
             recommended_flow=flow,

@@ -17,6 +17,7 @@ from typing import Any
 from spec_orch.domain.models import Issue, IssueContext
 from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.event_bus import EventBus, get_event_bus
+from spec_orch.services.io import atomic_write_json
 from spec_orch.services.node_context_registry import get_node_context_spec
 
 logger = logging.getLogger(__name__)
@@ -116,7 +117,7 @@ class MissionLifecycleManager:
     def _save_state(self) -> None:
         path = self._state_path()
         data = {mid: ms.to_dict() for mid, ms in self._states.items()}
-        path.write_text(json.dumps(data, indent=2))
+        atomic_write_json(path, data)
 
     def get_state(self, mission_id: str) -> MissionState | None:
         return self._states.get(mission_id)
@@ -306,7 +307,7 @@ class MissionLifecycleManager:
         plan_dir.mkdir(parents=True, exist_ok=True)
         plan_path = plan_dir / "plan.json"
         plan_dict = asdict(plan)
-        plan_path.write_text(json.dumps(plan_dict, indent=2, default=str))
+        atomic_write_json(plan_path, plan_dict, default=str)
         return plan_dict
 
     def _run_promote(self, mission_id: str) -> list[str]:

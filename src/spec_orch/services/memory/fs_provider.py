@@ -26,6 +26,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from spec_orch.services.io import atomic_write_json
 from spec_orch.services.memory.types import MemoryEntry, MemoryLayer, MemoryQuery
 
 logger = logging.getLogger(__name__)
@@ -220,10 +221,7 @@ class FileSystemMemoryProvider:
             self._rebuild_index()
 
     def _save_index(self) -> None:
-        self._index_path.write_text(
-            json.dumps(self._index, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        atomic_write_json(self._index_path, self._index)
 
     def _rebuild_index(self) -> None:
         self._index = {}

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Literal
 
 from spec_orch.services.config_checker import CheckResult, ConfigChecker
+from spec_orch.services.io import atomic_write_json
 
 
 @dataclass(frozen=True)
@@ -262,10 +263,5 @@ class Doctor:
         target_dir = output_dir or Path(".spec_orch")
         target_dir.mkdir(parents=True, exist_ok=True)
         health_path = target_dir / "health.json"
-        import json
-
-        health_path.write_text(
-            json.dumps(report, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        atomic_write_json(health_path, report)
         return health_path

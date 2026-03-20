@@ -92,3 +92,20 @@ class TestLLMResponseParsing:
         raw = json.dumps({"recommended_flow": "unknown", "confidence": 0.5})
         decision = FlowRouter._parse_llm_response(raw)
         assert decision.recommended_flow == FlowType.STANDARD
+
+    def test_parse_non_json_returns_fallback(self) -> None:
+        decision = FlowRouter._parse_llm_response("This is not JSON at all")
+        assert decision.recommended_flow == FlowType.STANDARD
+        assert decision.source == "fallback"
+        assert decision.confidence == 0.0
+
+    def test_parse_non_dict_json_returns_fallback(self) -> None:
+        decision = FlowRouter._parse_llm_response('["a", "b"]')
+        assert decision.recommended_flow == FlowType.STANDARD
+        assert decision.source == "fallback"
+        assert decision.confidence == 0.0
+
+    def test_parse_json_null_returns_fallback(self) -> None:
+        decision = FlowRouter._parse_llm_response("null")
+        assert decision.recommended_flow == FlowType.STANDARD
+        assert decision.source == "fallback"

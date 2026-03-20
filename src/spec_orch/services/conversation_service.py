@@ -19,6 +19,7 @@ from spec_orch.domain.models import (
     ConversationThread,
     ThreadStatus,
 )
+from spec_orch.services.io import atomic_write_json
 
 _THREADS_DIR = ".spec_orch_threads"
 _COMMAND_RE = re.compile(
@@ -298,7 +299,7 @@ class ConversationService:
                 for m in thread.messages
             ],
         }
-        path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        atomic_write_json(path, data)
 
     def _load_thread(self, path: Path) -> ConversationThread:
         data = json.loads(path.read_text())

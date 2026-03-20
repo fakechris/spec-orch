@@ -15,6 +15,8 @@ import logging
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from spec_orch.services.io import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,7 +73,7 @@ class SkillDegradationDetector:
         path = self._baselines_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         data = {name: asdict(bl) for name, bl in self._baselines.items()}
-        path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        atomic_write_json(path, data)
 
     def record_baseline(self, baseline: SkillBaseline) -> None:
         self._baselines[baseline.skill_name] = baseline

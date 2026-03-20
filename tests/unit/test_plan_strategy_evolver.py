@@ -171,7 +171,12 @@ def test_analyze_non_string_response(tmp_path: Path) -> None:
     assert evolver.analyze() is None
 
 
-def test_analyze_saves_to_disk(tmp_path: Path) -> None:
+def test_analyze_returns_hints_without_persisting(tmp_path: Path) -> None:
+    """analyze() returns a HintSet but does NOT write to disk.
+
+    Persistence is deferred to promote() so that rejected proposals
+    never contaminate scoper_hints.json.
+    """
     rd = tmp_path / ".spec_orch_runs" / "R1"
     _write_report(rd, {"mergeable": True, "failed_conditions": []})
 
@@ -184,10 +189,14 @@ def test_analyze_saves_to_disk(tmp_path: Path) -> None:
     )
 
     evolver = PlanStrategyEvolver(tmp_path, planner=planner)
-    evolver.analyze()
+    hint_set = evolver.analyze()
+
+    assert hint_set is not None
+    assert len(hint_set.hints) == 1
+    assert hint_set.hints[0].text == "A hint"
 
     loaded = evolver.load_hints()
-    assert len(loaded.hints) == 1
+    assert len(loaded.hints) == 0
 
 
 # ------------------------------------------------------------------

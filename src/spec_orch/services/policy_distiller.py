@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
+from spec_orch.services.io import atomic_write_json
 
 if TYPE_CHECKING:
     from spec_orch.domain.context import ContextBundle
@@ -134,7 +135,7 @@ class PolicyDistiller:
     def save_policies(self, policies: list[Policy]) -> None:
         """Persist the policy index to disk."""
         data = [asdict(p) for p in policies]
-        self._index_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        atomic_write_json(self._index_path, data)
 
     def identify_candidates(self, min_occurrences: int = 3) -> list[PolicyCandidate]:
         """Identify recurring task patterns from historical data.

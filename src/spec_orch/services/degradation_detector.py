@@ -7,12 +7,13 @@ Built on top of EvalRunner.
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from spec_orch.services.io import atomic_write_json
 
 if TYPE_CHECKING:
     from spec_orch.services.eval_runner import RunScore
@@ -159,10 +160,7 @@ class DegradationDetector:
 
     def write_report(self, report: DegradationReport, output: Path) -> None:
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(
-            json.dumps(report.to_dict(), indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        atomic_write_json(output, report.to_dict())
 
     @staticmethod
     def _avg_verification(scores: list[RunScore]) -> float | None:

@@ -17,6 +17,7 @@ from spec_orch.services.conflict_resolver import ConflictResolver
 from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.event_bus import Event, EventTopic
 from spec_orch.services.github_pr_service import GitHubPRService
+from spec_orch.services.io import atomic_write_json
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
 from spec_orch.services.linear_write_back import LinearWriteBackService
@@ -143,7 +144,7 @@ class SpecOrchDaemon:
             "last_poll": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
         try:
-            self._state_path.write_text(_json.dumps(data, indent=2) + "\n")
+            atomic_write_json(self._state_path, data)
         except OSError as exc:
             print(f"[daemon] failed to save state: {exc}")
 
@@ -1073,7 +1074,7 @@ class SpecOrchDaemon:
         import contextlib
 
         with contextlib.suppress(OSError):
-            heartbeat_path.write_text(_json.dumps(data, indent=2) + "\n")
+            atomic_write_json(heartbeat_path, data)
 
     def _emit_error_event(
         self,

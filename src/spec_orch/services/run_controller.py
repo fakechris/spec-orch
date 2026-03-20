@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import inspect
-import json
 import logging
-from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
@@ -13,7 +11,6 @@ from spec_orch.domain.compliance import (
     evaluate_pre_action_narration_compliance,
 )
 from spec_orch.domain.models import (
-    ArtifactManifest,
     BuilderResult,
     FlowTransitionEvent,
     FlowType,
@@ -23,7 +20,6 @@ from spec_orch.domain.models import (
     ReviewSummary,
     RunResult,
     RunState,
-    VerificationDetail,
     VerificationSummary,
 )
 from spec_orch.domain.protocols import BuilderAdapter, IssueSource, PlannerAdapter, ReviewAdapter
@@ -43,14 +39,15 @@ from spec_orch.services.gate_service import GateService
 from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.review_adapter import LocalReviewAdapter
 from spec_orch.services.run_artifact_service import RunArtifactService
+from spec_orch.services.run_event_logger import RunEventLogger
 from spec_orch.services.run_progress import RunProgressSnapshot
+from spec_orch.services.run_report_writer import RunReportWriter
 from spec_orch.services.spec_snapshot_service import (
     create_initial_snapshot,
     read_spec_snapshot,
     write_spec_snapshot,
 )
 from spec_orch.services.telemetry_service import TelemetryService
-from spec_orch.services.trace_sampler import TraceSampler
 from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.workspace_service import WorkspaceService
 
@@ -144,7 +141,11 @@ class RunController:
         self.context_assembler = ContextAssembler()
         self._flow_router: FlowRouter | None = None
         self._memory_service: Any | None = None
-        self._trace_sampler = TraceSampler()
+        self._event_logger = RunEventLogger(
+            telemetry_service=self.telemetry_service,
+            live_stream=live_stream,
+        )
+        self._report_writer = RunReportWriter()
 
     def _get_memory(self) -> Any | None:
         """Lazily obtain the MemoryService singleton."""
@@ -215,9 +216,7 @@ class RunController:
         reason: str,
         issue_id: str = "",
     ) -> None:
-        from spec_orch.services.event_bus import emit_fallback_safe
-
-        emit_fallback_safe(
+        RunEventLogger.emit_fallback(
             component=component,
             primary=primary,
             fallback=fallback,
@@ -240,8 +239,8 @@ class RunController:
 
         run_snap = RunProgressSnapshot.create(run_id=run_id, issue_id=issue.issue_id)
 
-        with self._open_activity_logger(workspace) as activity_logger:
-            self._log_and_emit(
+        with self._event_logger.open_activity_logger(workspace) as activity_logger:
+            self._event_logger.log_and_emit(
                 activity_logger=activity_logger,
                 workspace=workspace,
                 run_id=run_id,
@@ -259,7 +258,7 @@ class RunController:
 
             existing_snapshot = read_spec_snapshot(workspace)
             if existing_snapshot is not None and existing_snapshot.approved:
-                self._log_and_emit(
+                self._event_logger.log_and_emit(
                     activity_logger=activity_logger,
                     workspace=workspace,
                     run_id=run_id,
@@ -272,7 +271,7 @@ class RunController:
             else:
                 snapshot = create_initial_snapshot(issue, approved=True)
                 write_spec_snapshot(workspace, snapshot)
-                self._log_and_emit(
+                self._event_logger.log_and_emit(
                     activity_logger=activity_logger,
                     workspace=workspace,
                     run_id=run_id,
@@ -294,7 +293,7 @@ class RunController:
             run_snap.save(workspace)
 
             run_snap.mark_stage_start("verification")
-            self._log_and_emit(
+            self._event_logger.log_and_emit(
                 activity_logger=activity_logger,
                 workspace=workspace,
                 run_id=run_id,
@@ -315,7 +314,7 @@ class RunController:
             )
             run_snap.save(workspace)
 
-            self._log_verification_events(
+            self._event_logger.log_verification_events(
                 workspace=workspace,
                 issue_id=issue.issue_id,
                 run_id=run_id,
@@ -332,7 +331,7 @@ class RunController:
             run_snap.mark_stage_complete("review", success=review.verdict != "rejected")
             run_snap.save(workspace)
 
-            self._log_and_emit(
+            self._event_logger.log_and_emit(
                 activity_logger=activity_logger,
                 workspace=workspace,
                 run_id=run_id,
@@ -398,7 +397,7 @@ class RunController:
             try:
                 target_flow = FlowType(gate.promotion_target)
             except ValueError:
-                self._log_and_emit(
+                self._event_logger.log_and_emit(
                     activity_logger=activity_logger,
                     workspace=workspace,
                     run_id=run_id,
@@ -409,7 +408,7 @@ class RunController:
                 )
                 return
             if _FLOW_ORDER.get(target_flow, 0) <= _FLOW_ORDER.get(resolved_flow, 0):
-                self._log_and_emit(
+                self._event_logger.log_and_emit(
                     activity_logger=activity_logger,
                     workspace=workspace,
                     run_id=run_id,
@@ -428,7 +427,7 @@ class RunController:
                 run_id=run_id,
             )
             record_flow_transition(event)
-            self._log_and_emit(
+            self._event_logger.log_and_emit(
                 activity_logger=activity_logger,
                 workspace=workspace,
                 run_id=run_id,
@@ -449,7 +448,7 @@ class RunController:
                 run_id=run_id,
             )
             record_flow_transition(event)
-            self._log_and_emit(
+            self._event_logger.log_and_emit(
                 activity_logger=activity_logger,
                 workspace=workspace,
                 run_id=run_id,
@@ -464,7 +463,7 @@ class RunController:
             target_step = self.flow_engine.get_backtrack_target(
                 resolved_flow, "gate", gate.backtrack_reason
             )
-            self._log_and_emit(
+            self._event_logger.log_and_emit(
                 activity_logger=activity_logger,
                 workspace=workspace,
                 run_id=run_id,
@@ -492,9 +491,9 @@ class RunController:
         if not workspace.exists():
             raise FileNotFoundError(f"workspace not found for issue {issue_id}")
 
-        report_data = self._load_persisted_run_payload(workspace)
+        report_data = RunReportWriter.load_persisted_run_payload(workspace)
         run_id: str = report_data["run_id"]
-        builder = self._builder_from_report(report_data, workspace)
+        builder = RunReportWriter.builder_from_report(report_data, workspace)
 
         raw_state = report_data.get("state")
         try:
@@ -505,62 +504,9 @@ class RunController:
         try:
             issue = self.issue_source.load(issue_id)
         except Exception:
-            issue = self._issue_from_report(report_data)
+            issue = RunReportWriter.issue_from_report(report_data)
 
         return issue, workspace, report_data, run_id, builder, current_state
-
-    @staticmethod
-    def _load_persisted_run_payload(workspace: Path) -> dict[str, Any]:
-        """Load persisted run payload preferring unified live snapshot.
-
-        Preference order:
-        1) run_artifact/live.json
-        2) report.json
-        """
-        live_path = workspace / "run_artifact" / "live.json"
-        report_path = workspace / "report.json"
-
-        live_data = RunController._read_json_dict(live_path)
-        report_data = RunController._read_json_dict(report_path)
-
-        if live_data:
-            merged = dict(live_data)
-            # Legacy report still carries some compatibility fields.
-            for key in ("human_acceptance", "metadata", "title"):
-                if key in report_data and key not in merged:
-                    merged[key] = report_data[key]
-            if "run_id" not in merged and "run_id" in report_data:
-                merged["run_id"] = report_data["run_id"]
-            return merged
-
-        if report_data:
-            return report_data
-
-        raise FileNotFoundError(f"persisted run payload not found under {workspace}")
-
-    @staticmethod
-    def _read_json_dict(path: Path) -> dict[str, Any]:
-        if not path.exists():
-            return {}
-        try:
-            data = json.loads(path.read_text())
-            return data if isinstance(data, dict) else {}
-        except (json.JSONDecodeError, OSError):
-            return {}
-
-    def _issue_from_report(self, report_data: dict) -> Issue:
-        """Reconstruct a minimal Issue from persisted report.json."""
-        verification_cmds: dict[str, list[str]] = {}
-        for name, detail in report_data.get("verification", {}).items():
-            cmd = detail.get("command", [])
-            if cmd:
-                verification_cmds[name] = cmd
-        return Issue(
-            issue_id=report_data["issue_id"],
-            title=report_data.get("title", report_data["issue_id"]),
-            summary="",
-            verification_commands=verification_cmds,
-        )
 
     def review_issue(
         self,
@@ -572,7 +518,7 @@ class RunController:
         issue, workspace, report_data, run_id, builder, _prev_state = self._load_existing_run(
             issue_id
         )
-        verification = self._verification_from_report(report_data)
+        verification = RunReportWriter.verification_from_report(report_data)
         review = self.review_adapter.review(
             issue_id=issue.issue_id,
             workspace=workspace,
@@ -626,8 +572,8 @@ class RunController:
             issue_id=issue.issue_id,
             accepted_by=accepted_by,
         )
-        verification = self._verification_from_report(report_data)
-        review = self._review_from_report(report_data, workspace)
+        verification = RunReportWriter.verification_from_report(report_data)
+        review = RunReportWriter.review_from_report(report_data, workspace)
         gate, explain, updated_report = self._finalize_run(
             issue=issue,
             workspace=workspace,
@@ -673,7 +619,7 @@ class RunController:
             issue_id
         )
 
-        with self._open_activity_logger(workspace) as activity_logger:
+        with self._event_logger.open_activity_logger(workspace) as activity_logger:
             review = self.review_adapter.initialize(
                 issue_id=issue.issue_id,
                 workspace=workspace,
@@ -683,7 +629,7 @@ class RunController:
             human_acceptance = acceptance_data.get("accepted", False)
             accepted_by = acceptance_data.get("accepted_by")
 
-            self._log_and_emit(
+            self._event_logger.log_and_emit(
                 activity_logger=activity_logger,
                 workspace=workspace,
                 run_id=run_id,
@@ -696,7 +642,7 @@ class RunController:
                 issue=issue,
                 workspace=workspace,
             )
-            self._log_verification_events(
+            self._event_logger.log_verification_events(
                 workspace=workspace,
                 issue_id=issue.issue_id,
                 run_id=run_id,
@@ -717,7 +663,7 @@ class RunController:
                 state=RunState.GATE_EVALUATED,
                 flow_type=self._resolve_flow(issue),
             )
-            self._log_and_emit(
+            self._event_logger.log_and_emit(
                 activity_logger=activity_logger,
                 workspace=workspace,
                 run_id=run_id,
@@ -747,7 +693,7 @@ class RunController:
     def get_state(self, issue_id: str) -> RunState:
         """Return the current persisted state for *issue_id*."""
         workspace = self.workspace_service.issue_workspace_path(issue_id)
-        state = self._read_state(workspace)
+        state = RunReportWriter.read_state(workspace)
         if state is None:
             return RunState.DRAFT
         return state
@@ -799,7 +745,7 @@ class RunController:
     def _load_final_result(self, issue_id: str) -> RunResult:
         """Load a RunResult from persisted report.json for a completed run."""
         issue, workspace, report_data, run_id, builder, state = self._load_existing_run(issue_id)
-        review = self._review_from_report(report_data, workspace)
+        review = RunReportWriter.review_from_report(report_data, workspace)
         gate = GateVerdict(
             mergeable=report_data.get("mergeable", False),
             failed_conditions=report_data.get("failed_conditions", []),
@@ -852,7 +798,7 @@ class RunController:
         run_id = self.telemetry_service.new_run_id(issue.issue_id)
 
         if self.planner_adapter is None:
-            self._persist_state(workspace, issue, run_id, RunState.SPEC_DRAFTING)
+            RunReportWriter.persist_state(workspace, issue, run_id, RunState.SPEC_DRAFTING)
             return self._stub_result(
                 issue,
                 workspace,
@@ -887,7 +833,7 @@ class RunController:
             snapshot.questions.append(q)
         write_spec_snapshot(workspace, snapshot)
 
-        self._persist_state(workspace, issue, run_id, RunState.SPEC_DRAFTING)
+        RunReportWriter.persist_state(workspace, issue, run_id, RunState.SPEC_DRAFTING)
         self.telemetry_service.log_event(
             workspace=workspace,
             run_id=run_id,
@@ -919,7 +865,7 @@ class RunController:
         write_spec_snapshot(workspace, snapshot)
 
         run_id = self.telemetry_service.new_run_id(issue.issue_id)
-        self._persist_state(workspace, issue, run_id, RunState.SPEC_APPROVED)
+        RunReportWriter.persist_state(workspace, issue, run_id, RunState.SPEC_APPROVED)
         self.telemetry_service.log_event(
             workspace=workspace,
             run_id=run_id,
@@ -929,28 +875,6 @@ class RunController:
             message="Spec snapshot approved; ready for building.",
         )
         return self._stub_result(issue, workspace, RunState.SPEC_APPROVED)
-
-    def _persist_state(
-        self,
-        workspace: Path,
-        issue: Issue,
-        run_id: str,
-        state: RunState,
-    ) -> None:
-        """Write a minimal report.json to persist the current state."""
-        report_path = workspace / "report.json"
-        existing: dict[str, Any] = {}
-        if report_path.exists():
-            existing = json.loads(report_path.read_text())
-        existing.update(
-            {
-                "state": state.value,
-                "run_id": run_id,
-                "issue_id": issue.issue_id,
-                "title": issue.title,
-            }
-        )
-        report_path.write_text(json.dumps(existing, indent=2) + "\n")
 
     def _stub_result(
         self,
@@ -986,81 +910,6 @@ class RunController:
             ),
             state=state,
         )
-
-    def _log_and_emit(
-        self,
-        *,
-        activity_logger: ActivityLogger | None = None,
-        workspace: Path,
-        run_id: str,
-        issue_id: str,
-        component: str,
-        event_type: str,
-        severity: str = "info",
-        message: str,
-        adapter: str | None = None,
-        agent: str | None = None,
-        data: dict | None = None,
-    ) -> None:
-        """Log to telemetry and forward to the activity logger."""
-        self.telemetry_service.log_event(
-            workspace=workspace,
-            run_id=run_id,
-            issue_id=issue_id,
-            component=component,
-            event_type=event_type,
-            severity=severity,
-            message=message,
-            adapter=adapter,
-            agent=agent,
-            data=data,
-        )
-        if activity_logger:
-            activity_logger.log(
-                {
-                    "event_type": event_type,
-                    "component": component,
-                    "message": message,
-                    "data": data or {},
-                }
-            )
-
-    def _open_activity_logger(self, workspace: Path) -> ActivityLogger:
-        return ActivityLogger(
-            ActivityLogger.activity_log_path(workspace),
-            live_stream=self._live_stream,
-        )
-
-    def _make_event_logger(
-        self,
-        *,
-        workspace: Path,
-        run_id: str,
-        issue_id: str,
-        activity_logger: ActivityLogger | None = None,
-    ) -> Callable[[dict[str, Any]], None]:
-        def _log(event: dict[str, Any]) -> None:
-            ev_type = event.get("event_type") or event.get("type") or event.get("method", "unknown")
-            msg = event.get("message") or event.get("text", "")
-            if not msg:
-                params = event.get("params", {})
-                msg = params.get("text", "") if isinstance(params, dict) else ""
-            self.telemetry_service.log_event(
-                workspace=workspace,
-                run_id=run_id,
-                issue_id=issue_id,
-                component=event.get("component", "builder"),
-                event_type=str(ev_type),
-                severity=event.get("severity", "info"),
-                message=str(msg) if msg else f"event:{ev_type}",
-                adapter=event.get("adapter"),
-                agent=event.get("agent"),
-                data=event.get("data"),
-            )
-            if activity_logger:
-                activity_logger.log(event.get("data", event))
-
-        return _log
 
     def _finalize_run(
         self,
@@ -1098,7 +947,7 @@ class RunController:
                 issue_id=issue.issue_id,
             )
         )
-        self._log_gate_event(
+        self._event_logger.log_gate_event(
             workspace=workspace,
             issue_id=issue.issue_id,
             run_id=run_id,
@@ -1121,7 +970,7 @@ class RunController:
             verification=verification,
             acceptance_criteria=issue.acceptance_criteria,
         )
-        report = self._write_report(
+        report = RunReportWriter.write_report(
             workspace=workspace,
             issue=issue,
             run_id=run_id,
@@ -1132,7 +981,7 @@ class RunController:
             accepted_by=accepted_by,
             state=state,
         )
-        self._write_artifact_manifest(
+        RunReportWriter.write_artifact_manifest(
             workspace=workspace,
             run_id=run_id,
             issue=issue,
@@ -1149,7 +998,7 @@ class RunController:
             explain_path=explain,
         )
         self._maybe_trigger_evolution(workspace)
-        self._maybe_sample_for_eval(
+        self._event_logger.maybe_sample_for_eval(
             run_id=run_id,
             gate=gate,
             builder=builder,
@@ -1157,39 +1006,13 @@ class RunController:
         )
         return gate, explain, report
 
-    def _maybe_sample_for_eval(
-        self,
-        *,
-        run_id: str,
-        gate: GateVerdict,
-        builder: BuilderResult,
-        issue_id: str,
-    ) -> None:
-        """Use TraceSampler to decide if this run should be queued for eval."""
-        token_count = builder.metadata.get("token_count", 0)
-        has_negative = not gate.mergeable
-        should, reason = self._trace_sampler.should_sample(
-            run_id=run_id,
-            token_count=token_count,
-            has_negative_feedback=has_negative,
-            verdict="pass" if gate.mergeable else "fail",
-        )
-        if should:
-            logger.info("Run %s sampled for eval: %s", run_id, reason)
-            try:
-                from spec_orch.services.event_bus import get_event_bus
-
-                get_event_bus().emit_eval_sample(run_id=run_id, reason=reason, issue_id=issue_id)
-            except Exception:
-                logger.debug("Failed to emit eval sample event", exc_info=True)
-
     def _maybe_trigger_evolution(self, workspace: Path) -> None:
         """Run the evolution cycle if configured and threshold is met."""
         toml_path = self.repo_root / "spec-orch.toml"
         if not toml_path.exists():
             return
         try:
-            toml_data = self._load_toml(toml_path)
+            toml_data = RunReportWriter.load_toml(toml_path)
         except Exception:
             import logging
 
@@ -1280,7 +1103,7 @@ class RunController:
 
         adapter_name = self.builder_adapter.ADAPTER_NAME
         agent_name = self.builder_adapter.AGENT_NAME
-        self._log_and_emit(
+        self._event_logger.log_and_emit(
             activity_logger=activity_logger,
             workspace=workspace,
             run_id=run_id,
@@ -1296,7 +1119,7 @@ class RunController:
                 issue=enriched_issue,
                 workspace=workspace,
                 run_id=run_id,
-                event_logger=self._make_event_logger(
+                event_logger=self._event_logger.make_event_logger(
                     workspace=workspace,
                     run_id=run_id,
                     issue_id=issue.issue_id,
@@ -1332,7 +1155,7 @@ class RunController:
 
         if builder.adapter == adapter_name:
             write_builder_report(builder)
-        self._log_and_emit(
+        self._event_logger.log_and_emit(
             activity_logger=activity_logger,
             workspace=workspace,
             run_id=run_id,
@@ -1346,240 +1169,3 @@ class RunController:
             data={"succeeded": builder.succeeded, "skipped": builder.skipped},
         )
         return builder
-
-    def _log_verification_events(
-        self,
-        *,
-        workspace: Path,
-        issue_id: str,
-        run_id: str,
-        verification: VerificationSummary,
-        activity_logger: ActivityLogger | None = None,
-    ) -> None:
-        for step_name, detail in verification.details.items():
-            self._log_and_emit(
-                activity_logger=activity_logger,
-                workspace=workspace,
-                run_id=run_id,
-                issue_id=issue_id,
-                component="verification",
-                event_type="verification_step_completed",
-                severity="info" if detail.exit_code == 0 else "error",
-                message=f"Verification step completed: {step_name}",
-                data={
-                    "step": step_name,
-                    "exit_code": detail.exit_code,
-                    "command": detail.command,
-                },
-            )
-
-        self._log_and_emit(
-            activity_logger=activity_logger,
-            workspace=workspace,
-            run_id=run_id,
-            issue_id=issue_id,
-            component="verification",
-            event_type="verification_completed",
-            severity="info" if verification.all_passed else "warning",
-            message="Completed verification steps.",
-            data={"all_passed": verification.all_passed},
-        )
-
-    def _log_gate_event(
-        self,
-        *,
-        workspace: Path,
-        issue_id: str,
-        run_id: str,
-        gate: GateVerdict,
-        activity_logger: ActivityLogger | None = None,
-    ) -> None:
-        self._log_and_emit(
-            activity_logger=activity_logger,
-            workspace=workspace,
-            run_id=run_id,
-            issue_id=issue_id,
-            component="gate",
-            event_type="gate_evaluated",
-            severity="info" if gate.mergeable else "warning",
-            message="Evaluated gate verdict.",
-            data={
-                "mergeable": gate.mergeable,
-                "failed_conditions": gate.failed_conditions,
-            },
-        )
-
-    def _builder_from_report(self, report_data: dict, workspace: Path) -> BuilderResult:
-        builder_data = report_data["builder"]
-        return BuilderResult(
-            succeeded=builder_data["succeeded"],
-            command=builder_data.get("command", []),
-            stdout="",
-            stderr="",
-            report_path=workspace / "builder_report.json",
-            adapter=builder_data["adapter"],
-            agent=builder_data["agent"],
-            skipped=builder_data.get("skipped", False),
-            metadata={
-                **builder_data.get("metadata", {}),
-                "turn_contract_compliance": builder_data.get("metadata", {}).get(
-                    "turn_contract_compliance", default_turn_contract_compliance()
-                ),
-            },
-        )
-
-    def _verification_from_report(self, report_data: dict) -> VerificationSummary:
-        details = {
-            name: VerificationDetail(
-                command=detail.get("command", []),
-                exit_code=detail["exit_code"],
-                stdout="",
-                stderr="",
-            )
-            for name, detail in report_data["verification"].items()
-        }
-        summary = VerificationSummary(details=details)
-        for name, detail in details.items():
-            summary.set_step_passed(name, detail.exit_code == 0)
-        return summary
-
-    def _review_from_report(self, report_data: dict, workspace: Path) -> ReviewSummary:
-        review_data = report_data["review"]
-        return ReviewSummary(
-            verdict=review_data["verdict"],
-            reviewed_by=review_data.get("reviewed_by"),
-            report_path=workspace / "review_report.json",
-        )
-
-    @staticmethod
-    def _read_state(workspace: Path) -> RunState | None:
-        """Read persisted run state from unified artifacts or legacy report."""
-        try:
-            data = RunController._load_persisted_run_payload(workspace)
-        except FileNotFoundError:
-            return None
-        raw = data.get("state")
-        if raw is None:
-            return RunState.GATE_EVALUATED
-        try:
-            return RunState(raw)
-        except ValueError:
-            return RunState.GATE_EVALUATED
-
-    @staticmethod
-    def _load_toml(path: Path) -> dict[str, Any]:
-        """Load a TOML file (requires Python 3.11+)."""
-        import tomllib
-
-        with open(path, "rb") as f:
-            return tomllib.load(f)  # type: ignore[no-any-return]
-
-    @staticmethod
-    def _write_artifact_manifest(
-        *,
-        workspace: Path,
-        run_id: str,
-        issue: Issue,
-        builder: BuilderResult,
-        review: ReviewSummary,
-        explain: Path,
-        report: Path,
-    ) -> Path:
-        """Write artifact_manifest.json cataloguing all run artifacts."""
-        artifacts: dict[str, str] = {}
-
-        spec_path = workspace / "spec_snapshot.json"
-        if spec_path.exists():
-            artifacts["spec_snapshot"] = str(spec_path)
-
-        if builder.report_path and builder.report_path.exists():
-            artifacts["builder_report"] = str(builder.report_path)
-
-        events_path = workspace / "telemetry" / "incoming_events.jsonl"
-        if events_path.exists():
-            artifacts["builder_events"] = str(events_path)
-
-        artifacts["report"] = str(report)
-
-        if explain.exists():
-            artifacts["explain"] = str(explain)
-
-        if review.report_path and review.report_path.exists():
-            artifacts["review_report"] = str(review.report_path)
-
-        deviations_path = workspace / "deviations.jsonl"
-        if deviations_path.exists():
-            artifacts["deviations"] = str(deviations_path)
-
-        manifest = ArtifactManifest(
-            run_id=run_id,
-            issue_id=issue.issue_id,
-            artifacts=artifacts,
-            metadata={
-                "compatibility_mode": "legacy_manifest_bridge",
-                "canonical_manifest": str(workspace / "run_artifact" / "manifest.json"),
-            },
-        )
-        manifest_path = workspace / "artifact_manifest.json"
-        manifest_path.write_text(
-            json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False) + "\n"
-        )
-        return manifest_path
-
-    def _write_report(
-        self,
-        *,
-        workspace: Path,
-        issue: Issue,
-        run_id: str,
-        gate,
-        builder: BuilderResult,
-        review: ReviewSummary,
-        verification: VerificationSummary,
-        accepted_by: str | None,
-        state: RunState = RunState.GATE_EVALUATED,
-    ) -> Path:
-        report = workspace / "report.json"
-        report.write_text(
-            json.dumps(
-                {
-                    "state": state.value,
-                    "run_id": run_id,
-                    "issue_id": issue.issue_id,
-                    "title": issue.title,
-                    "mergeable": gate.mergeable,
-                    "failed_conditions": gate.failed_conditions,
-                    "builder": {
-                        "succeeded": builder.succeeded,
-                        "skipped": builder.skipped,
-                        "command": builder.command,
-                        "report_path": str(builder.report_path),
-                        "adapter": builder.adapter,
-                        "agent": builder.agent,
-                        "metadata": builder.metadata,
-                    },
-                    "review": {
-                        "verdict": review.verdict,
-                        "reviewed_by": review.reviewed_by,
-                        "report_path": str(review.report_path) if review.report_path else None,
-                    },
-                    "verification": {
-                        name: {
-                            "exit_code": detail.exit_code,
-                            "command": detail.command,
-                        }
-                        for name, detail in verification.details.items()
-                    },
-                    "human_acceptance": {
-                        "accepted": accepted_by is not None,
-                        "accepted_by": accepted_by,
-                        "acceptance_path": str(workspace / "acceptance.json")
-                        if accepted_by is not None
-                        else None,
-                    },
-                },
-                indent=2,
-            )
-            + "\n"
-        )
-        return report

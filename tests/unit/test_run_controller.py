@@ -204,7 +204,7 @@ def test_run_issue_closes_activity_logger_on_exception(tmp_path: Path) -> None:
     controller = RunController(repo_root=tmp_path)
     logger = _TrackingActivityLogger()
 
-    controller._open_activity_logger = lambda _workspace: logger
+    controller._event_logger.open_activity_logger = lambda _workspace: logger
     controller.verification_service.run = _raise_runtime_error
 
     with pytest.raises(RuntimeError, match="boom"):
@@ -238,7 +238,7 @@ def test_rerun_issue_closes_activity_logger_on_exception(tmp_path: Path) -> None
     controller.run_issue("SPC-RERR")
     logger = _TrackingActivityLogger()
 
-    controller._open_activity_logger = lambda _workspace: logger
+    controller._event_logger.open_activity_logger = lambda _workspace: logger
     controller.verification_service.run = _raise_runtime_error
 
     with pytest.raises(RuntimeError, match="boom"):
