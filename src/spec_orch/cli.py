@@ -1230,6 +1230,82 @@ def daemon_status(
         typer.echo("State:     no persisted state found")
 
 
+@daemon_app.command("health")
+def daemon_health(
+    repo_root: Path = typer.Option(".", "--repo-root", "-r"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
+) -> None:
+    """Show daemon health from heartbeat file (no service query)."""
+    from spec_orch.services.daemon import SpecOrchDaemon
+
+    hb = SpecOrchDaemon.read_heartbeat(repo_root.resolve())
+    if json_output:
+        typer.echo(json.dumps(hb, indent=2))
+        return
+    status = hb.get("status", "unknown")
+    typer.echo(f"Status:       {status}")
+    typer.echo(f"PID:          {hb.get('pid', '-')}")
+    typer.echo(f"Timestamp:    {hb.get('timestamp', '-')}")
+    typer.echo(f"Age:          {hb.get('age_seconds', '-')}s")
+    typer.echo(f"Processed:    {hb.get('processed_count', '-')}")
+    typer.echo(f"In progress:  {hb.get('in_progress', [])}")
+    typer.echo(f"Dead letter:  {hb.get('dead_letter_count', '-')}")
+    if hb.get("last_error"):
+        typer.echo(f"Last error:   {hb['last_error']}")
+    if status in ("stale", "not_running"):
+        raise typer.Exit(1)
+
+
+@daemon_app.command("dlq")
+def daemon_dlq(
+    repo_root: Path = typer.Option(".", "--repo-root", "-r"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Show dead letter queue contents."""
+    from spec_orch.services.daemon import SpecOrchDaemon
+
+    state = SpecOrchDaemon.read_state(repo_root.resolve())
+    dlq = state.get("dead_letter", [])
+    retry_counts = state.get("retry_counts", {})
+    if json_output:
+        typer.echo(json.dumps({"dead_letter": dlq, "retry_counts": retry_counts}, indent=2))
+        return
+    if not dlq:
+        typer.echo("Dead letter queue is empty.")
+        return
+    typer.echo(f"Dead letter queue ({len(dlq)} issues):")
+    for issue_id in dlq:
+        typer.echo(f"  - {issue_id}")
+
+
+@daemon_app.command("dlq-retry")
+def daemon_dlq_retry(
+    issue_id: str = typer.Argument(..., help="Issue ID to move out of DLQ."),
+    repo_root: Path = typer.Option(".", "--repo-root", "-r"),
+) -> None:
+    """Remove an issue from the dead letter queue for retry."""
+    from spec_orch.services.daemon import SpecOrchDaemon
+
+    state = SpecOrchDaemon.read_state(repo_root.resolve())
+    dlq = set(state.get("dead_letter", []))
+    if issue_id not in dlq:
+        typer.echo(f"{issue_id} is not in the dead letter queue.")
+        raise typer.Exit(1)
+    dlq.discard(issue_id)
+    state["dead_letter"] = sorted(dlq)
+    state.get("retry_counts", {}).pop(issue_id, None)
+    processed = set(state.get("processed", []))
+    processed.discard(issue_id)
+    state["processed"] = sorted(processed)
+    state_path = repo_root.resolve() / ".spec_orch_locks" / "daemon_state.json"
+    try:
+        state_path.write_text(json.dumps(state, indent=2) + "\n")
+        typer.echo(f"{issue_id} removed from DLQ. Will be retried on next daemon poll.")
+    except OSError as exc:
+        typer.echo(f"Failed to update state: {exc}")
+        raise typer.Exit(1) from None
+
+
 @daemon_app.command("install")
 def daemon_install(
     config: Path = typer.Option(
