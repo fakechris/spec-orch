@@ -183,6 +183,73 @@ class PolicyDistiller:
         candidates.sort(key=lambda x: x["occurrences"], reverse=True)
         return candidates
 
+    def identify_trajectory_candidates(self) -> list[dict[str, Any]]:
+        """Find "failure → fix → success" trajectories for the same issue.
+
+        A trajectory exists when a previous run for the same issue failed, but
+        a later run succeeded — the diff between them encodes a causal fix.
+        """
+        analyzer = EvidenceAnalyzer(self._repo_root)
+        run_dirs = analyzer.collect_run_dirs()
+
+        issue_runs: dict[str, list[tuple[Path, dict[str, Any]]]] = {}
+        for rd in run_dirs:
+            conclusion = self._read_conclusion(rd)
+            if conclusion is None:
+                continue
+            issue_id = conclusion.get("issue_id", "")
+            if not issue_id:
+                continue
+            issue_runs.setdefault(issue_id, []).append((rd, conclusion))
+
+        trajectories: list[dict[str, Any]] = []
+        for issue_id, runs in issue_runs.items():
+            successes = [(rd, c) for rd, c in runs if c.get("mergeable")]
+            failures = [(rd, c) for rd, c in runs if not c.get("mergeable")]
+            if not successes or not failures:
+                continue
+            success_rd, success_c = successes[-1]
+            failure_rd, failure_c = failures[-1]
+            trajectories.append(
+                {
+                    "issue_id": issue_id,
+                    "failure_run": failure_rd.name,
+                    "success_run": success_rd.name,
+                    "failure_conditions": failure_c.get("failed_conditions", []),
+                    "fix_summary": self._extract_fix_diff(failure_rd, success_rd),
+                }
+            )
+
+        return trajectories
+
+    @staticmethod
+    def _read_conclusion(run_dir: Path) -> dict[str, Any] | None:
+        for p in (
+            run_dir / "run_artifact" / "conclusion.json",
+            run_dir / "conclusion.json",
+        ):
+            if p.exists():
+                try:
+                    data: dict[str, Any] = json.loads(p.read_text())
+                    return data
+                except (json.JSONDecodeError, OSError):
+                    pass
+        return None
+
+    @staticmethod
+    def _extract_fix_diff(failure_dir: Path, success_dir: Path) -> str:
+        """Best-effort extraction of what changed between failure and success runs."""
+        try:
+            result = subprocess.run(
+                ["diff", "-rq", str(failure_dir), str(success_dir)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            return result.stdout[:500]
+        except (subprocess.SubprocessError, FileNotFoundError):
+            return ""
+
     def distill(
         self,
         task_description: str | None = None,

@@ -12,9 +12,12 @@ import logging
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
+
+if TYPE_CHECKING:
+    from spec_orch.domain.models import EvolutionOutcome, EvolutionProposal
 
 logger = logging.getLogger(__name__)
 
@@ -355,3 +358,58 @@ class PlanStrategyEvolver:
         existing.generated_at = new_hints.generated_at
         self.save_hints(existing)
         return existing
+
+    def to_proposals(self, hint_set: HintSet) -> list[EvolutionProposal]:
+        """Convert a HintSet into EvolutionProposals for lifecycle validation."""
+        from spec_orch.domain.models import EvolutionChangeType, EvolutionProposal
+
+        proposals: list[EvolutionProposal] = []
+        for h in hint_set.hints:
+            proposals.append(
+                EvolutionProposal(
+                    proposal_id=f"pse-{h.hint_id}",
+                    evolver_name="plan_strategy_evolver",
+                    change_type=EvolutionChangeType.SCOPER_HINT,
+                    content={"hint_id": h.hint_id, "text": h.text, "evidence": h.evidence},
+                    confidence={"high": 0.9, "medium": 0.6, "low": 0.3}.get(h.confidence, 0.5),
+                    created_at=h.created_at or datetime.now(UTC).isoformat(),
+                )
+            )
+        return proposals
+
+    def validate_proposal(self, proposal: EvolutionProposal) -> EvolutionOutcome:
+        """Validate a scoper-hint proposal using EvalRunner comparison.
+
+        Currently uses a lightweight rule-based check: reject low-confidence
+        proposals.  Future: A/B test via EvalRunner.
+        """
+        from spec_orch.domain.models import EvolutionOutcome, EvolutionValidationMethod
+
+        accepted = proposal.confidence >= 0.5
+        return EvolutionOutcome(
+            proposal_id=proposal.proposal_id,
+            accepted=accepted,
+            validation_method=EvolutionValidationMethod.RULE_VALIDATOR,
+            metrics={"confidence": proposal.confidence},
+            reason="" if accepted else "confidence below threshold (0.5)",
+        )
+
+    def promote_proposal(self, proposal: EvolutionProposal) -> bool:
+        """Promote a validated scoper-hint proposal: write hint to disk."""
+        content = proposal.content
+        hint = ScoperHint(
+            hint_id=content.get("hint_id", proposal.proposal_id),
+            text=content.get("text", ""),
+            evidence=content.get("evidence", ""),
+            confidence="high" if proposal.confidence >= 0.8 else "medium",
+            created_at=proposal.created_at,
+        )
+        if not hint.text:
+            return False
+        new_set = HintSet(
+            hints=[hint],
+            analysis_summary="auto-promoted via lifecycle",
+            generated_at=datetime.now(UTC).isoformat(),
+        )
+        self.merge_hints(new_set)
+        return True
