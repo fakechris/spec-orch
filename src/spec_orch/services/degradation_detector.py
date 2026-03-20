@@ -12,7 +12,10 @@ import logging
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from spec_orch.services.eval_runner import RunScore
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +96,13 @@ class DegradationDetector:
                 recent_runs=len(recent),
             )
 
+        if not recent:
+            return DegradationReport(
+                generated_at=datetime.now(UTC).isoformat(),
+                baseline_runs=len(baseline),
+                recent_runs=0,
+            )
+
         signals: list[DegradationSignal] = []
 
         b_pass = sum(1 for s in baseline if s.mergeable) / len(baseline)
@@ -126,7 +136,9 @@ class DegradationDetector:
 
         b_dev = sum(s.deviation_count for s in baseline) / len(baseline)
         r_dev = sum(s.deviation_count for s in recent) / len(recent)
-        if b_dev > 0 and r_dev > b_dev * (1 + self.threshold):
+        if (b_dev == 0 and r_dev > self.threshold) or (
+            b_dev > 0 and r_dev > b_dev * (1 + self.threshold)
+        ):
             signals.append(
                 DegradationSignal(
                     metric="avg_deviations",
@@ -153,6 +165,6 @@ class DegradationDetector:
         )
 
     @staticmethod
-    def _avg_verification(scores: list) -> float | None:
+    def _avg_verification(scores: list[RunScore]) -> float | None:
         vals = [s.verification_pass_rate for s in scores if s.verification_pass_rate is not None]
         return (sum(vals) / len(vals)) if vals else None

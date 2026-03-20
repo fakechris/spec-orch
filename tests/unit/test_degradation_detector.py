@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 from spec_orch.services.degradation_detector import DegradationDetector
 
 
-def _write_runs(tmp_path: Path, count: int, mergeable_fn) -> None:
+def _write_runs(tmp_path: Path, count: int, mergeable_fn: Callable[[int], bool]) -> None:
     """Create count run directories with conclusion.json."""
     runs = tmp_path / ".spec_orch_runs"
     for i in range(count):

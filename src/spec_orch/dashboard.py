@@ -356,6 +356,9 @@ def _control_degradation(repo_root: Path) -> dict[str, Any]:
         report = detector.detect()
         return report.to_dict()
     except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "Degradation detection failed for Control Tower", exc_info=True
+        )
         return {"degraded": False, "error": str(exc)}
 
 
