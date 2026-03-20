@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -446,3 +447,86 @@ def test_daemon_run_reactions_comment_once(tmp_path: Path) -> None:
     daemon._run_reactions(client, gh, pr_meta)
 
     assert client.add_comment.call_count == 1
+
+
+def test_daemon_run_reactions_merge_method_from_params(tmp_path: Path) -> None:
+    from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
+
+    daemon = SpecOrchDaemon(
+        config=DaemonConfig({"linear": {"team_key": "SON"}}), repo_root=tmp_path
+    )
+    daemon._reaction_engine = MagicMock()
+    daemon._reaction_engine.evaluate.return_value = [
+        ReactionDecision(
+            rule_name="approved-and-green",
+            action="auto_merge",
+            reason="ok",
+            params={"merge_method": "merge"},
+        )
+    ]
+
+    client = MagicMock()
+    client.list_issues.return_value = [{"identifier": "SON-1", "id": "uid-1"}]
+    gh = MagicMock()
+    gh.get_pr_signal.return_value = {
+        "review_decision": "APPROVED",
+        "checks_passed": True,
+        "mergeable": True,
+    }
+    gh.merge_pr.return_value = True
+
+    pr_meta = {"SON-1": {"number": 12, "sha": "abc123"}}
+    daemon._run_reactions(client, gh, pr_meta)
+
+    gh.merge_pr.assert_called_once()
+    assert gh.merge_pr.call_args.kwargs["method"] == "merge"
+
+
+def test_daemon_run_reactions_requeue_ready(tmp_path: Path) -> None:
+    from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
+
+    daemon = SpecOrchDaemon(
+        config=DaemonConfig({"linear": {"team_key": "SON"}}), repo_root=tmp_path
+    )
+    daemon._reaction_engine = MagicMock()
+    daemon._reaction_engine.evaluate.return_value = [
+        ReactionDecision(rule_name="rq", action="requeue_ready", reason="r")
+    ]
+
+    client = MagicMock()
+    client.list_issues.return_value = [{"identifier": "SON-9", "id": "uid-9"}]
+    gh = MagicMock()
+    gh.get_pr_signal.return_value = {"checks_failed": True}
+
+    pr_meta = {"SON-9": {"number": 99, "sha": "abc123"}}
+    daemon._run_reactions(client, gh, pr_meta)
+    daemon._run_reactions(client, gh, pr_meta)
+
+    client.update_issue_state.assert_called_once_with("uid-9", "Ready")
+
+
+def test_daemon_run_reactions_writes_trace_jsonl(tmp_path: Path) -> None:
+    from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
+
+    daemon = SpecOrchDaemon(
+        config=DaemonConfig({"linear": {"team_key": "SON"}}), repo_root=tmp_path
+    )
+    daemon._reaction_engine = MagicMock()
+    daemon._reaction_engine.evaluate.return_value = [
+        ReactionDecision(rule_name="noop", action="noop", reason="n")
+    ]
+
+    client = MagicMock()
+    gh = MagicMock()
+    gh.get_pr_signal.return_value = {"checks_failed": True}
+
+    pr_meta = {"SON-3": {"number": 7, "sha": "fff"}}
+    daemon._run_reactions(client, gh, pr_meta)
+
+    trace = tmp_path / ".spec_orch" / "reactions_trace.jsonl"
+    assert trace.exists()
+    lines = trace.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+    rec = json.loads(lines[0])
+    assert rec["action"] == "noop"
+    assert rec["issue_id"] == "SON-3"

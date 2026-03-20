@@ -220,7 +220,8 @@ implemented in code and synchronized into planning execution systems (Linear).
 | Project detection LLM-first + rules fallback | ✅ Done | Linear Epic `SON-175` + issues `SON-181~184` completed |
 | Spec format standardization to IAC | ✅ Done | Linear Epic `SON-176` + issues `SON-185~188` completed |
 | ContextAssembler full integration across LLM nodes | ✅ Done | Linear Epic `SON-174`; issues `SON-177~180` merged via PR `#85~87` |
-| Unified run artifact schema (P1 baseline) | 🔄 In progress | `SON-194` / `SON-195` merged (PR `#88` / `#89`), `SON-196` in progress |
+| Unified run artifact schema (P1 baseline) | ✅ Done | `SON-194`–`SON-200` merged; `run_artifact/*` is canonical, `artifact_manifest.json` is compatibility bridge |
+| Reaction engine (P2) | 🔄 In progress | Rules + `get_pr_signal` + daemon loop merged; **P2-B** configurable `params` (`comment_template`, `merge_method`), YAML validation; **P2-C** `requeue_ready`; **P2-D** `.spec_orch/reactions_trace.jsonl` + `SYSTEM` events |
 | README / user-facing init docs synced to new behavior | ✅ Done | `README.md` / `README.zh.md` include `--offline` / `--reconfigure` |
 | Flywheel roadmap (P1/P2/P5/P6/P4-format) represented in Linear epics | ✅ Done | Planning epics `SON-189~193` created and labeled `epic` |
 

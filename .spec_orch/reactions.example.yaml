@@ -1,0 +1,38 @@
+# SpecOrch reaction recipe (example — copy to `.spec_orch/reactions.yaml`).
+#
+# Triggers: ci_failed | changes_requested | approved_and_green
+# Actions:
+#   - comment_ci_failed / comment_changes_requested (optional comment_template)
+#   - auto_merge (optional merge_method: squash|merge|rebase)
+#   - requeue_ready — move Linear issue from In Review → consume_state (e.g. Ready)
+#   - noop — record trace only
+#
+# Placeholders in comment_template: {issue_id} {pr_number} {sha} {consume_state}
+# {review_decision} {merge_state} {checks_passed} {checks_failed} {mergeable}
+
+reactions:
+  - name: ci-failed
+    trigger: ci_failed
+    action: comment_ci_failed
+    params:
+      comment_template: |
+        ## CI failed on PR #{pr_number} ({issue_id})
+
+        Please fix and push; SpecOrch daemon will pick up the new commit.
+
+  - name: changes-requested
+    trigger: changes_requested
+    action: comment_changes_requested
+    enabled: true
+
+  - name: approved-and-green
+    trigger: approved_and_green
+    action: auto_merge
+    params:
+      merge_method: squash
+
+  # Example: auto re-queue for another builder pass (optional; can duplicate triggers carefully)
+  # - name: ci-requeue
+  #   trigger: ci_failed
+  #   action: requeue_ready
+  #   enabled: false
