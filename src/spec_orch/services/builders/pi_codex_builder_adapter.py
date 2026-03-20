@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 from pathlib import Path
 
 from spec_orch.domain.models import BuilderResult, Issue
+from spec_orch.services.io import atomic_write_json
 
 
 class PiCodexBuilderAdapter:
@@ -77,19 +77,16 @@ class PiCodexBuilderAdapter:
         return env
 
     def _write_report(self, result: BuilderResult) -> None:
-        result.report_path.write_text(
-            json.dumps(
-                {
-                    "succeeded": result.succeeded,
-                    "skipped": result.skipped,
-                    "command": result.command,
-                    "stdout": result.stdout,
-                    "stderr": result.stderr,
-                    "adapter": result.adapter,
-                    "agent": result.agent,
-                    "metadata": result.metadata,
-                },
-                indent=2,
-            )
-            + "\n"
+        atomic_write_json(
+            result.report_path,
+            {
+                "succeeded": result.succeeded,
+                "skipped": result.skipped,
+                "command": result.command,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "adapter": result.adapter,
+                "agent": result.agent,
+                "metadata": result.metadata,
+            },
         )

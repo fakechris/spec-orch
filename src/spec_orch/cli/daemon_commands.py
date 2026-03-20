@@ -178,15 +178,31 @@ def daemon_health(
         raise typer.Exit(1)
 
 
+def _resolve_lockfile_dir(
+    config: Path,
+    repo_root: Path,
+) -> str:
+    """Read lockfile_dir from daemon config, falling back to default."""
+    from spec_orch.services.daemon import DaemonConfig
+
+    try:
+        cfg = DaemonConfig.from_toml(config)
+        return cfg.lockfile_dir
+    except Exception:
+        return ".spec_orch_locks/"
+
+
 @daemon_app.command("dlq")
 def daemon_dlq(
     repo_root: Path = typer.Option(".", "--repo-root", "-r"),
+    config: Path = typer.Option("spec-orch.toml", "--config", "-c", help="Path to spec-orch.toml."),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Show dead letter queue contents."""
     from spec_orch.services.daemon import SpecOrchDaemon
 
-    state = SpecOrchDaemon.read_state(repo_root.resolve())
+    lockfile_dir = _resolve_lockfile_dir(config, repo_root)
+    state = SpecOrchDaemon.read_state(repo_root.resolve(), lockfile_dir=lockfile_dir)
     dlq = state.get("dead_letter", [])
     retry_counts = state.get("retry_counts", {})
     if json_output:
@@ -204,11 +220,13 @@ def daemon_dlq(
 def daemon_dlq_retry(
     issue_id: str = typer.Argument(..., help="Issue ID to move out of DLQ."),
     repo_root: Path = typer.Option(".", "--repo-root", "-r"),
+    config: Path = typer.Option("spec-orch.toml", "--config", "-c", help="Path to spec-orch.toml."),
 ) -> None:
     """Remove an issue from the dead letter queue for retry."""
     from spec_orch.services.daemon import SpecOrchDaemon
 
-    state = SpecOrchDaemon.read_state(repo_root.resolve())
+    lockfile_dir = _resolve_lockfile_dir(config, repo_root)
+    state = SpecOrchDaemon.read_state(repo_root.resolve(), lockfile_dir=lockfile_dir)
     dlq = set(state.get("dead_letter", []))
     if issue_id not in dlq:
         typer.echo(f"{issue_id} is not in the dead letter queue.")
@@ -219,7 +237,7 @@ def daemon_dlq_retry(
     processed = set(state.get("processed", []))
     processed.discard(issue_id)
     state["processed"] = sorted(processed)
-    state_path = repo_root.resolve() / ".spec_orch_locks" / "daemon_state.json"
+    state_path = repo_root.resolve() / lockfile_dir / "daemon_state.json"
     try:
         atomic_write_json(state_path, state)
         typer.echo(f"{issue_id} removed from DLQ. Will be retried on next daemon poll.")

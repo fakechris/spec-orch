@@ -261,20 +261,14 @@ class EvolutionTrigger:
             for proposal in proposals:
                 outcome = evolver.validate(proposal)
                 if outcome.accepted:
-                    if self._config.auto_promote:
-                        ok = evolver.promote(proposal)
-                        if ok:
-                            promoted_any = True
-                            logger.info(
-                                "%s: promoted proposal %s",
-                                name,
-                                proposal.proposal_id,
-                            )
-                    else:
+                    ok = evolver.promote(proposal)
+                    if ok:
+                        promoted_any = True
                         logger.info(
-                            "%s: proposal %s accepted (auto_promote off)",
+                            "%s: promoted proposal %s%s",
                             name,
                             proposal.proposal_id,
+                            "" if self._config.auto_promote else " (persisted for review)",
                         )
 
             self._update_result_flags(name, result, proposals, promoted_any)

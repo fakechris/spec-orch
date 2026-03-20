@@ -15,6 +15,7 @@ from typing import Any
 
 from spec_orch.domain.compliance import default_turn_contract_compliance
 from spec_orch.domain.models import BuilderEvent, BuilderResult, Issue
+from spec_orch.services.io import atomic_write_json
 
 PREAMBLE = (
     "You are the SpecOrch builder for this issue workspace. "
@@ -260,20 +261,16 @@ def _short_description(event: dict[str, Any]) -> str:
 
 
 def _write_report(result: BuilderResult) -> None:
-    result.report_path.write_text(
-        json.dumps(
-            {
-                "succeeded": result.succeeded,
-                "skipped": result.skipped,
-                "command": result.command,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "adapter": result.adapter,
-                "agent": result.agent,
-                "metadata": result.metadata,
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+    atomic_write_json(
+        result.report_path,
+        {
+            "succeeded": result.succeeded,
+            "skipped": result.skipped,
+            "command": result.command,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "adapter": result.adapter,
+            "agent": result.agent,
+            "metadata": result.metadata,
+        },
     )
