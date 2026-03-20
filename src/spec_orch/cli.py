@@ -3,6 +3,7 @@ from __future__ import annotations
 import enum
 import importlib.metadata
 import json
+import logging as _logging
 import os
 import re
 import shlex
@@ -159,7 +160,6 @@ def init_project(
     Rule-based detection scans for marker files (pyproject.toml, package.json,
     Cargo.toml, go.mod, etc.) and applies language-specific defaults.
     """
-    from spec_orch.services.config_checker import ConfigChecker
     from spec_orch.services.project_detector import generate_toml_config
     from spec_orch.services.smart_project_analyzer import smart_detect_project
 
@@ -208,17 +208,28 @@ def init_project(
     config_path.write_text(toml_content)
     typer.echo(f"\nWrote {config_path}")
 
-    typer.echo("\nRunning config check...")
-    checker = ConfigChecker()
-    results = checker.check_toml(config_path)
-    if profile != ProfileLevel.full:
-        results = [r for r in results if r.status != "fail" or "Missing section" not in r.message]
-    _print_check_report(results)
-    if profile != ProfileLevel.full:
-        typer.echo(
-            f"\nNote: '{profile.value}' profile omits optional sections. "
-            "Run 'spec-orch init --profile full' for a complete config."
-        )
+    env_path = root / ".env"
+    if not env_path.exists():
+        example_path = root / ".env.example"
+        if example_path.exists():
+            import shutil as _shutil
+
+            _shutil.copy2(example_path, env_path)
+            typer.echo(f"Copied {example_path} → {env_path}")
+            typer.echo("Edit .env to set your API keys before using spec-orch.")
+        else:
+            typer.echo("Tip: create a .env file with SPEC_ORCH_LLM_API_KEY=your-key")
+
+    typer.echo("\nRunning preflight check...")
+    from click import get_current_context
+
+    ctx = get_current_context()
+    ctx.invoke(
+        preflight_cmd,
+        repo_root=root,
+        json_output=False,
+        try_llm=False,
+    )
 
 
 def _read_init_detection_mode(config_path: Path) -> str | None:
@@ -248,7 +259,7 @@ def dashboard(
     try:
         import uvicorn
     except ImportError:
-        typer.echo("uvicorn not installed. Run: pip install fastapi uvicorn")
+        typer.echo("Dashboard dependencies missing. Run: pip install 'spec-orch[dashboard]'")
         raise typer.Exit(1) from None
 
     from spec_orch.dashboard import create_app
@@ -256,6 +267,176 @@ def dashboard(
     app = create_app(repo_root=Path(repo_root).resolve())
     typer.echo(f"dashboard: http://{host}:{port}")
     uvicorn.run(app, host=host, port=port, log_level="warning")
+
+
+@app.command("preflight")
+def preflight_cmd(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
+    try_llm: bool = typer.Option(
+        False, "--try-llm", help="Send a test request to verify LLM connectivity."
+    ),
+) -> None:
+    """Pre-launch health check: dependencies, config, env, and connectivity."""
+    import importlib.util
+    import shutil
+
+    root = Path(repo_root).resolve()
+    checks: list[dict[str, Any]] = []
+
+    def _add(
+        name: str,
+        status: str,
+        message: str,
+        fix: str | None = None,
+    ) -> None:
+        entry: dict[str, Any] = {"name": name, "status": status, "message": message}
+        if fix:
+            entry["fix"] = fix
+        checks.append(entry)
+
+    major, minor = sys.version_info[:2]
+    if (major, minor) >= (3, 11):
+        _add("python", "pass", f"Python {major}.{minor}")
+    else:
+        _add("python", "fail", f"Python {major}.{minor} < 3.11", "pyenv install 3.11")
+
+    git = shutil.which("git")
+    _add("git", "pass" if git else "fail", git or "not found", None if git else "brew install git")
+
+    core_deps = {"typer": "typer", "httpx": "httpx", "yaml": "pyyaml"}
+    all_ok = all(importlib.util.find_spec(mod) for mod in core_deps)
+    _add("core_deps", "pass" if all_ok else "fail", "typer, httpx, pyyaml")
+
+    litellm_ok = importlib.util.find_spec("litellm") is not None
+    _add(
+        "planner_deps",
+        "pass" if litellm_ok else "warn",
+        "litellm" if litellm_ok else "litellm not installed",
+        "pip install 'spec-orch[planner]'" if not litellm_ok else None,
+    )
+
+    dash_mods = {"fastapi": "fastapi", "uvicorn": "uvicorn", "websockets": "websockets"}
+    dash_missing = [name for name, mod in dash_mods.items() if not importlib.util.find_spec(mod)]
+    if dash_missing:
+        _add(
+            "dashboard_deps",
+            "warn",
+            f"missing: {', '.join(dash_missing)}",
+            "pip install 'spec-orch[dashboard]'",
+        )
+    else:
+        _add("dashboard_deps", "pass", "fastapi, uvicorn, websockets")
+
+    env_path = root / ".env"
+    _add(
+        "dotenv",
+        "pass" if env_path.exists() else "warn",
+        str(env_path) if env_path.exists() else ".env not found",
+        "cp .env.example .env && $EDITOR .env" if not env_path.exists() else None,
+    )
+
+    llm_key = os.environ.get("SPEC_ORCH_LLM_API_KEY", "")
+    _add(
+        "llm_api_key",
+        "pass" if llm_key else "fail",
+        "SPEC_ORCH_LLM_API_KEY is set" if llm_key else "SPEC_ORCH_LLM_API_KEY not set",
+        "Edit .env and set SPEC_ORCH_LLM_API_KEY=your-key" if not llm_key else None,
+    )
+
+    config_path = root / "spec-orch.toml"
+    if config_path.exists():
+        try:
+            with config_path.open("rb") as f:
+                raw = tomllib.load(f)
+            _add("config", "pass", f"spec-orch.toml loaded ({len(raw)} sections)")
+            planner_cfg = raw.get("planner", {})
+            planner_model = planner_cfg.get("model") if isinstance(planner_cfg, dict) else None
+            if planner_model:
+                _add("planner_model", "pass", f"model = {planner_model}")
+            else:
+                _add(
+                    "planner_model",
+                    "warn",
+                    "[planner] model not configured",
+                    "Run 'spec-orch init --reconfigure' or edit spec-orch.toml",
+                )
+        except Exception as exc:
+            _add("config", "fail", f"Failed to parse: {exc}")
+    else:
+        _add("config", "fail", "spec-orch.toml not found", "spec-orch init")
+
+    if try_llm and llm_key and litellm_ok:
+        try:
+            planner = _build_planner_from_toml(root)
+            if planner is not None:
+                planner.brainstorm(
+                    conversation_history=[{"role": "user", "content": "Say OK"}],
+                    codebase_context="",
+                )
+                _add("llm_connectivity", "pass", "LLM responded successfully")
+            else:
+                _add("llm_connectivity", "warn", "Planner not configured")
+        except Exception as exc:
+            _add("llm_connectivity", "fail", f"LLM request failed: {exc}")
+    elif try_llm:
+        _add(
+            "llm_connectivity",
+            "warn",
+            "Skipped (missing API key or litellm)",
+        )
+
+    counts = {"pass": 0, "warn": 0, "fail": 0}
+    for c in checks:
+        counts[c["status"]] += 1
+
+    ready: list[str] = []
+    not_ready: list[str] = []
+    if litellm_ok and llm_key:
+        ready.extend(["run", "discuss", "plan"])
+    else:
+        not_ready.extend(["run", "discuss", "plan"])
+    if not dash_missing:
+        ready.append("dashboard")
+    else:
+        not_ready.append("dashboard")
+    if os.environ.get("SPEC_ORCH_LINEAR_TOKEN"):
+        ready.append("daemon")
+    else:
+        not_ready.append("daemon")
+
+    report = {
+        "checks": checks,
+        "summary": counts,
+        "ready": ready,
+        "not_ready": not_ready,
+    }
+
+    report_dir = root / ".spec_orch"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    report_path = report_dir / "preflight.json"
+    report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+
+    if json_output:
+        typer.echo(json.dumps(report, indent=2, ensure_ascii=False))
+    else:
+        for c in checks:
+            status_label = c["status"].upper()
+            line = f"[{status_label}] {c['name']}: {c['message']}"
+            typer.echo(line)
+            if c.get("fix"):
+                typer.echo(f"       fix: {c['fix']}")
+        typer.echo(
+            f"\nPreflight: {counts['pass']} pass, {counts['warn']} warn, {counts['fail']} fail"
+        )
+        if ready:
+            typer.echo(f"Ready to use: {', '.join(ready)}")
+        if not_ready:
+            typer.echo(f"Not ready: {', '.join(not_ready)}")
+        typer.echo(f"\nReport saved to {report_path}")
+
+    if counts["fail"] > 0:
+        raise typer.Exit(1)
 
 
 @app.command("tui")
@@ -2583,10 +2764,27 @@ def _load_toml_raw(repo_root: Path) -> dict[str, Any]:
         return {}
 
 
+_planner_logger = _logging.getLogger("spec_orch.cli.planner")
+
+
+def _require_planner(repo_root: Path) -> Any:
+    """Build planner or exit with actionable error if unavailable."""
+    planner = _build_planner_from_toml(repo_root)
+    if planner is None:
+        typer.echo("Planner not available. Possible causes:")
+        typer.echo("  1. litellm not installed      → pip install 'spec-orch[planner]'")
+        typer.echo("  2. [planner] model not set     → spec-orch init --reconfigure")
+        typer.echo("  3. API key not configured      → edit .env, set SPEC_ORCH_LLM_API_KEY")
+        typer.echo("Run 'spec-orch preflight' for full diagnostics.")
+        raise typer.Exit(1)
+    return planner
+
+
 def _build_planner_from_toml(repo_root: Path) -> Any:
     """Build a PlannerAdapter from spec-orch.toml if planner section exists."""
     config_path = repo_root / "spec-orch.toml"
     if not config_path.exists():
+        _planner_logger.info("spec-orch.toml not found at %s; planner disabled", config_path)
         return None
     try:
         import tomllib
@@ -2594,17 +2792,29 @@ def _build_planner_from_toml(repo_root: Path) -> Any:
         with config_path.open("rb") as f:
             raw = tomllib.load(f)
     except Exception:
+        _planner_logger.warning("Failed to parse %s; planner disabled", config_path, exc_info=True)
         return None
 
     planner_cfg = raw.get("planner", {})
     model = planner_cfg.get("model")
     if not model:
+        _planner_logger.info(
+            "[planner] model not set in spec-orch.toml; planner disabled. "
+            "Fix: run 'spec-orch init --reconfigure' or edit spec-orch.toml."
+        )
         return None
 
     api_key: str | None = None
     api_key_env = planner_cfg.get("api_key_env")
     if api_key_env:
         api_key = os.environ.get(api_key_env)
+        if not api_key:
+            _planner_logger.warning(
+                "Environment variable %s is not set; LLM calls will fail. "
+                "Fix: edit .env and set %s=your-key",
+                api_key_env,
+                api_key_env,
+            )
 
     api_base: str | None = None
     api_base_env = planner_cfg.get("api_base_env")
@@ -2625,6 +2835,9 @@ def _build_planner_from_toml(repo_root: Path) -> Any:
             token_command=token_command,
         )
     except ImportError:
+        _planner_logger.warning(
+            "litellm not installed; planner disabled. Fix: pip install 'spec-orch[planner]'"
+        )
         return None
 
 
