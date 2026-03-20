@@ -132,30 +132,18 @@ class EvolutionTrigger:
         """
         if not self._config.enabled:
             return False
-        import fcntl
+        from spec_orch.services.io import file_lock
 
-        lock_path = self._lock_path()
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(lock_path, "w") as lock_fd:
-            try:
-                fcntl.flock(lock_fd, fcntl.LOCK_EX)
-                count = self._read_counter() + 1
-                self._write_counter(count)
-                return count >= self._config.trigger_after_n_runs
-            finally:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        with file_lock(self._lock_path()):
+            count = self._read_counter() + 1
+            self._write_counter(count)
+            return count >= self._config.trigger_after_n_runs
 
     def reset_counter(self) -> None:
-        import fcntl
+        from spec_orch.services.io import file_lock
 
-        lock_path = self._lock_path()
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(lock_path, "w") as lock_fd:
-            try:
-                fcntl.flock(lock_fd, fcntl.LOCK_EX)
-                self._write_counter(0)
-            finally:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        with file_lock(self._lock_path()):
+            self._write_counter(0)
 
     def run_evolution_cycle(self, metrics: dict[str, float] | None = None) -> EvolutionResult:
         """Execute all enabled evolvers and return results.

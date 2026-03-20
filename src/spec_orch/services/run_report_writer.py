@@ -73,9 +73,7 @@ class RunReportWriter:
     ) -> None:
         """Write a minimal report.json to persist the current state."""
         report_path = workspace / "report.json"
-        existing: dict[str, Any] = {}
-        if report_path.exists():
-            existing = json.loads(report_path.read_text())
+        existing = RunReportWriter.read_json_dict(report_path)
         existing.update(
             {
                 "state": state.value,
