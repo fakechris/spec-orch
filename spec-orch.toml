@@ -59,6 +59,24 @@ dry_run = true
 [evolution.policy_distiller]
 enabled = false
 
+[evolution.policies.prompt_evolver]
+min_runs = 5
+trigger_on = "pass_rate_drop"
+threshold = 0.1
+
+[evolution.policies.harness_synthesizer]
+min_runs = 10
+trigger_on = "new_failure_pattern"
+
+[evolution.policies.policy_distiller]
+min_runs = 10
+trigger_on = "trajectory_available"
+
+[evolution.policies.plan_strategy_evolver]
+min_runs = 5
+trigger_on = "deviation_spike"
+threshold = 0.1
+
 [conversation]
 default_channel = "cli"
 
