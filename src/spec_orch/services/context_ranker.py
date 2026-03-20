@@ -15,7 +15,19 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-_CHARS_PER_TOKEN = 4
+_CHARS_PER_TOKEN_DEFAULT = 4
+_CHARS_PER_TOKEN_CJK = 2
+
+
+def _detect_chars_per_token(text: str) -> int:
+    """Use CJK ratio to pick a more accurate chars-per-token factor."""
+    if not text:
+        return _CHARS_PER_TOKEN_DEFAULT
+    sample = text[:2000]
+    cjk_count = sum(1 for ch in sample if "\u4e00" <= ch <= "\u9fff")
+    if len(sample) > 0 and cjk_count / len(sample) > 0.3:
+        return _CHARS_PER_TOKEN_CJK
+    return _CHARS_PER_TOKEN_DEFAULT
 
 
 @dataclass(frozen=True)
@@ -43,7 +55,9 @@ class ContextRanker:
         if not sections:
             return {}
 
-        total_chars = total_budget_tokens * _CHARS_PER_TOKEN
+        all_content = "".join(s.content for s in sections[:3])
+        cpt = _detect_chars_per_token(all_content)
+        total_chars = total_budget_tokens * cpt
         result: dict[str, str] = {}
 
         sorted_sections = sorted(sections, key=lambda s: s.priority)

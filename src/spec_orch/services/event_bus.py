@@ -32,6 +32,7 @@ class EventTopic(enum.StrEnum):
     TOOL_END = "tool.end"
     TURN_END = "turn.end"
     EVAL_SAMPLE = "eval.sample"
+    FALLBACK = "fallback"
 
 
 @dataclass(frozen=True)
@@ -242,6 +243,31 @@ class EventBus:
                 topic=EventTopic.EVAL_SAMPLE,
                 payload={"run_id": run_id, "reason": reason, **extra},
                 source="eval_sampler",
+            )
+        )
+
+    def emit_fallback(
+        self,
+        component: str,
+        primary: str,
+        fallback: str,
+        reason: str,
+        issue_id: str = "",
+        **extra: Any,
+    ) -> None:
+        """Record a degradation / fallback event for observability."""
+        self.publish(
+            Event(
+                topic=EventTopic.FALLBACK,
+                payload={
+                    "component": component,
+                    "primary": primary,
+                    "fallback": fallback,
+                    "reason": reason,
+                    "issue_id": issue_id,
+                    **extra,
+                },
+                source=component,
             )
         )
 

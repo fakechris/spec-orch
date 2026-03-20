@@ -43,12 +43,14 @@ from spec_orch.services.gate_service import GateService
 from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.review_adapter import LocalReviewAdapter
 from spec_orch.services.run_artifact_service import RunArtifactService
+from spec_orch.services.run_progress import RunProgressSnapshot
 from spec_orch.services.spec_snapshot_service import (
     create_initial_snapshot,
     read_spec_snapshot,
     write_spec_snapshot,
 )
 from spec_orch.services.telemetry_service import TelemetryService
+from spec_orch.services.trace_sampler import TraceSampler
 from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.workspace_service import WorkspaceService
 
@@ -142,6 +144,7 @@ class RunController:
         self.context_assembler = ContextAssembler()
         self._flow_router: FlowRouter | None = None
         self._memory_service: Any | None = None
+        self._trace_sampler = TraceSampler()
 
     def _get_memory(self) -> Any | None:
         """Lazily obtain the MemoryService singleton."""
@@ -152,7 +155,13 @@ class RunController:
 
             self._memory_service = get_memory_service(repo_root=self.repo_root)
         except Exception:
-            logger.debug("MemoryService unavailable", exc_info=True)
+            logger.warning("MemoryService unavailable — running without memory", exc_info=True)
+            self._emit_fallback(
+                "MemoryService",
+                "memory_service",
+                "no_memory",
+                "MemoryService initialization failed",
+            )
         return self._memory_service
 
     def _resolve_flow(self, issue: Issue) -> FlowType:
@@ -170,13 +179,62 @@ class RunController:
                 decision.source,
                 decision.reasoning,
             )
+            if decision.source == "fallback":
+                self._emit_fallback(
+                    "FlowRouter",
+                    "llm_routing",
+                    "static_rules",
+                    decision.reasoning,
+                    issue.issue_id,
+                )
             return decision.recommended_flow
 
+        logger.info(
+            "FlowRouter not configured; using static FlowMapper for %s",
+            issue.issue_id,
+        )
+        self._emit_fallback(
+            "FlowRouter",
+            "hybrid_router",
+            "static_mapper",
+            "FlowRouter not configured",
+            issue.issue_id,
+        )
         resolved = self.flow_mapper.resolve_flow_type(
             issue.run_class,
             labels=issue.labels,
         )
         return resolved or FlowType.STANDARD
+
+    def _emit_fallback(
+        self,
+        component: str,
+        primary: str,
+        fallback: str,
+        reason: str,
+        issue_id: str = "",
+    ) -> None:
+        """Emit a fallback event for observability."""
+        logger.warning(
+            "FALLBACK [%s]: %s → %s — %s (issue=%s)",
+            component,
+            primary,
+            fallback,
+            reason,
+            issue_id,
+        )
+        try:
+            from spec_orch.services.event_bus import get_event_bus
+
+            get_event_bus().emit_fallback(
+                component=component,
+                primary=primary,
+                fallback=fallback,
+                reason=reason,
+                issue_id=issue_id,
+            )
+        except Exception:
+            logger.debug("Failed to emit fallback event", exc_info=True)
 
     @staticmethod
     def _supports_context_kwarg(method: Any) -> bool:
@@ -190,6 +248,8 @@ class RunController:
         resolved_flow = flow_type or self._resolve_flow(issue)
         workspace = self.workspace_service.prepare_issue_workspace(issue.issue_id)
         run_id = self.telemetry_service.new_run_id(issue.issue_id)
+
+        run_snap = RunProgressSnapshot.create(run_id=run_id, issue_id=issue.issue_id)
 
         with self._open_activity_logger(workspace) as activity_logger:
             self._log_and_emit(
@@ -234,12 +294,17 @@ class RunController:
                     data={"version": 1, "approved": True},
                 )
 
+            run_snap.mark_stage_start("builder")
             builder = self._run_builder(
                 issue=issue,
                 workspace=workspace,
                 run_id=run_id,
                 activity_logger=activity_logger,
             )
+            run_snap.mark_stage_complete("builder", success=builder.succeeded)
+            run_snap.save(workspace)
+
+            run_snap.mark_stage_start("verification")
             self._log_and_emit(
                 activity_logger=activity_logger,
                 workspace=workspace,
@@ -250,6 +315,17 @@ class RunController:
                 message="Started verification steps.",
             )
             verification = self.verification_service.run(issue=issue, workspace=workspace)
+            v_passed = sum(1 for v in verification.step_results.values() if v)
+            v_total = len(verification.step_results)
+            run_snap.mark_stage_complete(
+                "verification",
+                success=all(verification.step_results.values())
+                if verification.step_results
+                else True,
+                detail=f"{v_passed}/{v_total} checks passed",
+            )
+            run_snap.save(workspace)
+
             self._log_verification_events(
                 workspace=workspace,
                 issue_id=issue.issue_id,
@@ -257,11 +333,16 @@ class RunController:
                 verification=verification,
                 activity_logger=activity_logger,
             )
+
+            run_snap.mark_stage_start("review")
             review = self.review_adapter.initialize(
                 issue_id=issue.issue_id,
                 workspace=workspace,
                 builder_turn_contract_compliance=builder.metadata.get("turn_contract_compliance"),
             )
+            run_snap.mark_stage_complete("review", success=review.verdict != "rejected")
+            run_snap.save(workspace)
+
             self._log_and_emit(
                 activity_logger=activity_logger,
                 workspace=workspace,
@@ -273,6 +354,7 @@ class RunController:
                 data={"verdict": review.verdict},
             )
 
+            run_snap.mark_stage_start("gate")
             gate, explain, report = self._finalize_run(
                 issue=issue,
                 workspace=workspace,
@@ -286,6 +368,8 @@ class RunController:
                 state=RunState.GATE_EVALUATED,
                 flow_type=resolved_flow,
             )
+            run_snap.mark_stage_complete("gate", success=gate.mergeable)
+            run_snap.save(workspace)
 
             self._handle_gate_flow_signals(
                 gate=gate,
@@ -1076,7 +1160,39 @@ class RunController:
             explain_path=explain,
         )
         self._maybe_trigger_evolution(workspace)
+        self._maybe_sample_for_eval(
+            run_id=run_id,
+            gate=gate,
+            builder=builder,
+            issue_id=issue.issue_id,
+        )
         return gate, explain, report
+
+    def _maybe_sample_for_eval(
+        self,
+        *,
+        run_id: str,
+        gate: GateVerdict,
+        builder: BuilderResult,
+        issue_id: str,
+    ) -> None:
+        """Use TraceSampler to decide if this run should be queued for eval."""
+        token_count = builder.metadata.get("token_count", 0)
+        has_negative = not gate.mergeable
+        should, reason = self._trace_sampler.should_sample(
+            run_id=run_id,
+            token_count=token_count,
+            has_negative_feedback=has_negative,
+            verdict="pass" if gate.mergeable else "fail",
+        )
+        if should:
+            logger.info("Run %s sampled for eval: %s", run_id, reason)
+            try:
+                from spec_orch.services.event_bus import get_event_bus
+
+                get_event_bus().emit_eval_sample(run_id=run_id, reason=reason, issue_id=issue_id)
+            except Exception:
+                logger.debug("Failed to emit eval sample event", exc_info=True)
 
     def _maybe_trigger_evolution(self, workspace: Path) -> None:
         """Run the evolution cycle if configured and threshold is met."""

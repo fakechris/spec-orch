@@ -28,21 +28,27 @@ from spec_orch.domain.models import (
     VerificationDetail,
     VerificationSummary,
 )
+from spec_orch.services.context_ranker import (
+    ContextRanker,
+    RankedSection,
+    _detect_chars_per_token,
+)
 
 logger = logging.getLogger(__name__)
 
-_CHARS_PER_TOKEN = 4
-
 
 def _truncate(text: str, max_tokens: int) -> str:
-    limit = max_tokens * _CHARS_PER_TOKEN
+    cpt = _detect_chars_per_token(text)
+    limit = max_tokens * cpt
     if len(text) <= limit:
         return text
-    return text[:limit] + "\n... [truncated]"
+    suffix = "\n... [truncated]"
+    return text[: limit - len(suffix)] + suffix
 
 
 def _estimate_tokens(text: str) -> int:
-    return len(text) // _CHARS_PER_TOKEN
+    cpt = _detect_chars_per_token(text)
+    return len(text) // cpt
 
 
 class ContextAssembler:
@@ -58,24 +64,95 @@ class ContextAssembler:
     ) -> ContextBundle:
         manifest = self._load_manifest(workspace)
         budget = spec.max_tokens_budget
-        task_budget = budget // 3
-        exec_budget = budget // 3
-        learn_budget = budget - task_budget - exec_budget
+        oversized_budget = budget * 2
 
         task_ctx = self._build_task_context(
-            issue, workspace, task_budget, spec.required_task_fields
+            issue, workspace, oversized_budget, spec.required_task_fields
         )
         exec_ctx = self._build_execution_context(
             workspace,
             manifest,
-            exec_budget,
+            oversized_budget,
             spec.required_execution_fields,
             exclude_framework_events=spec.exclude_framework_events,
         )
         learn_ctx = self._build_learning_context(
-            repo_root or workspace, memory, learn_budget, spec.required_learning_fields
+            repo_root or workspace, memory, oversized_budget, spec.required_learning_fields
         )
+
+        sections = self._collect_ranked_sections(task_ctx, exec_ctx, learn_ctx)
+        if sections:
+            ranked = ContextRanker.allocate(sections, budget)
+            self._apply_ranked_budget(task_ctx, exec_ctx, learn_ctx, ranked)
+
         return ContextBundle(task=task_ctx, execution=exec_ctx, learning=learn_ctx)
+
+    @staticmethod
+    def _collect_ranked_sections(
+        task: TaskContext, exec_ctx: ExecutionContext, learn: LearningContext
+    ) -> list[RankedSection]:
+        from spec_orch.domain.context import CompactRetentionPriority as P
+
+        sections: list[RankedSection] = []
+        if task.spec_snapshot_text:
+            sections.append(
+                RankedSection(
+                    "spec_snapshot_text",
+                    task.spec_snapshot_text,
+                    P.ARCHITECTURE_DECISIONS,
+                )
+            )
+        if task.architecture_notes:
+            sections.append(
+                RankedSection(
+                    "architecture_notes",
+                    task.architecture_notes,
+                    P.ARCHITECTURE_DECISIONS,
+                )
+            )
+        if exec_ctx.file_tree:
+            sections.append(
+                RankedSection(
+                    "file_tree",
+                    exec_ctx.file_tree,
+                    P.MODIFIED_FILES,
+                )
+            )
+        if exec_ctx.git_diff:
+            sections.append(
+                RankedSection(
+                    "git_diff",
+                    exec_ctx.git_diff,
+                    P.MODIFIED_FILES,
+                )
+            )
+        if exec_ctx.builder_events_summary:
+            sections.append(
+                RankedSection(
+                    "builder_events_summary",
+                    exec_ctx.builder_events_summary,
+                    P.TOOL_OUTPUT,
+                )
+            )
+        return sections
+
+    @staticmethod
+    def _apply_ranked_budget(
+        task: TaskContext,
+        exec_ctx: ExecutionContext,
+        learn: LearningContext,
+        ranked: dict[str, str],
+    ) -> None:
+        if "spec_snapshot_text" in ranked:
+            task.spec_snapshot_text = ranked["spec_snapshot_text"]
+        if "architecture_notes" in ranked:
+            task.architecture_notes = ranked["architecture_notes"]
+        if "file_tree" in ranked:
+            exec_ctx.file_tree = ranked["file_tree"]
+        if "git_diff" in ranked:
+            exec_ctx.git_diff = ranked["git_diff"]
+        if "builder_events_summary" in ranked:
+            exec_ctx.builder_events_summary = ranked["builder_events_summary"]
 
     @staticmethod
     def _load_manifest(workspace: Path) -> ArtifactManifest | None:
@@ -326,17 +403,19 @@ class ContextAssembler:
         return []
 
     @staticmethod
-    def _read_file_tree(workspace: Path) -> str:
+    def _read_file_tree(workspace: Path, *, max_entries: int = 2000) -> str:
         try:
-            result = subprocess.run(
-                ["find", ".", "-type", "f", "-not", "-path", "./.git/*"],
-                cwd=workspace,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            return result.stdout
-        except (subprocess.SubprocessError, FileNotFoundError):
+            lines: list[str] = []
+            for p in sorted(workspace.rglob("*")):
+                if ".git" in p.parts:
+                    continue
+                if p.is_file():
+                    lines.append(str(p.relative_to(workspace)))
+                    if len(lines) >= max_entries:
+                        lines.append(f"... ({max_entries}+ files, truncated)")
+                        break
+            return "\n".join(lines)
+        except OSError:
             return ""
 
     @staticmethod

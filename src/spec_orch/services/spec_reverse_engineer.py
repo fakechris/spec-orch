@@ -92,6 +92,18 @@ def reverse_engineer_spec(
         result: str = planner.generate(prompt)
         return result
 
+    logger.warning("FALLBACK [SpecReverseEngineer]: llm → rule_skeleton — no planner available")
+    try:
+        from spec_orch.services.event_bus import get_event_bus
+
+        get_event_bus().emit_fallback(
+            component="SpecReverseEngineer",
+            primary="llm_generation",
+            fallback="rule_skeleton",
+            reason="No planner adapter available",
+        )
+    except Exception:
+        pass
     return _rule_based_fallback(title, extracted)
 
 
