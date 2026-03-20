@@ -121,16 +121,41 @@ class EvolutionTrigger:
             {"count": count, "updated_at": datetime.now(UTC).isoformat()},
         )
 
+    def _lock_path(self) -> Path:
+        return self._counter_path.with_suffix(".lock")
+
     def increment_and_check(self) -> bool:
-        """Increment run counter and return True if evolution should trigger."""
+        """Increment run counter and return True if evolution should trigger.
+
+        Uses file locking to prevent lost-update races when multiple
+        daemon workers run concurrently.
+        """
         if not self._config.enabled:
             return False
-        count = self._read_counter() + 1
-        self._write_counter(count)
-        return count >= self._config.trigger_after_n_runs
+        import fcntl
+
+        lock_path = self._lock_path()
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "w") as lock_fd:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+                count = self._read_counter() + 1
+                self._write_counter(count)
+                return count >= self._config.trigger_after_n_runs
+            finally:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
 
     def reset_counter(self) -> None:
-        self._write_counter(0)
+        import fcntl
+
+        lock_path = self._lock_path()
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "w") as lock_fd:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+                self._write_counter(0)
+            finally:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
 
     def run_evolution_cycle(self, metrics: dict[str, float] | None = None) -> EvolutionResult:
         """Execute all enabled evolvers and return results.
@@ -258,17 +283,25 @@ class EvolutionTrigger:
                 return
 
             promoted_any = False
+            has_ab_testing = hasattr(evolver, "promote_variant")
             for proposal in proposals:
                 outcome = evolver.validate(proposal)
                 if outcome.accepted:
+                    if has_ab_testing and not self._config.auto_promote:
+                        logger.info(
+                            "%s: proposal %s accepted, variant saved as candidate "
+                            "(auto_promote off, pending A/B validation)",
+                            name,
+                            proposal.proposal_id,
+                        )
+                        continue
                     ok = evolver.promote(proposal)
                     if ok:
                         promoted_any = True
                         logger.info(
-                            "%s: promoted proposal %s%s",
+                            "%s: promoted proposal %s",
                             name,
                             proposal.proposal_id,
-                            "" if self._config.auto_promote else " (persisted for review)",
                         )
 
             self._update_result_flags(name, result, proposals, promoted_any)

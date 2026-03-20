@@ -302,12 +302,11 @@ class PlanStrategyEvolver:
                 )
             )
 
-        new_hint_set = HintSet(
+        return HintSet(
             hints=hints,
             analysis_summary=obj.get("analysis_summary", ""),
             generated_at=now,
         )
-        return self.merge_hints(new_hint_set)
 
     @staticmethod
     def _render_context_for_analysis(context: Any) -> str:
