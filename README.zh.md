@@ -168,7 +168,7 @@ spec-orch policy distill          # 零 LLM 确定性脚本
 
 **v0.5.1** — Alpha，吃自己的狗粮（EODF）模式。
 
-系统用自己来开发自己，每次迭代都在自我改进。900+ 测试，65+ 命令。
+系统用自己来开发自己，每次迭代都在自我改进。1100+ 测试，65+ 命令。
 
 `main` 分支已有的功能：
 
@@ -191,6 +191,15 @@ spec-orch policy distill          # 零 LLM 确定性脚本
 - 完整自进化：证据分析、harness 合成、prompt 进化、policy 蒸馏
 - `spec-orch init` 项目类型检测和配置生成
 - 低成本模型支持（MiniMax-M2.5，~$0.04/run）
+- `spec-orch preflight` 一键系统健康检查
+- `spec-orch selftest` 端到端冒烟测试
+- FlowRouter 混合路由（静态规则 + LLM 复杂度分析）
+- KnowledgeDistiller：跨 run 学习笔记（`.spec_orch/knowledge.md`）
+- ContextRanker：优先级感知的上下文截断
+- RunProgressSnapshot：流水线阶段检查点，daemon 重试时跳过已完成 stage
+- SkillDegradationDetector：路由审计 + 效果基线
+- TraceSampler：可配置规则的在线评测采样
+- CompactRetentionPriority：架构感知的上下文压缩
 
 ## 安装
 
@@ -360,6 +369,7 @@ spec-orch policy distill              # 零 LLM 脚本
 - [Spec-Contract 集成](docs/architecture/spec-contract-integration.md)
 - [变更管理策略](docs/architecture/change-management-policy.md)
 - [SDD 行业定位](docs/architecture/sdd-landscape-and-positioning.md)
+- [方向性评审（Agent 工程化）](docs/architecture/2026-03-19-directional-review.zh.md)
 
 ### 参考与指南
 

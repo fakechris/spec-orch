@@ -168,7 +168,7 @@ spec-orch policy distill          # Zero-LLM deterministic scripts
 
 **v0.5.1** — Alpha, dogfood-first (EODF) mode.
 
-The system is used to develop itself and improves itself with each iteration. 900+ tests, 65+ commands.
+The system is used to develop itself and improves itself with each iteration. 1100+ tests, 65+ commands.
 
 What works on `main`:
 
@@ -191,6 +191,15 @@ What works on `main`:
 - Full self-evolution: evidence analysis, harness synthesis, prompt evolution, policy distillation
 - `spec-orch init` for project type detection and config generation
 - Low-cost model support (MiniMax-M2.5, ~$0.04/run)
+- `spec-orch preflight` one-click system health check
+- `spec-orch selftest` end-to-end smoke test with fixture issues
+- FlowRouter hybrid routing (static rules + LLM-based complexity analysis)
+- KnowledgeDistiller: cross-run learning notebook (`.spec_orch/knowledge.md`)
+- ContextRanker: priority-aware context truncation replacing naive text slicing
+- RunProgressSnapshot: pipeline stage checkpointing for daemon retry continuity
+- SkillDegradationDetector: routing audit, baseline tracking
+- TraceSampler: online evaluation sampling with configurable rules
+- CompactRetentionPriority: architecture-aware context compression
 
 ## Installation
 
@@ -360,6 +369,7 @@ spec-orch policy distill              # Zero-LLM scripts
 - [Spec-Contract Integration](docs/architecture/spec-contract-integration.md)
 - [Change Management Policy](docs/architecture/change-management-policy.md)
 - [SDD Landscape & Positioning](docs/architecture/sdd-landscape-and-positioning.md)
+- [Directional Review (Agent Engineering)](docs/architecture/2026-03-19-directional-review.zh.md)
 
 ### Reference & Guides
 
