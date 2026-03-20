@@ -112,5 +112,6 @@ def file_lock(lock_path: Path) -> Generator[IO[str], None, None]:
         else:
             import fcntl
 
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            with contextlib.suppress(OSError):
+                fcntl.flock(fd, fcntl.LOCK_UN)
         fd.close()
