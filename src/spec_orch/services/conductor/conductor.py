@@ -472,10 +472,18 @@ class Conductor:
             else [],
         )
         try:
+            memory = None
+            try:
+                from spec_orch.services.memory.service import get_memory_service
+
+                memory = get_memory_service(repo_root=self._repo_root)
+            except Exception:
+                logger.debug("MemoryService unavailable for conductor", exc_info=True)
             return self._context_assembler.assemble(
                 get_node_context_spec("intent_classifier"),
                 issue,
                 workspace,
+                memory=memory,
                 repo_root=self._repo_root,
             )
         except Exception:

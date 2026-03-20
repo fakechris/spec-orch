@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,6 +28,7 @@ from spec_orch.domain.models import (
 )
 from spec_orch.domain.protocols import BuilderAdapter, IssueSource, PlannerAdapter, ReviewAdapter
 from spec_orch.flow_engine.engine import FlowEngine
+from spec_orch.flow_engine.flow_router import FlowRouter
 from spec_orch.flow_engine.mapper import FlowMapper
 from spec_orch.services.activity_logger import ActivityLogger
 from spec_orch.services.artifact_service import ArtifactService
@@ -49,6 +51,8 @@ from spec_orch.services.spec_snapshot_service import (
 from spec_orch.services.telemetry_service import TelemetryService
 from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.workspace_service import WorkspaceService
+
+logger = logging.getLogger(__name__)
 
 _MAX_ADVANCE_ITERATIONS = 10
 _FLOW_ORDER: dict[FlowType, int] = {FlowType.HOTFIX: 0, FlowType.STANDARD: 1, FlowType.FULL: 2}
@@ -136,9 +140,38 @@ class RunController:
         self.flow_engine = flow_engine or FlowEngine()
         self.flow_mapper = flow_mapper or FlowMapper()
         self.context_assembler = ContextAssembler()
+        self._flow_router: FlowRouter | None = None
+        self._memory_service: Any | None = None
+
+    def _get_memory(self) -> Any | None:
+        """Lazily obtain the MemoryService singleton."""
+        if self._memory_service is not None:
+            return self._memory_service
+        try:
+            from spec_orch.services.memory.service import get_memory_service
+
+            self._memory_service = get_memory_service(repo_root=self.repo_root)
+        except Exception:
+            logger.debug("MemoryService unavailable", exc_info=True)
+        return self._memory_service
 
     def _resolve_flow(self, issue: Issue) -> FlowType:
-        """Determine the FlowType for an issue. Defaults to Standard."""
+        """Determine the FlowType for an issue.
+
+        Uses FlowRouter (hybrid rule+LLM) when available, otherwise
+        falls back to static FlowMapper.
+        """
+        if self._flow_router is not None:
+            decision = self._flow_router.route(issue)
+            logger.info(
+                "FlowRouter decision: %s (confidence=%.2f, source=%s) — %s",
+                decision.recommended_flow,
+                decision.confidence,
+                decision.source,
+                decision.reasoning,
+            )
+            return decision.recommended_flow
+
         resolved = self.flow_mapper.resolve_flow_type(
             issue.run_class,
             labels=issue.labels,
@@ -667,6 +700,7 @@ class RunController:
                         get_node_context_spec("planner"),
                         issue,
                         workspace,
+                        memory=self._get_memory(),
                     )
                     answer_fn = self.planner_adapter.answer_questions
                     if self._supports_context_kwarg(answer_fn):
@@ -758,6 +792,7 @@ class RunController:
             get_node_context_spec("planner"),
             issue,
             workspace,
+            memory=self._get_memory(),
         )
         plan_fn = self.planner_adapter.plan
         if self._supports_context_kwarg(plan_fn):

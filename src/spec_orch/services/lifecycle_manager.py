@@ -77,7 +77,19 @@ class MissionLifecycleManager:
         self._bus = event_bus or get_event_bus()
         self._states: dict[str, MissionState] = {}
         self._context_assembler = ContextAssembler()
+        self._memory: Any | None = None
         self._load_state()
+
+    def _get_memory(self) -> Any | None:
+        if self._memory is not None:
+            return self._memory
+        try:
+            from spec_orch.services.memory.service import get_memory_service
+
+            self._memory = get_memory_service(repo_root=self.repo_root)
+        except Exception:
+            logger.debug("MemoryService unavailable for lifecycle", exc_info=True)
+        return self._memory
 
     def _state_path(self) -> Path:
         d = self.repo_root / ".spec_orch_runs"
@@ -280,6 +292,7 @@ class MissionLifecycleManager:
                     acceptance_criteria=list(mission.acceptance_criteria),
                 ),
                 self.repo_root,
+                memory=self._get_memory(),
             ),
         )
         plan_dir = self.repo_root / "docs" / "specs" / mission_id
