@@ -101,6 +101,7 @@ class LiteLLMPlannerAdapter:
         api_base: str | None = None,
         temperature: float = 0.3,
         token_command: str | None = None,
+        enable_prompt_caching: bool = True,
     ) -> None:
         if api_type not in self.VALID_API_TYPES:
             raise ValueError(f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}")
@@ -113,6 +114,12 @@ class LiteLLMPlannerAdapter:
         self.api_base = api_base or os.environ.get("SPEC_ORCH_LLM_API_BASE")
         self.temperature = temperature
         self._token_command = token_command
+        self.enable_prompt_caching = enable_prompt_caching
+        self._cache_metrics: dict[str, int] = {
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "total_calls": 0,
+        }
 
     @property
     def api_key(self) -> str | None:
@@ -123,6 +130,20 @@ class LiteLLMPlannerAdapter:
                 text=True,
             ).strip()
         return self._static_api_key
+
+    @property
+    def cache_metrics(self) -> dict[str, int]:
+        return dict(self._cache_metrics)
+
+    def _record_cache_metrics(self, response: Any) -> None:
+        self._cache_metrics["total_calls"] += 1
+        usage = getattr(response, "usage", None)
+        if usage is None:
+            return
+        cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+        cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
+        self._cache_metrics["cache_read_input_tokens"] += cache_read
+        self._cache_metrics["cache_creation_input_tokens"] += cache_creation
 
     def plan(
         self,
@@ -142,10 +163,20 @@ class LiteLLMPlannerAdapter:
 
         user_message = self._build_user_message(issue, existing_snapshot, context)
 
+        system_content: Any = PLANNER_SYSTEM_PROMPT
+        if self.enable_prompt_caching and "anthropic" in self.model:
+            system_content = [
+                {
+                    "type": "text",
+                    "text": PLANNER_SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ]
+
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
+                {"role": "system", "content": system_content},
                 {"role": "user", "content": user_message},
             ],
             "temperature": self.temperature,
@@ -158,6 +189,7 @@ class LiteLLMPlannerAdapter:
             kwargs["api_base"] = self.api_base
 
         response = litellm.completion(**kwargs)
+        self._record_cache_metrics(response)
         return self._parse_response(response, issue, existing_snapshot)
 
     def _build_user_message(

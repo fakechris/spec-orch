@@ -209,10 +209,16 @@ class LLMReviewAdapter:
         return "\n\n".join(parts)
 
     def _build_context_bundle(self, *, issue_id: str, workspace: Path) -> Any | None:
-        """Build ContextBundle for llm reviewer; fallback to legacy context on errors."""
+        """Build ContextBundle for llm reviewer using independent context assembly.
+
+        The reviewer MUST NOT inherit builder's assembled context to prevent
+        hallucination amplification (Article §7: multi-agent hallucination guard).
+        Each call creates a fresh assembly from workspace artifacts.
+        """
         try:
+            assembler = ContextAssembler()
             issue = self._issue_from_workspace(issue_id=issue_id, workspace=workspace)
-            return self._context_assembler.assemble(
+            return assembler.assemble(
                 get_node_context_spec("llm_reviewer"),
                 issue,
                 workspace,
@@ -220,6 +226,69 @@ class LLMReviewAdapter:
         except Exception:
             logger.debug("Failed to assemble review ContextBundle", exc_info=True)
             return None
+
+    @staticmethod
+    def verify_outcomes(workspace: Path) -> list[dict[str, Any]]:
+        """Outcome-based verification: check filesystem state, not builder claims.
+
+        Returns a list of {name, passed, detail} checks.
+        """
+        checks: list[dict[str, Any]] = []
+
+        git_dir = workspace / ".git"
+        checks.append(
+            {
+                "name": "workspace_is_git_repo",
+                "passed": git_dir.exists(),
+                "detail": str(git_dir),
+            }
+        )
+
+        conclusion_path = workspace / "run_artifact" / "conclusion.json"
+        if conclusion_path.exists():
+            try:
+                data = json.loads(conclusion_path.read_text())
+                claimed_mergeable = data.get("mergeable", False)
+                report_path = workspace / "report.json"
+                if report_path.exists():
+                    report = json.loads(report_path.read_text())
+                    actual_mergeable = report.get("mergeable", False)
+                    checks.append(
+                        {
+                            "name": "mergeable_consistency",
+                            "passed": claimed_mergeable == actual_mergeable,
+                            "detail": f"conclusion={claimed_mergeable}, report={actual_mergeable}",
+                        }
+                    )
+            except (json.JSONDecodeError, KeyError):
+                checks.append(
+                    {
+                        "name": "conclusion_parseable",
+                        "passed": False,
+                        "detail": "Failed to parse conclusion.json",
+                    }
+                )
+
+        verification_ok = True
+        report_path = workspace / "report.json"
+        if report_path.exists():
+            try:
+                report = json.loads(report_path.read_text())
+                verification = report.get("verification", {})
+                for _name, detail in verification.items():
+                    if isinstance(detail, dict) and detail.get("exit_code") != 0:
+                        verification_ok = False
+                        break
+            except (json.JSONDecodeError, KeyError):
+                verification_ok = False
+        checks.append(
+            {
+                "name": "verification_all_pass",
+                "passed": verification_ok,
+            }
+        )
+
+        return checks
 
     @staticmethod
     def _issue_from_workspace(*, issue_id: str, workspace: Path) -> Issue:

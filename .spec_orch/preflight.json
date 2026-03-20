@@ -1,0 +1,63 @@
+{
+  "checks": [
+    {
+      "name": "python",
+      "status": "pass",
+      "message": "Python 3.13"
+    },
+    {
+      "name": "git",
+      "status": "pass",
+      "message": "/usr/bin/git",
+      "fix": "brew install git"
+    },
+    {
+      "name": "core_deps",
+      "status": "pass",
+      "message": "typer, httpx, pyyaml"
+    },
+    {
+      "name": "planner_deps",
+      "status": "pass",
+      "message": "litellm"
+    },
+    {
+      "name": "dashboard_deps",
+      "status": "pass",
+      "message": "fastapi, uvicorn, websockets"
+    },
+    {
+      "name": "dotenv",
+      "status": "pass",
+      "message": "/Users/chris/workspace/spec-orch/.env"
+    },
+    {
+      "name": "llm_api_key",
+      "status": "pass",
+      "message": "SPEC_ORCH_LLM_API_KEY is set"
+    },
+    {
+      "name": "config",
+      "status": "pass",
+      "message": "spec-orch.toml loaded (9 sections)"
+    },
+    {
+      "name": "planner_model",
+      "status": "pass",
+      "message": "model = MiniMax-M2.5"
+    }
+  ],
+  "summary": {
+    "pass": 9,
+    "warn": 0,
+    "fail": 0
+  },
+  "ready": [
+    "run",
+    "discuss",
+    "plan",
+    "dashboard",
+    "daemon"
+  ],
+  "not_ready": []
+}

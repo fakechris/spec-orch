@@ -68,6 +68,38 @@ class ContextBundle:
     learning: LearningContext = field(default_factory=LearningContext)
 
 
+class CompactRetentionPriority:
+    """Defines what to preserve during context compression.
+
+    Priority order (highest first):
+    1. Architecture decisions — never summarize
+    2. Modified files and key changes
+    3. Verification state (pass/fail)
+    4. Unresolved TODOs and rollback notes
+    5. Tool output — deletable, keep only pass/fail conclusion
+
+    Identifiers (UUID, hash, URL, file path) must be preserved verbatim.
+    """
+
+    ARCHITECTURE_DECISIONS = 1
+    MODIFIED_FILES = 2
+    VERIFICATION_STATE = 3
+    UNRESOLVED_TODOS = 4
+    TOOL_OUTPUT = 5
+
+    @staticmethod
+    def retention_instructions() -> str:
+        return (
+            "When compacting context, preserve in this order:\n"
+            "1. Architecture decisions — do NOT summarize\n"
+            "2. Modified files and key changes\n"
+            "3. Verification state (pass/fail)\n"
+            "4. Unresolved TODOs and rollback notes\n"
+            "5. Tool output — keep only pass/fail conclusions\n"
+            "CRITICAL: Never modify identifiers (UUID, hash, IP, port, URL, file paths)."
+        )
+
+
 @dataclass(slots=True)
 class NodeContextSpec:
     """Declares what context fields a specific LLM node needs.
@@ -82,3 +114,4 @@ class NodeContextSpec:
     required_learning_fields: list[str] = field(default_factory=list)
     optional_fields: list[str] = field(default_factory=list)
     max_tokens_budget: int = 8000
+    exclude_framework_events: bool = True

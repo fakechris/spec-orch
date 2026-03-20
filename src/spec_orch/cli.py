@@ -1650,6 +1650,7 @@ def doctor_cmd(
     from spec_orch.services.doctor import Doctor
 
     doc = Doctor(config_path=config)
+    health_path = doc.write_health_file()
 
     if json_output:
         import json as _json
@@ -1670,7 +1671,101 @@ def doctor_cmd(
         if fix_hints and check.fix_hint:
             typer.echo(f"       fix: {check.fix_hint}")
     typer.echo(f"Doctor: {counts['pass']} pass, {counts['warn']} warn, {counts['fail']} fail")
+    typer.echo(f"Health report: {health_path}")
     if counts["fail"] > 0:
+        raise typer.Exit(1)
+
+
+@app.command("selftest")
+def selftest_cmd(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
+) -> None:
+    """Run end-to-end smoke test using a fixture issue (plan through gate)."""
+    root = Path(repo_root).resolve()
+
+    report = _run_preflight(root)
+    if report["summary"]["fail"] > 0:
+        typer.echo("Selftest aborted: preflight has failures. Run 'spec-orch preflight' first.")
+        raise typer.Exit(1)
+
+    fixture_dir = root / ".spec_orch_runs" / "__selftest__"
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+
+    results: list[dict[str, Any]] = []
+
+    def _step(name: str, fn: Any) -> bool:
+        try:
+            fn()
+            results.append({"step": name, "status": "pass"})
+            return True
+        except Exception as exc:
+            results.append({"step": name, "status": "fail", "error": str(exc)})
+            return False
+
+    fixture_src = FixtureIssueSource(repo_root=root)
+    fixture_issue = None
+
+    def load_fixture() -> None:
+        nonlocal fixture_issue
+        fixtures_dir = root / "fixtures" / "issues"
+        if not fixtures_dir.is_dir():
+            raise RuntimeError(f"No fixture issues found. Create {fixtures_dir} with JSON files.")
+        json_files = sorted(fixtures_dir.glob("*.json"))
+        if not json_files:
+            raise RuntimeError(f"No fixture issues found in {fixtures_dir}.")
+        issue_id = json_files[0].stem
+        fixture_issue = fixture_src.load(issue_id)
+
+    _step("load_fixture", load_fixture)
+
+    if fixture_issue is not None:
+        planner = _build_planner_from_toml(root)
+        if planner is not None:
+
+            def plan_step() -> None:
+                planner.brainstorm(
+                    conversation_history=[
+                        {"role": "user", "content": f"Analyze: {fixture_issue.title}"}
+                    ],
+                    codebase_context="selftest",
+                )
+
+            _step("planner_call", plan_step)
+        else:
+            results.append(
+                {"step": "planner_call", "status": "skip", "error": "planner not configured"}
+            )
+
+    from spec_orch.services.doctor import Doctor
+
+    doc = Doctor(config_path=root / "spec-orch.toml")
+    _step("doctor", lambda: doc.run_all())
+
+    counts = {"pass": 0, "fail": 0, "skip": 0}
+    for r in results:
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
+
+    selftest_report = {"steps": results, "summary": counts}
+    report_dir = root / ".spec_orch"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    selftest_path = report_dir / "selftest.json"
+    selftest_path.write_text(json.dumps(selftest_report, indent=2, ensure_ascii=False) + "\n")
+
+    if json_output:
+        typer.echo(json.dumps(selftest_report, indent=2, ensure_ascii=False))
+    else:
+        for r in results:
+            typer.echo(f"[{r['status'].upper()}] {r['step']}")
+            if r.get("error"):
+                typer.echo(f"       {r['error']}")
+        typer.echo(
+            f"\nSelftest: {counts['pass']} pass, {counts.get('fail', 0)} fail, "
+            f"{counts.get('skip', 0)} skip"
+        )
+        typer.echo(f"Report: {selftest_path}")
+
+    if counts.get("fail", 0) > 0:
         raise typer.Exit(1)
 
 

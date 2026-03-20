@@ -29,6 +29,26 @@ class Verdict(enum.StrEnum):
     ERROR = "error"
 
 
+class EvalSuiteType(enum.StrEnum):
+    """Distinguish capability evaluation from regression testing.
+
+    - CAPABILITY: Pass@k — measures what the system CAN do at best (k attempts, any pass)
+    - REGRESSION: Pass^k — measures reliability (k attempts, ALL must pass)
+    """
+
+    CAPABILITY = "capability"
+    REGRESSION = "regression"
+
+
+@dataclass(slots=True)
+class OutcomeCheck:
+    """Outcome-based verification result (checks filesystem/env state, not just transcript)."""
+
+    name: str
+    passed: bool
+    detail: str = ""
+
+
 @dataclass(slots=True)
 class RunScore:
     """Per-run scoring record."""
@@ -43,6 +63,16 @@ class RunScore:
     builder_adapter: str
     has_retro: bool
     tags: dict[str, str] = field(default_factory=dict)
+    outcome_checks: list[OutcomeCheck] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class InfraHealthCheck:
+    """Pre-eval infrastructure health assessment."""
+
+    name: str
+    status: str  # "pass" | "warn" | "fail"
+    detail: str = ""
 
 
 @dataclass(slots=True)
@@ -60,6 +90,9 @@ class EvalReport:
     run_scores: list[RunScore] = field(default_factory=list)
     generated_at: str = ""
     filter_tags: dict[str, str] = field(default_factory=dict)
+    suite_type: str = EvalSuiteType.CAPABILITY
+    infra_checks: list[InfraHealthCheck] = field(default_factory=list)
+    outcome_pass_rate: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -73,12 +106,33 @@ class EvalRunner:
     def __init__(self, repo_root: Path) -> None:
         self.repo_root = repo_root
 
+    def check_infra(self) -> list[InfraHealthCheck]:
+        """Pre-eval infrastructure health checks."""
+        checks: list[InfraHealthCheck] = []
+        runs_dir = self.repo_root / ".spec_orch_runs"
+        if runs_dir.is_dir():
+            count = sum(1 for d in runs_dir.iterdir() if d.is_dir())
+            checks.append(InfraHealthCheck("run_dirs", "pass", f"{count} run directories found"))
+        else:
+            checks.append(InfraHealthCheck("run_dirs", "warn", "No .spec_orch_runs directory"))
+        config_path = self.repo_root / "spec-orch.toml"
+        checks.append(
+            InfraHealthCheck(
+                "config",
+                "pass" if config_path.exists() else "fail",
+                str(config_path),
+            )
+        )
+        return checks
+
     def evaluate(
         self,
         *,
         filter_tags: dict[str, str] | None = None,
         run_dirs: list[Path] | None = None,
+        suite_type: EvalSuiteType = EvalSuiteType.CAPABILITY,
     ) -> EvalReport:
+        infra = self.check_infra()
         dirs = run_dirs if run_dirs is not None else self._collect_run_dirs()
         scores: list[RunScore] = []
         for d in dirs:
@@ -88,7 +142,10 @@ class EvalRunner:
             if filter_tags and not self._matches_tags(score, filter_tags):
                 continue
             scores.append(score)
-        return self._aggregate(scores, filter_tags or {})
+        report = self._aggregate(scores, filter_tags or {})
+        report.suite_type = suite_type
+        report.infra_checks = infra
+        return report
 
     def write_report(self, report: EvalReport, output: Path) -> Path:
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -139,6 +196,7 @@ class EvalRunner:
         ).exists()
 
         tags = self._extract_tags(data, live_data)
+        outcome_checks = self._run_outcome_checks(run_dir, data)
 
         return RunScore(
             run_id=run_id,
@@ -151,6 +209,7 @@ class EvalRunner:
             builder_adapter=adapter,
             has_retro=has_retro,
             tags=tags,
+            outcome_checks=outcome_checks,
         )
 
     @staticmethod
@@ -200,6 +259,34 @@ class EvalRunner:
         return count
 
     @staticmethod
+    def _run_outcome_checks(run_dir: Path, conclusion: dict[str, Any]) -> list[OutcomeCheck]:
+        """Check filesystem state, not just transcript claims."""
+        checks: list[OutcomeCheck] = []
+        artifact_dir = run_dir / "run_artifact"
+        checks.append(
+            OutcomeCheck(
+                "conclusion_exists",
+                (artifact_dir / "conclusion.json").exists(),
+            )
+        )
+        checks.append(
+            OutcomeCheck(
+                "events_log_exists",
+                (artifact_dir / "events.jsonl").exists() or (run_dir / "events.jsonl").exists(),
+            )
+        )
+        if conclusion.get("mergeable"):
+            worktree = run_dir if (run_dir / ".git").exists() else None
+            checks.append(
+                OutcomeCheck(
+                    "worktree_has_commits",
+                    worktree is not None,
+                    "mergeable=True but no .git in run dir" if worktree is None else "ok",
+                )
+            )
+        return checks
+
+    @staticmethod
     def _matches_tags(score: RunScore, required: dict[str, str]) -> bool:
         return all(score.tags.get(k) == v for k, v in required.items())
 
@@ -229,6 +316,11 @@ class EvalRunner:
             if s.mergeable:
                 bucket["passed"] += 1
 
+        all_outcome = [c for s in scores for c in s.outcome_checks]
+        outcome_rate = (
+            sum(1 for c in all_outcome if c.passed) / len(all_outcome) if all_outcome else 0.0
+        )
+
         return EvalReport(
             total=total,
             passed=passed,
@@ -241,6 +333,7 @@ class EvalRunner:
             run_scores=scores,
             generated_at=datetime.now(UTC).isoformat(),
             filter_tags=filter_tags,
+            outcome_pass_rate=outcome_rate,
         )
 
     @staticmethod
