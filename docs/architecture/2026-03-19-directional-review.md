@@ -215,15 +215,52 @@ but adds directional constraints on top:
 This status section tracks whether the directional adjustments above are already
 implemented in code and synchronized into planning execution systems (Linear).
 
+### 6.1 Relationship to older roadmaps (avoid misreading)
+
+| Document | Role | Superseded by 3/19? |
+|----------|------|---------------------|
+| [Overall status & roadmap (2026-03-18)](../plans/2026-03-18-overall-status-and-roadmap.md) | Phase 13–16, gap list, execution order | **No**. The 3/19 doc adds **directional constraints** (scope, CEO flywheel, reprioritization) on top. |
+| [Context governance / Context Contract (2026-03-17)](context-contract-design.md) | 12-node context, phased rollout | **No**. **Phases 0–1** (Assembler, node wiring, manifest) largely align with Phase 13 / `SON-174` and are mostly done; **Phases 2–3** (case-driven evolution, unified lifecycle, full auto-trigger) remain **deep backlog**. |
+| [System Design v0](spec-orch-system-design-v0.md) | Initial design (2026-03-07) | **Historical**; current pipeline docs + code are authoritative. Informal “v0.6 direction” usually means **context governance + Phase 13**, not a version field in this file. |
+
+**Takeaway**: **Strategic narrative = this 3/19 doc + CEO Credibility Flywheel.** But **not every row in §IV “Action ordering” is shipped** — see §6.3.
+
+### 6.2 Directional items — done
+
 | Directional item | Status | Evidence |
 |------------------|--------|----------|
 | Project detection LLM-first + rules fallback | ✅ Done | Linear Epic `SON-175` + issues `SON-181~184` completed |
 | Spec format standardization to IAC | ✅ Done | Linear Epic `SON-176` + issues `SON-185~188` completed |
 | ContextAssembler full integration across LLM nodes | ✅ Done | Linear Epic `SON-174`; issues `SON-177~180` merged via PR `#85~87` |
 | Unified run artifact schema (P1 baseline) | ✅ Done | `SON-194`–`SON-200` merged; `run_artifact/*` is canonical, `artifact_manifest.json` is compatibility bridge |
-| Reaction engine (P2) | 🔄 In progress | Rules + `get_pr_signal` + daemon loop merged; **P2-B** configurable `params` (`comment_template`, `merge_method`), YAML validation; **P2-C** `requeue_ready`; **P2-D** `.spec_orch/reactions_trace.jsonl` + `SYSTEM` events |
+| Reaction engine (P2) baseline | ✅ Done | Rules, `get_pr_signal`, daemon loop, `params` / `requeue_ready`, `.spec_orch/reactions_trace.jsonl`, etc. (e.g. PR `#95`/`#96`); **not** the same as **Harness-level evals** (see §6.3) |
 | README / user-facing init docs synced to new behavior | ✅ Done | `README.md` / `README.zh.md` include `--offline` / `--reconfigure` |
 | Flywheel roadmap (P1/P2/P5/P6/P4-format) represented in Linear epics | ✅ Done | Planning epics `SON-189~193` created and labeled `epic` |
+
+### 6.3 Directional — not done or only partial (vs §IV + CEO scope)
+
+Strategic choice ≠ shipped feature:
+
+| Source | Direction | Status | Notes |
+|--------|-----------|--------|-------|
+| §IV P1 | **External user end-to-end validation** | ❌ Not done | Product hypothesis; distinct from internal dogfood |
+| §IV P2 | **Run trace + eval harness** | 🟡 Partial | Unified artifacts + events + reaction traces exist; **SON-190 (P6 Harness Evals)** and systematic offline eval still missing |
+| §IV P2 | **Skill degradation detection** | ❌ Not done | “Monitor before you optimize” (article 7) — not a standalone system yet |
+| §IV P3 | **Skill system** | ⏸️ Explicitly deferred | Matches CEO “P4 format only” |
+| §IV P3 | **Dashboard / Control Tower** | ❌ Not done | **SON-193 (P5)**; deferred until core loop is stable |
+| CEO flywheel | **P4 Skill Format Definition (format-only)** | ❌ Not done | **SON-192** |
+| CEO flywheel | **P5 Control Tower UI** | ❌ Not done | **SON-193** |
+| CEO flywheel | **P6 Harness Evals** | ❌ Not done | **SON-190** |
+| [context-contract-design](context-contract-design.md) | **Phases 2–3** (case-driven evolution, unified lifecycle, full auto-trigger) | 🟡 Partial / not deep | Phase 1 wiring advanced; evolution still skewed “report-driven” |
+| [Overall roadmap](../plans/2026-03-18-overall-status-and-roadmap.md) **Phase 14+** | **Daemon production hardening, hotfix, conflict resolution** | 🟡 Partial | e.g. **SON-46** still in backlog |
+
+**“Seven planes → three-layer skeleton”**: narrative and progressive simplification, **not** a single checkbox.
+
+### 6.4 Overall snapshot & suggested priority (2026-03-22)
+
+1. **Direction**: 3/19 + CEO **Credibility Flywheel** + **SELECTIVE_EXPANSION** remain the main line; **P0/P1 code-path items from the directional review are largely landed**.
+2. **Largest gaps**: **external validation**, **eval / harness (P6)**, **Control Tower (P5)**, **skill format (P4)**, **skill degradation detection**, **context-contract Phases 2–3 depth**, **Phase 14 production daemon**.
+3. **Suggested next “most important” slices** (when opening issues): pick one cross-cutting bet — **P6 eval baseline (small step: aligned with existing artifacts)** **or** **P5 minimal control surface**; parallelize **SON-46**-class work if the goal is unattended operation.
 
 ### CEO Review Sync (2026-03-19)
 

@@ -23,6 +23,18 @@
 
 ---
 
+## 0.2 文档层级与进度同步（2026-03-22）
+
+**读文档顺序（战略 → 执行）：**
+
+1. **[方向性深度拷问（2026-03-19）](../architecture/2026-03-19-directional-review.zh.md)** — 最新方向性结论、行动排序、**§6 未完成清单**（哪些战略条目尚未工程落地）。
+2. **本文（2026-03-18）** — Phase 13~16、Gap、历史清理；其中 **Phase 13 主线已完成**，下文表格已更新。
+3. **[上下文治理 / Context Contract（2026-03-17）](../architecture/context-contract-design.md)** — 12 节点与分 Phase 改造；**Phase 0~1 大体对齐 Phase 13 已落地**，Phase 2~3（进化深度）仍待推进。
+
+**与「v0 系统设计」关系**：[`spec-orch-system-design-v0.md`](../architecture/spec-orch-system-design-v0.md) 为 **2026-03-07 历史文档**；口语中的「v0.6 / 方向性图谱」在 2026-03 语境下主要指 **上下文治理 + Phase 13** 这条线，**已被** `SON-174` / `SON-177~180`、统一 artifact 等 **大体覆盖**；未覆盖部分见方向性文档 §6.3 与本文 Phase 14+。
+
+---
+
 ## 一、Linear 清理结果
 
 ### 1.1 本次清理统计
@@ -88,12 +100,14 @@ spec-orch 当前能力矩阵:
 
 ### 3.1 已建基础设施但尚未全面接入的
 
-| 基础设施 | 当前接入节点 | 未接入节点 | 影响 |
-|----------|------------|-----------|------|
-| ContextAssembler | Builder (envelope), LLMReview (extra context) | ReadinessChecker, Planner, Scoper, IntentClassifier | 4 个执行节点仍用 ad-hoc prompt |
-| ArtifactManifest | RunController._finalize_run | Evolvers, ContextAssembler.assemble | 生成了 manifest 但下游未消费 |
-| EvolutionTrigger | 代码实现完成 | 未接入 RunController 主流程 | 进化仅手动触发 |
-| ContextBundle 数据类 | 定义完成 | 仅 ContextAssembler 内部使用 | 节点间未用 ContextBundle 传递 |
+> **2026-03-22 更新**：Phase 13 / `SON-177~180` 已把 **ReadinessChecker、Planner、Scoper、IntentClassifier、LLMReview、Evolver 侧 manifest 偏好** 等主线接入推进到「可交付」状态；下表保留为 **历史快照**，当前更准确的对照见 [方向性文档 §6](../architecture/2026-03-19-directional-review.zh.md)。
+
+| 基础设施 | 当时缺口（2026-03-18） | 2026-03-22 说明 |
+|----------|----------------------|----------------|
+| ContextAssembler | 多节点未接入 | **主线节点已接入**；细节仍见各 adapter 渲染路径 |
+| ArtifactManifest / `run_artifact` | 下游消费不全 | **统一 `run_artifact/*` + 兼容桥**已合入；Evolver/Reader 已偏好奇路径 |
+| EvolutionTrigger | 未接入主流程 | **部分自动路径仍弱**；深度案例化见 [context-contract-design](../architecture/context-contract-design.md) Phase 2~3 |
+| ContextBundle | 仅内部使用 | 已在接入节点通过 Assembler **结构化获取** |
 
 ### 3.2 真正缺失的能力
 
@@ -113,24 +127,26 @@ spec-orch 当前能力矩阵:
 
 ### Phase 13: 上下文全面接入 + 进化闭环落地
 
+**状态（2026-03-22）**: **主线已完成**（`SON-174`、`SON-177~180`、统一 artifact 等）。**13-7 / 13-8** 类验证仍属 **P1 产品/运维验证**，与 [方向性文档 §6.3 P1 外部 E2E](../architecture/2026-03-19-directional-review.zh.md) 一致，**未**随 Phase 13 代码主线一并关闭。
+
 **目标**: 把 Phase 12 建好的基础设施真正接入所有 LLM 节点，实现"可装配上下文"的
 承诺。同时让 EvolutionTrigger 自动触发，而非手动。
 
-| 编号 | 任务 | 优先级 | 预估 |
-|------|------|--------|------|
-| 13-1 | ContextAssembler 接入 ReadinessChecker | P0 | 0.5d |
-| 13-2 | ContextAssembler 接入 Planner (plan + answer_questions) | P0 | 1d |
-| 13-3 | ContextAssembler 接入 Scoper | P0 | 0.5d |
-| 13-4 | ContextAssembler 接入 IntentClassifier / Conductor | P0 | 0.5d |
-| 13-5 | ArtifactManifest 消费：Evolvers 通过 manifest 定位原始制品 | P0 | 1d |
-| 13-6 | EvolutionTrigger 接入 RunController._finalize_run | P0 | 0.5d |
-| 13-7 | Daemon + MiniMax 全链路实测 (daemon 模式 + 自动执行) | P1 | 1d |
-| 13-8 | Gate 通过 → 自动 PR → 自动 merge 端到端验证 | P1 | 1d |
+| 编号 | 任务 | 优先级 | 预估 | 状态（2026-03-22） |
+|------|------|--------|------|-------------------|
+| 13-1 | ContextAssembler 接入 ReadinessChecker | P0 | 0.5d | ✅ |
+| 13-2 | ContextAssembler 接入 Planner (plan + answer_questions) | P0 | 1d | ✅ |
+| 13-3 | ContextAssembler 接入 Scoper | P0 | 0.5d | ✅ |
+| 13-4 | ContextAssembler 接入 IntentClassifier / Conductor | P0 | 0.5d | ✅ |
+| 13-5 | ArtifactManifest 消费：Evolvers 通过 manifest 定位原始制品 | P0 | 1d | ✅（含 `run_artifact` 优先） |
+| 13-6 | EvolutionTrigger 接入 RunController._finalize_run | P0 | 0.5d | 🟡 部分 / 深化见 context-contract Phase 2~3 |
+| 13-7 | Daemon + MiniMax 全链路实测 (daemon 模式 + 自动执行) | P1 | 1d | ❌ 待测 |
+| 13-8 | Gate 通过 → 自动 PR → 自动 merge 端到端验证 | P1 | 1d | 🟡 Reaction/daemon 已有基线；全链路仍待 E2E 记录 |
 
 **验收标准**:
-- 所有 12 个 LLM 节点通过 ContextAssembler 获取上下文
-- EvolutionTrigger 在每 N 次 run 后自动触发
-- Daemon 模式下 MiniMax 实测成功记录
+- 所有 12 个 LLM 节点通过 ContextAssembler 获取上下文 — **主线已满足**
+- EvolutionTrigger 在每 N 次 run 后自动触发 — **🟡 策略与深度仍可增强**
+- Daemon 模式下 MiniMax 实测成功记录 — **❌ 仍缺**
 
 ### Phase 14: 生产健壮性
 
@@ -179,20 +195,18 @@ spec-orch 当前能力矩阵:
 ## 五、建议执行顺序
 
 ```
-Phase 13 (上下文全面接入)     ← 当前最高优先级，完成 SON-123 的"最后一公里"
+Phase 13 (上下文全面接入)     ← ✅ 主线已完成（2026-03-22）
     ↓
-Phase 14 (生产健壮性)         ← Daemon 可靠性，无人值守前提
+飞轮：P6 Eval / P5 Control / P4 format（见 SON-190~193 与方向性 §6.3）
     ↓
-Phase 15 (Contract 自动化)    ← 提升 agent 安全性和执行质量
+Phase 14 (生产健壮性)         ← Daemon 可靠性（SON-46 等），无人值守前提
     ↓
-Phase 16 (产品化)             ← 对外发布准备
+Phase 15 (Contract 自动化)
+    ↓
+Phase 16 (产品化)
 ```
 
-**Phase 13 是当前推荐的下一步**，理由：
-1. Phase 12 (SON-123) 建好了 ContextBundle/Assembler/Manifest 基础设施，但只接入了
-   Builder 和 Review 两个节点，还有 4 个执行节点和全部进化节点未接入
-2. EvolutionTrigger 代码已写好但未接入主流程，进化是系统核心差异化
-3. 这些是"连线"工作，代码改动量不大但系统收益显著
+**Phase 13 已完成**；当前更紧迫的「方向性缺口」见 **[方向性文档 §6.3](../architecture/2026-03-19-directional-review.zh.md)**（外部 E2E、P6/P5/P4、Skill 退化检测、context Phase 2~3 等）。**Phase 14** 仍是无人值守 Daemon 的硬前提。
 
 ---
 
@@ -214,6 +228,4 @@ Phase 16 (产品化)             ← 对外发布准备
 spec-orch 已经完成了从"原型"到"功能完备的编排系统"的跨越。12 个 Phase/Epic
 全部完成，覆盖了核心管线、可插拔适配器、自进化体系、上下文治理等关键能力。
 
-**当前处于"基础设施完备、全面接入待做"的阶段。** 最有价值的下一步是 Phase 13：
-把已建好的 ContextAssembler、ArtifactManifest、EvolutionTrigger 真正接入所有
-LLM 节点和主流程，让系统从"部分结构化"跃迁到"全面结构化"。
+**2026-03-22**：**Phase 13 主线（ContextAssembler 全节点 + 统一 artifact 消费路径）已落地**，不再处于「全面接入待做」。当前阶段更接近 **「方向性飞轮中 P5/P6/P4 与外部验证、进化深度、生产级 Daemon」** — 以 [方向性文档 §6](../architecture/2026-03-19-directional-review.zh.md) 为准。
