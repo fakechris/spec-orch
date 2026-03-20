@@ -221,18 +221,7 @@ def init_project(
             typer.echo("Tip: create a .env file with SPEC_ORCH_LLM_API_KEY=your-key")
 
     typer.echo("\nRunning preflight check...")
-    try:
-        from click import get_current_context
-
-        ctx = get_current_context()
-        ctx.invoke(
-            preflight_cmd,
-            repo_root=root,
-            json_output=False,
-            try_llm=False,
-        )
-    except SystemExit:
-        pass
+    _run_preflight_inline(root)
 
 
 def _read_init_detection_mode(config_path: Path) -> str | None:
@@ -272,27 +261,18 @@ def dashboard(
     uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
-@app.command("preflight")
-def preflight_cmd(
-    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
-    json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
-    try_llm: bool = typer.Option(
-        False, "--try-llm", help="Send a test request to verify LLM connectivity."
-    ),
-) -> None:
-    """Pre-launch health check: dependencies, config, env, and connectivity."""
+def _run_preflight(
+    root: Path,
+    *,
+    try_llm: bool = False,
+) -> dict[str, Any]:
+    """Run preflight checks and return the report dict (no I/O side effects)."""
     import importlib.util
-    import shutil
+    import shutil as _shutil
 
-    root = Path(repo_root).resolve()
     checks: list[dict[str, Any]] = []
 
-    def _add(
-        name: str,
-        status: str,
-        message: str,
-        fix: str | None = None,
-    ) -> None:
+    def _add(name: str, status: str, message: str, fix: str | None = None) -> None:
         entry: dict[str, Any] = {"name": name, "status": status, "message": message}
         if fix:
             entry["fix"] = fix
@@ -304,7 +284,7 @@ def preflight_cmd(
     else:
         _add("python", "fail", f"Python {major}.{minor} < 3.11", "pyenv install 3.11")
 
-    git = shutil.which("git")
+    git = _shutil.which("git")
     _add("git", "pass" if git else "fail", git or "not found", None if git else "brew install git")
 
     core_deps = {"typer": "typer", "httpx": "httpx", "yaml": "pyyaml"}
@@ -383,11 +363,7 @@ def preflight_cmd(
         except Exception as exc:
             _add("llm_connectivity", "fail", f"LLM request failed: {exc}")
     elif try_llm:
-        _add(
-            "llm_connectivity",
-            "warn",
-            "Skipped (missing API key or litellm)",
-        )
+        _add("llm_connectivity", "warn", "Skipped (missing API key or litellm)")
 
     counts = {"pass": 0, "warn": 0, "fail": 0}
     for c in checks:
@@ -417,28 +393,55 @@ def preflight_cmd(
 
     report_dir = root / ".spec_orch"
     report_dir.mkdir(parents=True, exist_ok=True)
-    report_path = report_dir / "preflight.json"
-    report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+    (report_dir / "preflight.json").write_text(
+        json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+    )
+
+    return report
+
+
+def _print_preflight(report: dict[str, Any], report_path: Path) -> None:
+    """Print preflight report to stdout."""
+    for c in report["checks"]:
+        line = f"[{c['status'].upper()}] {c['name']}: {c['message']}"
+        typer.echo(line)
+        if c.get("fix"):
+            typer.echo(f"       fix: {c['fix']}")
+    counts = report["summary"]
+    typer.echo(f"\nPreflight: {counts['pass']} pass, {counts['warn']} warn, {counts['fail']} fail")
+    if report.get("ready"):
+        typer.echo(f"Ready to use: {', '.join(report['ready'])}")
+    if report.get("not_ready"):
+        typer.echo(f"Not ready: {', '.join(report['not_ready'])}")
+    typer.echo(f"\nReport saved to {report_path}")
+
+
+def _run_preflight_inline(root: Path) -> None:
+    """Run preflight from init — prints results but never fails init."""
+    report = _run_preflight(root)
+    report_path = root / ".spec_orch" / "preflight.json"
+    _print_preflight(report, report_path)
+
+
+@app.command("preflight")
+def preflight_cmd(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
+    try_llm: bool = typer.Option(
+        False, "--try-llm", help="Send a test request to verify LLM connectivity."
+    ),
+) -> None:
+    """Pre-launch health check: dependencies, config, env, and connectivity."""
+    root = Path(repo_root).resolve()
+    report = _run_preflight(root, try_llm=try_llm)
+    report_path = root / ".spec_orch" / "preflight.json"
 
     if json_output:
         typer.echo(json.dumps(report, indent=2, ensure_ascii=False))
     else:
-        for c in checks:
-            status_label = c["status"].upper()
-            line = f"[{status_label}] {c['name']}: {c['message']}"
-            typer.echo(line)
-            if c.get("fix"):
-                typer.echo(f"       fix: {c['fix']}")
-        typer.echo(
-            f"\nPreflight: {counts['pass']} pass, {counts['warn']} warn, {counts['fail']} fail"
-        )
-        if ready:
-            typer.echo(f"Ready to use: {', '.join(ready)}")
-        if not_ready:
-            typer.echo(f"Not ready: {', '.join(not_ready)}")
-        typer.echo(f"\nReport saved to {report_path}")
+        _print_preflight(report, report_path)
 
-    if counts["fail"] > 0:
+    if report["summary"]["fail"] > 0:
         raise typer.Exit(1)
 
 
