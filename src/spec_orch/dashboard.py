@@ -347,6 +347,18 @@ def _control_reactions(repo_root: Path) -> dict[str, Any]:
         return {"rules": [], "warnings": ["reaction engine unavailable"]}
 
 
+def _control_degradation(repo_root: Path) -> dict[str, Any]:
+    """Run degradation detection for the Control Tower."""
+    try:
+        from spec_orch.services.degradation_detector import DegradationDetector
+
+        detector = DegradationDetector(repo_root)
+        report = detector.detect()
+        return report.to_dict()
+    except Exception as exc:
+        return {"degraded": False, "error": str(exc)}
+
+
 def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
     """Scan workspace directories for run reports."""
     runs: list[dict[str, Any]] = []
@@ -1046,6 +1058,10 @@ def create_app(repo_root: Path | None = None) -> Any:
     @app.get("/api/control/reactions")
     async def api_control_reactions() -> JSONResponse:
         return JSONResponse(_control_reactions(root))
+
+    @app.get("/api/control/degradation")
+    async def api_control_degradation() -> JSONResponse:
+        return JSONResponse(_control_degradation(root))
 
     # ---- action endpoints ----
 
