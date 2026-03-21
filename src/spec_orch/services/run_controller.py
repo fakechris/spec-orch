@@ -146,6 +146,7 @@ class RunController:
             live_stream=live_stream,
         )
         self._report_writer = RunReportWriter()
+        self._runs_since_compaction = 0
 
     def _get_memory(self) -> Any | None:
         """Lazily obtain the MemoryService singleton."""
@@ -1011,6 +1012,8 @@ class RunController:
         )
         return gate, explain, report
 
+    _COMPACT_EVERY_N_RUNS = 10
+
     def _consolidate_run_memory(
         self,
         *,
@@ -1029,7 +1032,10 @@ class RunController:
                 succeeded=gate.mergeable,
                 failed_conditions=gate.failed_conditions,
             )
-            memory.compact()
+            self._runs_since_compaction += 1
+            if self._runs_since_compaction >= self._COMPACT_EVERY_N_RUNS:
+                memory.compact()
+                self._runs_since_compaction = 0
         except Exception:
             logger.debug("Memory consolidation skipped", exc_info=True)
 

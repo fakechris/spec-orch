@@ -38,6 +38,18 @@ def _coerce_skill_manifest(data: dict[str, Any]) -> SkillManifest | None:
     return m
 
 
+def _version_is_newer(new: str, old: str) -> bool:
+    """Compare semver-like version strings (best effort)."""
+
+    def _parts(v: str) -> tuple[int, ...]:
+        try:
+            return tuple(int(x) for x in v.split("."))
+        except (ValueError, AttributeError):
+            return (0,)
+
+    return _parts(new) > _parts(old)
+
+
 _MAX_JSONL_LINES_PER_RUN = 4000
 _MAX_SEQUENCE_LEN = 64
 _MAX_RUNS_IN_PROMPT = 30
@@ -204,7 +216,40 @@ class SkillEvolver:
                 "success_rate": round(ev_summary.success_rate, 4),
             }
 
+        semantic_summaries = self._recall_semantic_run_summaries()
+        if semantic_summaries:
+            payload["run_outcome_summaries"] = semantic_summaries
+
         return [payload]
+
+    def _recall_semantic_run_summaries(self) -> list[dict[str, Any]]:
+        """Pull structured run outcomes from MemoryService semantic layer."""
+        try:
+            from spec_orch.services.memory.service import get_memory_service
+            from spec_orch.services.memory.types import MemoryLayer, MemoryQuery
+
+            memory = get_memory_service(repo_root=self._repo_root)
+            entries = memory.recall(
+                MemoryQuery(
+                    layer=MemoryLayer.SEMANTIC,
+                    tags=["run-summary"],
+                    top_k=20,
+                )
+            )
+            return [
+                {
+                    "run_id": e.metadata.get("run_id", ""),
+                    "issue_id": e.metadata.get("issue_id", ""),
+                    "succeeded": e.metadata.get("succeeded"),
+                    "failed_conditions": e.metadata.get("failed_conditions", []),
+                    "summary": e.content,
+                }
+                for e in entries
+                if e.metadata
+            ]
+        except Exception:
+            logger.debug("Could not recall semantic run summaries", exc_info=True)
+            return []
 
     def propose(
         self,
@@ -303,7 +348,7 @@ class SkillEvolver:
     def validate(self, proposal: EvolutionProposal) -> EvolutionOutcome:
         skills_dir = default_skills_dir(self._repo_root)
         existing, _warn = load_skills_from_dir(skills_dir)
-        existing_ids = {m.id for m in existing}
+        existing_by_id = {m.id: m for m in existing}
 
         content = proposal.content
         if not isinstance(content, dict):
@@ -315,13 +360,16 @@ class SkillEvolver:
             )
 
         pid = str(content.get("id", "")).strip()
-        if pid in existing_ids:
-            return EvolutionOutcome(
-                proposal_id=proposal.proposal_id,
-                accepted=False,
-                validation_method=EvolutionValidationMethod.RULE_VALIDATOR,
-                reason=f"skill id {pid!r} already exists",
-            )
+        prev = existing_by_id.get(pid)
+        if prev is not None:
+            new_ver = str(content.get("version", "0.1.0")).strip()
+            if not _version_is_newer(new_ver, prev.version):
+                return EvolutionOutcome(
+                    proposal_id=proposal.proposal_id,
+                    accepted=False,
+                    validation_method=EvolutionValidationMethod.RULE_VALIDATOR,
+                    reason=(f"skill {pid!r} v{new_ver} is not newer than existing v{prev.version}"),
+                )
 
         manifest_dict = self._content_to_manifest_dict(content)
         kind_early = str(content.get("kind", "")).strip()
@@ -443,6 +491,8 @@ class SkillEvolver:
         skills_dir.mkdir(parents=True, exist_ok=True)
         out_path = skills_dir / f"{sid}.yaml"
 
+        is_update = out_path.exists()
+
         yaml_body = yaml.safe_dump(
             parsed.to_dict(),
             sort_keys=False,
@@ -455,7 +505,8 @@ class SkillEvolver:
             logger.exception("Failed to write skill YAML to %s", out_path)
             return False
 
-        logger.info("Wrote skill manifest to %s", out_path)
+        action = "Updated" if is_update else "Wrote"
+        logger.info("%s skill manifest %s v%s at %s", action, sid, parsed.version, out_path)
         return True
 
     @staticmethod

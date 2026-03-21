@@ -91,7 +91,8 @@ class TestMemoryServiceCRUD:
         assert entry.layer == MemoryLayer.SEMANTIC
         assert "run-summary" in entry.tags
         assert "run-abc" in entry.content
-        assert "Failed conditions: ci, review" in entry.content
+        assert entry.metadata["failed_conditions"] == ["ci", "review"]
+        assert entry.metadata["succeeded"] is False
 
 
 class TestLifecycleCapture:

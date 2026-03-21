@@ -133,24 +133,21 @@ class MemoryService:
         key_learnings: str = "",
     ) -> str | None:
         """Store a run outcome summary in semantic memory for cross-run learning."""
-        content_parts: list[str] = []
-        content_parts.append(
-            f"Run {run_id} for {issue_id}: {'succeeded' if succeeded else 'failed'}"
-        )
-        if failed_conditions:
-            content_parts.append("Failed conditions: " + ", ".join(failed_conditions))
+        outcome = "succeeded" if succeeded else "failed"
+        content = f"Run {run_id} for {issue_id}: {outcome}"
         if key_learnings:
-            content_parts.append(key_learnings)
+            content = f"{content}\n{key_learnings}"
 
         entry = MemoryEntry(
             key=f"run-summary-{run_id}",
-            content="\n".join(content_parts),
+            content=content,
             layer=MemoryLayer.SEMANTIC,
             tags=["run-summary", "auto-consolidated"],
             metadata={
                 "run_id": run_id,
                 "issue_id": issue_id,
                 "succeeded": succeeded,
+                "failed_conditions": failed_conditions or [],
             },
         )
         return self.store(entry)

@@ -138,7 +138,7 @@ class TestSkillEvolverValidate:
         outcome = evolver.validate(proposal)
         assert outcome.accepted is True
 
-    def test_duplicate_id_rejected(self, tmp_path: Path) -> None:
+    def test_same_version_rejected(self, tmp_path: Path) -> None:
         skills_dir = tmp_path / ".spec_orch" / "skills"
         skills_dir.mkdir(parents=True)
         import yaml
@@ -150,6 +150,7 @@ class TestSkillEvolverValidate:
                     "id": "auto-skill-lint-test",
                     "name": "existing",
                     "kind": "builder_hook",
+                    "version": "0.1.0",
                 }
             )
         )
@@ -163,7 +164,36 @@ class TestSkillEvolverValidate:
         )
         outcome = evolver.validate(proposal)
         assert outcome.accepted is False
-        assert "already exists" in outcome.reason
+        assert "not newer" in outcome.reason
+
+    def test_newer_version_accepted(self, tmp_path: Path) -> None:
+        skills_dir = tmp_path / ".spec_orch" / "skills"
+        skills_dir.mkdir(parents=True)
+        import yaml
+
+        (skills_dir / "auto-skill-lint-test.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "schema_version": "1.0",
+                    "id": "auto-skill-lint-test",
+                    "name": "existing",
+                    "kind": "builder_hook",
+                    "version": "0.1.0",
+                }
+            )
+        )
+        evolver = SkillEvolver(tmp_path)
+        content = _valid_skill_content()
+        content["version"] = "0.2.0"
+        proposal = EvolutionProposal(
+            proposal_id="skill-auto-skill-lint-test",
+            evolver_name="skill_evolver",
+            change_type=EvolutionChangeType.HARNESS_RULE,
+            content=content,
+            confidence=0.7,
+        )
+        outcome = evolver.validate(proposal)
+        assert outcome.accepted is True
 
     def test_wrong_kind_rejected(self, tmp_path: Path) -> None:
         content = _valid_skill_content()

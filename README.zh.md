@@ -168,7 +168,7 @@ spec-orch policy distill          # 零 LLM 确定性脚本
 
 **v0.5.1** — Alpha，吃自己的狗粮（EODF）模式。
 
-系统用自己来开发自己，每次迭代都在自我改进。1100+ 测试，65+ 命令。
+系统用自己来开发自己，每次迭代都在自我改进。1196+ 测试，65+ 命令。
 
 `main` 分支已有的功能：
 
@@ -194,10 +194,10 @@ spec-orch policy distill          # 零 LLM 确定性脚本
 - `spec-orch preflight` 一键系统健康检查
 - `spec-orch selftest` 端到端冒烟测试
 - FlowRouter 混合路由（静态规则 + LLM 复杂度分析）
-- KnowledgeDistiller：跨 run 学习笔记（`.spec_orch/knowledge.md`）
+- KnowledgeDistiller：跨 run 学习笔记（`.spec_orch/knowledge.md`）（独立模块，需手动调用）
 - ContextRanker：优先级感知的上下文截断
 - RunProgressSnapshot：流水线阶段检查点，daemon 重试时跳过已完成 stage
-- SkillDegradationDetector：路由审计 + 效果基线
+- SkillDegradationDetector：路由审计 + 效果基线（独立模块，尚未接入流水线）
 - TraceSampler：可配置规则的在线评测采样
 - CompactRetentionPriority：架构感知的上下文压缩
 
