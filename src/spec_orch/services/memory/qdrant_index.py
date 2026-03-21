@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_COLLECTION = "spec_orch_memory"
 _DEFAULT_EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
+_REINDEX_BATCH_SIZE = 64
 
 
 @dataclass
@@ -58,15 +59,17 @@ class QdrantIndex:
         embedding_model: str = _DEFAULT_EMBEDDING_MODEL,
     ) -> None:
         try:
+            from fastembed import TextEmbedding  # type: ignore[import-untyped,import-not-found]
             from qdrant_client import QdrantClient  # type: ignore[import-untyped,import-not-found]
         except ImportError as exc:
             raise ImportError(
-                "qdrant-client is required for vector-enhanced memory. "
+                "qdrant-client[fastembed] is required for vector-enhanced memory. "
                 "Install with: pip install spec-orch[memory]"
             ) from exc
 
         self._collection = collection
         self._embedding_model = embedding_model
+        self._embedder = TextEmbedding(embedding_model)
 
         if mode == "memory":
             self._client = QdrantClient(location=":memory:")
@@ -89,7 +92,11 @@ class QdrantIndex:
             return
 
         sample_vec = self._embed(["probe"])
-        dim = len(sample_vec[0]) if sample_vec else 384
+        if not sample_vec or not sample_vec[0]:
+            raise RuntimeError(
+                f"Failed to determine embedding dimension for model {self._embedding_model}"
+            )
+        dim = len(sample_vec[0])
 
         self._client.create_collection(
             collection_name=self._collection,
@@ -104,15 +111,7 @@ class QdrantIndex:
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings using FastEmbed."""
-        from qdrant_client import (
-            models,  # type: ignore[import-untyped,import-not-found]  # noqa: F401
-        )
-
-        embeddings = list(
-            self._client._get_or_init_model(  # noqa: SLF001
-                self._embedding_model
-            ).embed(texts)
-        )
+        embeddings = list(self._embedder.embed(texts))
         return [list(e) for e in embeddings]
 
     def _key_to_id(self, key: str) -> str:
@@ -225,10 +224,37 @@ class QdrantIndex:
         int
             Number of entries indexed.
         """
+        from qdrant_client.models import (
+            PointStruct,  # type: ignore[import-untyped,import-not-found]
+        )
+
         self._client.delete_collection(self._collection)
         self._ensure_collection()
 
-        for key, content, layer, tags in entries:
-            self.upsert(key, content, layer=layer, tags=tags)
+        for i in range(0, len(entries), _REINDEX_BATCH_SIZE):
+            batch = entries[i : i + _REINDEX_BATCH_SIZE]
+            contents = [e[1] for e in batch]
+            vectors = self._embed(contents)
+            if not vectors:
+                continue
+
+            points = [
+                PointStruct(
+                    id=self._key_to_id(entry[0]),
+                    vector=vectors[j],
+                    payload={
+                        "key": entry[0],
+                        "layer": entry[2],
+                        "tags": entry[3] or [],
+                    },
+                )
+                for j, entry in enumerate(batch)
+                if j < len(vectors)
+            ]
+            if points:
+                self._client.upsert(
+                    collection_name=self._collection,
+                    points=points,
+                )
 
         return len(entries)

@@ -143,5 +143,14 @@ class VectorEnhancedProvider:
     ) -> list[str]:
         return self._fs.list_keys(layer=layer, tags=tags, limit=limit)
 
+    def list_summaries(
+        self,
+        *,
+        layer: str | None = None,
+        tags: list[str] | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        return self._fs.list_summaries(layer=layer, tags=tags, limit=limit)
+
     def get(self, key: str) -> MemoryEntry | None:
         return self._fs.get(key)
