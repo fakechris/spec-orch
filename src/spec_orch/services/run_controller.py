@@ -515,7 +515,7 @@ class RunController:
         builder = ctx.get("builder")
         if builder is None:
             builder = BuilderResult(
-                succeeded=False,
+                succeeded=True,
                 command=[],
                 stdout="",
                 stderr="",
