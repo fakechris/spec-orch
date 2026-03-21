@@ -261,6 +261,7 @@ def _make_controller(
     live_stream: IO[str] | None = None,
     source: str = "fixture",
     auto_approve: bool = False,
+    reviewer_override: str | None = None,
 ) -> RunController:
     from spec_orch.services.adapter_factory import (
         create_builder,
@@ -273,6 +274,10 @@ def _make_controller(
         builder_cfg = toml_raw.setdefault("builder", {})
         builder_cfg["executable"] = codex_executable
         builder_cfg.setdefault("adapter", "codex_exec")
+
+    if reviewer_override:
+        reviewer_cfg = toml_raw.setdefault("reviewer", {})
+        reviewer_cfg["adapter"] = reviewer_override
 
     issue_source = create_issue_source(repo_root, toml_override=toml_raw, source_override=source)
 

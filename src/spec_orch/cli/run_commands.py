@@ -33,6 +33,11 @@ def run_issue(
         "--auto-approve",
         help="Skip spec approval gate and auto-approve the spec.",
     ),
+    reviewer: str | None = typer.Option(
+        None,
+        "--reviewer",
+        help="Override reviewer adapter: local or llm.",
+    ),
 ) -> None:
     """Run one issue through the MVP pipeline."""
     live_stream: IO[str] | None = sys.stderr if live else None
@@ -42,6 +47,7 @@ def run_issue(
         live_stream=live_stream,
         source=source,
         auto_approve=auto_approve,
+        reviewer_override=reviewer,
     )
     result = controller.run_issue(issue_id)
     typer.echo(
@@ -326,6 +332,11 @@ def run_full(
         "--auto-approve",
         help="Skip spec approval gate and auto-approve the spec.",
     ),
+    reviewer: str | None = typer.Option(
+        None,
+        "--reviewer",
+        help="Override reviewer adapter: local or llm.",
+    ),
 ) -> None:
     """Run an issue through the full pipeline in one shot.
 
@@ -344,6 +355,7 @@ def run_full(
         live_stream=live_stream,
         source=source,
         auto_approve=auto_approve,
+        reviewer_override=reviewer,
     )
     from spec_orch.domain.models import FlowType as _FlowType
 

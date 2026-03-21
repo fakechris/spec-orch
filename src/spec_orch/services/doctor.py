@@ -239,12 +239,54 @@ class Doctor:
             )
         ]
 
+    def _check_reviewer(self) -> list[DoctorCheck]:
+        raw = self._load_raw()
+        reviewer = raw.get("reviewer")
+        if not isinstance(reviewer, dict):
+            return [
+                DoctorCheck(
+                    name="reviewer:adapter",
+                    status="warn",
+                    message="No [reviewer] section in config; defaulting to local (JSON-only)",
+                    fix_hint='Add [reviewer] adapter = "llm" to spec-orch.toml',
+                )
+            ]
+        adapter = reviewer.get("adapter", "local")
+        if adapter == "local":
+            has_llm_key = bool(os.environ.get("SPEC_ORCH_LLM_API_KEY"))
+            if has_llm_key:
+                return [
+                    DoctorCheck(
+                        name="reviewer:adapter",
+                        status="warn",
+                        message="Reviewer is 'local' (JSON-only) but LLM API key is available",
+                        fix_hint='Set [reviewer] adapter = "llm" for automated LLM review',
+                    )
+                ]
+            return [
+                DoctorCheck(
+                    name="reviewer:adapter",
+                    status="pass",
+                    message=(
+                        "Reviewer adapter: local (set SPEC_ORCH_LLM_API_KEY to enable LLM review)"
+                    ),
+                )
+            ]
+        return [
+            DoctorCheck(
+                name="reviewer:adapter",
+                status="pass",
+                message=f"Reviewer adapter: {adapter}",
+            )
+        ]
+
     def run_all(self) -> list[DoctorCheck]:
         results: list[DoctorCheck] = []
         results.extend(self._check_environment())
         results.extend(self._check_configuration())
         results.extend(self._check_verification())
         results.extend(self._check_builder())
+        results.extend(self._check_reviewer())
         return results
 
     def to_json(self) -> dict[str, object]:
