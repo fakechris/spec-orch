@@ -1077,3 +1077,52 @@ def test_run_issue_existing_approved_snapshot_skips_gate(tmp_path: Path) -> None
 
     result2 = controller.run_issue("SPEC-A3")
     assert result2.state == RunState.GATE_EVALUATED
+
+
+def test_run_issue_resumes_from_checkpoint(tmp_path: Path) -> None:
+    """Graph walker skips already-completed builder stage on retry."""
+    _make_fixture(tmp_path, "RESUME-1")
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
+    result1 = controller.run_issue("RESUME-1")
+    assert result1.state == RunState.GATE_EVALUATED
+
+    from spec_orch.services.run_progress import RunProgressSnapshot
+
+    snap = RunProgressSnapshot.load(result1.workspace)
+    assert snap is not None
+    assert snap.is_stage_completed("builder")
+    assert snap.is_stage_completed("verification")
+
+    result2 = controller.run_issue("RESUME-1")
+    assert result2.state == RunState.GATE_EVALUATED
+    assert result2.builder is not None
+    assert result2.builder.succeeded
+
+    snap2 = RunProgressSnapshot.load(result2.workspace)
+    assert snap2 is not None
+    builder_stages = [s for s in snap2.stages if s.stage == "builder"]
+    assert len(builder_stages) == 1, "Builder should appear exactly once (resumed, not re-executed)"
+
+
+def test_run_issue_reruns_on_corrupted_report(tmp_path: Path) -> None:
+    """When persisted report is corrupted, builder and verification re-execute."""
+    _make_fixture(tmp_path, "RESUME-2")
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
+    result1 = controller.run_issue("RESUME-2")
+    assert result1.state == RunState.GATE_EVALUATED
+
+    for rel in ["run_artifact/live.json", "report.json", "live.json"]:
+        p = result1.workspace / rel
+        if p.exists():
+            p.write_text("{}", encoding="utf-8")
+
+    result2 = controller.run_issue("RESUME-2")
+    assert result2.state == RunState.GATE_EVALUATED
+    assert result2.builder is not None
+
+    from spec_orch.services.run_progress import RunProgressSnapshot
+
+    snap2 = RunProgressSnapshot.load(result2.workspace)
+    assert snap2 is not None
+    builder_stages = [s for s in snap2.stages if s.stage == "builder"]
+    assert len(builder_stages) == 2, "Builder should re-execute when report is corrupted"

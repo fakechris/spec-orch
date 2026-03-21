@@ -64,6 +64,12 @@ _EXECUTION_STEP_HANDLERS: dict[str, str] = {
     "gate": "_handle_gate_step",
 }
 
+_STEP_TO_PROGRESS_STAGE: dict[str, str] = {
+    "execute": "builder",
+    "implement": "builder",
+    "verify": "verification",
+}
+
 _STATE_TO_STEP: dict[RunState, tuple[str, ...]] = {
     RunState.SPEC_DRAFTING: ("freeze_spec",),
     RunState.SPEC_APPROVED: ("mission_approve",),
@@ -277,7 +283,13 @@ class RunController:
         graph = self.flow_engine.get_graph(resolved_flow)
         active_conditions = self._resolve_active_conditions(issue)
 
+        prev_snap = RunProgressSnapshot.load(workspace)
+        completed_stages: set[str] = prev_snap.completed_stage_names() if prev_snap else set()
+
         run_snap = RunProgressSnapshot.create(run_id=run_id, issue_id=issue.issue_id)
+        if prev_snap:
+            run_snap.stages = list(prev_snap.stages)
+
         ctx: dict[str, Any] = {
             "issue": issue,
             "workspace": workspace,
@@ -323,6 +335,26 @@ class RunController:
                 handler_name = _EXECUTION_STEP_HANDLERS.get(step.id)
                 if handler_name is None:
                     continue
+
+                progress_stage = _STEP_TO_PROGRESS_STAGE.get(step.id)
+                if progress_stage and progress_stage in completed_stages:
+                    self._resume_completed_step(ctx, step.id, progress_stage)
+                    force_rerun = ctx.get("_force_rerun_steps", set())
+                    if step.id not in force_rerun:
+                        self._event_logger.log_and_emit(
+                            activity_logger=activity_logger,
+                            workspace=workspace,
+                            run_id=run_id,
+                            issue_id=issue.issue_id,
+                            component="flow_engine",
+                            event_type="step_resumed",
+                            message=(
+                                f"Resumed step '{step.id}' from previous run "
+                                f"(stage '{progress_stage}' already succeeded)."
+                            ),
+                            data={"step": step.id, "stage": progress_stage},
+                        )
+                        continue
 
                 if self.flow_engine.is_skippable(resolved_flow, step.id, active_conditions):
                     self._event_logger.log_and_emit(
@@ -455,6 +487,22 @@ class RunController:
             data={"version": 1, "approved": True},
         )
         return None
+
+    def _resume_completed_step(self, ctx: dict[str, Any], step_id: str, stage: str) -> None:
+        """Restore ctx data for a previously completed stage from persisted artifacts."""
+        workspace = ctx["workspace"]
+        try:
+            report_data = RunReportWriter.load_persisted_run_payload(workspace)
+            if stage == "builder":
+                ctx["builder"] = RunReportWriter.builder_from_report(report_data, workspace)
+            elif stage == "verification":
+                ctx["verification"] = RunReportWriter.verification_from_report(report_data)
+        except (KeyError, FileNotFoundError, TypeError, AttributeError):
+            logger.warning("Cannot restore %s from report; will re-run", stage)
+            force_rerun = ctx.setdefault("_force_rerun_steps", set())
+            force_rerun.add(step_id)
+            if stage == "builder":
+                force_rerun.add("verify")
 
     def _handle_builder_step(self, ctx: dict[str, Any]) -> RunResult | None:
         """Handle execute/implement step: run the builder."""
