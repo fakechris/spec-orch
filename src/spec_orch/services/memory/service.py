@@ -89,31 +89,47 @@ class MemoryService:
             )  # type: ignore[union-attr]
             return result
         keys = self._provider.list_keys(layer=layer, tags=tags, limit=limit)
-        return [{"key": k, "layer": layer or "", "tags": []} for k in keys]
+        results: list[dict[str, Any]] = []
+        for k in keys:
+            entry = self._provider.get(k)
+            results.append(
+                {
+                    "key": k,
+                    "layer": layer or "",
+                    "tags": [],
+                    "created_at": entry.created_at if entry else "",
+                }
+            )
+        return results
 
     def compact(self, *, max_age_days: int = 30) -> dict[str, int]:
-        """Remove expired episodic memory entries older than max_age_days."""
+        """Remove expired episodic memory entries older than max_age_days.
+
+        Uses index-only summaries to avoid O(N) file reads.
+        """
         from datetime import UTC, datetime, timedelta
 
         cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
 
-        keys = self.list_keys(layer=MemoryLayer.EPISODIC.value, limit=100_000)
-        removed = 0
+        summaries = self.list_summaries(layer=MemoryLayer.EPISODIC.value, limit=100_000)
+        expired_keys: list[str] = []
         retained = 0
-        for key in keys:
-            entry = self.get(key)
-            if entry is None:
-                continue
+        for s in summaries:
+            created = s.get("created_at", "")
             try:
-                entry_dt = datetime.fromisoformat(entry.created_at)
+                entry_dt = datetime.fromisoformat(created)
             except (ValueError, TypeError):
                 retained += 1
                 continue
             if entry_dt < cutoff:
-                if self.forget(key):
-                    removed += 1
+                expired_keys.append(s["key"])
             else:
                 retained += 1
+
+        removed = 0
+        for key in expired_keys:
+            if self.forget(key):
+                removed += 1
 
         if removed > 0:
             logger.info(

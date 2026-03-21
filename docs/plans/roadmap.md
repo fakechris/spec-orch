@@ -7,7 +7,7 @@
 
 ## 项目状态
 
-**v0.5.1** — Alpha，内部 dogfood 模式。1196+ 测试，65+ 命令。
+**v0.5.1** — Alpha，内部 dogfood 模式。1203+ 测试，65+ 命令。
 
 七层架构骨架完备，Credibility Flywheel 各环基线就位，架构债务已清理。
 当前处于**从内部原型走向外部验证**的转折点。
@@ -53,9 +53,16 @@ Linear 状态：170 Done / 16 Canceled / 0 Open。
 | PyPI 发布自动化 | CI 自动发布 + 版本号管理 | — |
 | 端到端 dogfood 连续 7 天 | 用 spec-orch 开发 spec-orch | — |
 
-### Milestone 4: 深化已有基线
+### Milestone 4: 架构一致性 + 深化基线
 
-以下能力已有基线实现，后续需深化为生产级：
+**核心架构矛盾（优先解决）：**
+
+| 矛盾 | 现状 | 目标 |
+|------|------|------|
+| FlowEngine 未接入 run_issue | `graphs.py` 定义 Full/Standard/Hotfix 三套 DAG，但 `run_issue()` 硬编码 build→verify→review→gate 顺序 | `run_issue()` 通过 FlowEngine 驱动，消除两个并行编排引擎 |
+| Spec auto-approve | `run_issue()` 直接 `approved=True` 跳过 spec freeze | 提供 `--require-spec-approval` flag，daemon 模式默认要求 spec 审批 |
+
+**已有基线深化：**
 
 | 方向 | 当前状态 | 深化目标 |
 |------|----------|----------|
