@@ -179,13 +179,13 @@ enabled = true
 | **SkillEvolver** (save) | Config-driven, runs during evolution cycle | `[evolution.skill_evolver] enabled = true` |
 | **Skill Runtime** (reuse) | Always active when `.spec_orch/skills/` has YAML files | No config needed |
 | **ContextRanker** (hot/cold) | Always active in every `ContextAssembler.assemble()` call | Budget via `NodeContextSpec.max_tokens_budget` |
-| **Memory compaction** | Auto-runs at end of every `_finalize_run()` | TTL default 30 days |
+| **Memory compaction** | Auto-runs every 10th `_finalize_run()` | TTL default 30 days |
 
 ## Status
 
 **v0.5.1** — Alpha, dogfood-first (EODF) mode.
 
-The system is used to develop itself and improves itself with each iteration. 1195+ tests, 65+ commands.
+The system is used to develop itself and improves itself with each iteration. 1196+ tests, 65+ commands.
 
 What works on `main`:
 
@@ -211,10 +211,10 @@ What works on `main`:
 - `spec-orch preflight` one-click system health check
 - `spec-orch selftest` end-to-end smoke test with fixture issues
 - FlowRouter hybrid routing (static rules + LLM-based complexity analysis)
-- KnowledgeDistiller: cross-run learning notebook (`.spec_orch/knowledge.md`)
+- KnowledgeDistiller: cross-run learning notebook (`.spec_orch/knowledge.md`) (standalone, manual invocation)
 - ContextRanker: priority-aware context truncation replacing naive text slicing
 - RunProgressSnapshot: pipeline stage checkpointing for daemon retry continuity
-- SkillDegradationDetector: routing audit, baseline tracking
+- SkillDegradationDetector: routing audit, baseline tracking (standalone, not yet wired into pipeline)
 - TraceSampler: online evaluation sampling with configurable rules
 - CompactRetentionPriority: architecture-aware context compression
 - Atomic JSON writes across all state files (crash-safe daemon)
