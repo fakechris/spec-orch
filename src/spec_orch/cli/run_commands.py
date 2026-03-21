@@ -28,6 +28,11 @@ def run_issue(
     source: str = typer.Option(
         "fixture", "--source", "-s", help="Issue source: fixture or linear."
     ),
+    auto_approve: bool = typer.Option(
+        False,
+        "--auto-approve",
+        help="Skip spec approval gate and auto-approve the spec.",
+    ),
 ) -> None:
     """Run one issue through the MVP pipeline."""
     live_stream: IO[str] | None = sys.stderr if live else None
@@ -36,6 +41,7 @@ def run_issue(
         codex_executable=codex_executable,
         live_stream=live_stream,
         source=source,
+        auto_approve=auto_approve,
     )
     result = controller.run_issue(issue_id)
     typer.echo(
@@ -315,6 +321,11 @@ def run_full(
         help="Override flow type: full, standard, or hotfix.",
     ),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
+    auto_approve: bool = typer.Option(
+        False,
+        "--auto-approve",
+        help="Skip spec approval gate and auto-approve the spec.",
+    ),
 ) -> None:
     """Run an issue through the full pipeline in one shot.
 
@@ -332,6 +343,7 @@ def run_full(
         codex_executable=codex_executable,
         live_stream=live_stream,
         source=source,
+        auto_approve=auto_approve,
     )
     from spec_orch.domain.models import FlowType as _FlowType
 

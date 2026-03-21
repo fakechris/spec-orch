@@ -260,6 +260,7 @@ def _make_controller(
     codex_executable: str = "codex",
     live_stream: IO[str] | None = None,
     source: str = "fixture",
+    auto_approve: bool = False,
 ) -> RunController:
     from spec_orch.services.adapter_factory import (
         create_builder,
@@ -279,6 +280,11 @@ def _make_controller(
     builder = create_builder(repo_root, toml_override=toml_raw)
     reviewer = create_reviewer(repo_root, toml_override=toml_raw)
 
+    toml_spec = toml_raw.get("spec", {})
+    require_approval = toml_spec.get("require_approval", True)
+    if auto_approve:
+        require_approval = False
+
     return RunController(
         repo_root=repo_root,
         builder_adapter=builder,
@@ -286,6 +292,7 @@ def _make_controller(
         planner_adapter=planner,
         review_adapter=reviewer,
         live_stream=live_stream,
+        require_spec_approval=require_approval,
     )
 
 

@@ -119,6 +119,7 @@ class RunController:
         live_stream: IO[str] | None = None,
         flow_engine: FlowEngine | None = None,
         flow_mapper: FlowMapper | None = None,
+        require_spec_approval: bool = True,
     ) -> None:
         self.repo_root = Path(repo_root)
         self.artifact_service = ArtifactService()
@@ -147,6 +148,7 @@ class RunController:
         )
         self._report_writer = RunReportWriter()
         self._runs_since_compaction = 0
+        self.require_spec_approval = require_spec_approval
 
     def _get_memory(self) -> Any | None:
         """Lazily obtain the MemoryService singleton."""
@@ -268,6 +270,31 @@ class RunController:
                     event_type="spec_snapshot_preserved",
                     message=f"Preserved existing spec snapshot v{existing_snapshot.version}.",
                     data={"version": existing_snapshot.version, "approved": True},
+                )
+            elif self.require_spec_approval:
+                snapshot = create_initial_snapshot(issue, approved=False)
+                write_spec_snapshot(workspace, snapshot)
+                self._event_logger.log_and_emit(
+                    activity_logger=activity_logger,
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=issue.issue_id,
+                    component="spec",
+                    event_type="spec_awaiting_approval",
+                    message="Spec snapshot created; awaiting approval before build.",
+                    data={"version": 1, "approved": False},
+                )
+                RunReportWriter.persist_state(
+                    workspace,
+                    issue,
+                    run_id,
+                    RunState.SPEC_DRAFTING,
+                )
+                return self._stub_result(
+                    issue,
+                    workspace,
+                    RunState.SPEC_DRAFTING,
+                    message="Spec requires approval. Use 'advance' after approving.",
                 )
             else:
                 snapshot = create_initial_snapshot(issue, approved=True)

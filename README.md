@@ -190,6 +190,7 @@ The system is used to develop itself and improves itself with each iteration. 12
 What works on `main`:
 
 - Seven-plane architecture with closed-loop evolution (FlowEngine DAGs defined but `run_issue()` uses direct sequencing; unification planned)
+- Spec-first approval gate: `run_issue()` requires explicit spec approval by default (`--auto-approve` to bypass)
 - Pluggable builder/reviewer adapters (Codex, OpenCode, Claude Code, Droid, ACPX)
 - ACPX unified adapter wrapping 15+ agents via Agent Client Protocol
 - Fixture or Linear-backed issue loading with configurable issue sources
@@ -343,8 +344,10 @@ spec-orch pipeline <mission-id>       # Show EODF pipeline progress
 
 ```bash
 spec-orch run <id> --source linear    # Full one-shot pipeline
+spec-orch run <id> --auto-approve     # Skip spec approval, auto-approve
 spec-orch run-plan <mission-id>       # Execute plan with parallel waves
-spec-orch run-issue <id>              # Build + verify + gate
+spec-orch run-issue <id>              # Build + verify + gate (requires spec approval)
+spec-orch run-issue <id> --auto-approve  # Auto-approve spec and run
 spec-orch daemon start                # Autonomous daemon mode
 ```
 

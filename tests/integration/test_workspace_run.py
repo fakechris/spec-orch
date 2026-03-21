@@ -31,7 +31,7 @@ def test_run_controller_creates_git_worktree_for_issue(tmp_path: Path) -> None:
     _git(tmp_path, "add", ".")
     _git_commit(tmp_path, "add fixture")
 
-    controller = RunController(repo_root=tmp_path)
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
 
     result = controller.run_issue("SPC-1")
 
@@ -103,7 +103,9 @@ def test_run_controller_runs_builder_when_prompt_is_present(tmp_path: Path) -> N
     _git(tmp_path, "add", ".")
     _git_commit(tmp_path, "add builder fixture")
 
-    controller = RunController(repo_root=tmp_path, codex_executable=str(fake_codex))
+    controller = RunController(
+        repo_root=tmp_path, codex_executable=str(fake_codex), require_spec_approval=False
+    )
 
     result = controller.run_issue("SPC-2")
 

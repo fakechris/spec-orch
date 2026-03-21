@@ -75,6 +75,9 @@ class DaemonConfig:
         self.retry_base_delay: int = daemon.get("retry_base_delay_seconds", 60)
         self.hotfix_labels: list[str] = daemon.get("hotfix_labels", ["hotfix", "urgent", "P0"])
 
+        spec = raw.get("spec", {})
+        self.require_spec_approval: bool = spec.get("require_approval", True)
+
     @classmethod
     def from_toml(cls, path: Path) -> DaemonConfig:
         import tomllib
@@ -178,6 +181,7 @@ class SpecOrchDaemon:
             issue_source=issue_source,
             planner_adapter=planner,
             review_adapter=reviewer,
+            require_spec_approval=self.config.require_spec_approval,
         )
 
         interval = self.config.poll_interval_seconds

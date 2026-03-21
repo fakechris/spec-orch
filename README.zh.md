@@ -173,6 +173,7 @@ spec-orch policy distill          # 零 LLM 确定性脚本
 `main` 分支已有的功能：
 
 - 七层架构 + 闭环进化
+- Spec-first 审批门控：`run_issue()` 默认需要审批（`--auto-approve` 可跳过）
 - 可插拔 builder/reviewer 适配器（Codex、OpenCode、Claude Code、Droid、ACPX）
 - ACPX 统一适配器，通过 Agent Client Protocol 包装 15+ agents
 - Fixture 或 Linear 支持的 issue 加载，可配置 issue 源
@@ -317,8 +318,10 @@ spec-orch pipeline <mission-id>       # 显示 EODF 流水线进度
 
 ```bash
 spec-orch run <id> --source linear    # 完整一次性流水线
+spec-orch run <id> --auto-approve     # 跳过 Spec 审批，自动通过
 spec-orch run-plan <mission-id>       # 并行波次执行计划
-spec-orch run-issue <id>              # 构建 + 验证 + 门控
+spec-orch run-issue <id>              # 构建 + 验证 + 门控（默认需要 Spec 审批）
+spec-orch run-issue <id> --auto-approve  # 自动审批 Spec 并运行
 spec-orch daemon start                # 自主 daemon 模式
 ```
 

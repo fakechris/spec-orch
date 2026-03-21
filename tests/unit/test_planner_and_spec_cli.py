@@ -245,7 +245,11 @@ def test_run_issue_creates_snapshot_when_none_exists(tmp_path):
         agent="fake",
     )
 
-    controller = RunController(repo_root=repo, builder_adapter=fake_builder)
+    controller = RunController(
+        repo_root=repo,
+        builder_adapter=fake_builder,
+        require_spec_approval=False,
+    )
     result = controller.run_issue("SPC-TEST-1")
 
     snapshot = read_spec_snapshot(result.workspace)
