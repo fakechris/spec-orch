@@ -96,7 +96,6 @@ class MemoryService:
         from datetime import UTC, datetime, timedelta
 
         cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
-        cutoff_iso = cutoff.isoformat()
 
         keys = self.list_keys(layer=MemoryLayer.EPISODIC.value, limit=100_000)
         removed = 0
@@ -105,9 +104,14 @@ class MemoryService:
             entry = self.get(key)
             if entry is None:
                 continue
-            if entry.created_at < cutoff_iso:
-                self.forget(key)
-                removed += 1
+            try:
+                entry_dt = datetime.fromisoformat(entry.created_at)
+            except (ValueError, TypeError):
+                retained += 1
+                continue
+            if entry_dt < cutoff:
+                if self.forget(key):
+                    removed += 1
             else:
                 retained += 1
 
@@ -129,9 +133,6 @@ class MemoryService:
         key_learnings: str = "",
     ) -> str | None:
         """Store a run outcome summary in semantic memory for cross-run learning."""
-        if not key_learnings and not failed_conditions:
-            return None
-
         content_parts: list[str] = []
         content_parts.append(
             f"Run {run_id} for {issue_id}: {'succeeded' if succeeded else 'failed'}"

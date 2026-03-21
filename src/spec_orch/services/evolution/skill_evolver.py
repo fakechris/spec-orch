@@ -41,6 +41,9 @@ def _coerce_skill_manifest(data: dict[str, Any]) -> SkillManifest | None:
 _MAX_JSONL_LINES_PER_RUN = 4000
 _MAX_SEQUENCE_LEN = 64
 _MAX_RUNS_IN_PROMPT = 30
+_MAX_SUMMARY_CHARS = 12000
+_MAX_CONTEXT_SUMMARY_CHARS = 4000
+_PROPOSAL_CONFIDENCE_THRESHOLD = 0.5
 
 _SKILL_SYSTEM_PROMPT = """\
 You are an evolution analyst for an AI coding-agent orchestrator (SpecOrch).
@@ -106,13 +109,14 @@ def _dedupe_run(seq: list[str]) -> list[str]:
     return out[:_MAX_SEQUENCE_LEN]
 
 
-def _read_incoming_sequences(run_dir: Path) -> tuple[list[str], int]:
+def _read_incoming_sequences(run_dir: Path) -> tuple[list[str], int, str]:
+    """Return (deduplicated tool sequence, lines scanned, actual path used)."""
     path = run_dir / "telemetry" / "incoming_events.jsonl"
     if not path.exists():
         alt = run_dir / "builder_events.jsonl"
         path = alt if alt.exists() else path
     if not path.exists():
-        return [], 0
+        return [], 0, str(path)
 
     seq: list[str] = []
     lines_read = 0
@@ -120,7 +124,7 @@ def _read_incoming_sequences(run_dir: Path) -> tuple[list[str], int]:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
         logger.warning("Could not read telemetry %s: %s", path, exc)
-        return [], 0
+        return [], 0, str(path)
 
     for line in text.splitlines():
         if lines_read >= _MAX_JSONL_LINES_PER_RUN:
@@ -139,7 +143,7 @@ def _read_incoming_sequences(run_dir: Path) -> tuple[list[str], int]:
         if sig:
             seq.append(sig)
 
-    return _dedupe_run(seq), lines_read
+    return _dedupe_run(seq), lines_read, str(path)
 
 
 def _builder_summary_from_context(context: Any | None) -> str:
@@ -171,13 +175,13 @@ class SkillEvolver:
         for rd in run_dirs:
             if not rd.is_dir():
                 continue
-            seq, line_count = _read_incoming_sequences(rd)
+            seq, line_count, actual_path = _read_incoming_sequences(rd)
             if not seq and line_count == 0:
                 continue
             runs_out.append(
                 {
                     "run_id": rd.name,
-                    "telemetry_path": str(rd / "telemetry" / "incoming_events.jsonl"),
+                    "telemetry_path": actual_path,
                     "lines_scanned": line_count,
                     "tool_sequence": seq,
                 }
@@ -186,7 +190,7 @@ class SkillEvolver:
         summary = _builder_summary_from_context(context)
         payload: dict[str, Any] = {
             "runs": runs_out[-_MAX_RUNS_IN_PROMPT:],
-            "builder_events_summary": summary[:12000] if summary else "",
+            "builder_events_summary": summary[:_MAX_SUMMARY_CHARS] if summary else "",
         }
 
         if not payload["runs"] and not (payload["builder_events_summary"] or "").strip():
@@ -390,7 +394,7 @@ class SkillEvolver:
                 reason=f"kind must be builder_hook, got {kind!r}",
             )
 
-        accepted = proposal.confidence >= 0.5
+        accepted = proposal.confidence >= _PROPOSAL_CONFIDENCE_THRESHOLD
         return EvolutionOutcome(
             proposal_id=proposal.proposal_id,
             accepted=accepted,
@@ -469,8 +473,8 @@ class SkillEvolver:
             if isinstance(bes, str) and bes.strip():
                 parts.append(
                     "Current run builder_events_summary (truncated):\n"
-                    + bes[:4000]
-                    + ("\n…" if len(bes) > 4000 else "")
+                    + bes[:_MAX_CONTEXT_SUMMARY_CHARS]
+                    + ("\n…" if len(bes) > _MAX_CONTEXT_SUMMARY_CHARS else "")
                 )
 
         if not parts:

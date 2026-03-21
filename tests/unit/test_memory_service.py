@@ -64,17 +64,18 @@ class TestMemoryServiceCRUD:
         assert svc.get("ep-old") is None
         assert svc.get("ep-new") is not None
 
-    def test_consolidate_run_returns_none_when_empty(self, svc: MemoryService):
-        assert (
-            svc.consolidate_run(
-                run_id="r1",
-                issue_id="i1",
-                succeeded=True,
-                failed_conditions=None,
-                key_learnings="",
-            )
-            is None
+    def test_consolidate_run_stores_successful_run(self, svc: MemoryService):
+        key = svc.consolidate_run(
+            run_id="r1",
+            issue_id="i1",
+            succeeded=True,
+            failed_conditions=None,
+            key_learnings="",
         )
+        assert key == "run-summary-r1"
+        entry = svc.get(key)
+        assert entry is not None
+        assert "succeeded" in entry.content
 
     def test_consolidate_run_stores_semantic(self, svc: MemoryService):
         key = svc.consolidate_run(

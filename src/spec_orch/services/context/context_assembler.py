@@ -37,6 +37,8 @@ from spec_orch.services.skill_format import SkillManifest
 
 logger = logging.getLogger(__name__)
 
+_MAX_MATCHED_SKILLS = 10
+
 
 def _truncate(text: str, max_tokens: int) -> str:
     cpt = _detect_chars_per_token(text)
@@ -441,11 +443,10 @@ class ContextAssembler:
         matched: list[dict[str, Any]] = []
         for m in manifests:
             if not m.triggers:
-                matched.append(_skill_to_context(m))
                 continue
             if any(t.lower() in search_text for t in m.triggers):
                 matched.append(_skill_to_context(m))
-        return matched[:10]
+        return matched[:_MAX_MATCHED_SKILLS]
 
     @staticmethod
     def _load_relevant_policies(repo_root: Path) -> list[str]:
