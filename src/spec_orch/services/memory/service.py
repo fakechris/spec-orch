@@ -34,12 +34,13 @@ class MemoryService:
         provider: MemoryProvider | None = None,
         *,
         repo_root: Path | None = None,
+        qdrant_config: dict[str, Any] | None = None,
     ) -> None:
         if provider is not None:
             self._provider = provider
         else:
             root = (repo_root or Path.cwd()) / _DEFAULT_MEMORY_DIR
-            self._provider = FileSystemMemoryProvider(root)
+            self._provider = _build_provider(root, qdrant_config)
 
     @property
     def provider(self) -> MemoryProvider:
@@ -306,11 +307,54 @@ class MemoryService:
             pass
 
 
+def _build_provider(
+    root: Path,
+    qdrant_config: dict[str, Any] | None,
+) -> MemoryProvider:
+    """Select the best available MemoryProvider based on config."""
+    if qdrant_config:
+        try:
+            from spec_orch.services.memory.vector_provider import (
+                VectorEnhancedProvider,
+            )
+
+            return VectorEnhancedProvider(root, qdrant_config=qdrant_config)
+        except Exception:
+            logger.warning(
+                "VectorEnhancedProvider unavailable; falling back to FileSystemMemoryProvider",
+                exc_info=True,
+            )
+    return FileSystemMemoryProvider(root)
+
+
+def _load_qdrant_config(repo_root: Path) -> dict[str, Any] | None:
+    """Read ``[memory.qdrant]`` from spec-orch.toml if present."""
+    import tomllib
+
+    toml_path = repo_root / "spec-orch.toml"
+    if not toml_path.exists():
+        return None
+    try:
+        with toml_path.open("rb") as f:
+            raw = tomllib.load(f)
+    except Exception:
+        return None
+    mem_cfg = raw.get("memory", {})
+    if not isinstance(mem_cfg, dict):
+        return None
+    provider = mem_cfg.get("provider", "")
+    if provider not in ("filesystem_qdrant", "vector_enhanced"):
+        return None
+    return mem_cfg.get("qdrant") if isinstance(mem_cfg.get("qdrant"), dict) else None
+
+
 def get_memory_service(repo_root: Path | None = None) -> MemoryService:
     """Return the global ``MemoryService`` singleton, creating it if needed."""
     global _instance  # noqa: PLW0603
     if _instance is None:
-        _instance = MemoryService(repo_root=repo_root)
+        root = repo_root or Path.cwd()
+        qdrant_config = _load_qdrant_config(root)
+        _instance = MemoryService(repo_root=root, qdrant_config=qdrant_config)
     return _instance
 
 

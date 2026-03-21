@@ -205,7 +205,7 @@ What works on `main`:
 - Web dashboard + Rich TUI (TypeScript/React/Ink)
 - Mission Control Center with EventBus
 - Conductor for progressive formalization
-- Cross-session memory with file-backed storage
+- Cross-session memory with file-backed storage + optional Qdrant semantic index ([ADR-0001](docs/adr/0001-memory-architecture.md))
 - Full self-evolution: evidence analysis, harness synthesis, prompt evolution, policy distillation
 - `spec-orch init` for project type detection and config generation
 - Low-cost model support (MiniMax-M2.5, ~$0.04/run)
@@ -225,6 +225,7 @@ What works on `main`:
 - Skill Runtime: ContextAssembler loads + matches skills by trigger keywords, injects into builder context
 - ContextRanker hot/cold separation: learning context (hints, skills, failure samples) included in priority-based budget allocation
 - Memory compaction + TTL: episodic memory auto-expires after 30 days, run outcomes consolidated to semantic layer
+- Layered memory architecture: filesystem truth source + Qdrant semantic search for episodic/semantic layers
 - Modular CLI: `cli/` package with 8 command submodules replacing single 4092-line file
 - LLM JSON output schema validation with fallback + observability events
 
@@ -300,6 +301,7 @@ spec-orch config check
 | `planner` | litellm | `discuss`, `plan`, readiness triage |
 | `dashboard` | fastapi, uvicorn | `spec-orch dashboard` |
 | `slack` | slack-bolt | Slack discussion adapter |
+| `memory` | qdrant-client, fastembed | Semantic vector search for memory recall |
 | `all` | all of the above | Full feature set |
 | `dev` | all + pytest, ruff, mypy, build, twine | Development |
 
@@ -317,7 +319,20 @@ spec-orch init --force       # Force overwrite existing config
 `spec-orch init` persists selected detection mode into `[init].detection_mode`
 inside `spec-orch.toml` for deterministic future reconfiguration.
 
-See [spec-orch.toml Reference](docs/reference/spec-orch-toml.md) and [AI Config Guide](docs/guides/ai-config-guide.md) for full documentation.
+To enable semantic vector search for memory recall, install the `memory` extra and add to `spec-orch.toml`:
+
+```toml
+[memory]
+provider = "filesystem_qdrant"
+
+[memory.qdrant]
+mode = "local"                          # "local" | "memory" | "server"
+path = ".spec_orch_qdrant"
+collection = "spec_orch_memory"
+embedding_model = "BAAI/bge-small-zh-v1.5"
+```
+
+See [spec-orch.toml Reference](docs/reference/spec-orch-toml.md) and [AI Config Guide](docs/guides/ai-config-guide.md) for full documentation. See [ADR-0001](docs/adr/0001-memory-architecture.md) for the memory architecture decision.
 
 ## CLI Reference (65+ commands)
 
