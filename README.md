@@ -185,7 +185,7 @@ enabled = true
 
 **v0.5.1** — Alpha, dogfood-first (EODF) mode.
 
-The system is used to develop itself and improves itself with each iteration. 1203+ tests, 65+ commands.
+The system is used to develop itself and improves itself with each iteration. 1237+ tests, 65+ commands.
 
 What works on `main`:
 
@@ -205,7 +205,7 @@ What works on `main`:
 - Web dashboard + Rich TUI (TypeScript/React/Ink)
 - Mission Control Center with EventBus
 - Conductor for progressive formalization
-- Cross-session memory with file-backed storage + optional Qdrant semantic index ([ADR-0001](docs/adr/0001-memory-architecture.md))
+- Cross-session memory with file-backed storage + Qdrant semantic index (E2E verified with real run-issue pipeline) ([ADR-0001](docs/adr/0001-memory-architecture.md))
 - Full self-evolution: evidence analysis, harness synthesis, prompt evolution, policy distillation
 - `spec-orch init` for project type detection and config generation
 - Low-cost model support (MiniMax-M2.5, ~$0.04/run)
@@ -225,7 +225,7 @@ What works on `main`:
 - Skill Runtime: ContextAssembler loads + matches skills by trigger keywords, injects into builder context
 - ContextRanker hot/cold separation: learning context (hints, skills, failure samples) included in priority-based budget allocation
 - Memory compaction + TTL: episodic memory auto-expires after 30 days, run outcomes consolidated to semantic layer
-- Layered memory architecture: filesystem truth source + Qdrant semantic search for episodic/semantic layers
+- Layered memory architecture: filesystem truth source + Qdrant semantic search for episodic/semantic layers (BAAI/bge-small-zh-v1.5 local embedding, E2E validated)
 - Modular CLI: `cli/` package with 8 command submodules replacing single 4092-line file
 - LLM JSON output schema validation with fallback + observability events
 
@@ -332,6 +332,8 @@ collection = "spec_orch_memory"
 embedding_model = "BAAI/bge-small-zh-v1.5"
 ```
 
+When `provider = "filesystem_qdrant"` is set, `recall()` uses Qdrant semantic search for EPISODIC and SEMANTIC layers while keeping the filesystem as the source of truth. Without the `memory` extra installed, the system silently falls back to filesystem-only mode.
+
 See [spec-orch.toml Reference](docs/reference/spec-orch-toml.md) and [AI Config Guide](docs/guides/ai-config-guide.md) for full documentation. See [ADR-0001](docs/adr/0001-memory-architecture.md) for the memory architecture decision.
 
 ## CLI Reference (65+ commands)
@@ -424,6 +426,10 @@ spec-orch policy distill              # Zero-LLM scripts
 - [spec-orch.toml Reference](docs/reference/spec-orch-toml.md)
 - [AI Config Guide](docs/guides/ai-config-guide.md)
 - [EODF with ACPX Guide](docs/guides/eodf-acpx-guide.md)
+
+### Architecture Decision Records
+
+- [ADR-0001: Layered Memory Architecture](docs/adr/0001-memory-architecture.md)
 
 ### Historical (Decision Records)
 

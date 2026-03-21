@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from spec_orch.services.memory.fs_provider import FileSystemMemoryProvider
+from spec_orch.services.memory.fs_provider import (
+    FileSystemMemoryProvider,
+    _text_matches,
+    _tokenize,
+)
 from spec_orch.services.memory.types import MemoryEntry, MemoryLayer, MemoryQuery
 
 
@@ -139,6 +143,93 @@ class TestRecall:
             )
         results = provider.recall(MemoryQuery(text="common", top_k=3))
         assert len(results) == 3
+
+
+class TestTokenize:
+    def test_english_splits_on_whitespace(self):
+        tokens = _tokenize("hello world test")
+        assert "hello" in tokens
+        assert "world" in tokens
+        assert "test" in tokens
+
+    def test_english_filters_short_words(self):
+        tokens = _tokenize("I am a big dog")
+        assert "I" not in tokens
+        assert "am" not in tokens
+        assert "a" not in tokens
+        assert "big" in tokens
+        assert "dog" in tokens
+
+    def test_chinese_uses_jieba(self):
+        tokens = _tokenize("数据库连接超时")
+        assert len(tokens) >= 2
+        assert any("数据" in t for t in tokens)
+
+    def test_mixed_chinese_english(self):
+        tokens = _tokenize("PostgreSQL 数据库连接池耗尽")
+        assert len(tokens) >= 2
+
+    def test_empty_input(self):
+        assert _tokenize("") == []
+
+
+class TestTextMatchesChinese:
+    def test_chinese_semantic_overlap(self):
+        assert _text_matches(
+            "数据库连接问题", "部署到 staging 环境时数据库连接超时，PostgreSQL 连接池耗尽"
+        )
+
+    def test_chinese_no_overlap(self):
+        assert not _text_matches(
+            "前端样式调整", "部署到 staging 环境时数据库连接超时，PostgreSQL 连接池耗尽"
+        )
+
+    def test_chinese_partial_overlap(self):
+        assert _text_matches("接口性能下降", "用户登录接口响应时间从 200ms 上升到 2000ms")
+
+    def test_english_still_works(self):
+        assert _text_matches(
+            "database connection error", "the database had a connection timeout error"
+        )
+
+    def test_english_no_match(self):
+        assert not _text_matches(
+            "frontend styling issue", "the database had a connection timeout error"
+        )
+
+    def test_empty_query_matches_all(self):
+        assert _text_matches("", "anything here")
+
+    def test_short_chinese_query(self):
+        assert _text_matches("数据库", "数据库连接池耗尽")
+
+    def test_single_char_query_does_not_match_all(self):
+        assert not _text_matches("我是谁", "数据库连接池耗尽")
+
+
+class TestRecallChinese:
+    def test_chinese_text_recall(self, provider: FileSystemMemoryProvider):
+        provider.store(
+            MemoryEntry(
+                key="db-fail",
+                content="部署到 staging 环境时数据库连接超时，PostgreSQL 连接池耗尽",
+                layer=MemoryLayer.EPISODIC,
+                tags=["issue-result"],
+            )
+        )
+        provider.store(
+            MemoryEntry(
+                key="lint-fail",
+                content="CI 流水线中 lint 检查失败：ruff 报告 E501 行超长",
+                layer=MemoryLayer.EPISODIC,
+                tags=["issue-result"],
+            )
+        )
+        results = provider.recall(
+            MemoryQuery(text="数据库连接问题", layer=MemoryLayer.EPISODIC, tags=["issue-result"])
+        )
+        assert len(results) >= 1
+        assert results[0].key == "db-fail"
 
 
 class TestIndexRebuild:
