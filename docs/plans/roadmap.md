@@ -7,7 +7,7 @@
 
 ## 项目状态
 
-**v0.5.1** — Alpha，内部 dogfood 模式。1203+ 测试，65+ 命令。
+**v0.5.1** — Alpha，内部 dogfood 模式。1220+ 测试，65+ 命令。
 
 七层架构骨架完备，Credibility Flywheel 各环基线就位，架构债务已清理。
 当前处于**从内部原型走向外部验证**的转折点。
@@ -68,7 +68,7 @@ Linear 状态：170 Done / 16 Canceled / 0 Open。
 |------|----------|----------|
 | Reaction Engine | 内置 3 个 reaction + daemon 集成 | 用户自定义 recipe、更多内置 reaction |
 | Skill Runtime | SkillEvolver 自动发现 + ContextAssembler 自动注入 | Repo-level registry、Skill→Policy 蒸馏、execute_skill 协议 |
-| Memory System | 4 层记忆 + compaction + TTL + run consolidation | 向量检索、cross-repo 知识共享 |
+| Memory System | 4 层记忆 + compaction + TTL + run consolidation + Qdrant 语义索引 ([ADR-0001](../adr/0001-memory-architecture.md)) | cross-repo 知识共享、Mem0 评估 |
 | Control Tower | API endpoints + 基础 UI | Session 视图、成本监控、移动端 |
 | Harness Evals | EvalRunner + CLI 基线 | 自动 A/B 对比、变更自动 eval |
 | Preview & Sandbox | Gate 有条件，未实际接入 | Preview provider + Docker sandbox |
@@ -110,6 +110,16 @@ Linear 状态：170 Done / 16 Canceled / 0 Open。
 | Skill Runtime | ContextAssembler 自动加载、匹配、注入 skills 到 builder 上下文 |
 | ContextRanker 完整接入 | Learning context 纳入优先级分配，热/冷分离覆盖 hints、skills、failure samples |
 | Memory compaction + TTL | EPISODIC 层 30 天自动过期，run 结束自动 consolidate 到 SEMANTIC 层 |
+
+### 分层记忆架构 ADR-0001（2026-03-21）
+
+| 交付 | 说明 | Linear |
+|------|------|--------|
+| ADR-0001 | 文件系统真相源 + Qdrant 语义索引 + QMD 文档检索 | SON-210~214 |
+| QdrantIndex | 可选语义索引层，store 后写 embedding，recall 走语义搜索 | SON-212 |
+| VectorEnhancedProvider | 组合 FS + Qdrant，Qdrant 不可用时静默降级 | SON-212 |
+| memory extra | `pip install spec-orch[memory]` 引入 qdrant-client | SON-213 |
+| 消费点接入 | similar_failure_samples 增加 query.text 语义召回 | SON-214 |
 
 ### 架构债务清理（2026-03-20）
 

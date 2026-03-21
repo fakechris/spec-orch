@@ -43,8 +43,11 @@ dashboard = [
 slack = [
   "slack-bolt>=1.21",
 ]
+memory = [
+  "qdrant-client[fastembed]>=1.9",
+]
 all = [
-  "spec-orch[planner,dashboard,slack]",
+  "spec-orch[planner,dashboard,slack,memory]",
 ]
 dev = [
   "spec-orch[all]",
