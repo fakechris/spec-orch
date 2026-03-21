@@ -37,6 +37,7 @@ def _coerce_skill_manifest(data: dict[str, Any]) -> SkillManifest | None:
         logger.debug("parse_skill_manifest failed: %s", errs)
     return m
 
+
 _MAX_JSONL_LINES_PER_RUN = 4000
 _MAX_SEQUENCE_LEN = 64
 _MAX_RUNS_IN_PROMPT = 30

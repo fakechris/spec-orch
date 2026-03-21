@@ -18,6 +18,7 @@ from spec_orch.services.evolution.skill_evolver import (
 # helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_telemetry(run_dir: Path, events: list[dict[str, Any]]) -> None:
     telem = run_dir / "telemetry"
     telem.mkdir(parents=True, exist_ok=True)
@@ -42,6 +43,7 @@ def _valid_skill_content() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # unit tests — _event_tool_signature
 # ---------------------------------------------------------------------------
+
 
 class TestEventToolSignature:
     def test_method_preferred(self) -> None:
@@ -69,14 +71,18 @@ class TestDedupeRun:
 # observe / propose / validate / promote
 # ---------------------------------------------------------------------------
 
+
 class TestSkillEvolverObserve:
     def test_observe_with_telemetry(self, tmp_path: Path) -> None:
         run_dir = tmp_path / "runs" / "run-001"
-        _make_telemetry(run_dir, [
-            {"method": "file.read"},
-            {"method": "file.write"},
-            {"method": "shell.exec"},
-        ])
+        _make_telemetry(
+            run_dir,
+            [
+                {"method": "file.read"},
+                {"method": "file.write"},
+                {"method": "shell.exec"},
+            ],
+        )
         evolver = SkillEvolver(tmp_path)
         evidence = evolver.observe([run_dir])
         assert len(evidence) == 1
@@ -99,15 +105,21 @@ class TestSkillEvolverPropose:
 
     def test_propose_parses_llm_response(self, tmp_path: Path) -> None:
         planner = MagicMock()
-        planner.brainstorm.return_value = json.dumps({
-            "skills": [_valid_skill_content()],
-            "analysis_summary": "found pattern",
-        })
+        planner.brainstorm.return_value = json.dumps(
+            {
+                "skills": [_valid_skill_content()],
+                "analysis_summary": "found pattern",
+            }
+        )
         evolver = SkillEvolver(tmp_path, planner=planner)
-        proposals = evolver.propose([{
-            "runs": [{"run_id": "r1", "tool_sequence": ["lint", "test"]}],
-            "builder_events_summary": "",
-        }])
+        proposals = evolver.propose(
+            [
+                {
+                    "runs": [{"run_id": "r1", "tool_sequence": ["lint", "test"]}],
+                    "builder_events_summary": "",
+                }
+            ]
+        )
         assert len(proposals) == 1
         assert proposals[0].evolver_name == "skill_evolver"
         assert proposals[0].content["id"] == "auto-skill-lint-test"
@@ -130,13 +142,16 @@ class TestSkillEvolverValidate:
         skills_dir = tmp_path / ".spec_orch" / "skills"
         skills_dir.mkdir(parents=True)
         import yaml
+
         (skills_dir / "auto-skill-lint-test.yaml").write_text(
-            yaml.safe_dump({
-                "schema_version": "1.0",
-                "id": "auto-skill-lint-test",
-                "name": "existing",
-                "kind": "builder_hook",
-            })
+            yaml.safe_dump(
+                {
+                    "schema_version": "1.0",
+                    "id": "auto-skill-lint-test",
+                    "name": "existing",
+                    "kind": "builder_hook",
+                }
+            )
         )
         evolver = SkillEvolver(tmp_path)
         proposal = EvolutionProposal(
@@ -191,6 +206,7 @@ class TestSkillEvolverPromote:
         skill_path = tmp_path / ".spec_orch" / "skills" / "auto-skill-lint-test.yaml"
         assert skill_path.exists()
         import yaml
+
         data = yaml.safe_load(skill_path.read_text())
         assert data["id"] == "auto-skill-lint-test"
         assert data["author"] == "skill_evolver"

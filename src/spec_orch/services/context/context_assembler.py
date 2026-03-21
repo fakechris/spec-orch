@@ -165,9 +165,7 @@ class ContextAssembler:
             text = json.dumps(samples, ensure_ascii=False, indent=1)
             sections.append(RankedSection("similar_failure_samples", text, priorities.TOOL_OUTPUT))
 
-    _LEARNING_LIST_FIELDS = frozenset(
-        {"scoper_hints", "matched_skills", "similar_failure_samples"}
-    )
+    _LEARNING_LIST_FIELDS = frozenset({"scoper_hints", "matched_skills", "similar_failure_samples"})
 
     @classmethod
     def _apply_ranked_budget(
@@ -422,9 +420,7 @@ class ContextAssembler:
             ctx.relevant_policies = self._load_relevant_policies(workspace)
 
         if not required or "matched_skills" in required:
-            ctx.matched_skills = self._build_skill_context(
-                workspace, issue_title, issue_summary
-            )
+            ctx.matched_skills = self._build_skill_context(workspace, issue_title, issue_summary)
 
         return ctx
 
