@@ -25,7 +25,7 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
             }
         )
     )
-    controller = RunController(repo_root=tmp_path)
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
 
     result = controller.run_issue("SPC-1")
 
@@ -91,6 +91,7 @@ def test_run_controller_keeps_builder_failure_when_executable_is_unavailable(
     controller = RunController(
         repo_root=tmp_path,
         codex_executable=str(tmp_path / "missing-codex"),
+        require_spec_approval=False,
     )
 
     result = controller.run_issue("SPC-21")
@@ -150,7 +151,7 @@ def test_review_and_accept_issue_recompute_gate_and_update_artifacts(tmp_path: P
             }
         )
     )
-    controller = RunController(repo_root=tmp_path)
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
 
     initial = controller.run_issue("SPC-5")
     reviewed = controller.review_issue(
@@ -201,7 +202,7 @@ def test_run_issue_closes_activity_logger_on_exception(tmp_path: Path) -> None:
             }
         )
     )
-    controller = RunController(repo_root=tmp_path)
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
     logger = _TrackingActivityLogger()
 
     controller._event_logger.open_activity_logger = lambda _workspace: logger
@@ -233,7 +234,7 @@ def test_rerun_issue_closes_activity_logger_on_exception(tmp_path: Path) -> None
             }
         )
     )
-    controller = RunController(repo_root=tmp_path)
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
     controller.builder_adapter = _PassingBuilderAdapter()
     controller.run_issue("SPC-RERR")
     logger = _TrackingActivityLogger()
@@ -261,7 +262,7 @@ def test_run_issue_persists_state_in_report(tmp_path: Path) -> None:
             }
         )
     )
-    controller = RunController(repo_root=tmp_path)
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
     result = controller.run_issue("SPC-S1")
 
     report_data = json.loads(result.report.read_text())
@@ -287,7 +288,7 @@ def test_accept_issue_sets_accepted_state(tmp_path: Path) -> None:
             }
         )
     )
-    controller = RunController(repo_root=tmp_path)
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
     controller.run_issue("SPC-S2")
     controller.review_issue("SPC-S2", verdict="pass", reviewed_by="bot")
     accepted = controller.accept_issue("SPC-S2", accepted_by="chris")
@@ -325,7 +326,7 @@ def test_get_state_returns_persisted_state(tmp_path: Path) -> None:
             }
         )
     )
-    controller = RunController(repo_root=tmp_path)
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
     controller.run_issue("SPC-GS")
     assert controller.get_state("SPC-GS") == RunState.GATE_EVALUATED
 
@@ -406,7 +407,7 @@ def test_artifact_manifest_written_after_run(tmp_path: Path) -> None:
             }
         )
     )
-    controller = RunController(repo_root=tmp_path)
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
     result = controller.run_issue("SPC-AM")
 
     manifest_path = result.workspace / "artifact_manifest.json"
@@ -999,7 +1000,7 @@ def test_finalize_run_triggers_evolution(tmp_path: Path) -> None:
     """SON-142: _finalize_run calls _maybe_trigger_evolution."""
     from unittest.mock import patch
 
-    controller = RunController(repo_root=tmp_path)
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
     with patch.object(controller, "_maybe_trigger_evolution") as mock_evo:
         fixtures_dir = tmp_path / "fixtures" / "issues"
         fixtures_dir.mkdir(parents=True)
@@ -1014,3 +1015,65 @@ def test_finalize_run_triggers_evolution(tmp_path: Path) -> None:
         )
         controller.run_issue("EVO-1")
         mock_evo.assert_called_once()
+
+
+def _make_fixture(tmp_path: Path, issue_id: str = "SPEC-1") -> Path:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True, exist_ok=True)
+    (fixtures_dir / f"{issue_id}.json").write_text(
+        json.dumps(
+            {
+                "issue_id": issue_id,
+                "title": "Spec approval test",
+                "summary": "Testing spec approval flag.",
+            }
+        )
+    )
+    return tmp_path
+
+
+def test_run_issue_require_spec_approval_returns_spec_drafting(tmp_path: Path) -> None:
+    """SON-207: require_spec_approval=True stops at SPEC_DRAFTING."""
+    _make_fixture(tmp_path, "SPEC-A1")
+    controller = RunController(repo_root=tmp_path, require_spec_approval=True)
+    result = controller.run_issue("SPEC-A1")
+
+    assert result.state == RunState.SPEC_DRAFTING
+    from spec_orch.services.spec_snapshot_service import read_spec_snapshot
+
+    workspace = result.workspace
+    snapshot = read_spec_snapshot(workspace)
+    assert snapshot is not None
+    assert snapshot.approved is False
+
+
+def test_run_issue_auto_approve_proceeds_to_gate(tmp_path: Path) -> None:
+    """SON-207: require_spec_approval=False auto-approves and runs full pipeline."""
+    _make_fixture(tmp_path, "SPEC-A2")
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
+    result = controller.run_issue("SPEC-A2")
+
+    assert result.state == RunState.GATE_EVALUATED
+
+
+def test_run_issue_existing_approved_snapshot_skips_gate(tmp_path: Path) -> None:
+    """SON-207: Pre-approved snapshot bypasses approval requirement."""
+    _make_fixture(tmp_path, "SPEC-A3")
+    controller = RunController(repo_root=tmp_path, require_spec_approval=True)
+    result1 = controller.run_issue("SPEC-A3")
+    assert result1.state == RunState.SPEC_DRAFTING
+
+    from spec_orch.services.spec_snapshot_service import (
+        read_spec_snapshot,
+        write_spec_snapshot,
+    )
+
+    workspace = result1.workspace
+    snapshot = read_spec_snapshot(workspace)
+    assert snapshot is not None
+    snapshot.approved = True
+    snapshot.approved_by = "test-user"
+    write_spec_snapshot(workspace, snapshot)
+
+    result2 = controller.run_issue("SPEC-A3")
+    assert result2.state == RunState.GATE_EVALUATED
