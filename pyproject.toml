@@ -104,3 +104,7 @@ disallow_untyped_defs = false
 [[tool.mypy.overrides]]
 module = "spec_orch.services._archived.codex_harness_builder_adapter"
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["qdrant_client", "qdrant_client.*"]
+ignore_missing_imports = true

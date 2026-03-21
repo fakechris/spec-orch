@@ -329,10 +329,7 @@ def _build_provider(
 
 def _load_qdrant_config(repo_root: Path) -> dict[str, Any] | None:
     """Read ``[memory.qdrant]`` from spec-orch.toml if present."""
-    try:
-        import tomllib
-    except ModuleNotFoundError:
-        import tomli as tomllib  # type: ignore[no-redef]
+    import tomllib
 
     toml_path = repo_root / "spec-orch.toml"
     if not toml_path.exists():

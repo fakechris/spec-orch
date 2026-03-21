@@ -409,7 +409,7 @@ class ContextAssembler:
             try:
                 from spec_orch.services.memory.types import MemoryLayer, MemoryQuery
 
-                query_text = " ".join(filter(None, [issue_title, issue_summary])) or None
+                query_text = " ".join(filter(None, [issue_title, issue_summary]))
                 entries = memory.recall(
                     MemoryQuery(
                         text=query_text,

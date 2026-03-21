@@ -58,7 +58,7 @@ class QdrantIndex:
         embedding_model: str = _DEFAULT_EMBEDDING_MODEL,
     ) -> None:
         try:
-            from qdrant_client import QdrantClient  # type: ignore[import-untyped]
+            from qdrant_client import QdrantClient  # type: ignore[import-untyped,import-not-found]
         except ImportError as exc:
             raise ImportError(
                 "qdrant-client is required for vector-enhanced memory. "
@@ -79,7 +79,10 @@ class QdrantIndex:
 
     def _ensure_collection(self) -> None:
         """Create collection if it does not exist."""
-        from qdrant_client.models import Distance, VectorParams  # type: ignore[import-untyped]
+        from qdrant_client.models import (  # type: ignore[import-untyped,import-not-found]
+            Distance,
+            VectorParams,
+        )
 
         existing = [c.name for c in self._client.get_collections().collections]
         if self._collection in existing:
@@ -101,7 +104,9 @@ class QdrantIndex:
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings using FastEmbed."""
-        from qdrant_client import models  # type: ignore[import-untyped]  # noqa: F401
+        from qdrant_client import (
+            models,  # type: ignore[import-untyped,import-not-found]  # noqa: F401
+        )
 
         embeddings = list(
             self._client._get_or_init_model(  # noqa: SLF001
@@ -124,7 +129,9 @@ class QdrantIndex:
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Index a memory entry (or update if key already exists)."""
-        from qdrant_client.models import PointStruct  # type: ignore[import-untyped]
+        from qdrant_client.models import (
+            PointStruct,  # type: ignore[import-untyped,import-not-found]
+        )
 
         vectors = self._embed([content])
         if not vectors:
@@ -146,7 +153,9 @@ class QdrantIndex:
 
     def delete(self, key: str) -> None:
         """Remove a memory entry from the index."""
-        from qdrant_client.models import PointIdsList  # type: ignore[import-untyped]
+        from qdrant_client.models import (
+            PointIdsList,  # type: ignore[import-untyped,import-not-found]
+        )
 
         point_id = self._key_to_id(key)
         self._client.delete(
@@ -163,7 +172,7 @@ class QdrantIndex:
         top_k: int = 10,
     ) -> list[VectorHit]:
         """Semantic search over indexed entries."""
-        from qdrant_client.models import (  # type: ignore[import-untyped]
+        from qdrant_client.models import (  # type: ignore[import-untyped,import-not-found]
             FieldCondition,
             Filter,
             MatchValue,
@@ -173,14 +182,14 @@ class QdrantIndex:
         if not vectors:
             return []
 
-        conditions = []
+        conditions: list[FieldCondition] = []
         if layer:
             conditions.append(FieldCondition(key="layer", match=MatchValue(value=layer)))
         if tags:
             for tag in tags:
                 conditions.append(FieldCondition(key="tags", match=MatchValue(value=tag)))
 
-        query_filter = Filter(must=conditions) if conditions else None
+        query_filter = Filter(must=conditions) if conditions else None  # type: ignore[arg-type]
 
         results = self._client.query_points(
             collection_name=self._collection,
