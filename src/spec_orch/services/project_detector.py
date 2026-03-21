@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -277,8 +278,14 @@ def generate_toml_config(profile: ProjectProfile, *, profile_level: str = "stand
     lines.append("timeout_seconds = 1800")
     lines.append("")
 
+    llm_key_available = bool(os.environ.get("SPEC_ORCH_LLM_API_KEY"))
     lines.append("[reviewer]")
-    lines.append('adapter = "local"')
+    if llm_key_available:
+        lines.append('adapter = "llm"  # LLM key detected; using LLM-based review')
+        lines.append('# adapter = "local"  # fallback: write JSON verdict only')
+    else:
+        lines.append('adapter = "local"  # Set SPEC_ORCH_LLM_API_KEY to enable LLM review')
+        lines.append('# adapter = "llm"')
     lines.append("")
 
     if profile_level in ("standard", "full"):

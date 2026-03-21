@@ -70,3 +70,23 @@ def test_parse_llm_result_rejects_non_dict_verification(tmp_path, monkeypatch) -
     )
     result = _parse_llm_result({"languages": ["python"], "verification": ["pytest"]}, tmp_path)
     assert result is None
+
+
+def test_generate_toml_recommends_llm_reviewer_when_key_available(monkeypatch) -> None:
+    """SON-209: generate_toml_config recommends llm reviewer when API key is set."""
+    from spec_orch.services.project_detector import ProjectProfile, generate_toml_config
+
+    monkeypatch.setenv("SPEC_ORCH_LLM_API_KEY", "test-key")
+    profile = ProjectProfile(language="python", verification={"test": ["pytest"]})
+    toml_text = generate_toml_config(profile)
+    assert 'adapter = "llm"' in toml_text
+
+
+def test_generate_toml_defaults_to_local_reviewer_without_key(monkeypatch) -> None:
+    """SON-209: generate_toml_config defaults to local reviewer when no API key."""
+    from spec_orch.services.project_detector import ProjectProfile, generate_toml_config
+
+    monkeypatch.delenv("SPEC_ORCH_LLM_API_KEY", raising=False)
+    profile = ProjectProfile(language="python", verification={"test": ["pytest"]})
+    toml_text = generate_toml_config(profile)
+    assert 'adapter = "local"' in toml_text

@@ -186,6 +186,11 @@ class SpecOrchDaemon:
 
         interval = self.config.poll_interval_seconds
         print(f"[daemon] started, polling {self.config.team_key} every {interval}s")
+        if self.config.reviewer_adapter == "local":
+            print(
+                "[daemon] WARNING: using 'local' reviewer (JSON-only, no automated review). "
+                'Set [reviewer] adapter = "llm" in spec-orch.toml for LLM-based review.'
+            )
         if planner:
             print(f"[daemon] planner: {planner.ADAPTER_NAME}")
         if self._dead_letter:
