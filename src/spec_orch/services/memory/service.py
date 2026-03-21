@@ -89,7 +89,18 @@ class MemoryService:
             )  # type: ignore[union-attr]
             return result
         keys = self._provider.list_keys(layer=layer, tags=tags, limit=limit)
-        return [{"key": k, "layer": layer or "", "tags": []} for k in keys]
+        results: list[dict[str, Any]] = []
+        for k in keys:
+            entry = self._provider.get(k)
+            results.append(
+                {
+                    "key": k,
+                    "layer": layer or "",
+                    "tags": [],
+                    "created_at": entry.created_at if entry else "",
+                }
+            )
+        return results
 
     def compact(self, *, max_age_days: int = 30) -> dict[str, int]:
         """Remove expired episodic memory entries older than max_age_days.

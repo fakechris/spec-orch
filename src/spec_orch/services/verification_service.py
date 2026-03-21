@@ -6,6 +6,8 @@ from pathlib import Path
 
 from spec_orch.domain.models import Issue, VerificationDetail, VerificationSummary
 
+_DEFAULT_VERIFICATION_TIMEOUT_S = 600
+
 
 class VerificationService:
     STANDARD_STEPS = ("lint", "typecheck", "test", "build")
@@ -35,7 +37,7 @@ class VerificationService:
                     check=False,
                     capture_output=True,
                     text=True,
-                    timeout=600,
+                    timeout=_DEFAULT_VERIFICATION_TIMEOUT_S,
                 )
             except FileNotFoundError:
                 summary.details[step_name] = VerificationDetail(
@@ -51,7 +53,7 @@ class VerificationService:
                     command=resolved_command,
                     exit_code=124,
                     stdout="",
-                    stderr="command timed out after 600s",
+                    stderr=f"command timed out after {_DEFAULT_VERIFICATION_TIMEOUT_S}s",
                 )
                 summary.set_step_passed(step_name, False)
                 continue

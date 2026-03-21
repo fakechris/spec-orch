@@ -61,6 +61,10 @@ _MAX_RUNS_IN_PROMPT = 30
 _MAX_SUMMARY_CHARS = 12000
 _MAX_CONTEXT_SUMMARY_CHARS = 4000
 _PROPOSAL_CONFIDENCE_THRESHOLD = 0.5
+_GROUND_TRUTH_MIN_SAMPLES = 3
+_GROUND_TRUTH_QUERY_LIMIT = 50
+_LLM_CONFIDENCE_WEIGHT = 0.6
+_GROUND_TRUTH_WEIGHT = 0.4
 
 _SKILL_SYSTEM_PROMPT = """\
 You are an evolution analyst for an AI coding-agent orchestrator (SpecOrch).
@@ -475,7 +479,9 @@ class SkillEvolver:
         )
 
     def _query_ground_truth(self, triggers: list[str]) -> float | None:
-        """Query semantic memory for historical success rate of related runs."""
+        """Query semantic memory for success rate of runs related to triggers."""
+        if not triggers:
+            return None
         try:
             from spec_orch.services.memory.service import get_memory_service
             from spec_orch.services.memory.types import MemoryLayer, MemoryQuery
@@ -485,13 +491,15 @@ class SkillEvolver:
                 MemoryQuery(
                     layer=MemoryLayer.SEMANTIC,
                     tags=["run-summary"],
-                    top_k=50,
+                    top_k=_GROUND_TRUTH_QUERY_LIMIT,
                 )
             )
-            if len(entries) < 3:
+            trigger_lower = {t.lower() for t in triggers}
+            relevant = [e for e in entries if any(t in e.content.lower() for t in trigger_lower)]
+            if len(relevant) < _GROUND_TRUTH_MIN_SAMPLES:
                 return None
-            succeeded = sum(1 for e in entries if e.metadata.get("succeeded") is True)
-            return succeeded / len(entries)
+            succeeded = sum(1 for e in relevant if e.metadata.get("succeeded") is True)
+            return succeeded / len(relevant)
         except Exception:
             logger.debug("Could not query ground truth", exc_info=True)
             return None
@@ -500,11 +508,12 @@ class SkillEvolver:
     def _blend_confidence(llm_confidence: float, ground_truth: float | None) -> float:
         """Blend LLM-reported confidence with empirical success rate.
 
-        When ground truth is available (>= 3 runs), weight it 40%.
+        When ground truth is available (>= _GROUND_TRUTH_MIN_SAMPLES runs),
+        weight it at _GROUND_TRUTH_WEIGHT.
         """
         if ground_truth is None:
             return llm_confidence
-        return 0.6 * llm_confidence + 0.4 * ground_truth
+        return _LLM_CONFIDENCE_WEIGHT * llm_confidence + _GROUND_TRUTH_WEIGHT * ground_truth
 
     @staticmethod
     def _content_to_manifest_dict(content: dict[str, Any]) -> dict[str, Any]:
