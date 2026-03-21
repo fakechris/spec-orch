@@ -71,6 +71,10 @@ class QdrantIndex:
         self._embedding_model = embedding_model
         self._embedder = TextEmbedding(embedding_model)
 
+        _VALID_MODES = {"local", "memory", "server"}
+        if mode not in _VALID_MODES:
+            raise ValueError(f"Invalid Qdrant mode '{mode}'; expected one of {_VALID_MODES}")
+
         if mode == "memory":
             self._client = QdrantClient(location=":memory:")
         elif mode == "server":

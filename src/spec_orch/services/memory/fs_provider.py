@@ -96,6 +96,16 @@ def _render_frontmatter(entry: MemoryEntry) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _text_matches(query_text: str, content: str) -> bool:
+    """Word-level matching: at least half of the query words must appear."""
+    words = [w for w in query_text.lower().split() if len(w) > 2]
+    if not words:
+        return True
+    content_lower = content.lower()
+    hits = sum(1 for w in words if w in content_lower)
+    return hits >= max(1, len(words) // 2)
+
+
 class FileSystemMemoryProvider:
     """Store memories as Markdown files with YAML front-matter."""
 
@@ -143,7 +153,7 @@ class FileSystemMemoryProvider:
                 entry.metadata.get(k) == v for k, v in query.filters.items()
             ):
                 continue
-            if query.text and query.text.lower() not in entry.content.lower():
+            if query.text and not _text_matches(query.text, entry.content):
                 continue
             results.append(entry)
             if len(results) >= query.top_k:
