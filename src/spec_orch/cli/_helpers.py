@@ -281,7 +281,9 @@ def _make_controller(
     reviewer = create_reviewer(repo_root, toml_override=toml_raw)
 
     toml_spec = toml_raw.get("spec", {})
-    require_approval = toml_spec.get("require_approval", True)
+    require_approval = (
+        toml_spec.get("require_approval", True) if isinstance(toml_spec, dict) else True
+    )
     if auto_approve:
         require_approval = False
 

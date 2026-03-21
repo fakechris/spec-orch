@@ -152,7 +152,7 @@ def test_run_issue_creates_spec_snapshot(tmp_path: Path) -> None:
             }
         )
     )
-    controller = RunController(repo_root=tmp_path)
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
     result = controller.run_issue("SPC-SNAP-RUN")
 
     snap_path = result.workspace / "spec_snapshot.json"

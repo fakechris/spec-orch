@@ -271,6 +271,45 @@ class RunController:
                     message=f"Preserved existing spec snapshot v{existing_snapshot.version}.",
                     data={"version": existing_snapshot.version, "approved": True},
                 )
+            elif existing_snapshot is not None and self.require_spec_approval:
+                self._event_logger.log_and_emit(
+                    activity_logger=activity_logger,
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=issue.issue_id,
+                    component="spec",
+                    event_type="spec_awaiting_approval",
+                    message="Spec snapshot exists and is awaiting approval before build.",
+                    data={"version": existing_snapshot.version, "approved": False},
+                )
+                RunReportWriter.persist_state(
+                    workspace,
+                    issue,
+                    run_id,
+                    RunState.SPEC_DRAFTING,
+                )
+                return self._stub_result(
+                    issue,
+                    workspace,
+                    RunState.SPEC_DRAFTING,
+                    message="Spec requires approval. Use 'advance' after approving.",
+                )
+            elif existing_snapshot is not None:
+                existing_snapshot.approved = True
+                existing_snapshot.version += 1
+                write_spec_snapshot(workspace, existing_snapshot)
+                self._event_logger.log_and_emit(
+                    activity_logger=activity_logger,
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=issue.issue_id,
+                    component="spec",
+                    event_type="spec_snapshot_auto_approved",
+                    message=(
+                        f"Existing spec snapshot auto-approved as v{existing_snapshot.version}."
+                    ),
+                    data={"version": existing_snapshot.version, "approved": True},
+                )
             elif self.require_spec_approval:
                 snapshot = create_initial_snapshot(issue, approved=False)
                 write_spec_snapshot(workspace, snapshot)

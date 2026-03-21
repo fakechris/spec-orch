@@ -71,6 +71,7 @@ def test_run_issue_uses_fixture_and_reports_gate_result(tmp_path) -> None:
             "SPC-1",
             "--repo-root",
             str(tmp_path),
+            "--auto-approve",
         ],
     )
 
@@ -108,6 +109,7 @@ def test_review_and_accept_issue_mark_existing_run_mergeable(tmp_path) -> None:
             "SPC-9",
             "--repo-root",
             str(tmp_path),
+            "--auto-approve",
         ],
     )
 
@@ -160,7 +162,7 @@ def test_status_command_shows_issue_state(tmp_path) -> None:
         )
     )
     runner = CliRunner()
-    runner.invoke(app, ["run-issue", "SPC-20", "--repo-root", str(tmp_path)])
+    runner.invoke(app, ["run-issue", "SPC-20", "--repo-root", str(tmp_path), "--auto-approve"])
 
     result = runner.invoke(app, ["status", "SPC-20", "--repo-root", str(tmp_path)])
 
@@ -182,7 +184,7 @@ def test_explain_command_prints_report(tmp_path) -> None:
         )
     )
     runner = CliRunner()
-    runner.invoke(app, ["run-issue", "SPC-30", "--repo-root", str(tmp_path)])
+    runner.invoke(app, ["run-issue", "SPC-30", "--repo-root", str(tmp_path), "--auto-approve"])
 
     result = runner.invoke(app, ["explain", "SPC-30", "--repo-root", str(tmp_path)])
 
@@ -260,7 +262,7 @@ def test_gate_command_shows_issue_verdict(tmp_path) -> None:
         )
     )
     runner = CliRunner()
-    runner.invoke(app, ["run-issue", "SPC-G", "--repo-root", str(tmp_path)])
+    runner.invoke(app, ["run-issue", "SPC-G", "--repo-root", str(tmp_path), "--auto-approve"])
 
     result = runner.invoke(
         app,
@@ -291,7 +293,7 @@ def test_rerun_command_re_runs_verification(tmp_path) -> None:
         )
     )
     runner = CliRunner()
-    runner.invoke(app, ["run-issue", "SPC-RR", "--repo-root", str(tmp_path)])
+    runner.invoke(app, ["run-issue", "SPC-RR", "--repo-root", str(tmp_path), "--auto-approve"])
 
     result = runner.invoke(app, ["rerun", "SPC-RR", "--repo-root", str(tmp_path)])
 
@@ -402,7 +404,7 @@ def test_watch_command_shows_activity_log(tmp_path) -> None:
         )
     )
     runner = CliRunner()
-    runner.invoke(app, ["run-issue", "SPC-W", "--repo-root", str(tmp_path)])
+    runner.invoke(app, ["run-issue", "SPC-W", "--repo-root", str(tmp_path), "--auto-approve"])
 
     result = runner.invoke(app, ["watch", "SPC-W", "--repo-root", str(tmp_path)])
 
@@ -465,7 +467,7 @@ def test_logs_command_shows_activity_log(tmp_path) -> None:
         )
     )
     runner = CliRunner()
-    runner.invoke(app, ["run-issue", "SPC-L", "--repo-root", str(tmp_path)])
+    runner.invoke(app, ["run-issue", "SPC-L", "--repo-root", str(tmp_path), "--auto-approve"])
 
     result = runner.invoke(app, ["logs", "SPC-L", "--repo-root", str(tmp_path)])
 
@@ -486,7 +488,7 @@ def test_logs_command_filter(tmp_path) -> None:
         )
     )
     runner = CliRunner()
-    runner.invoke(app, ["run-issue", "SPC-LF", "--repo-root", str(tmp_path)])
+    runner.invoke(app, ["run-issue", "SPC-LF", "--repo-root", str(tmp_path), "--auto-approve"])
 
     result = runner.invoke(
         app, ["logs", "SPC-LF", "--repo-root", str(tmp_path), "--filter", "GATE"]
@@ -511,7 +513,7 @@ def test_logs_command_raw_mode(tmp_path) -> None:
         )
     )
     runner = CliRunner()
-    runner.invoke(app, ["run-issue", "SPC-LR", "--repo-root", str(tmp_path)])
+    runner.invoke(app, ["run-issue", "SPC-LR", "--repo-root", str(tmp_path), "--auto-approve"])
 
     result = runner.invoke(app, ["logs", "SPC-LR", "--repo-root", str(tmp_path), "--raw"])
 
@@ -534,7 +536,7 @@ def test_logs_command_events_mode(tmp_path) -> None:
         )
     )
     runner = CliRunner()
-    runner.invoke(app, ["run-issue", "SPC-LE", "--repo-root", str(tmp_path)])
+    runner.invoke(app, ["run-issue", "SPC-LE", "--repo-root", str(tmp_path), "--auto-approve"])
 
     result = runner.invoke(app, ["logs", "SPC-LE", "--repo-root", str(tmp_path), "--events"])
 
@@ -557,7 +559,7 @@ def test_run_issue_with_live_flag(tmp_path) -> None:
     runner = CliRunner()
     result = runner.invoke(
         app,
-        ["run-issue", "SPC-LV", "--repo-root", str(tmp_path), "--live"],
+        ["run-issue", "SPC-LV", "--repo-root", str(tmp_path), "--live", "--auto-approve"],
     )
     assert result.exit_code == 0
     assert "SPC-LV" in result.stdout
