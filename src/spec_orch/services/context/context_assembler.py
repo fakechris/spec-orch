@@ -450,9 +450,8 @@ class ContextAssembler:
         for m in manifests:
             if not m.triggers:
                 continue
-            if any(
-                re.search(r"\b" + re.escape(t.lower()) + r"\b", search_text) for t in m.triggers
-            ):
+            pattern = r"\b(" + "|".join(re.escape(t.lower()) for t in m.triggers) + r")\b"
+            if re.search(pattern, search_text):
                 matched.append(_skill_to_context(m))
         return matched[:_MAX_MATCHED_SKILLS]
 

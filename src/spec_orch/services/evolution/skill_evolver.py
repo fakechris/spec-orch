@@ -242,6 +242,7 @@ class SkillEvolver:
                     "issue_id": e.metadata.get("issue_id", ""),
                     "succeeded": e.metadata.get("succeeded"),
                     "failed_conditions": e.metadata.get("failed_conditions", []),
+                    "summary": e.content,
                 }
                 for e in entries
                 if e.metadata
