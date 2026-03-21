@@ -196,6 +196,7 @@ class FileSystemMemoryProvider:
                     "key": key,
                     "layer": info.get("layer", "working"),
                     "tags": info.get("tags", []),
+                    "created_at": info.get("created_at", ""),
                     "updated_at": info.get("updated_at", ""),
                 }
             )

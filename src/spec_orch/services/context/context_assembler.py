@@ -192,10 +192,28 @@ class ContextAssembler:
                 if isinstance(parsed, list):
                     setattr(learn, name, parsed)
             except (json.JSONDecodeError, TypeError):
+                original = getattr(learn, name, [])
+                if not isinstance(original, list) or not original:
+                    setattr(learn, name, [])
+                    continue
+                budget_chars = len(text)
+                trimmed = cls._trim_list_to_budget(original, budget_chars)
+                setattr(learn, name, trimmed)
                 logger.debug(
-                    "ContextRanker truncated %s JSON beyond repair, keeping original",
+                    "ContextRanker truncated %s: %d→%d items to fit budget",
                     name,
+                    len(original),
+                    len(trimmed),
                 )
+
+    @staticmethod
+    def _trim_list_to_budget(items: list[Any], budget_chars: int) -> list[Any]:
+        """Remove items from the end until serialized JSON fits budget."""
+        for end in range(len(items), 0, -1):
+            candidate = json.dumps(items[:end], ensure_ascii=False, indent=1)
+            if len(candidate) <= budget_chars:
+                return items[:end]
+        return []
 
     @staticmethod
     def _load_manifest(workspace: Path) -> ArtifactManifest | None:
@@ -450,7 +468,8 @@ class ContextAssembler:
         for m in manifests:
             if not m.triggers:
                 continue
-            pattern = r"\b(" + "|".join(re.escape(t.lower()) for t in m.triggers) + r")\b"
+            alts = "|".join(re.escape(t.lower()) for t in m.triggers)
+            pattern = r"(?<!\w)(" + alts + r")(?!\w)"
             if re.search(pattern, search_text):
                 matched.append(_skill_to_context(m))
         return matched[:_MAX_MATCHED_SKILLS]

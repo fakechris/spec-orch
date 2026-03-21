@@ -39,11 +39,16 @@ def _coerce_skill_manifest(data: dict[str, Any]) -> SkillManifest | None:
 
 
 def _version_is_newer(new: str, old: str) -> bool:
-    """Compare semver-like version strings (best effort)."""
+    """Compare semver-like version strings (best effort).
+
+    Strips pre-release suffixes (e.g. ``-alpha``, ``-rc1``) before
+    comparing numeric components so ``1.0.0-alpha > 0.9.0`` holds.
+    """
 
     def _parts(v: str) -> tuple[int, ...]:
         try:
-            return tuple(int(x) for x in v.split("."))
+            numeric = v.split("-", 1)[0]  # strip pre-release suffix
+            return tuple(int(x) for x in numeric.split("."))
         except (ValueError, AttributeError):
             return (0,)
 
@@ -442,18 +447,64 @@ class SkillEvolver:
                 reason=f"kind must be builder_hook, got {kind!r}",
             )
 
-        accepted = proposal.confidence >= _PROPOSAL_CONFIDENCE_THRESHOLD
+        ground_truth = self._query_ground_truth(coerced.triggers)
+        effective_confidence = self._blend_confidence(proposal.confidence, ground_truth)
+
+        accepted = effective_confidence >= _PROPOSAL_CONFIDENCE_THRESHOLD
+        metrics = {
+            "confidence": proposal.confidence,
+            "effective_confidence": effective_confidence,
+            "tool_sequence_len": float(len(ts)),
+            "trigger_count": float(len(coerced.triggers)),
+        }
+        if ground_truth is not None:
+            metrics["ground_truth_success_rate"] = ground_truth
+
+        reason = ""
+        if not accepted:
+            reason = (
+                f"effective confidence {effective_confidence:.2f} "
+                f"below threshold ({_PROPOSAL_CONFIDENCE_THRESHOLD})"
+            )
         return EvolutionOutcome(
             proposal_id=proposal.proposal_id,
             accepted=accepted,
             validation_method=EvolutionValidationMethod.RULE_VALIDATOR,
-            metrics={
-                "confidence": proposal.confidence,
-                "tool_sequence_len": float(len(ts)),
-                "trigger_count": float(len(coerced.triggers)),
-            },
-            reason="" if accepted else "confidence below threshold (0.5)",
+            metrics=metrics,
+            reason=reason,
         )
+
+    def _query_ground_truth(self, triggers: list[str]) -> float | None:
+        """Query semantic memory for historical success rate of related runs."""
+        try:
+            from spec_orch.services.memory.service import get_memory_service
+            from spec_orch.services.memory.types import MemoryLayer, MemoryQuery
+
+            memory = get_memory_service(repo_root=self._repo_root)
+            entries = memory.recall(
+                MemoryQuery(
+                    layer=MemoryLayer.SEMANTIC,
+                    tags=["run-summary"],
+                    top_k=50,
+                )
+            )
+            if len(entries) < 3:
+                return None
+            succeeded = sum(1 for e in entries if e.metadata.get("succeeded") is True)
+            return succeeded / len(entries)
+        except Exception:
+            logger.debug("Could not query ground truth", exc_info=True)
+            return None
+
+    @staticmethod
+    def _blend_confidence(llm_confidence: float, ground_truth: float | None) -> float:
+        """Blend LLM-reported confidence with empirical success rate.
+
+        When ground truth is available (>= 3 runs), weight it 40%.
+        """
+        if ground_truth is None:
+            return llm_confidence
+        return 0.6 * llm_confidence + 0.4 * ground_truth
 
     @staticmethod
     def _content_to_manifest_dict(content: dict[str, Any]) -> dict[str, Any]:

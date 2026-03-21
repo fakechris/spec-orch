@@ -185,11 +185,11 @@ enabled = true
 
 **v0.5.1** — Alpha, dogfood-first (EODF) mode.
 
-The system is used to develop itself and improves itself with each iteration. 1196+ tests, 65+ commands.
+The system is used to develop itself and improves itself with each iteration. 1203+ tests, 65+ commands.
 
 What works on `main`:
 
-- Seven-plane architecture with closed-loop evolution
+- Seven-plane architecture with closed-loop evolution (FlowEngine DAGs defined but `run_issue()` uses direct sequencing; unification planned)
 - Pluggable builder/reviewer adapters (Codex, OpenCode, Claude Code, Droid, ACPX)
 - ACPX unified adapter wrapping 15+ agents via Agent Client Protocol
 - Fixture or Linear-backed issue loading with configurable issue sources
