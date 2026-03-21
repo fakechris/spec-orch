@@ -1011,6 +1011,8 @@ class RunController:
         )
         return gate, explain, report
 
+    _COMPACT_EVERY_N_RUNS = 10
+
     def _consolidate_run_memory(
         self,
         *,
@@ -1029,7 +1031,9 @@ class RunController:
                 succeeded=gate.mergeable,
                 failed_conditions=gate.failed_conditions,
             )
-            memory.compact()
+            count = len(memory.list_keys(layer="episodic", limit=1000))
+            if count > 0 and count % self._COMPACT_EVERY_N_RUNS == 0:
+                memory.compact()
         except Exception:
             logger.debug("Memory consolidation skipped", exc_info=True)
 

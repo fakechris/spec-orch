@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -187,9 +188,14 @@ class ContextAssembler:
                 continue
             text = ranked[name]
             try:
-                setattr(learn, name, json.loads(text))
+                parsed = json.loads(text)
+                if isinstance(parsed, list):
+                    setattr(learn, name, parsed)
             except (json.JSONDecodeError, TypeError):
-                setattr(learn, name, [])
+                logger.debug(
+                    "ContextRanker truncated %s JSON beyond repair, keeping original",
+                    name,
+                )
 
     @staticmethod
     def _load_manifest(workspace: Path) -> ArtifactManifest | None:
@@ -444,7 +450,9 @@ class ContextAssembler:
         for m in manifests:
             if not m.triggers:
                 continue
-            if any(t.lower() in search_text for t in m.triggers):
+            if any(
+                re.search(r"\b" + re.escape(t.lower()) + r"\b", search_text) for t in m.triggers
+            ):
                 matched.append(_skill_to_context(m))
         return matched[:_MAX_MATCHED_SKILLS]
 
