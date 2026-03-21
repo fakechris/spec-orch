@@ -164,11 +164,28 @@ spec-orch strategy analyze        # Learned scoper hints
 spec-orch policy distill          # Zero-LLM deterministic scripts
 ```
 
+**Skill Discovery** (SkillCraft-inspired): When `[evolution.skill_evolver] enabled = true` is set in `spec-orch.toml`, the system automatically discovers repeating tool-call patterns from builder telemetry across runs and saves them as reusable `SkillManifest` YAML files. Matched skills are automatically injected into builder context for future runs.
+
+```toml
+# spec-orch.toml — enable skill auto-discovery
+[evolution.skill_evolver]
+enabled = true
+```
+
+**How each mechanism activates:**
+
+| Mechanism | Activation | Configuration |
+|-----------|-----------|---------------|
+| **SkillEvolver** (save) | Config-driven, runs during evolution cycle | `[evolution.skill_evolver] enabled = true` |
+| **Skill Runtime** (reuse) | Always active when `.spec_orch/skills/` has YAML files | No config needed |
+| **ContextRanker** (hot/cold) | Always active in every `ContextAssembler.assemble()` call | Budget via `NodeContextSpec.max_tokens_budget` |
+| **Memory compaction** | Auto-runs at end of every `_finalize_run()` | TTL default 30 days |
+
 ## Status
 
 **v0.5.1** — Alpha, dogfood-first (EODF) mode.
 
-The system is used to develop itself and improves itself with each iteration. 1176+ tests, 65+ commands.
+The system is used to develop itself and improves itself with each iteration. 1195+ tests, 65+ commands.
 
 What works on `main`:
 
@@ -202,7 +219,11 @@ What works on `main`:
 - CompactRetentionPriority: architecture-aware context compression
 - Atomic JSON writes across all state files (crash-safe daemon)
 - Cross-platform file locking for evolution counter (POSIX + Windows)
-- LifecycleEvolver protocol: unified 4-phase observe/propose/validate/promote for all 6 evolvers
+- LifecycleEvolver protocol: unified 4-phase observe/propose/validate/promote for all 7 evolvers
+- SkillEvolver: auto-discovers reusable builder tool-call patterns → SkillManifest YAML (SkillCraft-inspired)
+- Skill Runtime: ContextAssembler loads + matches skills by trigger keywords, injects into builder context
+- ContextRanker hot/cold separation: learning context (hints, skills, failure samples) included in priority-based budget allocation
+- Memory compaction + TTL: episodic memory auto-expires after 30 days, run outcomes consolidated to semantic layer
 - Modular CLI: `cli/` package with 8 command submodules replacing single 4092-line file
 - LLM JSON output schema validation with fallback + observability events
 

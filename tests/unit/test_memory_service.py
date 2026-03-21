@@ -1,5 +1,6 @@
 """Tests for MemoryService and EventBus integration."""
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -45,6 +46,52 @@ class TestMemoryServiceCRUD:
         svc.store(MemoryEntry(key="y", content="2", layer=MemoryLayer.EPISODIC))
         assert set(svc.list_keys()) == {"x", "y"}
         assert svc.list_keys(layer="working") == ["x"]
+
+    def test_compact_removes_stale_episodic(self, svc: MemoryService):
+        old = (datetime.now(UTC) - timedelta(days=60)).isoformat()
+        svc.store(
+            MemoryEntry(
+                key="ep-old",
+                content="stale",
+                layer=MemoryLayer.EPISODIC,
+                created_at=old,
+            )
+        )
+        svc.store(MemoryEntry(key="ep-new", content="fresh", layer=MemoryLayer.EPISODIC))
+        stats = svc.compact(max_age_days=30)
+        assert stats["removed"] == 1
+        assert stats["retained"] == 1
+        assert svc.get("ep-old") is None
+        assert svc.get("ep-new") is not None
+
+    def test_consolidate_run_stores_successful_run(self, svc: MemoryService):
+        key = svc.consolidate_run(
+            run_id="r1",
+            issue_id="i1",
+            succeeded=True,
+            failed_conditions=None,
+            key_learnings="",
+        )
+        assert key == "run-summary-r1"
+        entry = svc.get(key)
+        assert entry is not None
+        assert "succeeded" in entry.content
+
+    def test_consolidate_run_stores_semantic(self, svc: MemoryService):
+        key = svc.consolidate_run(
+            run_id="run-abc",
+            issue_id="ISS-1",
+            succeeded=False,
+            failed_conditions=["ci", "review"],
+            key_learnings="Retry with smaller diff",
+        )
+        assert key is not None
+        entry = svc.get(key)
+        assert entry is not None
+        assert entry.layer == MemoryLayer.SEMANTIC
+        assert "run-summary" in entry.tags
+        assert "run-abc" in entry.content
+        assert "Failed conditions: ci, review" in entry.content
 
 
 class TestLifecycleCapture:

@@ -54,6 +54,7 @@ class LearningContext:
     active_prompt_variant_id: str = ""
     scoper_hints: list[dict[str, Any]] = field(default_factory=list)
     relevant_policies: list[str] = field(default_factory=list)
+    matched_skills: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(slots=True)

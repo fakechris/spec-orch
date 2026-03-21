@@ -41,6 +41,7 @@ class EvolutionConfig:
     intent_evolver_enabled: bool = True
     gate_policy_evolver_enabled: bool = False
     flow_policy_evolver_enabled: bool = False
+    skill_evolver_enabled: bool = False
 
     @classmethod
     def from_toml(cls, data: dict[str, Any]) -> EvolutionConfig:
@@ -58,6 +59,7 @@ class EvolutionConfig:
             intent_evolver_enabled=evo.get("intent_evolver", {}).get("enabled", True),
             gate_policy_evolver_enabled=evo.get("gate_policy_evolver", {}).get("enabled", False),
             flow_policy_evolver_enabled=evo.get("flow_policy_evolver", {}).get("enabled", False),
+            skill_evolver_enabled=evo.get("skill_evolver", {}).get("enabled", False),
         )
 
 
@@ -200,6 +202,8 @@ class EvolutionTrigger:
             evolvers.append("gate_policy_evolver")
         if self._config.flow_policy_evolver_enabled:
             evolvers.append("flow_policy_evolver")
+        if self._config.skill_evolver_enabled:
+            evolvers.append("skill_evolver")
         return evolvers
 
     def _build_lifecycle_evolver(self, name: str) -> LifecycleEvolver | None:
@@ -229,6 +233,10 @@ class EvolutionTrigger:
                 from spec_orch.services.evolution.flow_policy_evolver import FlowPolicyEvolver
 
                 return FlowPolicyEvolver(self._repo_root, planner=self._planner)
+            if name == "skill_evolver":
+                from spec_orch.services.evolution.skill_evolver import SkillEvolver
+
+                return SkillEvolver(self._repo_root, planner=self._planner)
         except Exception:
             logger.warning("Failed to instantiate evolver %s", name, exc_info=True)
         return None

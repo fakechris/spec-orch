@@ -33,8 +33,11 @@ from spec_orch.services.context.context_ranker import (
     RankedSection,
     _detect_chars_per_token,
 )
+from spec_orch.services.skill_format import SkillManifest
 
 logger = logging.getLogger(__name__)
+
+_MAX_MATCHED_SKILLS = 10
 
 
 def _truncate(text: str, max_tokens: int) -> str:
@@ -51,6 +54,17 @@ def _truncate(text: str, max_tokens: int) -> str:
 def _estimate_tokens(text: str) -> int:
     cpt = _detect_chars_per_token(text)
     return len(text) // cpt
+
+
+def _skill_to_context(m: SkillManifest) -> dict[str, Any]:
+    d: dict[str, Any] = {"id": m.id, "name": m.name, "description": m.description}
+    instructions = m.params.get("instructions")
+    if instructions:
+        d["instructions"] = instructions
+    tool_sequence = m.params.get("tool_sequence")
+    if tool_sequence:
+        d["tool_sequence"] = tool_sequence
+    return d
 
 
 class ContextAssembler:
@@ -79,10 +93,19 @@ class ContextAssembler:
             exclude_framework_events=spec.exclude_framework_events,
         )
         learn_ctx = self._build_learning_context(
-            repo_root or workspace, memory, oversized_budget, spec.required_learning_fields
+            repo_root or workspace,
+            memory,
+            oversized_budget,
+            spec.required_learning_fields,
+            issue_title=issue.title,
+            issue_summary=issue.summary,
         )
 
-        contexts = {"task": task_ctx, "execution": exec_ctx}
+        contexts: dict[str, Any] = {
+            "task": task_ctx,
+            "execution": exec_ctx,
+            "learning": learn_ctx,
+        }
         sections = self._collect_ranked_sections(contexts)
         if sections:
             ranked = ContextRanker.allocate(sections, budget)
@@ -109,12 +132,42 @@ class ContextAssembler:
         cls,
         contexts: dict[str, Any],
     ) -> list[RankedSection]:
+        from spec_orch.domain.context import CompactRetentionPriority as P
+
         sections: list[RankedSection] = []
         for name, ctx_key, priority in cls._section_definitions():
             content = getattr(contexts.get(ctx_key), name, None)
             if content:
                 sections.append(RankedSection(name, content, priority))
+
+        learn = contexts.get("learning")
+        if learn is not None:
+            cls._add_learning_sections(learn, sections, P)
         return sections
+
+    @staticmethod
+    def _add_learning_sections(
+        learn: Any,
+        sections: list[RankedSection],
+        priorities: Any,
+    ) -> None:
+        """Serialize learning-context list/dict fields for ranked allocation."""
+        hints = getattr(learn, "scoper_hints", None)
+        if hints:
+            text = json.dumps(hints, ensure_ascii=False, indent=1)
+            sections.append(RankedSection("scoper_hints", text, priorities.UNRESOLVED_TODOS))
+
+        skills = getattr(learn, "matched_skills", None)
+        if skills:
+            text = json.dumps(skills, ensure_ascii=False, indent=1)
+            sections.append(RankedSection("matched_skills", text, priorities.UNRESOLVED_TODOS))
+
+        samples = getattr(learn, "similar_failure_samples", None)
+        if samples:
+            text = json.dumps(samples, ensure_ascii=False, indent=1)
+            sections.append(RankedSection("similar_failure_samples", text, priorities.TOOL_OUTPUT))
+
+    _LEARNING_LIST_FIELDS = frozenset({"scoper_hints", "matched_skills", "similar_failure_samples"})
 
     @classmethod
     def _apply_ranked_budget(
@@ -125,6 +178,18 @@ class ContextAssembler:
         for name, ctx_key, _ in cls._section_definitions():
             if name in ranked:
                 setattr(contexts[ctx_key], name, ranked[name])
+
+        learn = contexts.get("learning")
+        if learn is None:
+            return
+        for name in cls._LEARNING_LIST_FIELDS:
+            if name not in ranked:
+                continue
+            text = ranked[name]
+            try:
+                setattr(learn, name, json.loads(text))
+            except (json.JSONDecodeError, TypeError):
+                setattr(learn, name, [])
 
     @staticmethod
     def _load_manifest(workspace: Path) -> ArtifactManifest | None:
@@ -310,6 +375,9 @@ class ContextAssembler:
         memory: Any | None,
         budget: int,
         required: list[str],
+        *,
+        issue_title: str = "",
+        issue_summary: str = "",
     ) -> LearningContext:
         ctx = LearningContext()
 
@@ -353,7 +421,32 @@ class ContextAssembler:
         if not required or "relevant_policies" in required:
             ctx.relevant_policies = self._load_relevant_policies(workspace)
 
+        if not required or "matched_skills" in required:
+            ctx.matched_skills = self._build_skill_context(workspace, issue_title, issue_summary)
+
         return ctx
+
+    @staticmethod
+    def _build_skill_context(
+        repo_root: Path,
+        issue_title: str,
+        issue_summary: str,
+    ) -> list[dict[str, Any]]:
+        from spec_orch.services.skill_format import default_skills_dir, load_skills_from_dir
+
+        skills_dir = default_skills_dir(repo_root)
+        manifests, _ = load_skills_from_dir(skills_dir)
+        if not manifests:
+            return []
+
+        search_text = f"{issue_title} {issue_summary}".lower()
+        matched: list[dict[str, Any]] = []
+        for m in manifests:
+            if not m.triggers:
+                continue
+            if any(t.lower() in search_text for t in m.triggers):
+                matched.append(_skill_to_context(m))
+        return matched[:_MAX_MATCHED_SKILLS]
 
     @staticmethod
     def _load_relevant_policies(repo_root: Path) -> list[str]:
