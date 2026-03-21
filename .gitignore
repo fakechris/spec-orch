@@ -31,5 +31,6 @@ packages/tui/dist/
 !.env.example
 builder_report.json
 .spec_orch_memory/
+.spec_orch_qdrant/
 # Local reaction execution traces (JSONL)
 .spec_orch/reactions_trace.jsonl

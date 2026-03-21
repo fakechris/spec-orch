@@ -96,9 +96,24 @@ def _render_frontmatter(entry: MemoryEntry) -> str:
     return "\n".join(lines) + "\n"
 
 
+_CJK_RANGE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf]")
+
+
+def _tokenize(text: str) -> list[str]:
+    """Split text into meaningful tokens with CJK-aware segmentation via jieba."""
+    text = text.lower()
+    if _CJK_RANGE.search(text):
+        import jieba  # lazy: ~1s dict load on first call
+
+        tokens = [w.strip() for w in jieba.cut(text) if w.strip()]
+        multi = [w for w in tokens if len(w) > 1]
+        return multi if multi else tokens
+    return [w for w in text.split() if len(w) > 2]
+
+
 def _text_matches(query_text: str, content: str) -> bool:
-    """Word-level matching: at least half of the query words must appear."""
-    words = [w for w in query_text.lower().split() if len(w) > 2]
+    """Word-level matching: at least half of the query tokens must appear."""
+    words = _tokenize(query_text)
     if not words:
         return True
     content_lower = content.lower()

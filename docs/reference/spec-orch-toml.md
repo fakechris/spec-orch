@@ -125,6 +125,31 @@ See `docs/guides/ai-config-guide.md` for per-language templates.
 | `retry_base_delay_seconds` | int | `60` | Base delay for exponential backoff (seconds) |
 | `hotfix_labels` | list[str] | `["hotfix", "urgent", "P0"]` | Labels that trigger hotfix mode (skip triage) |
 
+## [memory]
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `provider` | string | `"filesystem"` | Memory provider: `"filesystem"` (file-only) or `"filesystem_qdrant"` (file + Qdrant semantic index) |
+
+When `provider = "filesystem_qdrant"`, the `[memory.qdrant]` section must be configured.
+When `provider = "filesystem"` (or section omitted), only filesystem-based recall is used.
+
+### [memory.qdrant]
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `mode` | string | `"local"` | Qdrant mode: `"local"` (on-disk), `"memory"` (in-memory, dev/test), `"server"` (remote Qdrant server) |
+| `path` | string | `".spec_orch_qdrant"` | Local storage path for `mode = "local"` |
+| `url` | string | — | Qdrant server URL for `mode = "server"` (e.g. `"http://localhost:6333"`) |
+| `collection` | string | `"spec_orch_memory"` | Qdrant collection name |
+| `embedding_model` | string | `"BAAI/bge-small-zh-v1.5"` | FastEmbed model for local embedding generation |
+
+Requires the `memory` optional extra: `pip install "spec-orch[memory]"`.
+The local embedding model (~90 MB) is auto-downloaded on first use.
+If Qdrant initialization fails, the system silently degrades to filesystem-only mode.
+
+See [ADR-0001](../adr/0001-memory-architecture.md) for architecture details.
+
 ## [evolution]
 
 | Key | Type | Default | Description |
@@ -209,6 +234,22 @@ dry_run = false
 [evolution.policy_distiller]
 enabled = false
 ```
+
+## Example (Memory with Qdrant)
+
+```toml
+[memory]
+provider = "filesystem_qdrant"
+
+[memory.qdrant]
+mode = "local"
+path = ".spec_orch_qdrant"
+collection = "spec_orch_memory"
+embedding_model = "BAAI/bge-small-zh-v1.5"
+```
+
+For dev/test, use `mode = "memory"` (no disk persistence).
+For a remote Qdrant server, use `mode = "server"` with `url = "http://localhost:6333"`.
 
 ## Example (ACPX Unified Adapter)
 

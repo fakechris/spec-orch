@@ -7,9 +7,10 @@
 
 ## 项目状态
 
-**v0.5.1** — Alpha，内部 dogfood 模式。1220+ 测试，65+ 命令。
+**v0.5.1** — Alpha，内部 dogfood 模式。1237+ 测试，65+ 命令。
 
 七层架构骨架完备，Credibility Flywheel 各环基线就位，架构债务已清理。
+分层记忆架构（ADR-0001）已通过完整 E2E 验证：Qdrant 语义索引 + 真实 run-issue 链路确认可用。
 当前处于**从内部原型走向外部验证**的转折点。
 
 Linear 状态：170 Done / 16 Canceled / 0 Open。
@@ -68,7 +69,7 @@ Linear 状态：170 Done / 16 Canceled / 0 Open。
 |------|----------|----------|
 | Reaction Engine | 内置 3 个 reaction + daemon 集成 | 用户自定义 recipe、更多内置 reaction |
 | Skill Runtime | SkillEvolver 自动发现 + ContextAssembler 自动注入 | Repo-level registry、Skill→Policy 蒸馏、execute_skill 协议 |
-| Memory System | 4 层记忆 + compaction + TTL + run consolidation + Qdrant 语义索引 ([ADR-0001](../adr/0001-memory-architecture.md)) | cross-repo 知识共享、Mem0 评估 |
+| Memory System | 4 层记忆 + compaction + TTL + run consolidation + Qdrant 语义索引 (E2E 已验证) ([ADR-0001](../adr/0001-memory-architecture.md)) | 中文分词增强、cross-repo 知识共享、QMD 文档检索评估 |
 | Control Tower | API endpoints + 基础 UI | Session 视图、成本监控、移动端 |
 | Harness Evals | EvalRunner + CLI 基线 | 自动 A/B 对比、变更自动 eval |
 | Preview & Sandbox | Gate 有条件，未实际接入 | Preview provider + Docker sandbox |
@@ -121,6 +122,17 @@ Linear 状态：170 Done / 16 Canceled / 0 Open。
 | memory extra | `pip install spec-orch[memory]` 引入 qdrant-client | SON-213 |
 | 消费点接入 | similar_failure_samples 增加 query.text 语义召回 | SON-214 |
 
+### E2E 验证通过（2026-03-21）
+
+| 验证项 | 结果 |
+|--------|------|
+| qdrant-client + fastembed 安装 | qdrant-client 1.17.1 + fastembed 0.7.4 |
+| Qdrant 集成测试（真实 embedding） | 8/8 全部通过，BAAI/bge-small-zh-v1.5 |
+| 中文语义搜索验证 | 5 条中文数据写入，语义匹配成功，FS 对照返回 0 条 |
+| spec-orch.toml 配置自动切换 | VectorEnhancedProvider 自动激活 |
+| SON-215 + SON-216 真实 run-issue | Builder 成功，Gate 评估完成，consolidate_run 写入 Qdrant |
+| 跨 run 语义 recall | 两次 run-summary 均可通过语义查询召回 |
+
 ### 架构债务清理（2026-03-20）
 
 | 交付 | 说明 | Linear |
@@ -158,3 +170,4 @@ Linear 状态：170 Done / 16 Canceled / 0 Open。
 | 2026-03-18 | 初版，P0~P6 按 Plane 组织 |
 | 2026-03-20 | 重构为 Milestone 格式：未来方向优先、已完成附后、去除日期前缀 |
 | 2026-03-21 | SkillCraft 涌现管道落地：SkillEvolver + Skill Runtime + ContextRanker 完整接入 + Memory compaction |
+| 2026-03-21 | 分层记忆架构 ADR-0001 落地 + Qdrant 语义索引 + E2E 验证通过 |
