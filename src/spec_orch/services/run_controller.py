@@ -491,20 +491,18 @@ class RunController:
     def _resume_completed_step(self, ctx: dict[str, Any], step_id: str, stage: str) -> None:
         """Restore ctx data for a previously completed stage from persisted artifacts."""
         workspace = ctx["workspace"]
-        if stage == "builder":
-            try:
-                report_data = RunReportWriter.load_persisted_run_payload(workspace)
+        try:
+            report_data = RunReportWriter.load_persisted_run_payload(workspace)
+            if stage == "builder":
                 ctx["builder"] = RunReportWriter.builder_from_report(report_data, workspace)
-            except (KeyError, FileNotFoundError):
-                logger.warning("Cannot restore builder from report; will re-run")
-                ctx.setdefault("_force_rerun_steps", set()).add(step_id)
-        elif stage == "verification":
-            try:
-                report_data = RunReportWriter.load_persisted_run_payload(workspace)
+            elif stage == "verification":
                 ctx["verification"] = RunReportWriter.verification_from_report(report_data)
-            except (KeyError, FileNotFoundError):
-                logger.warning("Cannot restore verification from report; will re-run")
-                ctx.setdefault("_force_rerun_steps", set()).add(step_id)
+        except (KeyError, FileNotFoundError, TypeError, AttributeError):
+            logger.warning("Cannot restore %s from report; will re-run", stage)
+            force_rerun = ctx.setdefault("_force_rerun_steps", set())
+            force_rerun.add(step_id)
+            if stage == "builder":
+                force_rerun.add("verify")
 
     def _handle_builder_step(self, ctx: dict[str, Any]) -> RunResult | None:
         """Handle execute/implement step: run the builder."""
