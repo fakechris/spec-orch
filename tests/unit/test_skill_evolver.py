@@ -12,6 +12,7 @@ from spec_orch.services.evolution.skill_evolver import (
     SkillEvolver,
     _dedupe_run,
     _event_tool_signature,
+    _version_is_newer,
 )
 
 # ---------------------------------------------------------------------------
@@ -65,6 +66,26 @@ class TestDedupeRun:
 
     def test_max_length(self) -> None:
         assert len(_dedupe_run(list(map(str, range(200))))) == 64
+
+
+class TestVersionIsNewer:
+    def test_simple_newer(self) -> None:
+        assert _version_is_newer("0.2.0", "0.1.0") is True
+
+    def test_same_version(self) -> None:
+        assert _version_is_newer("0.1.0", "0.1.0") is False
+
+    def test_older(self) -> None:
+        assert _version_is_newer("0.1.0", "0.2.0") is False
+
+    def test_prerelease_newer(self) -> None:
+        assert _version_is_newer("1.0.0-alpha", "0.9.0") is True
+
+    def test_prerelease_same_base(self) -> None:
+        assert _version_is_newer("1.0.0-rc1", "1.0.0") is False
+
+    def test_garbage_input(self) -> None:
+        assert _version_is_newer("not-a-version", "0.1.0") is False
 
 
 # ---------------------------------------------------------------------------

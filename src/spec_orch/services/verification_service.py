@@ -28,13 +28,33 @@ class VerificationService:
                 continue
 
             resolved_command = [self._resolve_token(token) for token in command]
-            result = subprocess.run(
-                resolved_command,
-                cwd=workspace,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
+            try:
+                result = subprocess.run(
+                    resolved_command,
+                    cwd=workspace,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                )
+            except FileNotFoundError:
+                summary.details[step_name] = VerificationDetail(
+                    command=resolved_command,
+                    exit_code=127,
+                    stdout="",
+                    stderr=f"command not found: {resolved_command[0]}",
+                )
+                summary.set_step_passed(step_name, False)
+                continue
+            except subprocess.TimeoutExpired:
+                summary.details[step_name] = VerificationDetail(
+                    command=resolved_command,
+                    exit_code=124,
+                    stdout="",
+                    stderr="command timed out after 600s",
+                )
+                summary.set_step_passed(step_name, False)
+                continue
             summary.details[step_name] = VerificationDetail(
                 command=resolved_command,
                 exit_code=result.returncode,
