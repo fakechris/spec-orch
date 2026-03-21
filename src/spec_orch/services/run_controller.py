@@ -338,7 +338,7 @@ class RunController:
                     continue
 
                 handler = getattr(self, handler_name)
-                early_return = handler(ctx)
+                early_return: RunResult | None = handler(ctx)
                 if early_return is not None:
                     return early_return
 
