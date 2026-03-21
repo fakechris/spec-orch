@@ -12,6 +12,7 @@ from spec_orch.domain.compliance import (
 )
 from spec_orch.domain.models import (
     BuilderResult,
+    FlowGraph,
     FlowTransitionEvent,
     FlowType,
     GateInput,
@@ -55,6 +56,23 @@ logger = logging.getLogger(__name__)
 
 _MAX_ADVANCE_ITERATIONS = 10
 _FLOW_ORDER: dict[FlowType, int] = {FlowType.HOTFIX: 0, FlowType.STANDARD: 1, FlowType.FULL: 2}
+
+_EXECUTION_STEP_HANDLERS: dict[str, str] = {
+    "execute": "_handle_builder_step",
+    "implement": "_handle_builder_step",
+    "verify": "_handle_verify_step",
+    "gate": "_handle_gate_step",
+}
+
+_STATE_TO_STEP: dict[RunState, tuple[str, ...]] = {
+    RunState.SPEC_DRAFTING: ("freeze_spec",),
+    RunState.SPEC_APPROVED: ("mission_approve",),
+    RunState.BUILDING: ("execute", "implement"),
+    RunState.VERIFYING: ("verify",),
+    RunState.GATE_EVALUATED: ("gate",),
+    RunState.REVIEW_PENDING: ("pr_review", "pre_merge_review"),
+    RunState.MERGED: ("merge",),
+}
 
 
 def record_flow_transition(event: FlowTransitionEvent) -> None:
@@ -228,6 +246,17 @@ class RunController:
         )
 
     @staticmethod
+    def _resolve_active_conditions(issue: Issue) -> set[str]:
+        """Extract active conditions from issue labels and priority."""
+        conditions: set[str] = set()
+        labels_lower = {lbl.lower() for lbl in (issue.labels or [])}
+        if labels_lower & {"doc-only", "doc_only", "documentation"}:
+            conditions.add("doc_only")
+        if labels_lower & {"urgent", "hotfix", "p0", "critical"}:
+            conditions.add("urgent")
+        return conditions
+
+    @staticmethod
     def _supports_context_kwarg(method: Any) -> bool:
         try:
             return "context" in inspect.signature(method).parameters
@@ -235,14 +264,38 @@ class RunController:
             return False
 
     def run_issue(self, issue_id: str, flow_type: FlowType | None = None) -> RunResult:
+        """Run an issue through the execution pipeline driven by FlowEngine graph.
+
+        Walks the graph steps in order, skipping pre-execution steps and
+        applying ``is_skippable()`` for conditional steps (e.g. doc_only,
+        urgent).  Each handled step is dispatched to a registered handler.
+        """
         issue = self.issue_source.load(issue_id)
         resolved_flow = flow_type or self._resolve_flow(issue)
         workspace = self.workspace_service.prepare_issue_workspace(issue.issue_id)
         run_id = self.telemetry_service.new_run_id(issue.issue_id)
+        graph = self.flow_engine.get_graph(resolved_flow)
+        active_conditions = self._resolve_active_conditions(issue)
 
         run_snap = RunProgressSnapshot.create(run_id=run_id, issue_id=issue.issue_id)
+        ctx: dict[str, Any] = {
+            "issue": issue,
+            "workspace": workspace,
+            "run_id": run_id,
+            "run_snap": run_snap,
+            "resolved_flow": resolved_flow,
+            "builder": None,
+            "verification": None,
+            "review": None,
+            "gate": None,
+            "explain": None,
+            "report": None,
+            "task_spec": None,
+            "progress": None,
+        }
 
         with self._event_logger.open_activity_logger(workspace) as activity_logger:
+            ctx["activity_logger"] = activity_logger
             self._event_logger.log_and_emit(
                 activity_logger=activity_logger,
                 workspace=workspace,
@@ -250,7 +303,8 @@ class RunController:
                 issue_id=issue.issue_id,
                 component="run_controller",
                 event_type="run_started",
-                message="Started issue run.",
+                message=f"Started issue run (flow={resolved_flow.value}).",
+                data={"flow_type": resolved_flow.value},
             )
 
             task_spec, progress = self.artifact_service.write_initial_artifacts(
@@ -258,195 +312,279 @@ class RunController:
                 issue_id=issue.issue_id,
                 issue_title=issue.title,
             )
+            ctx["task_spec"] = task_spec
+            ctx["progress"] = progress
 
-            existing_snapshot = read_spec_snapshot(workspace)
-            if existing_snapshot is not None and existing_snapshot.approved:
-                self._event_logger.log_and_emit(
-                    activity_logger=activity_logger,
-                    workspace=workspace,
-                    run_id=run_id,
-                    issue_id=issue.issue_id,
-                    component="spec",
-                    event_type="spec_snapshot_preserved",
-                    message=f"Preserved existing spec snapshot v{existing_snapshot.version}.",
-                    data={"version": existing_snapshot.version, "approved": True},
-                )
-            elif existing_snapshot is not None and self.require_spec_approval:
-                self._event_logger.log_and_emit(
-                    activity_logger=activity_logger,
-                    workspace=workspace,
-                    run_id=run_id,
-                    issue_id=issue.issue_id,
-                    component="spec",
-                    event_type="spec_awaiting_approval",
-                    message="Spec snapshot exists and is awaiting approval before build.",
-                    data={"version": existing_snapshot.version, "approved": False},
-                )
-                RunReportWriter.persist_state(
-                    workspace,
-                    issue,
-                    run_id,
-                    RunState.SPEC_DRAFTING,
-                )
-                return self._stub_result(
-                    issue,
-                    workspace,
-                    RunState.SPEC_DRAFTING,
-                    message="Spec requires approval. Use 'advance' after approving.",
-                )
-            elif existing_snapshot is not None:
-                existing_snapshot.approved = True
-                existing_snapshot.version += 1
-                write_spec_snapshot(workspace, existing_snapshot)
-                self._event_logger.log_and_emit(
-                    activity_logger=activity_logger,
-                    workspace=workspace,
-                    run_id=run_id,
-                    issue_id=issue.issue_id,
-                    component="spec",
-                    event_type="spec_snapshot_auto_approved",
-                    message=(
-                        f"Existing spec snapshot auto-approved as v{existing_snapshot.version}."
-                    ),
-                    data={"version": existing_snapshot.version, "approved": True},
-                )
-            elif self.require_spec_approval:
-                snapshot = create_initial_snapshot(issue, approved=False)
-                write_spec_snapshot(workspace, snapshot)
-                self._event_logger.log_and_emit(
-                    activity_logger=activity_logger,
-                    workspace=workspace,
-                    run_id=run_id,
-                    issue_id=issue.issue_id,
-                    component="spec",
-                    event_type="spec_awaiting_approval",
-                    message="Spec snapshot created; awaiting approval before build.",
-                    data={"version": 1, "approved": False},
-                )
-                RunReportWriter.persist_state(
-                    workspace,
-                    issue,
-                    run_id,
-                    RunState.SPEC_DRAFTING,
-                )
-                return self._stub_result(
-                    issue,
-                    workspace,
-                    RunState.SPEC_DRAFTING,
-                    message="Spec requires approval. Use 'advance' after approving.",
-                )
-            else:
-                snapshot = create_initial_snapshot(issue, approved=True)
-                write_spec_snapshot(workspace, snapshot)
-                self._event_logger.log_and_emit(
-                    activity_logger=activity_logger,
-                    workspace=workspace,
-                    run_id=run_id,
-                    issue_id=issue.issue_id,
-                    component="spec",
-                    event_type="spec_snapshot_created",
-                    message="Created and auto-approved spec snapshot v1.",
-                    data={"version": 1, "approved": True},
-                )
+            spec_result = self._handle_spec_step(ctx)
+            if spec_result is not None:
+                return spec_result
 
-            run_snap.mark_stage_start("builder")
-            builder = self._run_builder(
-                issue=issue,
-                workspace=workspace,
-                run_id=run_id,
-                activity_logger=activity_logger,
-            )
-            run_snap.mark_stage_complete("builder", success=builder.succeeded)
-            run_snap.save(workspace)
+            for step in graph.steps:
+                handler_name = _EXECUTION_STEP_HANDLERS.get(step.id)
+                if handler_name is None:
+                    continue
 
-            run_snap.mark_stage_start("verification")
-            self._event_logger.log_and_emit(
-                activity_logger=activity_logger,
-                workspace=workspace,
-                run_id=run_id,
-                issue_id=issue.issue_id,
-                component="verification",
-                event_type="verification_started",
-                message="Started verification steps.",
-            )
-            verification = self.verification_service.run(issue=issue, workspace=workspace)
-            v_passed = sum(1 for v in verification.step_results.values() if v)
-            v_total = len(verification.step_results)
-            run_snap.mark_stage_complete(
-                "verification",
-                success=all(verification.step_results.values())
-                if verification.step_results
-                else True,
-                detail=f"{v_passed}/{v_total} checks passed",
-            )
-            run_snap.save(workspace)
+                if self.flow_engine.is_skippable(resolved_flow, step.id, active_conditions):
+                    self._event_logger.log_and_emit(
+                        activity_logger=activity_logger,
+                        workspace=workspace,
+                        run_id=run_id,
+                        issue_id=issue.issue_id,
+                        component="flow_engine",
+                        event_type="step_skipped",
+                        message=f"Skipped step '{step.id}' (conditions: {active_conditions}).",
+                        data={"step": step.id, "conditions": sorted(active_conditions)},
+                    )
+                    continue
 
-            self._event_logger.log_verification_events(
-                workspace=workspace,
-                issue_id=issue.issue_id,
-                run_id=run_id,
-                verification=verification,
-                activity_logger=activity_logger,
-            )
-
-            run_snap.mark_stage_start("review")
-            review = self.review_adapter.initialize(
-                issue_id=issue.issue_id,
-                workspace=workspace,
-                builder_turn_contract_compliance=builder.metadata.get("turn_contract_compliance"),
-            )
-            run_snap.mark_stage_complete("review", success=review.verdict != "rejected")
-            run_snap.save(workspace)
-
-            self._event_logger.log_and_emit(
-                activity_logger=activity_logger,
-                workspace=workspace,
-                run_id=run_id,
-                issue_id=issue.issue_id,
-                component="review",
-                event_type="review_initialized",
-                message="Initialized local review state.",
-                data={"verdict": review.verdict},
-            )
-
-            run_snap.mark_stage_start("gate")
-            gate, explain, report = self._finalize_run(
-                issue=issue,
-                workspace=workspace,
-                run_id=run_id,
-                builder=builder,
-                verification=verification,
-                review=review,
-                human_acceptance=False,
-                accepted_by=None,
-                activity_logger=activity_logger,
-                state=RunState.GATE_EVALUATED,
-                flow_type=resolved_flow,
-            )
-            run_snap.mark_stage_complete("gate", success=gate.mergeable)
-            run_snap.save(workspace)
-
-            self._handle_gate_flow_signals(
-                gate=gate,
-                resolved_flow=resolved_flow,
-                issue_id=issue.issue_id,
-                run_id=run_id,
-                activity_logger=activity_logger,
-                workspace=workspace,
-            )
+                handler = getattr(self, handler_name)
+                early_return = handler(ctx)
+                if early_return is not None:
+                    return early_return
 
         return RunResult(
             issue=issue,
             workspace=workspace,
-            task_spec=task_spec,
-            progress=progress,
-            explain=explain,
-            report=report,
-            builder=builder,
-            review=review,
-            gate=gate,
+            task_spec=ctx["task_spec"],
+            progress=ctx["progress"],
+            explain=ctx["explain"],
+            report=ctx["report"],
+            builder=ctx["builder"],
+            review=ctx["review"],
+            gate=ctx["gate"],
             state=RunState.GATE_EVALUATED,
         )
+
+    def _handle_spec_step(self, ctx: dict[str, Any]) -> RunResult | None:
+        """Handle freeze_spec step: check or create spec snapshot."""
+        issue = ctx["issue"]
+        workspace = ctx["workspace"]
+        run_id = ctx["run_id"]
+        activity_logger = ctx.get("activity_logger")
+
+        existing_snapshot = read_spec_snapshot(workspace)
+        if existing_snapshot is not None and existing_snapshot.approved:
+            self._event_logger.log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue.issue_id,
+                component="spec",
+                event_type="spec_snapshot_preserved",
+                message=f"Preserved existing spec snapshot v{existing_snapshot.version}.",
+                data={"version": existing_snapshot.version, "approved": True},
+            )
+            return None
+
+        if existing_snapshot is not None and self.require_spec_approval:
+            self._event_logger.log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue.issue_id,
+                component="spec",
+                event_type="spec_awaiting_approval",
+                message="Spec snapshot exists and is awaiting approval before build.",
+                data={"version": existing_snapshot.version, "approved": False},
+            )
+            RunReportWriter.persist_state(
+                workspace,
+                issue,
+                run_id,
+                RunState.SPEC_DRAFTING,
+            )
+            return self._stub_result(
+                issue,
+                workspace,
+                RunState.SPEC_DRAFTING,
+                message="Spec requires approval. Use 'advance' after approving.",
+            )
+
+        if existing_snapshot is not None:
+            existing_snapshot.approved = True
+            existing_snapshot.version += 1
+            write_spec_snapshot(workspace, existing_snapshot)
+            self._event_logger.log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue.issue_id,
+                component="spec",
+                event_type="spec_snapshot_auto_approved",
+                message=(f"Existing spec snapshot auto-approved as v{existing_snapshot.version}."),
+                data={"version": existing_snapshot.version, "approved": True},
+            )
+            return None
+
+        if self.require_spec_approval:
+            snapshot = create_initial_snapshot(issue, approved=False)
+            write_spec_snapshot(workspace, snapshot)
+            self._event_logger.log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=issue.issue_id,
+                component="spec",
+                event_type="spec_awaiting_approval",
+                message="Spec snapshot created; awaiting approval before build.",
+                data={"version": 1, "approved": False},
+            )
+            RunReportWriter.persist_state(
+                workspace,
+                issue,
+                run_id,
+                RunState.SPEC_DRAFTING,
+            )
+            return self._stub_result(
+                issue,
+                workspace,
+                RunState.SPEC_DRAFTING,
+                message="Spec requires approval. Use 'advance' after approving.",
+            )
+
+        snapshot = create_initial_snapshot(issue, approved=True)
+        write_spec_snapshot(workspace, snapshot)
+        self._event_logger.log_and_emit(
+            activity_logger=activity_logger,
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            component="spec",
+            event_type="spec_snapshot_created",
+            message="Created and auto-approved spec snapshot v1.",
+            data={"version": 1, "approved": True},
+        )
+        return None
+
+    def _handle_builder_step(self, ctx: dict[str, Any]) -> RunResult | None:
+        """Handle execute/implement step: run the builder."""
+        run_snap: RunProgressSnapshot = ctx["run_snap"]
+        run_snap.mark_stage_start("builder")
+        builder = self._run_builder(
+            issue=ctx["issue"],
+            workspace=ctx["workspace"],
+            run_id=ctx["run_id"],
+            activity_logger=ctx.get("activity_logger"),
+        )
+        run_snap.mark_stage_complete("builder", success=builder.succeeded)
+        run_snap.save(ctx["workspace"])
+        ctx["builder"] = builder
+        return None
+
+    def _handle_verify_step(self, ctx: dict[str, Any]) -> RunResult | None:
+        """Handle verify step: run verification commands."""
+        run_snap: RunProgressSnapshot = ctx["run_snap"]
+        activity_logger = ctx.get("activity_logger")
+        run_snap.mark_stage_start("verification")
+        self._event_logger.log_and_emit(
+            activity_logger=activity_logger,
+            workspace=ctx["workspace"],
+            run_id=ctx["run_id"],
+            issue_id=ctx["issue"].issue_id,
+            component="verification",
+            event_type="verification_started",
+            message="Started verification steps.",
+        )
+        verification = self.verification_service.run(
+            issue=ctx["issue"],
+            workspace=ctx["workspace"],
+        )
+        v_passed = sum(1 for v in verification.step_results.values() if v)
+        v_total = len(verification.step_results)
+        run_snap.mark_stage_complete(
+            "verification",
+            success=all(verification.step_results.values()) if verification.step_results else True,
+            detail=f"{v_passed}/{v_total} checks passed",
+        )
+        run_snap.save(ctx["workspace"])
+        self._event_logger.log_verification_events(
+            workspace=ctx["workspace"],
+            issue_id=ctx["issue"].issue_id,
+            run_id=ctx["run_id"],
+            verification=verification,
+            activity_logger=activity_logger,
+        )
+        ctx["verification"] = verification
+        return None
+
+    def _handle_gate_step(self, ctx: dict[str, Any]) -> RunResult | None:
+        """Handle gate step: initialize review, then evaluate gate conditions."""
+        run_snap: RunProgressSnapshot = ctx["run_snap"]
+        activity_logger = ctx.get("activity_logger")
+
+        builder = ctx.get("builder")
+        if builder is None:
+            builder = BuilderResult(
+                succeeded=False,
+                command=[],
+                stdout="",
+                stderr="",
+                report_path=ctx["workspace"] / "builder_report.json",
+                adapter="none",
+                agent="none",
+                skipped=True,
+            )
+            ctx["builder"] = builder
+
+        verification = ctx.get("verification")
+        if verification is None:
+            verification = VerificationSummary()
+            ctx["verification"] = verification
+
+        if ctx.get("review") is None:
+            run_snap.mark_stage_start("review")
+            review = self.review_adapter.initialize(
+                issue_id=ctx["issue"].issue_id,
+                workspace=ctx["workspace"],
+                builder_turn_contract_compliance=(
+                    builder.metadata.get("turn_contract_compliance") if builder else None
+                ),
+            )
+            run_snap.mark_stage_complete(
+                "review",
+                success=review.verdict != "rejected",
+            )
+            run_snap.save(ctx["workspace"])
+            self._event_logger.log_and_emit(
+                activity_logger=activity_logger,
+                workspace=ctx["workspace"],
+                run_id=ctx["run_id"],
+                issue_id=ctx["issue"].issue_id,
+                component="review",
+                event_type="review_initialized",
+                message="Initialized review state.",
+                data={"verdict": review.verdict},
+            )
+            ctx["review"] = review
+
+        run_snap.mark_stage_start("gate")
+        gate, explain, report = self._finalize_run(
+            issue=ctx["issue"],
+            workspace=ctx["workspace"],
+            run_id=ctx["run_id"],
+            builder=builder,
+            verification=verification,
+            review=ctx["review"],
+            human_acceptance=False,
+            accepted_by=None,
+            activity_logger=activity_logger,
+            state=RunState.GATE_EVALUATED,
+            flow_type=ctx["resolved_flow"],
+        )
+        run_snap.mark_stage_complete("gate", success=gate.mergeable)
+        run_snap.save(ctx["workspace"])
+        self._handle_gate_flow_signals(
+            gate=gate,
+            resolved_flow=ctx["resolved_flow"],
+            issue_id=ctx["issue"].issue_id,
+            run_id=ctx["run_id"],
+            activity_logger=activity_logger,
+            workspace=ctx["workspace"],
+        )
+        ctx["gate"] = gate
+        ctx["explain"] = explain
+        ctx["report"] = report
+        return None
 
     def _handle_gate_flow_signals(
         self,
@@ -830,16 +968,29 @@ class RunController:
             state=state,
         )
 
+    def _find_current_step_id(
+        self,
+        state: RunState,
+        graph: FlowGraph,
+    ) -> str | None:
+        """Map a RunState to its corresponding graph step ID."""
+        candidates = _STATE_TO_STEP.get(state, ())
+        step_ids = set(graph.step_ids())
+        for cid in candidates:
+            if cid in step_ids:
+                return cid
+        return None
+
     def advance(self, issue_id: str, flow_type: FlowType | None = None) -> RunResult:
         """Execute the next legal transition for *issue_id*.
 
-        Supports:
-          DRAFT             → SPEC_DRAFTING (requires planner_adapter)
-          SPEC_DRAFTING     → SPEC_APPROVED (if no unresolved blocking questions)
-          SPEC_APPROVED     → BUILDING      (delegates to run_issue)
-          GATE_EVALUATED / REVIEW_PENDING / FAILED → rerun
+        Uses FlowEngine graph transitions to determine the next step
+        rather than hardcoded RunState branching.
         """
         state = self.get_state(issue_id)
+        issue = self.issue_source.load(issue_id)
+        resolved_flow = flow_type or self._resolve_flow(issue)
+        graph = self.flow_engine.get_graph(resolved_flow)
 
         if state == RunState.DRAFT:
             return self._advance_draft(issue_id)
@@ -849,6 +1000,20 @@ class RunController:
 
         if state == RunState.SPEC_APPROVED:
             return self.run_issue(issue_id, flow_type=flow_type)
+
+        current_step_id = self._find_current_step_id(state, graph)
+        if current_step_id is not None:
+            next_steps = self.flow_engine.get_next_steps(resolved_flow, current_step_id)
+            if next_steps:
+                next_id = next_steps[0]
+                if next_id in _EXECUTION_STEP_HANDLERS or next_id in (
+                    "mission_approve",
+                    "generate_plan",
+                    "promote_issues",
+                    "generate_contracts",
+                    "create_branch",
+                ):
+                    return self.run_issue(issue_id, flow_type=flow_type)
 
         if state in {RunState.GATE_EVALUATED, RunState.REVIEW_PENDING, RunState.FAILED}:
             return self.rerun_issue(issue_id)
