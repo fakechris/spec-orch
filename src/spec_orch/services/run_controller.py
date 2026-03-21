@@ -997,6 +997,11 @@ class RunController:
             report_path=report,
             explain_path=explain,
         )
+        self._consolidate_run_memory(
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            gate=gate,
+        )
         self._maybe_trigger_evolution(workspace)
         self._event_logger.maybe_sample_for_eval(
             run_id=run_id,
@@ -1005,6 +1010,28 @@ class RunController:
             issue_id=issue.issue_id,
         )
         return gate, explain, report
+
+    def _consolidate_run_memory(
+        self,
+        *,
+        run_id: str,
+        issue_id: str,
+        gate: GateVerdict,
+    ) -> None:
+        """Store run outcome in semantic memory for cross-run learning."""
+        try:
+            from spec_orch.services.memory.service import get_memory_service
+
+            memory = get_memory_service(repo_root=self.repo_root)
+            memory.consolidate_run(
+                run_id=run_id,
+                issue_id=issue_id,
+                succeeded=gate.mergeable,
+                failed_conditions=gate.failed_conditions,
+            )
+            memory.compact()
+        except Exception:
+            logger.debug("Memory consolidation skipped", exc_info=True)
 
     def _maybe_trigger_evolution(self, workspace: Path) -> None:
         """Run the evolution cycle if configured and threshold is met."""

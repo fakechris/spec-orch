@@ -7,7 +7,7 @@
 
 ## 项目状态
 
-**v0.5.1** — Alpha，内部 dogfood 模式。1176+ 测试，65+ 命令。
+**v0.5.1** — Alpha，内部 dogfood 模式。1195+ 测试，65+ 命令。
 
 七层架构骨架完备，Credibility Flywheel 各环基线就位，架构债务已清理。
 当前处于**从内部原型走向外部验证**的转折点。
@@ -60,7 +60,8 @@ Linear 状态：170 Done / 16 Canceled / 0 Open。
 | 方向 | 当前状态 | 深化目标 |
 |------|----------|----------|
 | Reaction Engine | 内置 3 个 reaction + daemon 集成 | 用户自定义 recipe、更多内置 reaction |
-| Skill Runtime | 格式定义 + schema + loader | Repo-level registry、Skill→Policy 蒸馏 |
+| Skill Runtime | SkillEvolver 自动发现 + ContextAssembler 自动注入 | Repo-level registry、Skill→Policy 蒸馏、execute_skill 协议 |
+| Memory System | 4 层记忆 + compaction + TTL + run consolidation | 向量检索、cross-repo 知识共享 |
 | Control Tower | API endpoints + 基础 UI | Session 视图、成本监控、移动端 |
 | Harness Evals | EvalRunner + CLI 基线 | 自动 A/B 对比、变更自动 eval |
 | Preview & Sandbox | Gate 有条件，未实际接入 | Preview provider + Docker sandbox |
@@ -91,6 +92,17 @@ Linear 状态：170 Done / 16 Canceled / 0 Open。
 | Skill Format | SkillManifest schema + validation + loader | SON-192, SON-203 |
 | Control Tower | API endpoints (overview/skills/eval/reactions) | SON-193, SON-204 |
 | Harness Evals | EvalRunner + `spec-orch eval` CLI + 指标集 | SON-190, SON-202 |
+
+### SkillCraft 涌现管道（2026-03-21）
+
+基于 SkillCraft 论文和 Hermes/Cognee 记忆架构分析，补齐 Skill 发现闭环和记忆治理：
+
+| 交付 | 说明 |
+|------|------|
+| SkillEvolver | 第 7 个 LifecycleEvolver，从 builder telemetry 自动发现 tool-call 模式并保存为 SkillManifest YAML |
+| Skill Runtime | ContextAssembler 自动加载、匹配、注入 skills 到 builder 上下文 |
+| ContextRanker 完整接入 | Learning context 纳入优先级分配，热/冷分离覆盖 hints、skills、failure samples |
+| Memory compaction + TTL | EPISODIC 层 30 天自动过期，run 结束自动 consolidate 到 SEMANTIC 层 |
 
 ### 架构债务清理（2026-03-20）
 
@@ -128,3 +140,4 @@ Linear 状态：170 Done / 16 Canceled / 0 Open。
 |------|------|
 | 2026-03-18 | 初版，P0~P6 按 Plane 组织 |
 | 2026-03-20 | 重构为 Milestone 格式：未来方向优先、已完成附后、去除日期前缀 |
+| 2026-03-21 | SkillCraft 涌现管道落地：SkillEvolver + Skill Runtime + ContextRanker 完整接入 + Memory compaction |

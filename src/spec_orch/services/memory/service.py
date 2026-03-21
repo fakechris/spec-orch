@@ -91,6 +91,69 @@ class MemoryService:
         keys = self._provider.list_keys(layer=layer, tags=tags, limit=limit)
         return [{"key": k, "layer": layer or "", "tags": []} for k in keys]
 
+    def compact(self, *, max_age_days: int = 30) -> dict[str, int]:
+        """Remove expired episodic memory entries older than max_age_days."""
+        from datetime import UTC, datetime, timedelta
+
+        cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
+        cutoff_iso = cutoff.isoformat()
+
+        keys = self.list_keys(layer=MemoryLayer.EPISODIC.value, limit=100_000)
+        removed = 0
+        retained = 0
+        for key in keys:
+            entry = self.get(key)
+            if entry is None:
+                continue
+            if entry.created_at < cutoff_iso:
+                self.forget(key)
+                removed += 1
+            else:
+                retained += 1
+
+        if removed > 0:
+            logger.info(
+                "Memory compact: removed %d expired entries, retained %d",
+                removed,
+                retained,
+            )
+        return {"removed": removed, "retained": retained}
+
+    def consolidate_run(
+        self,
+        *,
+        run_id: str,
+        issue_id: str,
+        succeeded: bool,
+        failed_conditions: list[str] | None = None,
+        key_learnings: str = "",
+    ) -> str | None:
+        """Store a run outcome summary in semantic memory for cross-run learning."""
+        if not key_learnings and not failed_conditions:
+            return None
+
+        content_parts: list[str] = []
+        content_parts.append(
+            f"Run {run_id} for {issue_id}: {'succeeded' if succeeded else 'failed'}"
+        )
+        if failed_conditions:
+            content_parts.append("Failed conditions: " + ", ".join(failed_conditions))
+        if key_learnings:
+            content_parts.append(key_learnings)
+
+        entry = MemoryEntry(
+            key=f"run-summary-{run_id}",
+            content="\n".join(content_parts),
+            layer=MemoryLayer.SEMANTIC,
+            tags=["run-summary", "auto-consolidated"],
+            metadata={
+                "run_id": run_id,
+                "issue_id": issue_id,
+                "succeeded": succeeded,
+            },
+        )
+        return self.store(entry)
+
     # -- lifecycle event capture ---------------------------------------------
 
     def record_mission_event(

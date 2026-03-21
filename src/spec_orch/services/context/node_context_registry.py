@@ -27,6 +27,7 @@ _LEARNING_FIELDS = {
     "active_prompt_variant_id",
     "scoper_hints",
     "relevant_policies",
+    "matched_skills",
 }
 
 
