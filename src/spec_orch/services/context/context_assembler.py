@@ -475,9 +475,7 @@ class ContextAssembler:
 
         if memory is not None and (not required or "success_trend" in required):
             try:
-                from spec_orch.services.memory.service import MemoryService
-
-                if isinstance(memory, MemoryService):
+                if hasattr(memory, "get_trend_summary"):
                     ctx.success_trend = memory.get_trend_summary()
             except Exception:
                 logger.debug("Failed to build success trend", exc_info=True)

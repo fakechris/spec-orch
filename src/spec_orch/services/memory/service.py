@@ -389,10 +389,10 @@ class MemoryService:
             created = s.get("created_at", "")
             if created < cutoff:
                 continue
-            total += 1
             entry = self.get(s["key"])
             if entry is None:
                 continue
+            total += 1
             if entry.metadata.get("succeeded"):
                 succeeded += 1
             else:
