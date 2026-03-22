@@ -32,5 +32,9 @@ packages/tui/dist/
 builder_report.json
 .spec_orch_memory/
 .spec_orch_qdrant/
+
+# Memory index WAL files
+_index.db-wal
+_index.db-shm
 # Local reaction execution traces (JSONL)
 .spec_orch/reactions_trace.jsonl

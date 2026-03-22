@@ -238,8 +238,10 @@ class TestIndexRebuild:
         provider = FileSystemMemoryProvider(root)
         provider.store(MemoryEntry(key="persist", content="data", layer=MemoryLayer.SEMANTIC))
 
-        # Remove index and create a new provider — should rebuild
-        (root / "_index.json").unlink()
+        # Remove SQLite index and create a new provider — should rebuild
+        (root / "_index.db").unlink()
+        for wal in root.glob("_index.db*"):
+            wal.unlink(missing_ok=True)
         provider2 = FileSystemMemoryProvider(root)
         assert provider2.get("persist") is not None
         assert provider2.get("persist").content == "data"
@@ -249,6 +251,41 @@ class TestIndexRebuild:
         provider = FileSystemMemoryProvider(root)
         provider.store(MemoryEntry(key="safe", content="ok", layer=MemoryLayer.WORKING))
 
-        (root / "_index.json").write_text("not json!", encoding="utf-8")
+        # Corrupt the SQLite file — provider should rebuild from markdown
+        (root / "_index.db").write_bytes(b"not a database!")
+        for wal in root.glob("_index.db-*"):
+            wal.unlink(missing_ok=True)
         provider2 = FileSystemMemoryProvider(root)
         assert provider2.get("safe") is not None
+
+    def test_migrate_from_legacy_json(self, tmp_path: Path):
+        """Legacy _index.json is auto-migrated to SQLite on first startup."""
+        import json
+
+        root = tmp_path / "mem"
+        root.mkdir(parents=True)
+        for layer in ("working", "episodic", "semantic", "procedural"):
+            (root / layer).mkdir()
+
+        # Write a markdown file + legacy JSON index
+        md_content = "---\nkey: old-entry\nlayer: semantic\ntags: [legacy]\n---\nhello legacy"
+        (root / "semantic" / "old-entry.md").write_text(md_content)
+        legacy_index = {
+            "old-entry": {
+                "layer": "semantic",
+                "tags": ["legacy"],
+                "created_at": "2025-01-01",
+                "updated_at": "2025-01-01",
+            }
+        }
+        (root / "_index.json").write_text(json.dumps(legacy_index))
+
+        provider = FileSystemMemoryProvider(root)
+        entry = provider.get("old-entry")
+        assert entry is not None
+        assert entry.content == "hello legacy"
+        assert entry.tags == ["legacy"]
+
+        # JSON should be renamed
+        assert not (root / "_index.json").exists()
+        assert (root / "_index.json.migrated").exists()
