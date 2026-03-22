@@ -297,3 +297,63 @@ def config_check(
 
     if any(r.status == "fail" for r in results):
         raise typer.Exit(1)
+
+
+# ---------------------------------------------------------------------------
+# memory subcommands (extend memory_app from mission_commands)
+# ---------------------------------------------------------------------------
+from spec_orch.cli.mission_commands import memory_app  # noqa: E402
+
+
+@memory_app.command("status")
+def memory_status_cmd(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Show memory system status and statistics."""
+    from spec_orch.services.memory.service import get_memory_service, reset_memory_service
+    from spec_orch.services.memory.types import MemoryLayer
+
+    reset_memory_service()
+    svc = get_memory_service(repo_root=repo_root.resolve())
+    provider = svc.provider
+    typer.echo(f"Provider: {type(provider).__name__}")
+
+    qdrant_idx = getattr(provider, "_qdrant", None)
+    typer.echo(f"Qdrant active: {qdrant_idx is not None}")
+
+    for layer in MemoryLayer:
+        keys = provider.list_keys(layer=layer.value, limit=1_000_000)
+        typer.echo(f"  {layer.value}: {len(keys)} entries")
+
+    if qdrant_idx is not None:
+        typer.echo(f"  Qdrant indexed: {qdrant_idx.count()} points")
+
+
+@memory_app.command("reindex")
+def memory_reindex_cmd(
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Rebuild the Qdrant vector index from filesystem memory entries."""
+    from spec_orch.services.memory.service import get_memory_service, reset_memory_service
+    from spec_orch.services.memory.types import MemoryLayer
+
+    reset_memory_service()
+    svc = get_memory_service(repo_root=repo_root.resolve())
+    provider = svc.provider
+
+    qdrant_idx = getattr(provider, "_qdrant", None)
+    if qdrant_idx is None:
+        typer.echo("Error: Qdrant is not active. Configure [memory.qdrant] in spec-orch.toml.")
+        raise typer.Exit(1)
+
+    indexed_layers = {MemoryLayer.EPISODIC, MemoryLayer.SEMANTIC}
+    entries: list[tuple[str, str, str, list[str]]] = []
+    for layer in indexed_layers:
+        for key in provider.list_keys(layer=layer.value, limit=1_000_000):
+            entry = provider.get(key)
+            if entry:
+                entries.append((entry.key, entry.content, entry.layer.value, entry.tags))
+
+    typer.echo(f"Reindexing {len(entries)} entries from {len(indexed_layers)} layers...")
+    count = qdrant_idx.reindex(entries)
+    typer.echo(f"Done. {count} entries indexed into Qdrant.")

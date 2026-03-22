@@ -98,12 +98,14 @@ class VectorEnhancedProvider:
         if query.layer and query.layer not in _INDEXED_LAYERS:
             return self._fs.recall(query)
 
+        fetch_k = query.top_k * 3 if query.filters else query.top_k
+
         try:
             hits = self._qdrant.search(
                 text=query.text,
                 layer=layer_str,
                 tags=query.tags or None,
-                top_k=query.top_k,
+                top_k=fetch_k,
             )
         except Exception:
             logger.warning(
@@ -122,6 +124,8 @@ class VectorEnhancedProvider:
             ):
                 continue
             results.append(entry)
+            if len(results) >= query.top_k:
+                break
 
         return results
 
