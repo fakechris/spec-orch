@@ -209,7 +209,7 @@ What works on `main`:
 - LLM-based memory distillation: expired episodic entries grouped by issue and consolidated into semantic summaries
 - Builder telemetry ingestion: tool-call sequences stored in episodic memory during run finalization
 - Human acceptance feedback: `accept-issue` stores acceptance in memory for learning
-- Success trend aggregation: `get_trend_summary()` provides time-series success rates injected into LLM context
+- Success trend aggregation: `get_trend_summary()` provides windowed aggregate summary (success rate, top failure reasons) injected into LLM context
 - Enriched run summaries: builder adapter, verification results, and key learnings captured in semantic memory
 - 4-layer memory (WORKING/EPISODIC/SEMANTIC/PROCEDURAL) with all layers active: PROCEDURAL consumed by ContextAssembler
 - Full self-evolution: evidence analysis, harness synthesis, prompt evolution, policy distillation

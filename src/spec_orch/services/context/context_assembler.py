@@ -184,9 +184,9 @@ class ContextAssembler:
             "matched_skills",
             "similar_failure_samples",
             "relevant_procedures",
-            "success_trend",
         }
     )
+    _LEARNING_DICT_FIELDS = frozenset({"success_trend"})
 
     @classmethod
     def _apply_ranked_budget(
@@ -223,6 +223,15 @@ class ContextAssembler:
                     len(original),
                     len(trimmed),
                 )
+        for name in cls._LEARNING_DICT_FIELDS:
+            if name not in ranked:
+                continue
+            try:
+                parsed = json.loads(ranked[name])
+                if isinstance(parsed, dict):
+                    setattr(learn, name, parsed)
+            except (json.JSONDecodeError, TypeError):
+                pass
 
     @staticmethod
     def _trim_list_to_budget(items: list[Any], budget_chars: int) -> list[Any]:

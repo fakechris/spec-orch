@@ -136,7 +136,7 @@ Memory 系统全面升级，从"事件记录"进化为"学习记忆"：
 | 用户反馈存储 | `accept-issue` 写入 `record_acceptance()`，人工验收进入 memory | SON-225 |
 | 时间趋势聚合 | `get_trend_summary()` 提供最近 N 天成功率、失败原因统计 | SON-225 |
 | run-summary 丰富 | builder adapter、verification 结果、key_learnings 写入 semantic memory | SON-226 |
-| Review findings 修复 | LIMIT-before-tags、TOCTOU race、空 model 默认值、CJK bigram 混合文本 | SON-218~226 |
+| Review findings 修复 | LIMIT-before-tags、get() 竞态保护、空 model 默认值、CJK bigram 混合文本、ContextRanker budget 注册 | SON-218~226 |
 
 ### E2E 验证通过（2026-03-21）
 

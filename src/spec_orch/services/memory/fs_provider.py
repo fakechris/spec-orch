@@ -121,7 +121,7 @@ def _tokenize(text: str) -> list[str]:
                 if len(cjk_chars) >= 2
                 else cjk_chars
             )
-            non_cjk = [w for w in text.split() if len(w) > 2 and not _CJK_RANGE.search(w)]
+            non_cjk = [w for w in re.findall(r"[a-z0-9._+-]+", text) if len(w) > 2]
             return bigrams + non_cjk
     return [w for w in text.split() if len(w) > 2]
 
