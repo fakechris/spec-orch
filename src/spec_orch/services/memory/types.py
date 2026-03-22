@@ -9,7 +9,21 @@ from typing import Any
 
 
 class MemoryLayer(StrEnum):
-    """Logical partitions for stored memories."""
+    """Logical partitions for stored memories.
+
+    WORKING — ephemeral session context (conductor turns, thread signals).
+        Written by Conductor; useful for audit/debug. Entries are
+        short-lived and not indexed by Qdrant.
+
+    EPISODIC — event-level records of runs, gate verdicts, issue outcomes.
+        Primary source for learning from failures and cross-run recall.
+
+    SEMANTIC — consolidated knowledge: run summaries, distilled learnings,
+        success trends. Long-lived, human-readable.
+
+    PROCEDURAL — ingested specs, contracts, and task definitions from
+        OpenSpec. Consumed by ContextAssembler for builder context.
+    """
 
     WORKING = "working"
     EPISODIC = "episodic"

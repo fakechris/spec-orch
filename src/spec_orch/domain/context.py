@@ -55,6 +55,8 @@ class LearningContext:
     scoper_hints: list[dict[str, Any]] = field(default_factory=list)
     relevant_policies: list[str] = field(default_factory=list)
     matched_skills: list[dict[str, Any]] = field(default_factory=list)
+    relevant_procedures: list[dict[str, Any]] = field(default_factory=list)
+    success_trend: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)

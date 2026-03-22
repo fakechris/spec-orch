@@ -215,6 +215,93 @@ class TestCompactDistillation:
         assert stats["distilled"] == 0
 
 
+class TestBuilderTelemetry:
+    def test_record_builder_telemetry(self, svc: MemoryService):
+        key = svc.record_builder_telemetry(
+            run_id="r1",
+            issue_id="SON-50",
+            tool_sequence=["read_file", "write_file", "run_tests"],
+            lines_scanned=100,
+            source_path="/tmp/events.jsonl",
+        )
+        assert key == "builder-telemetry-r1"
+        entry = svc.get(key)
+        assert entry is not None
+        assert entry.layer == MemoryLayer.EPISODIC
+        assert "builder-telemetry" in entry.tags
+        assert entry.metadata["tool_count"] == 3
+        assert entry.metadata["tool_sequence"] == ["read_file", "write_file", "run_tests"]
+
+    def test_record_empty_telemetry_returns_none(self, svc: MemoryService):
+        key = svc.record_builder_telemetry(run_id="r2", issue_id="SON-51", tool_sequence=[])
+        assert key is None
+
+
+class TestAcceptanceFeedback:
+    def test_record_acceptance(self, svc: MemoryService):
+        key = svc.record_acceptance(issue_id="SON-60", accepted_by="chris", run_id="run-abc")
+        assert key == "acceptance-SON-60"
+        entry = svc.get(key)
+        assert entry is not None
+        assert entry.layer == MemoryLayer.EPISODIC
+        assert "acceptance" in entry.tags
+        assert "human-feedback" in entry.tags
+        assert entry.metadata["accepted_by"] == "chris"
+
+
+class TestTrendSummary:
+    def test_trend_summary_with_runs(self, svc: MemoryService):
+        for i in range(5):
+            svc.consolidate_run(
+                run_id=f"trend-r{i}",
+                issue_id=f"ISS-{i}",
+                succeeded=i < 3,
+                failed_conditions=["ci"] if i >= 3 else [],
+            )
+        trend = svc.get_trend_summary(recent_days=1)
+        assert trend["total_runs"] == 5
+        assert trend["succeeded"] == 3
+        assert trend["failed"] == 2
+        assert trend["success_rate"] == 0.6
+        assert "ci" in trend["top_failure_reasons"]
+
+    def test_trend_summary_empty(self, svc: MemoryService):
+        trend = svc.get_trend_summary()
+        assert trend["total_runs"] == 0
+        assert trend["success_rate"] == 0.0
+
+
+class TestEnrichedConsolidateRun:
+    def test_consolidate_with_builder_info(self, svc: MemoryService):
+        key = svc.consolidate_run(
+            run_id="rich-1",
+            issue_id="ISS-R1",
+            succeeded=True,
+            builder_adapter="codex-exec",
+            verification_passed=True,
+            key_learnings="All tests green on first try",
+        )
+        assert key is not None
+        entry = svc.get(key)
+        assert entry is not None
+        assert "codex-exec" in entry.content
+        assert "Verification: passed" in entry.content
+        assert entry.metadata["builder_adapter"] == "codex-exec"
+        assert entry.metadata["verification_passed"] is True
+
+    def test_consolidate_backward_compatible(self, svc: MemoryService):
+        key = svc.consolidate_run(
+            run_id="compat-1",
+            issue_id="ISS-C1",
+            succeeded=False,
+            failed_conditions=["review"],
+        )
+        entry = svc.get(key)
+        assert entry is not None
+        assert "builder_adapter" not in entry.metadata
+        assert "verification_passed" not in entry.metadata
+
+
 class TestCustomProvider:
     def test_accepts_custom_provider(self):
         mock = MagicMock()

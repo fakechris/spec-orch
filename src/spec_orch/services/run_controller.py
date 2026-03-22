@@ -1281,6 +1281,11 @@ class RunController:
             run_id=run_id,
             issue_id=issue.issue_id,
             gate=gate,
+            workspace=workspace,
+            builder=builder,
+            verification=verification,
+            human_acceptance=human_acceptance,
+            accepted_by=accepted_by,
         )
         self._maybe_trigger_evolution(workspace)
         self._event_logger.maybe_sample_for_eval(
@@ -1299,18 +1304,43 @@ class RunController:
         run_id: str,
         issue_id: str,
         gate: GateVerdict,
+        workspace: Path | None = None,
+        builder: BuilderResult | None = None,
+        verification: VerificationSummary | None = None,
+        human_acceptance: bool = False,
+        accepted_by: str | None = None,
     ) -> None:
-        """Store run outcome in semantic memory for cross-run learning."""
+        """Store run outcome + telemetry in memory for cross-run learning."""
         try:
             from spec_orch.services.memory.service import get_memory_service
 
             memory = get_memory_service(repo_root=self.repo_root)
+
+            key_learnings = self._extract_key_learnings(
+                builder=builder,
+                verification=verification,
+                gate=gate,
+            )
             memory.consolidate_run(
                 run_id=run_id,
                 issue_id=issue_id,
                 succeeded=gate.mergeable,
                 failed_conditions=gate.failed_conditions,
+                key_learnings=key_learnings,
+                builder_adapter=builder.adapter if builder else None,
+                verification_passed=verification.all_passed if verification else None,
             )
+
+            if workspace is not None:
+                self._store_builder_telemetry(memory, run_id, issue_id, workspace)
+
+            if human_acceptance and accepted_by:
+                memory.record_acceptance(
+                    issue_id=issue_id,
+                    accepted_by=accepted_by,
+                    run_id=run_id,
+                )
+
             self._runs_since_compaction += 1
             if self._runs_since_compaction >= self._COMPACT_EVERY_N_RUNS:
                 planner_cfg = self._load_planner_config_for_compact()
@@ -1318,6 +1348,84 @@ class RunController:
                 self._runs_since_compaction = 0
         except Exception:
             logger.debug("Memory consolidation skipped", exc_info=True)
+
+    @staticmethod
+    def _extract_key_learnings(
+        *,
+        builder: BuilderResult | None,
+        verification: VerificationSummary | None,
+        gate: GateVerdict,
+    ) -> str:
+        """Summarize key facts from this run for the run-summary entry."""
+        parts: list[str] = []
+        if builder:
+            parts.append(f"Builder: {builder.adapter or 'unknown'}, succeeded={builder.succeeded}")
+            compliance = builder.metadata.get("turn_contract_compliance")
+            if compliance:
+                parts.append(f"Contract compliance: {compliance}")
+        if verification:
+            step_results = ", ".join(
+                f"{k}={'pass' if v else 'fail'}" for k, v in verification.step_results.items()
+            )
+            parts.append(f"Verification: all_passed={verification.all_passed}")
+            if step_results:
+                parts.append(f"Steps: {step_results}")
+        if gate.failed_conditions:
+            parts.append(f"Failed conditions: {', '.join(gate.failed_conditions)}")
+        return "\n".join(parts)
+
+    @staticmethod
+    def _store_builder_telemetry(
+        memory: Any,
+        run_id: str,
+        issue_id: str,
+        workspace: Path,
+    ) -> None:
+        """Read builder telemetry JSONL and store tool sequence in memory."""
+        import json as _json
+
+        for candidate in [
+            workspace / "telemetry" / "incoming_events.jsonl",
+            workspace / "builder_events.jsonl",
+        ]:
+            if candidate.exists():
+                telemetry_path = candidate
+                break
+        else:
+            return
+
+        try:
+            text = telemetry_path.read_text(encoding="utf-8")
+        except OSError:
+            return
+
+        seq: list[str] = []
+        lines_read = 0
+        for line in text.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            lines_read += 1
+            if lines_read > 2000:
+                break
+            try:
+                obj = _json.loads(stripped)
+            except (ValueError, _json.JSONDecodeError):
+                continue
+            if not isinstance(obj, dict):
+                continue
+            tool = obj.get("tool") or obj.get("tool_name") or obj.get("function", "")
+            if tool:
+                seq.append(str(tool))
+
+        if seq:
+            memory.record_builder_telemetry(
+                run_id=run_id,
+                issue_id=issue_id,
+                tool_sequence=seq,
+                lines_scanned=lines_read,
+                source_path=str(telemetry_path),
+            )
 
     def _load_planner_config_for_compact(self) -> dict[str, Any] | None:
         """Load [planner] config from TOML for memory distillation."""
