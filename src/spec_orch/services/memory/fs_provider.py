@@ -115,10 +115,14 @@ def _tokenize(text: str) -> list[str]:
             multi = [w for w in tokens if len(w) > 1]
             return multi if multi else tokens
         except ImportError:
-            chars = [c for c in text if _CJK_RANGE.match(c)]
-            if len(chars) < 2:
-                return chars
-            return [chars[i] + chars[i + 1] for i in range(len(chars) - 1)]
+            cjk_chars = [c for c in text if _CJK_RANGE.match(c)]
+            bigrams = (
+                [cjk_chars[i] + cjk_chars[i + 1] for i in range(len(cjk_chars) - 1)]
+                if len(cjk_chars) >= 2
+                else cjk_chars
+            )
+            non_cjk = [w for w in re.findall(r"[a-z0-9._+-]+", text) if len(w) > 2]
+            return bigrams + non_cjk
     return [w for w in text.split() if len(w) > 2]
 
 

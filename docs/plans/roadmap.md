@@ -7,13 +7,14 @@
 
 ## 项目状态
 
-**v0.5.1** — Alpha，内部 dogfood 模式。1237+ 测试，65+ 命令。
+**v0.5.2** — Alpha，内部 dogfood 模式。1245+ 测试，65+ 命令。
 
 七层架构骨架完备，Credibility Flywheel 各环基线就位，架构债务已清理。
+Memory Architecture v2 完成：SQLite WAL 索引替代 JSON、LLM 摘要蒸馏、Builder telemetry 入库、用户反馈存储、时间趋势聚合、4 层记忆全部激活。
 分层记忆架构（ADR-0001）已通过完整 E2E 验证：Qdrant 语义索引 + 真实 run-issue 链路确认可用。
 当前处于**从内部原型走向外部验证**的转折点。
 
-Linear 状态：170 Done / 16 Canceled / 0 Open。
+Linear 状态：177 Done / 16 Canceled / 0 Open。
 
 ---
 
@@ -69,7 +70,7 @@ Linear 状态：170 Done / 16 Canceled / 0 Open。
 |------|----------|----------|
 | Reaction Engine | 内置 3 个 reaction + daemon 集成 | 用户自定义 recipe、更多内置 reaction |
 | Skill Runtime | SkillEvolver 自动发现 + ContextAssembler 自动注入 | Repo-level registry、Skill→Policy 蒸馏、execute_skill 协议 |
-| Memory System | 4 层记忆 + compaction + TTL + run consolidation + Qdrant 语义索引 (E2E 已验证) ([ADR-0001](../adr/0001-memory-architecture.md)) | 中文分词增强、cross-repo 知识共享、QMD 文档检索评估 |
+| Memory System | 4 层记忆全部激活 + SQLite WAL 索引 + LLM 蒸馏 + Builder telemetry 入库 + 用户反馈 + 趋势聚合 + Qdrant 语义索引 (E2E 已验证) ([ADR-0001](../adr/0001-memory-architecture.md)) | cross-repo 知识共享、QMD 文档检索评估、entity extraction |
 | Control Tower | API endpoints + 基础 UI | Session 视图、成本监控、移动端 |
 | Harness Evals | EvalRunner + CLI 基线 | 自动 A/B 对比、变更自动 eval |
 | Preview & Sandbox | Gate 有条件，未实际接入 | Preview provider + Docker sandbox |
@@ -122,6 +123,21 @@ Linear 状态：170 Done / 16 Canceled / 0 Open。
 | memory extra | `pip install spec-orch[memory]` 引入 qdrant-client | SON-213 |
 | 消费点接入 | similar_failure_samples 增加 query.text 语义召回 | SON-214 |
 
+### Memory Architecture v2（2026-03-22）
+
+Memory 系统全面升级，从"事件记录"进化为"学习记忆"：
+
+| 交付 | 说明 | Linear |
+|------|------|--------|
+| SQLite WAL 索引 | `_index.json` 全量重写迁移到 SQLite，解决 10k+ 条目性能瓶颈 | SON-220 |
+| LLM 摘要蒸馏 | `compact()` 将过期 EPISODIC 按 issue 分组，LLM 蒸馏为 SEMANTIC 摘要 | SON-222 |
+| PROCEDURAL 层激活 | `ContextAssembler` 消费 PROCEDURAL 层的 ingested specs/contracts | SON-223 |
+| Builder telemetry 入库 | run finalize 时读取 JSONL telemetry，工具调用序列存入 episodic memory | SON-224 |
+| 用户反馈存储 | `accept-issue` 写入 `record_acceptance()`，人工验收进入 memory | SON-225 |
+| 时间趋势聚合 | `get_trend_summary()` 提供最近 N 天成功率、失败原因统计 | SON-225 |
+| run-summary 丰富 | builder adapter、verification 结果、key_learnings 写入 semantic memory | SON-226 |
+| Review findings 修复 | LIMIT-before-tags、get() 竞态保护、空 model 默认值、CJK bigram 混合文本、ContextRanker budget 注册 | SON-218~226 |
+
 ### E2E 验证通过（2026-03-21）
 
 | 验证项 | 结果 |
@@ -171,3 +187,4 @@ Linear 状态：170 Done / 16 Canceled / 0 Open。
 | 2026-03-20 | 重构为 Milestone 格式：未来方向优先、已完成附后、去除日期前缀 |
 | 2026-03-21 | SkillCraft 涌现管道落地：SkillEvolver + Skill Runtime + ContextRanker 完整接入 + Memory compaction |
 | 2026-03-21 | 分层记忆架构 ADR-0001 落地 + Qdrant 语义索引 + E2E 验证通过 |
+| 2026-03-22 | Memory Architecture v2：SQLite WAL、LLM 蒸馏、telemetry 入库、用户反馈、趋势聚合、4 层激活、review findings 修复 |

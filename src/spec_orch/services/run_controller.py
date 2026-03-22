@@ -1441,7 +1441,9 @@ class RunController:
         cfg = raw.get("planner")
         if not isinstance(cfg, dict):
             return None
-        result: dict[str, Any] = {"model": cfg.get("model", "")}
+        result: dict[str, Any] = {}
+        if cfg.get("model"):
+            result["model"] = cfg["model"]
         if cfg.get("api_type"):
             result["api_type"] = cfg["api_type"]
         if cfg.get("api_key_env"):

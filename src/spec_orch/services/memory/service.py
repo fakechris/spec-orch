@@ -380,7 +380,9 @@ class MemoryService:
         from datetime import UTC, datetime, timedelta
 
         cutoff = (datetime.now(UTC) - timedelta(days=recent_days)).isoformat()
-        summaries = self.list_summaries(layer=MemoryLayer.SEMANTIC.value, tags=["run-summary"])
+        summaries = self.list_summaries(
+            layer=MemoryLayer.SEMANTIC.value, tags=["run-summary"], limit=100_000
+        )
         total = 0
         succeeded = 0
         failed = 0

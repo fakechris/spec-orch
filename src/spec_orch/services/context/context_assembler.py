@@ -168,7 +168,25 @@ class ContextAssembler:
             text = json.dumps(samples, ensure_ascii=False, indent=1)
             sections.append(RankedSection("similar_failure_samples", text, priorities.TOOL_OUTPUT))
 
-    _LEARNING_LIST_FIELDS = frozenset({"scoper_hints", "matched_skills", "similar_failure_samples"})
+        procedures = getattr(learn, "relevant_procedures", None)
+        if procedures:
+            text = json.dumps(procedures, ensure_ascii=False, indent=1)
+            sections.append(RankedSection("relevant_procedures", text, priorities.TOOL_OUTPUT))
+
+        trend = getattr(learn, "success_trend", None)
+        if trend:
+            text = json.dumps(trend, ensure_ascii=False, indent=1)
+            sections.append(RankedSection("success_trend", text, priorities.TOOL_OUTPUT))
+
+    _LEARNING_LIST_FIELDS = frozenset(
+        {
+            "scoper_hints",
+            "matched_skills",
+            "similar_failure_samples",
+            "relevant_procedures",
+        }
+    )
+    _LEARNING_DICT_FIELDS = frozenset({"success_trend"})
 
     @classmethod
     def _apply_ranked_budget(
@@ -205,6 +223,15 @@ class ContextAssembler:
                     len(original),
                     len(trimmed),
                 )
+        for name in cls._LEARNING_DICT_FIELDS:
+            if name not in ranked:
+                continue
+            try:
+                parsed = json.loads(ranked[name])
+                if isinstance(parsed, dict):
+                    setattr(learn, name, parsed)
+            except (json.JSONDecodeError, TypeError):
+                pass
 
     @staticmethod
     def _trim_list_to_budget(items: list[Any], budget_chars: int) -> list[Any]:
