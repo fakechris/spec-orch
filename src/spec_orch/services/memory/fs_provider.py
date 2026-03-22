@@ -137,6 +137,20 @@ def _text_matches(query_text: str, content: str) -> bool:
     return hits >= threshold
 
 
+def _migrate_add_relation_columns(db: sqlite3.Connection) -> None:
+    """Add entity_scope/entity_id/relation_type columns if missing (v2 migration)."""
+    cols = {row[1] for row in db.execute("PRAGMA table_info(memory_index)").fetchall()}
+    new_cols = [
+        ("entity_scope", "TEXT NOT NULL DEFAULT ''"),
+        ("entity_id", "TEXT NOT NULL DEFAULT ''"),
+        ("relation_type", "TEXT NOT NULL DEFAULT 'observed'"),
+    ]
+    for name, typedef in new_cols:
+        if name not in cols:
+            db.execute(f"ALTER TABLE memory_index ADD COLUMN {name} {typedef}")
+            logger.info("Migrated memory_index: added column %s", name)
+
+
 class FileSystemMemoryProvider:
     """Store memories as Markdown files with YAML front-matter.
 
@@ -170,11 +184,24 @@ class FileSystemMemoryProvider:
 
             path.write_text(_render_frontmatter(entry) + entry.content, encoding="utf-8")
             tags_json = json.dumps(entry.tags, ensure_ascii=False)
+            entity_scope = str(entry.metadata.get("entity_scope", ""))
+            entity_id = str(entry.metadata.get("entity_id", ""))
+            relation_type = str(entry.metadata.get("relation_type", "observed"))
             self._db.execute(
                 """INSERT OR REPLACE INTO memory_index
-                   (key, layer, tags, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (entry.key, entry.layer.value, tags_json, entry.created_at, entry.updated_at),
+                   (key, layer, tags, created_at, updated_at,
+                    entity_scope, entity_id, relation_type)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    entry.key,
+                    entry.layer.value,
+                    tags_json,
+                    entry.created_at,
+                    entry.updated_at,
+                    entity_scope,
+                    entity_id,
+                    relation_type,
+                ),
             )
             self._db.commit()
         return entry.key
@@ -310,15 +337,21 @@ class FileSystemMemoryProvider:
         db.execute("PRAGMA synchronous=NORMAL")
         db.execute(
             """CREATE TABLE IF NOT EXISTS memory_index (
-                key        TEXT PRIMARY KEY,
-                layer      TEXT NOT NULL,
-                tags       TEXT NOT NULL DEFAULT '[]',
-                created_at TEXT NOT NULL DEFAULT '',
-                updated_at TEXT NOT NULL DEFAULT ''
+                key           TEXT PRIMARY KEY,
+                layer         TEXT NOT NULL,
+                tags          TEXT NOT NULL DEFAULT '[]',
+                created_at    TEXT NOT NULL DEFAULT '',
+                updated_at    TEXT NOT NULL DEFAULT '',
+                entity_scope  TEXT NOT NULL DEFAULT '',
+                entity_id     TEXT NOT NULL DEFAULT '',
+                relation_type TEXT NOT NULL DEFAULT 'observed'
             )"""
         )
+        _migrate_add_relation_columns(db)
         db.execute("CREATE INDEX IF NOT EXISTS idx_layer ON memory_index(layer)")
         db.execute("CREATE INDEX IF NOT EXISTS idx_updated ON memory_index(updated_at)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_entity ON memory_index(entity_scope, entity_id)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_relation ON memory_index(relation_type)")
         db.commit()
         return db
 
@@ -344,14 +377,18 @@ class FileSystemMemoryProvider:
                 tags_json = json.dumps(info.get("tags", []), ensure_ascii=False)
                 self._db.execute(
                     """INSERT OR REPLACE INTO memory_index
-                       (key, layer, tags, created_at, updated_at)
-                       VALUES (?, ?, ?, ?, ?)""",
+                       (key, layer, tags, created_at, updated_at,
+                        entity_scope, entity_id, relation_type)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         key,
                         info.get("layer", "working"),
                         tags_json,
                         info.get("created_at", ""),
                         info.get("updated_at", ""),
+                        "",
+                        "",
+                        "observed",
                     ),
                 )
             self._db.commit()
@@ -378,14 +415,18 @@ class FileSystemMemoryProvider:
                         tags_json = json.dumps(entry.tags, ensure_ascii=False)
                         self._db.execute(
                             """INSERT OR REPLACE INTO memory_index
-                               (key, layer, tags, created_at, updated_at)
-                               VALUES (?, ?, ?, ?, ?)""",
+                               (key, layer, tags, created_at, updated_at,
+                                entity_scope, entity_id, relation_type)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                             (
                                 entry.key,
                                 entry.layer.value,
                                 tags_json,
                                 entry.created_at,
                                 entry.updated_at,
+                                str(entry.metadata.get("entity_scope", "")),
+                                str(entry.metadata.get("entity_id", "")),
+                                str(entry.metadata.get("relation_type", "observed")),
                             ),
                         )
             self._db.commit()
@@ -417,6 +458,9 @@ class FileSystemMemoryProvider:
         layer: str | None = None,
         tags: list[str] | None = None,
         limit: int | None = None,
+        entity_scope: str | None = None,
+        entity_id: str | None = None,
+        exclude_relation_types: list[str] | None = None,
     ) -> list[str]:
         sql = "SELECT key, tags FROM memory_index"
         params: list[Any] = []
@@ -424,6 +468,16 @@ class FileSystemMemoryProvider:
         if layer:
             clauses.append("layer = ?")
             params.append(layer)
+        if entity_scope:
+            clauses.append("entity_scope = ?")
+            params.append(entity_scope)
+        if entity_id:
+            clauses.append("entity_id = ?")
+            params.append(entity_id)
+        if exclude_relation_types:
+            placeholders = ", ".join("?" for _ in exclude_relation_types)
+            clauses.append(f"relation_type NOT IN ({placeholders})")
+            params.extend(exclude_relation_types)
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY updated_at DESC"

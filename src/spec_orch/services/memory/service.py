@@ -189,6 +189,9 @@ class MemoryService:
                             "issue_id": issue_id,
                             "source_count": len(entries),
                             "source_tags": tags_union,
+                            "entity_scope": "issue",
+                            "entity_id": issue_id,
+                            "relation_type": "derive",
                         },
                     )
                 )
@@ -304,6 +307,10 @@ class MemoryService:
             "issue_id": issue_id,
             "succeeded": succeeded,
             "failed_conditions": failed_conditions or [],
+            "entity_scope": "issue",
+            "entity_id": issue_id,
+            "relation_type": "summarize",
+            "source_run_id": run_id,
         }
         if builder_adapter:
             meta["builder_adapter"] = builder_adapter
@@ -347,6 +354,10 @@ class MemoryService:
                 "tool_count": len(tool_sequence),
                 "lines_scanned": lines_scanned,
                 "source_path": source_path,
+                "entity_scope": "issue",
+                "entity_id": issue_id,
+                "relation_type": "observed",
+                "source_run_id": run_id,
             },
         )
         return self.store(entry)
@@ -371,9 +382,52 @@ class MemoryService:
                 "issue_id": issue_id,
                 "accepted_by": accepted_by,
                 "run_id": run_id,
+                "entity_scope": "issue",
+                "entity_id": issue_id,
+                "relation_type": "observed",
+                "source_run_id": run_id,
             },
         )
         return self.store(entry)
+
+    def recall_latest(
+        self,
+        *,
+        entity_scope: str,
+        entity_id: str,
+        layer: str | None = None,
+        tags: list[str] | None = None,
+        top_k: int = 5,
+    ) -> list[MemoryEntry]:
+        """Recall the most recent entries for a given entity, excluding superseded ones."""
+        if hasattr(self._provider, "_filtered_keys"):
+            keys = self._provider._filtered_keys(
+                layer=layer,
+                tags=tags,
+                limit=top_k,
+                entity_scope=entity_scope,
+                entity_id=entity_id,
+                exclude_relation_types=["superseded"],
+            )
+        else:
+            keys = self._provider.list_keys(layer=layer, tags=tags, limit=top_k * 3)
+
+        results: list[MemoryEntry] = []
+        for key in keys:
+            entry = self._provider.get(key)
+            if entry is None:
+                continue
+            meta = entry.metadata
+            if meta.get("entity_scope") != entity_scope:
+                continue
+            if meta.get("entity_id") != entity_id:
+                continue
+            if meta.get("relation_type") == "superseded":
+                continue
+            results.append(entry)
+            if len(results) >= top_k:
+                break
+        return results
 
     def get_trend_summary(self, *, recent_days: int = 7) -> dict[str, Any]:
         """Aggregate run outcomes over recent_days into a trend dict."""
@@ -432,7 +486,14 @@ class MemoryService:
             content=content,
             layer=MemoryLayer.EPISODIC,
             tags=["mission-event", f"mission:{mission_id}", phase],
-            metadata={"mission_id": mission_id, "phase": phase, **(metadata or {})},
+            metadata={
+                "mission_id": mission_id,
+                "phase": phase,
+                "entity_scope": "mission",
+                "entity_id": mission_id,
+                "relation_type": "observed",
+                **(metadata or {}),
+            },
         )
         return self.store(entry)
 
@@ -454,7 +515,14 @@ class MemoryService:
             content=content,
             layer=MemoryLayer.EPISODIC,
             tags=["issue-result", f"issue:{issue_id}", status],
-            metadata={"issue_id": issue_id, "succeeded": succeeded, **(metadata or {})},
+            metadata={
+                "issue_id": issue_id,
+                "succeeded": succeeded,
+                "entity_scope": "issue",
+                "entity_id": issue_id,
+                "relation_type": "observed",
+                **(metadata or {}),
+            },
         )
         return self.store(entry)
 

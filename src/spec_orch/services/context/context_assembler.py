@@ -449,11 +449,13 @@ class ContextAssembler:
                         text=query_text,
                         layer=MemoryLayer.EPISODIC,
                         tags=["issue-result"],
-                        top_k=5,
+                        top_k=10,
                     )
                 )
                 samples: list[dict[str, Any]] = []
                 for e in entries:
+                    if e.metadata.get("relation_type") == "superseded":
+                        continue
                     if e.metadata.get("succeeded") is False:
                         samples.append(
                             {
@@ -462,6 +464,8 @@ class ContextAssembler:
                                 "metadata": e.metadata,
                             }
                         )
+                        if len(samples) >= 5:
+                            break
                 ctx.similar_failure_samples = samples
             except Exception:
                 logger.debug("Failed to recall failure samples from memory", exc_info=True)
