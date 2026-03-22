@@ -161,14 +161,16 @@ class MemoryService:
     def enqueue_derivation(self, task_type: str, payload: dict[str, Any] | None = None) -> str:
         """Enqueue a background derivation task."""
         q = self._ensure_derivation_queue()
-        return q.enqueue(task_type, payload)
+        result: str = q.enqueue(task_type, payload)
+        return result
 
     def process_derivations(self, batch_size: int = 5) -> int:
         """Process pending derivation tasks. Returns count processed."""
         self._ensure_derivation_queue()
         if self._derivation_worker is None:
             return 0
-        return self._derivation_worker.process_batch(batch_size)
+        result: int = self._derivation_worker.process_batch(batch_size)
+        return result
 
     def schedule_post_run_derivations(
         self,
