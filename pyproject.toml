@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "spec-orch"
-version = "0.5.1"
+version = "0.5.2"
 description = "The control plane for spec-driven software delivery — orchestrate AI agents with specs, gates, evidence, and closed-loop evolution."
 readme = "README.md"
 requires-python = ">=3.11"

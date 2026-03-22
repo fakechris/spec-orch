@@ -183,9 +183,9 @@ enabled = true
 
 ## Status
 
-**v0.5.1** — Alpha, dogfood-first (EODF) mode.
+**v0.5.2** — Alpha, dogfood-first (EODF) mode.
 
-The system is used to develop itself and improves itself with each iteration. 1237+ tests, 65+ commands.
+The system is used to develop itself and improves itself with each iteration. 1245+ tests, 65+ commands.
 
 What works on `main`:
 
@@ -205,7 +205,13 @@ What works on `main`:
 - Web dashboard + Rich TUI (TypeScript/React/Ink)
 - Mission Control Center with EventBus
 - Conductor for progressive formalization
-- Cross-session memory with file-backed storage + Qdrant semantic index (E2E verified with real run-issue pipeline) ([ADR-0001](docs/adr/0001-memory-architecture.md))
+- Cross-session memory with SQLite WAL index + Qdrant semantic search (E2E verified) ([ADR-0001](docs/adr/0001-memory-architecture.md))
+- LLM-based memory distillation: expired episodic entries grouped by issue and consolidated into semantic summaries
+- Builder telemetry ingestion: tool-call sequences stored in episodic memory during run finalization
+- Human acceptance feedback: `accept-issue` stores acceptance in memory for learning
+- Success trend aggregation: `get_trend_summary()` provides time-series success rates injected into LLM context
+- Enriched run summaries: builder adapter, verification results, and key learnings captured in semantic memory
+- 4-layer memory (WORKING/EPISODIC/SEMANTIC/PROCEDURAL) with all layers active: PROCEDURAL consumed by ContextAssembler
 - Full self-evolution: evidence analysis, harness synthesis, prompt evolution, policy distillation
 - `spec-orch init` for project type detection and config generation
 - Low-cost model support (MiniMax-M2.5, ~$0.04/run)
@@ -223,9 +229,10 @@ What works on `main`:
 - LifecycleEvolver protocol: unified 4-phase observe/propose/validate/promote for all 7 evolvers
 - SkillEvolver: auto-discovers reusable builder tool-call patterns → SkillManifest YAML (SkillCraft-inspired)
 - Skill Runtime: ContextAssembler loads + matches skills by trigger keywords, injects into builder context
-- ContextRanker hot/cold separation: learning context (hints, skills, failure samples) included in priority-based budget allocation
-- Memory compaction + TTL: episodic memory auto-expires after 30 days, run outcomes consolidated to semantic layer
-- Layered memory architecture: filesystem truth source + Qdrant semantic search for episodic/semantic layers (BAAI/bge-small-zh-v1.5 local embedding, E2E validated)
+- ContextRanker hot/cold separation: learning context (hints, skills, failure samples, procedures, trends) included in priority-based budget allocation
+- Memory compaction + LLM distillation: episodic memory auto-expires after 30 days, run outcomes consolidated and distilled to semantic layer
+- Layered memory architecture: filesystem truth source + SQLite WAL index + Qdrant semantic search (BAAI/bge-small-zh-v1.5 local embedding, E2E validated)
+- CJK-aware text matching: jieba segmentation with graceful bigram fallback for non-CJK mixed content
 - Modular CLI: `cli/` package with 8 command submodules replacing single 4092-line file
 - LLM JSON output schema validation with fallback + observability events
 
@@ -282,7 +289,7 @@ pip install "spec-orch[all]"
 ### Verify
 
 ```bash
-spec-orch --version   # 0.5.1
+spec-orch --version   # 0.5.2
 spec-orch config check
 ```
 
@@ -302,6 +309,7 @@ spec-orch config check
 | `dashboard` | fastapi, uvicorn | `spec-orch dashboard` |
 | `slack` | slack-bolt | Slack discussion adapter |
 | `memory` | qdrant-client, fastembed | Semantic vector search for memory recall |
+| `cjk` | jieba | Chinese word segmentation for memory text matching |
 | `all` | all of the above | Full feature set |
 | `dev` | all + pytest, ruff, mypy, build, twine | Development |
 

@@ -168,7 +168,25 @@ class ContextAssembler:
             text = json.dumps(samples, ensure_ascii=False, indent=1)
             sections.append(RankedSection("similar_failure_samples", text, priorities.TOOL_OUTPUT))
 
-    _LEARNING_LIST_FIELDS = frozenset({"scoper_hints", "matched_skills", "similar_failure_samples"})
+        procedures = getattr(learn, "relevant_procedures", None)
+        if procedures:
+            text = json.dumps(procedures, ensure_ascii=False, indent=1)
+            sections.append(RankedSection("relevant_procedures", text, priorities.TOOL_OUTPUT))
+
+        trend = getattr(learn, "success_trend", None)
+        if trend:
+            text = json.dumps(trend, ensure_ascii=False, indent=1)
+            sections.append(RankedSection("success_trend", text, priorities.TOOL_OUTPUT))
+
+    _LEARNING_LIST_FIELDS = frozenset(
+        {
+            "scoper_hints",
+            "matched_skills",
+            "similar_failure_samples",
+            "relevant_procedures",
+            "success_trend",
+        }
+    )
 
     @classmethod
     def _apply_ranked_budget(
