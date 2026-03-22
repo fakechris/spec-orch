@@ -84,6 +84,17 @@ class QdrantIndex:
 
         self._ensure_collection()
 
+    @staticmethod
+    def _extract_vector_dim(vectors_config: Any) -> int | None:
+        """Extract dimension from vectors config, handling both named and unnamed."""
+        if hasattr(vectors_config, "size"):
+            return vectors_config.size  # type: ignore[no-any-return]
+        if isinstance(vectors_config, dict):
+            for v in vectors_config.values():
+                if hasattr(v, "size"):
+                    return v.size  # type: ignore[no-any-return]
+        return None
+
     def _ensure_collection(self) -> None:
         """Create collection if it does not exist, or validate dimension match."""
         from qdrant_client.models import (  # type: ignore[import-untyped,import-not-found]
@@ -101,8 +112,15 @@ class QdrantIndex:
         existing = [c.name for c in self._client.get_collections().collections]
         if self._collection in existing:
             info = self._client.get_collection(self._collection)
-            existing_dim = info.config.params.vectors.size  # type: ignore[union-attr]
-            if existing_dim != dim:
+            existing_dim = self._extract_vector_dim(info.config.params.vectors)
+            if existing_dim is None:
+                logger.warning(
+                    "Cannot determine dimension for collection '%s'; "
+                    "dropping and recreating to be safe",
+                    self._collection,
+                )
+                self._client.delete_collection(self._collection)
+            elif existing_dim != dim:
                 logger.warning(
                     "Embedding dimension mismatch: collection '%s' has dim=%d "
                     "but model '%s' produces dim=%d — dropping and recreating",
@@ -227,14 +245,14 @@ class QdrantIndex:
 
     def reindex(
         self,
-        entries: list[tuple[str, str, str, list[str]]],
+        entries: list[tuple[str, str, str, list[str], dict[str, Any]]],
     ) -> int:
         """Rebuild the entire index from scratch.
 
         Parameters
         ----------
         entries:
-            List of ``(key, content, layer, tags)`` tuples.
+            List of ``(key, content, layer, tags, metadata)`` tuples.
 
         Returns
         -------
@@ -263,6 +281,7 @@ class QdrantIndex:
                         "key": entry[0],
                         "layer": entry[2],
                         "tags": entry[3] or [],
+                        **({"metadata": entry[4]} if entry[4] else {}),
                     },
                 )
                 for j, entry in enumerate(batch)
