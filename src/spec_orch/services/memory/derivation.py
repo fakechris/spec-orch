@@ -48,7 +48,9 @@ class DerivationQueue:
         self._db = self._open_db()
 
     def _open_db(self) -> sqlite3.Connection:
-        db = sqlite3.connect(str(self._db_path), check_same_thread=False)
+        db = sqlite3.connect(
+            str(self._db_path), check_same_thread=False, isolation_level=None
+        )
         db.execute("PRAGMA journal_mode=WAL")
         db.execute("PRAGMA synchronous=NORMAL")
         db.execute(
@@ -74,46 +76,56 @@ class DerivationQueue:
         now = datetime.now(UTC).isoformat()
         payload_json = json.dumps(payload or {}, ensure_ascii=False)
         with self._lock:
+            self._db.execute("BEGIN")
             self._db.execute(
                 """INSERT INTO derivation_queue
                    (task_id, task_type, payload, status, created_at)
                    VALUES (?, ?, ?, 'pending', ?)""",
                 (task_id, task_type, payload_json, now),
             )
-            self._db.commit()
+            self._db.execute("COMMIT")
         logger.debug("Enqueued derivation task %s: %s", task_id, task_type)
         return task_id
 
     def dequeue(self, batch_size: int = 5) -> list[DerivationTask]:
-        """Fetch up to batch_size pending tasks, marking them in-progress."""
+        """Fetch up to batch_size pending tasks, marking them in-progress.
+
+        Uses BEGIN EXCLUSIVE to prevent cross-process races when multiple
+        daemons share the same SQLite database file.
+        """
         now = datetime.now(UTC).isoformat()
         with self._lock:
-            rows = self._db.execute(
-                """SELECT task_id, task_type, payload, created_at
-                   FROM derivation_queue
-                   WHERE status = 'pending'
-                   ORDER BY created_at ASC
-                   LIMIT ?""",
-                (batch_size,),
-            ).fetchall()
-            tasks = []
-            for task_id, task_type, payload_json, created_at in rows:
-                self._db.execute(
-                    "UPDATE derivation_queue SET status = 'running', started_at = ? "
-                    "WHERE task_id = ?",
-                    (now, task_id),
-                )
-                tasks.append(
-                    DerivationTask(
-                        task_id=task_id,
-                        task_type=task_type,
-                        payload=json.loads(payload_json),
-                        status="running",
-                        created_at=created_at,
-                        started_at=now,
+            self._db.execute("BEGIN EXCLUSIVE")
+            try:
+                rows = self._db.execute(
+                    """SELECT task_id, task_type, payload, created_at
+                       FROM derivation_queue
+                       WHERE status = 'pending'
+                       ORDER BY created_at ASC
+                       LIMIT ?""",
+                    (batch_size,),
+                ).fetchall()
+                tasks = []
+                for task_id, task_type, payload_json, created_at in rows:
+                    self._db.execute(
+                        "UPDATE derivation_queue SET status = 'running', started_at = ? "
+                        "WHERE task_id = ?",
+                        (now, task_id),
                     )
-                )
-            self._db.commit()
+                    tasks.append(
+                        DerivationTask(
+                            task_id=task_id,
+                            task_type=task_type,
+                            payload=json.loads(payload_json),
+                            status="running",
+                            created_at=created_at,
+                            started_at=now,
+                        )
+                    )
+                self._db.execute("COMMIT")
+            except Exception:
+                self._db.execute("ROLLBACK")
+                raise
         return tasks
 
     def complete(self, task_id: str, *, error: str | None = None) -> None:
@@ -121,12 +133,13 @@ class DerivationQueue:
         now = datetime.now(UTC).isoformat()
         status = "failed" if error else "completed"
         with self._lock:
+            self._db.execute("BEGIN")
             self._db.execute(
                 "UPDATE derivation_queue SET status = ?, completed_at = ?, error = ? "
                 "WHERE task_id = ?",
                 (status, now, error, task_id),
             )
-            self._db.commit()
+            self._db.execute("COMMIT")
 
     def pending_count(self) -> int:
         """Return count of pending tasks."""
@@ -141,12 +154,13 @@ class DerivationQueue:
 
         cutoff = (datetime.now(UTC) - timedelta(days=max_age_days)).isoformat()
         with self._lock:
+            self._db.execute("BEGIN")
             cursor = self._db.execute(
                 "DELETE FROM derivation_queue "
                 "WHERE status IN ('completed', 'failed') AND completed_at < ?",
                 (cutoff,),
             )
-            self._db.commit()
+            self._db.execute("COMMIT")
         return cursor.rowcount
 
 

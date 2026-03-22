@@ -185,7 +185,7 @@ enabled = true
 
 **v0.5.2** — Alpha, dogfood-first (EODF) mode.
 
-The system is used to develop itself and improves itself with each iteration. 1245+ tests, 65+ commands.
+The system is used to develop itself and improves itself with each iteration. 1328+ tests, 65+ commands.
 
 What works on `main`:
 
@@ -232,7 +232,8 @@ What works on `main`:
 - ContextRanker hot/cold separation: learning context (hints, skills, failure samples, procedures, trends) included in priority-based budget allocation
 - Memory compaction + LLM distillation: episodic memory auto-expires after 30 days, run outcomes consolidated and distilled to semantic layer
 - Layered memory architecture: filesystem truth source + SQLite WAL index + Qdrant semantic search (BAAI/bge-small-zh-v1.5 local embedding, E2E validated)
-- Memory vNext planned: entity relation layer, ProjectProfile, hybrid retrieval (FTS5 + RRF), async derivation ([ADR-0002](docs/specs/memory-vnext/adr-0002-memory-vnext.md))
+- Memory vNext shipped: entity relation layer (entity_scope/entity_id/relation_type), ProjectProfile + 4 learning views, hybrid retrieval (FTS5 + RRF), async derivation queue ([ADR-0002](docs/specs/memory-vnext/adr-0002-memory-vnext.md))
+- Memory subsystem refactored: MemoryService split into MemoryAnalytics + MemoryDistiller + MemoryRecorder, SQL-pushed date filters, soft-delete compaction, cross-process safe derivation queue
 - CJK-aware text matching: jieba segmentation with graceful bigram fallback for non-CJK mixed content
 - Modular CLI: `cli/` package with 8 command submodules replacing single 4092-line file
 - LLM JSON output schema validation with fallback + observability events

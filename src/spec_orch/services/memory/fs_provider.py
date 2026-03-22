@@ -148,10 +148,11 @@ def _fts5_available(db: sqlite3.Connection) -> bool:
 
 
 def _init_fts5(db: sqlite3.Connection) -> bool:
-    """Create the FTS5 content-sync table if FTS5 is available.
+    """Create the FTS5 table if FTS5 is available.
 
-    Uses external content mode: the FTS index references memory_index
-    for the actual content column, so no data duplication.
+    Uses standalone mode: content is stored in both Markdown files
+    and the FTS index.  Synchronisation is maintained in Python
+    (store/forget/rebuild) rather than SQL triggers.
     """
     if not _fts5_available(db):
         return False
@@ -286,15 +287,23 @@ class FileSystemMemoryProvider:
 
         use_fts = bool(fts_keys)
 
+        filter_kwargs: dict[str, Any] = {
+            "layer": layer_str,
+            "tags": query.tags or None,
+            "entity_scope": query.entity_scope,
+            "entity_id": query.entity_id,
+            "exclude_relation_types": query.exclude_relation_types or None,
+        }
+
         if use_fts:
-            index_keys = self._filtered_keys(layer=layer_str, tags=query.tags or None)
+            index_keys = self._filtered_keys(**filter_kwargs, limit=query.top_k * 5)
             index_set = set(index_keys)
             if layer_str or query.tags:
                 candidates = [k for k in rrf_fuse(fts_keys, index_keys) if k in index_set]
             else:
                 candidates = fts_keys
         else:
-            candidates = self._filtered_keys(layer=layer_str, tags=query.tags or None)
+            candidates = self._filtered_keys(**filter_kwargs)
 
         results: list[MemoryEntry] = []
         for key in candidates:
@@ -359,14 +368,22 @@ class FileSystemMemoryProvider:
         layer: str | None = None,
         tags: list[str] | None = None,
         limit: int = 100,
+        created_after: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Return lightweight summaries from the index without reading files."""
+        """Return lightweight summaries from the index without reading files.
+
+        *created_after* pushes a ``created_at >= ?`` clause into SQL so
+        that date-range queries avoid full-table scans.
+        """
         sql = "SELECT key, layer, tags, created_at, updated_at FROM memory_index"
         params: list[Any] = []
         clauses: list[str] = []
         if layer:
             clauses.append("layer = ?")
             params.append(layer)
+        if created_after:
+            clauses.append("created_at >= ?")
+            params.append(created_after)
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY updated_at DESC"
@@ -450,6 +467,7 @@ class FileSystemMemoryProvider:
         )
         _migrate_add_relation_columns(db)
         db.execute("CREATE INDEX IF NOT EXISTS idx_layer ON memory_index(layer)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_created ON memory_index(created_at)")
         db.execute("CREATE INDEX IF NOT EXISTS idx_updated ON memory_index(updated_at)")
         db.execute("CREATE INDEX IF NOT EXISTS idx_entity ON memory_index(entity_scope, entity_id)")
         db.execute("CREATE INDEX IF NOT EXISTS idx_relation ON memory_index(relation_type)")

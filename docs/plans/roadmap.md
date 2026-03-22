@@ -22,20 +22,21 @@ Linear 状态：177 Done / 16 Canceled / 0 Open。
 
 按优先级排列。每项启动前应创建 Linear issue 并回填到本表。
 
-### Milestone 0: Memory vNext（SON-227）
+### Milestone 0: Memory vNext（SON-227）✅ DONE
 
-**为什么优先做**：Memory 已有完整闭环但缺少关系语义、项目画像、混合检索和异步蒸馏。提升 memory 命中质量直接影响 builder/verification 通过率，是外部验证成功的前提。
+**状态**：全部 6 个 child issues 已合并。Review 修复 PR 已提交（distilled key 覆盖、SQL 下推、soft-delete、跨进程安全、service 拆分、entity filter 协议化）。
 
 设计文档：`docs/specs/memory-vnext/`
 
-| Phase | 任务 | Linear |
-|-------|------|--------|
-| 1.1 | SQLite schema 扩展 + 自动迁移（entity_scope, entity_id, relation_type） | SON-228 |
-| 1.2 | 写入侧补充关系字段 | SON-229 |
-| 1.3 | recall_latest API + ContextAssembler 改造 | SON-230 |
-| 2 | ProjectProfile + Learning Views（failure_patterns / success_recipes / project_profile / active_run_signals） | SON-231 |
-| 3 | Hybrid Retrieval（FTS5 + Qdrant + RRF 融合 + exact token boost + provenance） | SON-232 |
-| 4 | Async Derivation（derivation queue + profile refresh + skill patch + stale soft-delete） | SON-233 |
+| Phase | 任务 | Linear | 状态 |
+|-------|------|--------|------|
+| 1.1 | SQLite schema 扩展 + 自动迁移（entity_scope, entity_id, relation_type） | SON-228 | ✅ |
+| 1.2 | 写入侧补充关系字段 | SON-229 | ✅ |
+| 1.3 | recall_latest API + ContextAssembler 改造 | SON-230 | ✅ |
+| 2 | ProjectProfile + Learning Views | SON-231 | ✅ |
+| 3 | Hybrid Retrieval（FTS5 + RRF） | SON-232 | ✅ |
+| 4 | Async Derivation | SON-233 | ✅ |
+| Review | 8 项 review 修复（P0/P1/P2） | — | ✅ |
 
 ### Milestone 1: 外部用户端到端验证
 
@@ -85,7 +86,7 @@ Linear 状态：177 Done / 16 Canceled / 0 Open。
 |------|----------|----------|
 | Reaction Engine | 内置 3 个 reaction + daemon 集成 | 用户自定义 recipe、更多内置 reaction |
 | Skill Runtime | SkillEvolver 自动发现 + ContextAssembler 自动注入 | Repo-level registry、Skill→Policy 蒸馏、execute_skill 协议 |
-| Memory System | 4 层记忆全部激活 + SQLite WAL 索引 + LLM 蒸馏 + Builder telemetry 入库 + 用户反馈 + 趋势聚合 + Qdrant 语义索引 (E2E 已验证) ([ADR-0001](../adr/0001-memory-architecture.md)) | **Memory vNext** ([ADR-0002](../specs/memory-vnext/adr-0002-memory-vnext.md), [SON-227](https://linear.app/songwork/issue/SON-227))：轻关系层 (entity_scope/entity_id/relation_type) → ProjectProfile + Learning Views → Hybrid Retrieval (FTS5 + RRF) → Async Derivation |
+| Memory System | 4 层记忆 + SQLite WAL + LLM 蒸馏 + telemetry + 用户反馈 + 趋势聚合 + Qdrant 语义索引 + **Memory vNext 已全量落地**: entity relation layer, ProjectProfile, FTS5+RRF hybrid retrieval, async derivation, MemoryService 拆分 (Analytics/Distiller/Recorder), soft-delete compaction, SQL 下推, 跨进程安全 | 跨 repo 知识 silo 打通, WORKING/PROCEDURAL 消费侧增强 |
 | Control Tower | API endpoints + 基础 UI | Session 视图、成本监控、移动端 |
 | Harness Evals | EvalRunner + CLI 基线 | 自动 A/B 对比、变更自动 eval |
 | Preview & Sandbox | Gate 有条件，未实际接入 | Preview provider + Docker sandbox |
@@ -204,3 +205,5 @@ Memory 系统全面升级，从"事件记录"进化为"学习记忆"：
 | 2026-03-21 | 分层记忆架构 ADR-0001 落地 + Qdrant 语义索引 + E2E 验证通过 |
 | 2026-03-22 | Memory Architecture v2：SQLite WAL、LLM 蒸馏、telemetry 入库、用户反馈、趋势聚合、4 层激活、review findings 修复 |
 | 2026-03-22 | Memory vNext 规划：ADR-0002 + PRD + Implementation Plan + Linear Epic SON-227（6 个 child issues） |
+| 2026-03-22 | Memory vNext 全量落地：SON-228~233 全部合并（6 PRs, #134~#139） |
+| 2026-03-22 | Memory vNext Review 修复：8 项 P0/P1/P2 修复 — distilled key 去重、SQL 下推、soft-delete compaction、BEGIN EXCLUSIVE 跨进程安全、MemoryService 拆分(Analytics+Distiller+Recorder)、FTS5 文档校正、entity filter 协议化 |
