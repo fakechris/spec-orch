@@ -46,6 +46,25 @@ class ExecutionContext:
 
 
 @dataclass(slots=True)
+class ProjectProfile:
+    """Long-lived project-level profile assembled from memory."""
+
+    tech_stack: list[str] = field(default_factory=list)
+    common_failures: list[str] = field(default_factory=list)
+    verification_commands: list[str] = field(default_factory=list)
+    architecture_constraints: list[str] = field(default_factory=list)
+    directory_hotspots: list[str] = field(default_factory=list)
+
+    recent_success_rate: float | None = None
+    recent_period_days: int = 7
+    high_freq_failure_conditions: list[str] = field(default_factory=list)
+    volatile_components: list[str] = field(default_factory=list)
+    active_skills: list[str] = field(default_factory=list)
+    active_policies: list[str] = field(default_factory=list)
+    builder_adapter_performance: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class LearningContext:
     """Learning context: historical experience and evolution artifacts."""
 
@@ -57,6 +76,10 @@ class LearningContext:
     matched_skills: list[dict[str, Any]] = field(default_factory=list)
     relevant_procedures: list[dict[str, Any]] = field(default_factory=list)
     success_trend: dict[str, Any] | None = None
+    project_profile: dict[str, Any] | None = None
+    failure_patterns: list[dict[str, Any]] = field(default_factory=list)
+    success_recipes: list[dict[str, Any]] = field(default_factory=list)
+    active_run_signals: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)
