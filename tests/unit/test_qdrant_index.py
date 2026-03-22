@@ -77,8 +77,8 @@ class TestQdrantIndex:
         index.upsert("before-1", "old data", layer="episodic")
         count = index.reindex(
             [
-                ("re-1", "new data about security", "episodic", ["tag-a"]),
-                ("re-2", "new data about performance", "semantic", ["tag-b"]),
+                ("re-1", "new data about security", "episodic", ["tag-a"], {"source": "test"}),
+                ("re-2", "new data about performance", "semantic", ["tag-b"], {}),
             ]
         )
         assert count == 2

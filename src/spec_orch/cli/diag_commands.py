@@ -347,12 +347,14 @@ def memory_reindex_cmd(
         raise typer.Exit(1)
 
     indexed_layers = {MemoryLayer.EPISODIC, MemoryLayer.SEMANTIC}
-    entries: list[tuple[str, str, str, list[str]]] = []
+    entries: list[tuple[str, str, str, list[str], dict[str, Any]]] = []
     for layer in indexed_layers:
         for key in provider.list_keys(layer=layer.value, limit=1_000_000):
             entry = provider.get(key)
             if entry:
-                entries.append((entry.key, entry.content, entry.layer.value, entry.tags))
+                entries.append(
+                    (entry.key, entry.content, entry.layer.value, entry.tags, entry.metadata)
+                )
 
     typer.echo(f"Reindexing {len(entries)} entries from {len(indexed_layers)} layers...")
     count = qdrant_idx.reindex(entries)
