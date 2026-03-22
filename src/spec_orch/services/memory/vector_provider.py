@@ -130,6 +130,15 @@ class VectorEnhancedProvider:
                 entry.metadata.get(k) == v for k, v in query.filters.items()
             ):
                 continue
+            if query.entity_scope and entry.metadata.get("entity_scope") != query.entity_scope:
+                continue
+            if query.entity_id and entry.metadata.get("entity_id") != query.entity_id:
+                continue
+            if (
+                query.exclude_relation_types
+                and entry.metadata.get("relation_type") in query.exclude_relation_types
+            ):
+                continue
             results.append(entry)
             if len(results) >= query.top_k:
                 break
@@ -160,8 +169,11 @@ class VectorEnhancedProvider:
         layer: str | None = None,
         tags: list[str] | None = None,
         limit: int = 100,
+        created_after: str | None = None,
     ) -> list[dict[str, Any]]:
-        return self._fs.list_summaries(layer=layer, tags=tags, limit=limit)
+        return self._fs.list_summaries(
+            layer=layer, tags=tags, limit=limit, created_after=created_after
+        )
 
     def get(self, key: str) -> MemoryEntry | None:
         return self._fs.get(key)

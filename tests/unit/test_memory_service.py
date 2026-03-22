@@ -61,7 +61,9 @@ class TestMemoryServiceCRUD:
         stats = svc.compact(max_age_days=30)
         assert stats["removed"] == 1
         assert stats["retained"] == 1
-        assert svc.get("ep-old") is None
+        old_entry = svc.get("ep-old")
+        assert old_entry is not None
+        assert old_entry.metadata.get("relation_type") == "superseded"
         assert svc.get("ep-new") is not None
 
     def test_consolidate_run_stores_successful_run(self, svc: MemoryService):
@@ -176,8 +178,11 @@ class TestCompactDistillation:
         assert stats["removed"] == 3
         assert stats["distilled"] == 1
 
-        distilled = svc.get("distilled-SON-100")
+        keys = svc.list_keys(layer="semantic", tags=["distilled"])
+        assert len(keys) == 1
+        distilled = svc.get(keys[0])
         assert distilled is not None
+        assert distilled.key.startswith("distilled-SON-100-")
         assert distilled.layer == MemoryLayer.SEMANTIC
         assert "distilled" in distilled.tags
         assert distilled.metadata["source_count"] == 3

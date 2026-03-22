@@ -84,6 +84,10 @@ class MemoryQuery:
     ``text`` is used for keyword / semantic matching (depending on the
     provider).  ``filters`` are provider-specific key-value constraints
     applied on metadata.
+
+    ``entity_scope`` / ``entity_id`` restrict results to a specific
+    entity.  ``exclude_relation_types`` hides entries with given
+    relation types (e.g. ``["superseded"]``).
     """
 
     text: str = ""
@@ -91,3 +95,6 @@ class MemoryQuery:
     tags: list[str] = field(default_factory=list)
     filters: dict[str, Any] = field(default_factory=dict)
     top_k: int = 10
+    entity_scope: str | None = None
+    entity_id: str | None = None
+    exclude_relation_types: list[str] = field(default_factory=list)
