@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from spec_orch.services.memory._utils import list_summaries_compat
 from spec_orch.services.memory.types import MemoryLayer
 
 if TYPE_CHECKING:
@@ -25,15 +26,7 @@ class MemoryAnalytics:
         self._provider = provider
 
     def _list_summaries(self, **kwargs: Any) -> list[dict[str, Any]]:
-        if hasattr(self._provider, "list_summaries"):
-            result: list[dict[str, Any]] = self._provider.list_summaries(**kwargs)  # type: ignore[union-attr]
-            return result
-        keys = self._provider.list_keys(
-            layer=kwargs.get("layer"), tags=kwargs.get("tags"), limit=kwargs.get("limit", 100)
-        )
-        return [
-            {"key": k, "layer": kwargs.get("layer", ""), "tags": [], "created_at": ""} for k in keys
-        ]
+        return list_summaries_compat(self._provider, **kwargs)
 
     def get_trend_summary(self, *, recent_days: int = 7) -> dict[str, Any]:
         """Aggregate run outcomes over *recent_days* into a trend dict."""

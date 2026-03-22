@@ -16,6 +16,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from spec_orch.services.memory._utils import list_summaries_compat
 from spec_orch.services.memory.analytics import MemoryAnalytics
 from spec_orch.services.memory.distiller import MemoryDistiller
 from spec_orch.services.memory.fs_provider import FileSystemMemoryProvider
@@ -47,9 +48,12 @@ class MemoryService:
     ) -> None:
         if provider is not None:
             self._provider = provider
+            self._memory_root: Path = getattr(
+                provider, "root", (repo_root or Path.cwd()) / _DEFAULT_MEMORY_DIR
+            )
         else:
-            root = (repo_root or Path.cwd()) / _DEFAULT_MEMORY_DIR
-            self._provider = _build_provider(root, qdrant_config)
+            self._memory_root = (repo_root or Path.cwd()) / _DEFAULT_MEMORY_DIR
+            self._provider = _build_provider(self._memory_root, qdrant_config)
         self._derivation_mode = derivation_mode
         self._derivation_queue: Any = None
         self._derivation_worker: Any = None
@@ -104,24 +108,9 @@ class MemoryService:
         created_after: str | None = None,
     ) -> list[dict[str, Any]]:
         """Return index-only summaries (no file I/O per entry)."""
-        if hasattr(self._provider, "list_summaries"):
-            result: list[dict[str, Any]] = self._provider.list_summaries(
-                layer=layer, tags=tags, limit=limit, created_after=created_after
-            )  # type: ignore[union-attr]
-            return result
-        keys = self._provider.list_keys(layer=layer, tags=tags, limit=limit)
-        results: list[dict[str, Any]] = []
-        for k in keys:
-            entry = self._provider.get(k)
-            results.append(
-                {
-                    "key": k,
-                    "layer": layer or "",
-                    "tags": [],
-                    "created_at": entry.created_at if entry else "",
-                }
-            )
-        return results
+        return list_summaries_compat(
+            self._provider, layer=layer, tags=tags, limit=limit, created_after=created_after
+        )
 
     # -- derivation ----------------------------------------------------------
 
@@ -134,10 +123,7 @@ class MemoryService:
             DerivationWorker,
         )
 
-        if hasattr(self._provider, "_root"):
-            db_path = self._provider._root / "_derivation.db"
-        else:
-            db_path = Path.cwd() / _DEFAULT_MEMORY_DIR / "_derivation.db"
+        db_path = self._memory_root / "_derivation.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._derivation_queue = DerivationQueue(db_path)
         self._derivation_worker = DerivationWorker(self._derivation_queue)
@@ -216,7 +202,9 @@ class MemoryService:
         return task_ids
 
     def _soft_delete_stale_entries(self, *, max_age_days: int = 90) -> int:
-        return self._distiller.soft_delete_stale_entries(max_age_days=max_age_days)
+        marked = self._distiller.soft_delete_stale_entries(max_age_days=max_age_days)
+        self._distiller.gc_superseded(max_age_days=max_age_days)
+        return marked
 
     # -- distillation delegates ----------------------------------------------
 

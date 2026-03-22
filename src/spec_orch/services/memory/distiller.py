@@ -10,6 +10,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from spec_orch.services.memory._utils import list_summaries_compat
 from spec_orch.services.memory.types import MemoryEntry, MemoryLayer
 
 if TYPE_CHECKING:
@@ -28,15 +29,7 @@ class MemoryDistiller:
         self._provider = provider
 
     def _list_summaries(self, **kwargs: Any) -> list[dict[str, Any]]:
-        if hasattr(self._provider, "list_summaries"):
-            result: list[dict[str, Any]] = self._provider.list_summaries(**kwargs)  # type: ignore[union-attr]
-            return result
-        keys = self._provider.list_keys(
-            layer=kwargs.get("layer"), tags=kwargs.get("tags"), limit=kwargs.get("limit", 100)
-        )
-        return [
-            {"key": k, "layer": kwargs.get("layer", ""), "tags": [], "created_at": ""} for k in keys
-        ]
+        return list_summaries_compat(self._provider, **kwargs)
 
     def compact(
         self,
@@ -236,3 +229,29 @@ class MemoryDistiller:
         if marked > 0:
             logger.info("Soft-deleted %d stale episodic entries", marked)
         return marked
+
+    def gc_superseded(self, *, max_age_days: int = 90) -> int:
+        """Hard-delete superseded entries older than *max_age_days*.
+
+        Prevents unbounded growth of soft-deleted records.  Safe to call
+        periodically (e.g. from ``stale-cleanup`` derivation task).
+        """
+        from datetime import UTC, datetime, timedelta
+
+        cutoff = (datetime.now(UTC) - timedelta(days=max_age_days)).isoformat()
+        summaries = self._list_summaries(limit=100_000)
+        removed = 0
+        for s in summaries:
+            updated = s.get("updated_at", "")
+            if not updated or updated >= cutoff:
+                continue
+            entry = self._provider.get(s["key"])
+            if entry is None:
+                continue
+            if entry.metadata.get("relation_type") != "superseded":
+                continue
+            self._provider.forget(s["key"])
+            removed += 1
+        if removed > 0:
+            logger.info("GC'd %d old superseded entries", removed)
+        return removed

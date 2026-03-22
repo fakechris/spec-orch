@@ -42,6 +42,7 @@ class VectorEnhancedProvider:
         qdrant_config: dict[str, Any] | None = None,
     ) -> None:
         self._fs = FileSystemMemoryProvider(root)
+        self.root = root
         self._qdrant = self._init_qdrant(qdrant_config)
 
     @staticmethod
