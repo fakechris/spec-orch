@@ -35,16 +35,71 @@ class MemoryService:
         *,
         repo_root: Path | None = None,
         qdrant_config: dict[str, Any] | None = None,
+        derivation_mode: str = "sync",
     ) -> None:
         if provider is not None:
             self._provider = provider
         else:
             root = (repo_root or Path.cwd()) / _DEFAULT_MEMORY_DIR
             self._provider = _build_provider(root, qdrant_config)
+        self._derivation_mode = derivation_mode
+        self._derivation_queue: Any = None
+        self._derivation_worker: Any = None
 
     @property
     def provider(self) -> MemoryProvider:
         return self._provider
+
+    @property
+    def derivation_mode(self) -> str:
+        return self._derivation_mode
+
+    def _ensure_derivation_queue(self) -> Any:
+        """Lazily create the derivation queue and worker."""
+        if self._derivation_queue is not None:
+            return self._derivation_queue
+        from spec_orch.services.memory.derivation import (
+            DerivationQueue,
+            DerivationWorker,
+        )
+
+        if hasattr(self._provider, "_root"):
+            db_path = self._provider._root / "_derivation.db"
+        else:
+            db_path = Path.cwd() / _DEFAULT_MEMORY_DIR / "_derivation.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._derivation_queue = DerivationQueue(db_path)
+        self._derivation_worker = DerivationWorker(self._derivation_queue)
+        self._register_derivation_handlers()
+        return self._derivation_queue
+
+    def _register_derivation_handlers(self) -> None:
+        """Register standard derivation task handlers."""
+        if self._derivation_worker is None:
+            return
+
+        def _handle_compact(payload: dict[str, Any]) -> None:
+            self.compact(
+                max_age_days=payload.get("max_age_days", 30),
+                summarize=payload.get("summarize", True),
+                planner_config=payload.get("planner_config"),
+            )
+
+        def _handle_profile_refresh(payload: dict[str, Any]) -> None:
+            repo_root = Path(payload["repo_root"]) if payload.get("repo_root") else None
+            self.get_project_profile(repo_root=repo_root)
+
+        def _handle_stale_cleanup(payload: dict[str, Any]) -> None:
+            self._soft_delete_stale_entries(max_age_days=payload.get("max_age_days", 90))
+
+        def _handle_recipe_extraction(payload: dict[str, Any]) -> None:
+            entity_id = payload.get("entity_id")
+            self.get_success_recipes(entity_id=entity_id, top_k=10)
+
+        self._derivation_worker.register("compact", _handle_compact)
+        self._derivation_worker.register("profile-refresh", _handle_profile_refresh)
+        self._derivation_worker.register("stale-cleanup", _handle_stale_cleanup)
+        self._derivation_worker.register("recipe-extraction", _handle_recipe_extraction)
 
     # -- delegated CRUD ------------------------------------------------------
 
@@ -102,6 +157,70 @@ class MemoryService:
                 }
             )
         return results
+
+    def enqueue_derivation(self, task_type: str, payload: dict[str, Any] | None = None) -> str:
+        """Enqueue a background derivation task."""
+        q = self._ensure_derivation_queue()
+        return q.enqueue(task_type, payload)
+
+    def process_derivations(self, batch_size: int = 5) -> int:
+        """Process pending derivation tasks. Returns count processed."""
+        self._ensure_derivation_queue()
+        if self._derivation_worker is None:
+            return 0
+        return self._derivation_worker.process_batch(batch_size)
+
+    def schedule_post_run_derivations(
+        self,
+        *,
+        issue_id: str,
+        run_id: str,
+        repo_root: Path | None = None,
+    ) -> list[str]:
+        """Schedule standard post-run derivation tasks.
+
+        In sync mode, executes inline. In async mode, enqueues for later.
+        """
+        task_ids: list[str] = []
+        if self._derivation_mode == "async":
+            task_ids.append(
+                self.enqueue_derivation("compact", {"max_age_days": 30, "summarize": True})
+            )
+            task_ids.append(
+                self.enqueue_derivation(
+                    "profile-refresh",
+                    {"repo_root": str(repo_root) if repo_root else ""},
+                )
+            )
+            task_ids.append(self.enqueue_derivation("recipe-extraction", {"entity_id": issue_id}))
+        else:
+            self.compact(max_age_days=30, summarize=True)
+            if repo_root:
+                self.get_project_profile(repo_root=repo_root)
+        return task_ids
+
+    def _soft_delete_stale_entries(self, *, max_age_days: int = 90) -> int:
+        """Mark old episodic entries as superseded instead of hard-deleting."""
+        from datetime import UTC, datetime, timedelta
+
+        cutoff = (datetime.now(UTC) - timedelta(days=max_age_days)).isoformat()
+        summaries = self.list_summaries(layer=MemoryLayer.EPISODIC.value, limit=100_000)
+        marked = 0
+        for s in summaries:
+            updated = s.get("updated_at", "")
+            if not updated or updated >= cutoff:
+                continue
+            entry = self.get(s["key"])
+            if entry is None:
+                continue
+            if entry.metadata.get("relation_type") == "superseded":
+                continue
+            entry.metadata["relation_type"] = "superseded"
+            self.store(entry)
+            marked += 1
+        if marked > 0:
+            logger.info("Soft-deleted %d stale episodic entries", marked)
+        return marked
 
     def compact(
         self,
@@ -832,13 +951,35 @@ def _load_qdrant_config(repo_root: Path) -> dict[str, Any] | None:
     return mem_cfg.get("qdrant") if isinstance(mem_cfg.get("qdrant"), dict) else None
 
 
+def _load_derivation_mode(repo_root: Path) -> str:
+    """Read ``[memory].derivation_mode`` from spec-orch.toml if present."""
+    import tomllib
+
+    toml_path = repo_root / "spec-orch.toml"
+    if not toml_path.exists():
+        return "sync"
+    try:
+        with toml_path.open("rb") as f:
+            raw = tomllib.load(f)
+    except Exception:
+        return "sync"
+    mem_cfg = raw.get("memory", {})
+    mode = mem_cfg.get("derivation_mode", "sync") if isinstance(mem_cfg, dict) else "sync"
+    return mode if mode in ("sync", "async") else "sync"
+
+
 def get_memory_service(repo_root: Path | None = None) -> MemoryService:
     """Return the global ``MemoryService`` singleton, creating it if needed."""
     global _instance  # noqa: PLW0603
     if _instance is None:
         root = repo_root or Path.cwd()
         qdrant_config = _load_qdrant_config(root)
-        _instance = MemoryService(repo_root=root, qdrant_config=qdrant_config)
+        derivation_mode = _load_derivation_mode(root)
+        _instance = MemoryService(
+            repo_root=root,
+            qdrant_config=qdrant_config,
+            derivation_mode=derivation_mode,
+        )
     return _instance
 
 
