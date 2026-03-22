@@ -226,12 +226,19 @@ class ContextAssembler:
         for name in cls._LEARNING_DICT_FIELDS:
             if name not in ranked:
                 continue
+            text = ranked[name]
             try:
-                parsed = json.loads(ranked[name])
+                parsed = json.loads(text)
                 if isinstance(parsed, dict):
                     setattr(learn, name, parsed)
+                else:
+                    setattr(learn, name, {})
             except (json.JSONDecodeError, TypeError):
-                pass
+                setattr(learn, name, {})
+                logger.debug(
+                    "ContextRanker non-JSON dict for %s; empty dict fallback",
+                    name,
+                )
 
     @staticmethod
     def _trim_list_to_budget(items: list[Any], budget_chars: int) -> list[Any]:
