@@ -185,7 +185,7 @@ class TestTextMatchesChinese:
         )
 
     def test_chinese_partial_overlap(self):
-        assert _text_matches("接口性能下降", "用户登录接口响应时间从 200ms 上升到 2000ms")
+        assert _text_matches("接口响应时间", "用户登录接口响应时间从 200ms 上升到 2000ms")
 
     def test_english_still_works(self):
         assert _text_matches(

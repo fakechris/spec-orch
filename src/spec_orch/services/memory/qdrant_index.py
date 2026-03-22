@@ -85,15 +85,11 @@ class QdrantIndex:
         self._ensure_collection()
 
     def _ensure_collection(self) -> None:
-        """Create collection if it does not exist."""
+        """Create collection if it does not exist, or validate dimension match."""
         from qdrant_client.models import (  # type: ignore[import-untyped,import-not-found]
             Distance,
             VectorParams,
         )
-
-        existing = [c.name for c in self._client.get_collections().collections]
-        if self._collection in existing:
-            return
 
         sample_vec = self._embed(["probe"])
         if not sample_vec or not sample_vec[0]:
@@ -101,6 +97,23 @@ class QdrantIndex:
                 f"Failed to determine embedding dimension for model {self._embedding_model}"
             )
         dim = len(sample_vec[0])
+
+        existing = [c.name for c in self._client.get_collections().collections]
+        if self._collection in existing:
+            info = self._client.get_collection(self._collection)
+            existing_dim = info.config.params.vectors.size  # type: ignore[union-attr]
+            if existing_dim != dim:
+                logger.warning(
+                    "Embedding dimension mismatch: collection '%s' has dim=%d "
+                    "but model '%s' produces dim=%d — dropping and recreating",
+                    self._collection,
+                    existing_dim,
+                    self._embedding_model,
+                    dim,
+                )
+                self._client.delete_collection(self._collection)
+            else:
+                return
 
         self._client.create_collection(
             collection_name=self._collection,

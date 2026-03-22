@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -100,25 +101,36 @@ _CJK_RANGE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf]")
 
 
 def _tokenize(text: str) -> list[str]:
-    """Split text into meaningful tokens with CJK-aware segmentation via jieba."""
+    """Split text into meaningful tokens with CJK-aware segmentation.
+
+    Uses jieba when installed (``pip install spec-orch[cjk]``).
+    Falls back to character bigrams for CJK text when jieba is unavailable.
+    """
     text = text.lower()
     if _CJK_RANGE.search(text):
-        import jieba  # lazy: ~1s dict load on first call
+        try:
+            import jieba  # type: ignore[import-untyped]  # lazy: ~1s dict load on first call
 
-        tokens = [w.strip() for w in jieba.cut(text) if w.strip()]
-        multi = [w for w in tokens if len(w) > 1]
-        return multi if multi else tokens
+            tokens = [w.strip() for w in jieba.cut(text) if w.strip()]
+            multi = [w for w in tokens if len(w) > 1]
+            return multi if multi else tokens
+        except ImportError:
+            chars = [c for c in text if _CJK_RANGE.match(c)]
+            if len(chars) < 2:
+                return chars
+            return [chars[i] + chars[i + 1] for i in range(len(chars) - 1)]
     return [w for w in text.split() if len(w) > 2]
 
 
 def _text_matches(query_text: str, content: str) -> bool:
-    """Word-level matching: at least half of the query tokens must appear."""
+    """Word-level matching: at least half of the query tokens must appear (rounded up)."""
     words = _tokenize(query_text)
     if not words:
         return True
     content_lower = content.lower()
     hits = sum(1 for w in words if w in content_lower)
-    return hits >= max(1, len(words) // 2)
+    threshold = max(1, (len(words) + 1) // 2)
+    return hits >= threshold
 
 
 class FileSystemMemoryProvider:
@@ -128,6 +140,7 @@ class FileSystemMemoryProvider:
         self._root = root
         self._index_path = root / "_index.json"
         self._index: dict[str, dict[str, Any]] = {}
+        self._lock = threading.Lock()
         self._ensure_dirs()
         self._load_index()
 
@@ -138,27 +151,28 @@ class FileSystemMemoryProvider:
         path = self._entry_path(entry)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        # If key exists in a *different* layer, remove the old file
-        old = self._index.get(entry.key)
-        if old and old.get("layer") != entry.layer.value:
-            old_path = self._root / old["layer"] / f"{_sanitise_key(entry.key)}.md"
-            old_path.unlink(missing_ok=True)
+        with self._lock:
+            old = self._index.get(entry.key)
+            if old and old.get("layer") != entry.layer.value:
+                old_path = self._root / old["layer"] / f"{_sanitise_key(entry.key)}.md"
+                old_path.unlink(missing_ok=True)
 
-        path.write_text(_render_frontmatter(entry) + entry.content, encoding="utf-8")
-        self._index[entry.key] = {
-            "layer": entry.layer.value,
-            "tags": entry.tags,
-            "created_at": entry.created_at,
-            "updated_at": entry.updated_at,
-        }
-        self._save_index()
+            path.write_text(_render_frontmatter(entry) + entry.content, encoding="utf-8")
+            self._index[entry.key] = {
+                "layer": entry.layer.value,
+                "tags": entry.tags,
+                "created_at": entry.created_at,
+                "updated_at": entry.updated_at,
+            }
+            self._save_index()
         return entry.key
 
     def recall(self, query: MemoryQuery) -> list[MemoryEntry]:
-        candidates = self._filtered_keys(
-            layer=query.layer.value if query.layer else None,
-            tags=query.tags or None,
-        )
+        with self._lock:
+            candidates = self._filtered_keys(
+                layer=query.layer.value if query.layer else None,
+                tags=query.tags or None,
+            )
         results: list[MemoryEntry] = []
         for key in candidates:
             entry = self.get(key)
@@ -176,12 +190,13 @@ class FileSystemMemoryProvider:
         return results
 
     def forget(self, key: str) -> bool:
-        info = self._index.pop(key, None)
-        if info is None:
-            return False
-        path = self._root / info["layer"] / f"{_sanitise_key(key)}.md"
-        path.unlink(missing_ok=True)
-        self._save_index()
+        with self._lock:
+            info = self._index.pop(key, None)
+            if info is None:
+                return False
+            path = self._root / info["layer"] / f"{_sanitise_key(key)}.md"
+            path.unlink(missing_ok=True)
+            self._save_index()
         return True
 
     def list_keys(
@@ -191,17 +206,19 @@ class FileSystemMemoryProvider:
         tags: list[str] | None = None,
         limit: int = 100,
     ) -> list[str]:
-        return self._filtered_keys(layer=layer, tags=tags)[:limit]
+        with self._lock:
+            return self._filtered_keys(layer=layer, tags=tags)[:limit]
 
     def get(self, key: str) -> MemoryEntry | None:
-        info = self._index.get(key)
-        if info is None:
-            return None
-        path = self._root / info["layer"] / f"{_sanitise_key(key)}.md"
-        if not path.exists():
-            self._index.pop(key, None)
-            self._save_index()
-            return None
+        with self._lock:
+            info = self._index.get(key)
+            if info is None:
+                return None
+            path = self._root / info["layer"] / f"{_sanitise_key(key)}.md"
+            if not path.exists():
+                self._index.pop(key, None)
+                self._save_index()
+                return None
         return self._read_entry(path)
 
     def list_summaries(
@@ -212,19 +229,20 @@ class FileSystemMemoryProvider:
         limit: int = 100,
     ) -> list[dict[str, Any]]:
         """Return lightweight summaries from the index without reading files."""
-        keys = self._filtered_keys(layer=layer, tags=tags)[:limit]
-        results: list[dict[str, Any]] = []
-        for key in keys:
-            info = self._index.get(key, {})
-            results.append(
-                {
-                    "key": key,
-                    "layer": info.get("layer", "working"),
-                    "tags": info.get("tags", []),
-                    "created_at": info.get("created_at", ""),
-                    "updated_at": info.get("updated_at", ""),
-                }
-            )
+        with self._lock:
+            keys = self._filtered_keys(layer=layer, tags=tags)[:limit]
+            results: list[dict[str, Any]] = []
+            for key in keys:
+                info = self._index.get(key, {})
+                results.append(
+                    {
+                        "key": key,
+                        "layer": info.get("layer", "working"),
+                        "tags": info.get("tags", []),
+                        "created_at": info.get("created_at", ""),
+                        "updated_at": info.get("updated_at", ""),
+                    }
+                )
         return results
 
     # -- internals -----------------------------------------------------------
