@@ -103,10 +103,19 @@ class MemoryService:
             )
         return results
 
-    def compact(self, *, max_age_days: int = 30) -> dict[str, int]:
-        """Remove expired episodic memory entries older than max_age_days.
+    def compact(
+        self,
+        *,
+        max_age_days: int = 30,
+        summarize: bool = True,
+        planner_config: dict[str, Any] | None = None,
+    ) -> dict[str, int]:
+        """Remove expired episodic entries, optionally distilling them first.
 
-        Uses index-only summaries to avoid O(N) file reads.
+        When *summarize* is ``True`` (default) and a planner LLM is
+        configured, expired episodes are grouped by ``issue_id`` and
+        distilled into SEMANTIC summaries before deletion.  If no LLM
+        is available, a simple concatenation fallback is used.
         """
         from datetime import UTC, datetime, timedelta
 
@@ -127,18 +136,147 @@ class MemoryService:
             else:
                 retained += 1
 
+        distilled = 0
+        if summarize and expired_keys:
+            distilled = self._distill_expired_episodes(expired_keys, planner_config)
+
         removed = 0
         for key in expired_keys:
             if self.forget(key):
                 removed += 1
 
-        if removed > 0:
+        if removed > 0 or distilled > 0:
             logger.info(
-                "Memory compact: removed %d expired entries, retained %d",
+                "Memory compact: removed %d expired entries, distilled %d summaries, retained %d",
                 removed,
+                distilled,
                 retained,
             )
-        return {"removed": removed, "retained": retained}
+        return {"removed": removed, "retained": retained, "distilled": distilled}
+
+    def _distill_expired_episodes(
+        self,
+        expired_keys: list[str],
+        planner_config: dict[str, Any] | None = None,
+    ) -> int:
+        """Group expired episodes by issue_id and distill each group."""
+        groups: dict[str, list[MemoryEntry]] = {}
+        ungrouped: list[MemoryEntry] = []
+        for key in expired_keys:
+            entry = self.get(key)
+            if entry is None:
+                continue
+            issue_id = entry.metadata.get("issue_id")
+            if issue_id:
+                groups.setdefault(str(issue_id), []).append(entry)
+            else:
+                ungrouped.append(entry)
+
+        distilled = 0
+        for issue_id, entries in groups.items():
+            if len(entries) < 2:
+                continue
+            summary_text = self._summarize_episode_group(entries, planner_config)
+            if summary_text:
+                tags_union = sorted({t for e in entries for t in e.tags})
+                self.store(
+                    MemoryEntry(
+                        key=f"distilled-{issue_id}",
+                        content=summary_text,
+                        layer=MemoryLayer.SEMANTIC,
+                        tags=["distilled", "auto-consolidated", f"issue:{issue_id}"],
+                        metadata={
+                            "issue_id": issue_id,
+                            "source_count": len(entries),
+                            "source_tags": tags_union,
+                        },
+                    )
+                )
+                distilled += 1
+
+        if len(ungrouped) >= 3:
+            summary_text = self._summarize_episode_group(ungrouped, planner_config)
+            if summary_text:
+                self.store(
+                    MemoryEntry(
+                        key=f"distilled-misc-{int(time.time())}",
+                        content=summary_text,
+                        layer=MemoryLayer.SEMANTIC,
+                        tags=["distilled", "auto-consolidated", "misc"],
+                        metadata={"source_count": len(ungrouped)},
+                    )
+                )
+                distilled += 1
+
+        return distilled
+
+    @staticmethod
+    def _summarize_episode_group(
+        entries: list[MemoryEntry],
+        planner_config: dict[str, Any] | None = None,
+    ) -> str:
+        """Produce a summary for a group of related episodic entries.
+
+        Uses LLM via litellm when available, otherwise falls back to
+        simple concatenation with truncation.
+        """
+        combined = "\n\n---\n\n".join(
+            f"[{e.key}] ({', '.join(e.tags)})\n{e.content}" for e in entries
+        )
+
+        try:
+            import litellm  # type: ignore[import-untyped,import-not-found]
+
+            cfg = planner_config or {}
+            model = cfg.get("model", "anthropic/claude-sonnet-4-20250514")
+            api_type = cfg.get("api_type", "anthropic")
+            if "/" not in model:
+                model = f"{api_type}/{model}"
+
+            kwargs: dict[str, Any] = {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a memory consolidation assistant. "
+                            "Distill the following episodic memory entries into a concise "
+                            "SEMANTIC summary that preserves key learnings, failure patterns, "
+                            "and actionable insights. Be specific about what happened and why. "
+                            "Output plain text, no JSON wrapper."
+                        ),
+                    },
+                    {"role": "user", "content": combined},
+                ],
+                "temperature": 0.2,
+            }
+            if cfg.get("api_key"):
+                kwargs["api_key"] = cfg["api_key"]
+            elif cfg.get("api_key_env"):
+                import os
+
+                kwargs["api_key"] = os.environ.get(cfg["api_key_env"])
+            if cfg.get("api_base"):
+                kwargs["api_base"] = cfg["api_base"]
+            elif cfg.get("api_base_env"):
+                import os
+
+                kwargs["api_base"] = os.environ.get(cfg["api_base_env"])
+
+            response = litellm.completion(**kwargs)
+            choices = getattr(response, "choices", None) or []
+            if choices:
+                message = getattr(choices[0], "message", None)
+                content = (getattr(message, "content", None) or "") if message else ""
+                if content.strip():
+                    return content.strip()
+        except ImportError:
+            logger.debug("litellm not available; using concatenation fallback for distillation")
+        except Exception:
+            logger.warning("LLM distillation failed; using concatenation fallback", exc_info=True)
+
+        lines = [f"- [{e.key}]: {e.content[:200]}" for e in entries[:20]]
+        return f"Consolidated {len(entries)} episodes:\n" + "\n".join(lines)
 
     def consolidate_run(
         self,
