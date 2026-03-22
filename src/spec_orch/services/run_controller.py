@@ -1313,10 +1313,34 @@ class RunController:
             )
             self._runs_since_compaction += 1
             if self._runs_since_compaction >= self._COMPACT_EVERY_N_RUNS:
-                memory.compact()
+                planner_cfg = self._load_planner_config_for_compact()
+                memory.compact(planner_config=planner_cfg)
                 self._runs_since_compaction = 0
         except Exception:
             logger.debug("Memory consolidation skipped", exc_info=True)
+
+    def _load_planner_config_for_compact(self) -> dict[str, Any] | None:
+        """Load [planner] config from TOML for memory distillation."""
+        import os
+
+        toml_path = self.repo_root / "spec-orch.toml"
+        if not toml_path.exists():
+            return None
+        try:
+            raw = RunReportWriter.load_toml(toml_path)
+        except Exception:
+            return None
+        cfg = raw.get("planner")
+        if not isinstance(cfg, dict):
+            return None
+        result: dict[str, Any] = {"model": cfg.get("model", "")}
+        if cfg.get("api_type"):
+            result["api_type"] = cfg["api_type"]
+        if cfg.get("api_key_env"):
+            result["api_key"] = os.environ.get(cfg["api_key_env"], "")
+        if cfg.get("api_base_env"):
+            result["api_base"] = os.environ.get(cfg["api_base_env"], "")
+        return result
 
     def _maybe_trigger_evolution(self, workspace: Path) -> None:
         """Run the evolution cycle if configured and threshold is met."""

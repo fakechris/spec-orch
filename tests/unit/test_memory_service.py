@@ -156,6 +156,65 @@ class TestEventBusIntegration:
         reset_event_bus()
 
 
+class TestCompactDistillation:
+    def test_compact_distills_grouped_episodes(self, svc: MemoryService):
+        """Expired episodic entries with the same issue_id are distilled."""
+        old_ts = (datetime.now(UTC) - timedelta(days=60)).isoformat()
+        for i in range(3):
+            svc.store(
+                MemoryEntry(
+                    key=f"ep-{i}",
+                    content=f"Event {i} for issue SON-100",
+                    layer=MemoryLayer.EPISODIC,
+                    created_at=old_ts,
+                    metadata={"issue_id": "SON-100"},
+                    tags=["issue-result"],
+                )
+            )
+
+        stats = svc.compact(max_age_days=30, summarize=True)
+        assert stats["removed"] == 3
+        assert stats["distilled"] == 1
+
+        distilled = svc.get("distilled-SON-100")
+        assert distilled is not None
+        assert distilled.layer == MemoryLayer.SEMANTIC
+        assert "distilled" in distilled.tags
+        assert distilled.metadata["source_count"] == 3
+
+    def test_compact_no_distill_when_disabled(self, svc: MemoryService):
+        old_ts = (datetime.now(UTC) - timedelta(days=60)).isoformat()
+        for i in range(3):
+            svc.store(
+                MemoryEntry(
+                    key=f"nd-{i}",
+                    content=f"Event {i}",
+                    layer=MemoryLayer.EPISODIC,
+                    created_at=old_ts,
+                    metadata={"issue_id": "SON-200"},
+                )
+            )
+        stats = svc.compact(max_age_days=30, summarize=False)
+        assert stats["removed"] == 3
+        assert stats["distilled"] == 0
+        assert svc.get("distilled-SON-200") is None
+
+    def test_compact_skips_single_entry_groups(self, svc: MemoryService):
+        old_ts = (datetime.now(UTC) - timedelta(days=60)).isoformat()
+        svc.store(
+            MemoryEntry(
+                key="single",
+                content="Only one",
+                layer=MemoryLayer.EPISODIC,
+                created_at=old_ts,
+                metadata={"issue_id": "SON-300"},
+            )
+        )
+        stats = svc.compact(max_age_days=30, summarize=True)
+        assert stats["removed"] == 1
+        assert stats["distilled"] == 0
+
+
 class TestCustomProvider:
     def test_accepts_custom_provider(self):
         mock = MagicMock()
