@@ -204,6 +204,7 @@ class FileSystemMemoryProvider:
 
     def __init__(self, root: Path) -> None:
         self._root = root
+        self.root = root
         self._db_path = root / "_index.db"
         self._lock = threading.Lock()
         self._ensure_dirs()
