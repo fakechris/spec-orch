@@ -134,9 +134,10 @@ class VectorEnhancedProvider:
                 continue
             if query.entity_id and entry.metadata.get("entity_id") != query.entity_id:
                 continue
-            if query.exclude_relation_types and entry.metadata.get(
-                "relation_type"
-            ) in query.exclude_relation_types:
+            if (
+                query.exclude_relation_types
+                and entry.metadata.get("relation_type") in query.exclude_relation_types
+            ):
                 continue
             results.append(entry)
             if len(results) >= query.top_k:

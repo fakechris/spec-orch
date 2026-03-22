@@ -35,8 +35,7 @@ class MemoryDistiller:
             layer=kwargs.get("layer"), tags=kwargs.get("tags"), limit=kwargs.get("limit", 100)
         )
         return [
-            {"key": k, "layer": kwargs.get("layer", ""), "tags": [], "created_at": ""}
-            for k in keys
+            {"key": k, "layer": kwargs.get("layer", ""), "tags": [], "created_at": ""} for k in keys
         ]
 
     def compact(

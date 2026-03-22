@@ -48,9 +48,7 @@ class DerivationQueue:
         self._db = self._open_db()
 
     def _open_db(self) -> sqlite3.Connection:
-        db = sqlite3.connect(
-            str(self._db_path), check_same_thread=False, isolation_level=None
-        )
+        db = sqlite3.connect(str(self._db_path), check_same_thread=False, isolation_level=None)
         db.execute("PRAGMA journal_mode=WAL")
         db.execute("PRAGMA synchronous=NORMAL")
         db.execute(
