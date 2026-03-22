@@ -286,26 +286,130 @@ class MemoryService:
         succeeded: bool,
         failed_conditions: list[str] | None = None,
         key_learnings: str = "",
+        builder_adapter: str | None = None,
+        verification_passed: bool | None = None,
     ) -> str | None:
         """Store a run outcome summary in semantic memory for cross-run learning."""
         outcome = "succeeded" if succeeded else "failed"
         content = f"Run {run_id} for {issue_id}: {outcome}"
+        if builder_adapter:
+            content += f"\nBuilder: {builder_adapter}"
+        if verification_passed is not None:
+            content += f"\nVerification: {'passed' if verification_passed else 'failed'}"
         if key_learnings:
-            content = f"{content}\n{key_learnings}"
+            content += f"\n{key_learnings}"
+
+        meta: dict[str, Any] = {
+            "run_id": run_id,
+            "issue_id": issue_id,
+            "succeeded": succeeded,
+            "failed_conditions": failed_conditions or [],
+        }
+        if builder_adapter:
+            meta["builder_adapter"] = builder_adapter
+        if verification_passed is not None:
+            meta["verification_passed"] = verification_passed
 
         entry = MemoryEntry(
             key=f"run-summary-{run_id}",
             content=content,
             layer=MemoryLayer.SEMANTIC,
             tags=["run-summary", "auto-consolidated"],
+            metadata=meta,
+        )
+        return self.store(entry)
+
+    def record_builder_telemetry(
+        self,
+        *,
+        run_id: str,
+        issue_id: str,
+        tool_sequence: list[str],
+        lines_scanned: int = 0,
+        source_path: str = "",
+    ) -> str | None:
+        """Store builder tool-call telemetry in episodic memory."""
+        if not tool_sequence:
+            return None
+        content = (
+            f"Builder telemetry for run {run_id} (issue {issue_id}):\n"
+            f"Tool sequence ({len(tool_sequence)} calls): " + " → ".join(tool_sequence[:50])
+        )
+        entry = MemoryEntry(
+            key=f"builder-telemetry-{run_id}",
+            content=content,
+            layer=MemoryLayer.EPISODIC,
+            tags=["builder-telemetry", f"issue:{issue_id}", f"run:{run_id}"],
             metadata={
                 "run_id": run_id,
                 "issue_id": issue_id,
-                "succeeded": succeeded,
-                "failed_conditions": failed_conditions or [],
+                "tool_sequence": tool_sequence[:100],
+                "tool_count": len(tool_sequence),
+                "lines_scanned": lines_scanned,
+                "source_path": source_path,
             },
         )
         return self.store(entry)
+
+    def record_acceptance(
+        self,
+        *,
+        issue_id: str,
+        accepted_by: str,
+        run_id: str = "",
+    ) -> str:
+        """Store human acceptance feedback in episodic memory."""
+        content = f"Issue {issue_id} accepted by {accepted_by}." + (
+            f" Run: {run_id}" if run_id else ""
+        )
+        entry = MemoryEntry(
+            key=f"acceptance-{issue_id}",
+            content=content,
+            layer=MemoryLayer.EPISODIC,
+            tags=["acceptance", f"issue:{issue_id}", "human-feedback"],
+            metadata={
+                "issue_id": issue_id,
+                "accepted_by": accepted_by,
+                "run_id": run_id,
+            },
+        )
+        return self.store(entry)
+
+    def get_trend_summary(self, *, recent_days: int = 7) -> dict[str, Any]:
+        """Aggregate run outcomes over recent_days into a trend dict."""
+        from datetime import UTC, datetime, timedelta
+
+        cutoff = (datetime.now(UTC) - timedelta(days=recent_days)).isoformat()
+        summaries = self.list_summaries(layer=MemoryLayer.SEMANTIC.value, tags=["run-summary"])
+        total = 0
+        succeeded = 0
+        failed = 0
+        failed_conditions: dict[str, int] = {}
+        for s in summaries:
+            created = s.get("created_at", "")
+            if created < cutoff:
+                continue
+            total += 1
+            entry = self.get(s["key"])
+            if entry is None:
+                continue
+            if entry.metadata.get("succeeded"):
+                succeeded += 1
+            else:
+                failed += 1
+                for cond in entry.metadata.get("failed_conditions", []):
+                    failed_conditions[cond] = failed_conditions.get(cond, 0) + 1
+
+        return {
+            "period_days": recent_days,
+            "total_runs": total,
+            "succeeded": succeeded,
+            "failed": failed,
+            "success_rate": round(succeeded / total, 2) if total > 0 else 0.0,
+            "top_failure_reasons": dict(
+                sorted(failed_conditions.items(), key=lambda x: x[1], reverse=True)[:5]
+            ),
+        }
 
     # -- lifecycle event capture ---------------------------------------------
 

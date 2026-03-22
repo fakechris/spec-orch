@@ -450,6 +450,38 @@ class ContextAssembler:
         if not required or "matched_skills" in required:
             ctx.matched_skills = self._build_skill_context(workspace, issue_title, issue_summary)
 
+        if memory is not None and (not required or "relevant_procedures" in required):
+            try:
+                from spec_orch.services.memory.types import MemoryLayer, MemoryQuery
+
+                query_text = " ".join(filter(None, [issue_title, issue_summary]))
+                proc_entries = memory.recall(
+                    MemoryQuery(
+                        text=query_text,
+                        layer=MemoryLayer.PROCEDURAL,
+                        top_k=5,
+                    )
+                )
+                ctx.relevant_procedures = [
+                    {
+                        "key": e.key,
+                        "content": _truncate(e.content, budget // 10),
+                        "tags": e.tags,
+                    }
+                    for e in proc_entries
+                ]
+            except Exception:
+                logger.debug("Failed to recall procedures from memory", exc_info=True)
+
+        if memory is not None and (not required or "success_trend" in required):
+            try:
+                from spec_orch.services.memory.service import MemoryService
+
+                if isinstance(memory, MemoryService):
+                    ctx.success_trend = memory.get_trend_summary()
+            except Exception:
+                logger.debug("Failed to build success trend", exc_info=True)
+
         return ctx
 
     @staticmethod
