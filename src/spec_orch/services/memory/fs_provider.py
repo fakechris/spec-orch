@@ -137,6 +137,48 @@ def _text_matches(query_text: str, content: str) -> bool:
     return hits >= threshold
 
 
+def _fts5_available(db: sqlite3.Connection) -> bool:
+    """Check if FTS5 extension is compiled into this SQLite build."""
+    try:
+        db.execute("CREATE VIRTUAL TABLE IF NOT EXISTS _fts5_probe USING fts5(x)")
+        db.execute("DROP TABLE IF EXISTS _fts5_probe")
+        return True
+    except sqlite3.OperationalError:
+        return False
+
+
+def _init_fts5(db: sqlite3.Connection) -> bool:
+    """Create the FTS5 content-sync table if FTS5 is available.
+
+    Uses external content mode: the FTS index references memory_index
+    for the actual content column, so no data duplication.
+    """
+    if not _fts5_available(db):
+        return False
+    db.execute(
+        """CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+            key, content_text,
+            tokenize='unicode61'
+        )"""
+    )
+    return True
+
+
+def rrf_fuse(
+    *ranked_lists: list[str],
+    k: int = 60,
+) -> list[str]:
+    """Reciprocal Rank Fusion across multiple ranked key lists.
+
+    Returns keys sorted by descending RRF score.
+    """
+    scores: dict[str, float] = {}
+    for ranked in ranked_lists:
+        for rank, key in enumerate(ranked):
+            scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank + 1)
+    return sorted(scores, key=lambda x: scores[x], reverse=True)
+
+
 def _migrate_add_relation_columns(db: sqlite3.Connection) -> None:
     """Add entity_scope/entity_id/relation_type columns if missing (v2 migration)."""
     cols = {row[1] for row in db.execute("PRAGMA table_info(memory_index)").fetchall()}
@@ -165,6 +207,7 @@ class FileSystemMemoryProvider:
         self._lock = threading.Lock()
         self._ensure_dirs()
         self._db = self._open_db()
+        self._fts_enabled = _init_fts5(self._db)
         self._maybe_migrate_json()
 
     # -- MemoryProvider interface --------------------------------------------
@@ -203,14 +246,56 @@ class FileSystemMemoryProvider:
                     relation_type,
                 ),
             )
+            if self._fts_enabled:
+                self._upsert_fts(entry.key, entry.content)
             self._db.commit()
         return entry.key
 
+    def search_fts(self, text: str, *, top_k: int = 20) -> list[str]:
+        """Full-text search via FTS5. Returns ranked key list.
+
+        Splits query into individual terms joined with OR for broad matching.
+        Falls back to empty for CJK-heavy queries since unicode61 tokenizer
+        handles CJK poorly; the caller should use _text_matches instead.
+        """
+        if not self._fts_enabled or not text.strip():
+            return []
+        if _CJK_RANGE.search(text):
+            return []
+        terms = [w for w in re.split(r"\s+", text.strip()) if len(w) > 1]
+        if not terms:
+            return []
+        escaped = [f'"{t.replace(chr(34), "")}"' for t in terms]
+        match_expr = " OR ".join(escaped)
+        try:
+            rows = self._db.execute(
+                "SELECT key FROM memory_fts WHERE memory_fts MATCH ? ORDER BY rank LIMIT ?",
+                (match_expr, top_k),
+            ).fetchall()
+            return [r[0] for r in rows]
+        except sqlite3.OperationalError:
+            logger.debug("FTS5 search failed for: %s", text[:80], exc_info=True)
+            return []
+
     def recall(self, query: MemoryQuery) -> list[MemoryEntry]:
-        candidates = self._filtered_keys(
-            layer=query.layer.value if query.layer else None,
-            tags=query.tags or None,
-        )
+        layer_str = query.layer.value if query.layer else None
+
+        fts_keys: list[str] = []
+        if query.text and self._fts_enabled:
+            fts_keys = self.search_fts(query.text, top_k=query.top_k * 3)
+
+        use_fts = bool(fts_keys)
+
+        if use_fts:
+            index_keys = self._filtered_keys(layer=layer_str, tags=query.tags or None)
+            index_set = set(index_keys)
+            if layer_str or query.tags:
+                candidates = [k for k in rrf_fuse(fts_keys, index_keys) if k in index_set]
+            else:
+                candidates = fts_keys
+        else:
+            candidates = self._filtered_keys(layer=layer_str, tags=query.tags or None)
+
         results: list[MemoryEntry] = []
         for key in candidates:
             entry = self.get(key)
@@ -220,7 +305,7 @@ class FileSystemMemoryProvider:
                 entry.metadata.get(k) == v for k, v in query.filters.items()
             ):
                 continue
-            if query.text and not _text_matches(query.text, entry.content):
+            if query.text and not use_fts and not _text_matches(query.text, entry.content):
                 continue
             results.append(entry)
             if len(results) >= query.top_k:
@@ -237,6 +322,8 @@ class FileSystemMemoryProvider:
             path = self._root / row[0] / f"{_sanitise_key(key)}.md"
             path.unlink(missing_ok=True)
             self._db.execute("DELETE FROM memory_index WHERE key = ?", (key,))
+            if self._fts_enabled:
+                self._delete_fts(key)
             self._db.commit()
         return True
 
@@ -305,6 +392,20 @@ class FileSystemMemoryProvider:
             if limit and len(results) >= limit:
                 break
         return results
+
+    # -- FTS helpers ----------------------------------------------------------
+
+    def _upsert_fts(self, key: str, content: str) -> None:
+        """Insert or replace a document in the FTS5 index."""
+        self._db.execute("DELETE FROM memory_fts WHERE key = ?", (key,))
+        self._db.execute(
+            "INSERT INTO memory_fts (key, content_text) VALUES (?, ?)",
+            (key, content),
+        )
+
+    def _delete_fts(self, key: str) -> None:
+        """Remove a document from the FTS5 index."""
+        self._db.execute("DELETE FROM memory_fts WHERE key = ?", (key,))
 
     # -- internals -----------------------------------------------------------
 
@@ -405,6 +506,8 @@ class FileSystemMemoryProvider:
         """Scan Markdown files and populate the SQLite index from scratch."""
         with self._lock:
             self._db.execute("DELETE FROM memory_index")
+            if self._fts_enabled:
+                self._db.execute("DELETE FROM memory_fts")
             for layer in MemoryLayer:
                 layer_dir = self._root / layer.value
                 if not layer_dir.is_dir():
@@ -429,6 +532,8 @@ class FileSystemMemoryProvider:
                                 str(entry.metadata.get("relation_type", "observed")),
                             ),
                         )
+                        if self._fts_enabled:
+                            self._upsert_fts(entry.key, entry.content)
             self._db.commit()
 
     def _read_entry(self, path: Path) -> MemoryEntry | None:

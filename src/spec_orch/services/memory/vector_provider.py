@@ -114,9 +114,16 @@ class VectorEnhancedProvider:
             )
             return self._fs.recall(query)
 
+        semantic_keys = [h.key for h in hits]
+        fts_keys = self._fs.search_fts(query.text, top_k=fetch_k)
+
+        from spec_orch.services.memory.fs_provider import rrf_fuse
+
+        fused = rrf_fuse(semantic_keys, fts_keys) if fts_keys else semantic_keys
+
         results: list[MemoryEntry] = []
-        for hit in hits:
-            entry = self._fs.get(hit.key)
+        for key in fused:
+            entry = self._fs.get(key)
             if entry is None:
                 continue
             if query.filters and not all(
