@@ -178,15 +178,37 @@ class ContextAssembler:
             text = json.dumps(trend, ensure_ascii=False, indent=1)
             sections.append(RankedSection("success_trend", text, priorities.TOOL_OUTPUT))
 
+        profile = getattr(learn, "project_profile", None)
+        if profile:
+            text = json.dumps(profile, ensure_ascii=False, indent=1)
+            sections.append(RankedSection("project_profile", text, priorities.MODIFIED_FILES))
+
+        fp = getattr(learn, "failure_patterns", None)
+        if fp:
+            text = json.dumps(fp, ensure_ascii=False, indent=1)
+            sections.append(RankedSection("failure_patterns", text, priorities.VERIFICATION_STATE))
+
+        sr = getattr(learn, "success_recipes", None)
+        if sr:
+            text = json.dumps(sr, ensure_ascii=False, indent=1)
+            sections.append(RankedSection("success_recipes", text, priorities.TOOL_OUTPUT))
+
+        signals = getattr(learn, "active_run_signals", None)
+        if signals:
+            text = json.dumps(signals, ensure_ascii=False, indent=1)
+            sections.append(RankedSection("active_run_signals", text, priorities.TOOL_OUTPUT))
+
     _LEARNING_LIST_FIELDS = frozenset(
         {
             "scoper_hints",
             "matched_skills",
             "similar_failure_samples",
             "relevant_procedures",
+            "failure_patterns",
+            "success_recipes",
         }
     )
-    _LEARNING_DICT_FIELDS = frozenset({"success_trend"})
+    _LEARNING_DICT_FIELDS = frozenset({"success_trend", "project_profile", "active_run_signals"})
 
     @classmethod
     def _apply_ranked_budget(
@@ -517,6 +539,34 @@ class ContextAssembler:
                     ctx.success_trend = memory.get_trend_summary()
             except Exception:
                 logger.debug("Failed to build success trend", exc_info=True)
+
+        if memory is not None and (not required or "project_profile" in required):
+            try:
+                if hasattr(memory, "get_project_profile"):
+                    ctx.project_profile = memory.get_project_profile()
+            except Exception:
+                logger.debug("Failed to build project profile", exc_info=True)
+
+        if memory is not None and (not required or "failure_patterns" in required):
+            try:
+                if hasattr(memory, "get_failure_patterns"):
+                    ctx.failure_patterns = memory.get_failure_patterns()
+            except Exception:
+                logger.debug("Failed to build failure patterns", exc_info=True)
+
+        if memory is not None and (not required or "success_recipes" in required):
+            try:
+                if hasattr(memory, "get_success_recipes"):
+                    ctx.success_recipes = memory.get_success_recipes()
+            except Exception:
+                logger.debug("Failed to build success recipes", exc_info=True)
+
+        if memory is not None and (not required or "active_run_signals" in required):
+            try:
+                if hasattr(memory, "get_active_run_signals"):
+                    ctx.active_run_signals = memory.get_active_run_signals()
+            except Exception:
+                logger.debug("Failed to build active run signals", exc_info=True)
 
         return ctx
 
