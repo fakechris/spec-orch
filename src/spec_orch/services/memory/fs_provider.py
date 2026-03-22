@@ -219,15 +219,20 @@ class FileSystemMemoryProvider:
         return self._filtered_keys(layer=layer, tags=tags, limit=limit)
 
     def get(self, key: str) -> MemoryEntry | None:
-        row = self._db.execute("SELECT layer FROM memory_index WHERE key = ?", (key,)).fetchone()
-        if row is None:
-            return None
-        path = self._root / row[0] / f"{_sanitise_key(key)}.md"
-        if not path.exists():
-            with self._lock:
-                self._db.execute("DELETE FROM memory_index WHERE key = ?", (key,))
+        with self._lock:
+            row = self._db.execute(
+                "SELECT layer FROM memory_index WHERE key = ?", (key,)
+            ).fetchone()
+            if row is None:
+                return None
+            layer = row[0]
+            path = self._root / layer / f"{_sanitise_key(key)}.md"
+            if not path.exists():
+                self._db.execute(
+                    "DELETE FROM memory_index WHERE key = ? AND layer = ?", (key, layer)
+                )
                 self._db.commit()
-            return None
+                return None
         return self._read_entry(path)
 
     def list_summaries(
@@ -247,7 +252,7 @@ class FileSystemMemoryProvider:
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY updated_at DESC"
-        if limit:
+        if limit and not tags:
             sql += " LIMIT ?"
             params.append(limit)
 
@@ -266,6 +271,8 @@ class FileSystemMemoryProvider:
                     "updated_at": updated or "",
                 }
             )
+            if limit and len(results) >= limit:
+                break
         return results
 
     # -- internals -----------------------------------------------------------
@@ -416,7 +423,7 @@ class FileSystemMemoryProvider:
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY updated_at DESC"
-        if limit:
+        if limit and not tags:
             sql += " LIMIT ?"
             params.append(limit)
 
@@ -424,6 +431,7 @@ class FileSystemMemoryProvider:
         if not tags:
             return [row[0] for row in rows]
         required = set(tags)
-        return [
+        result = [
             row[0] for row in rows if required.issubset(set(json.loads(row[1]) if row[1] else []))
         ]
+        return result[:limit] if limit else result
