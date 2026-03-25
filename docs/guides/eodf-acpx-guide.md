@@ -155,7 +155,7 @@ docs/specs/<mission_id>/rounds/round-02/
 
 ---
 
-## 2. 运行 EODF Pipeline
+## 3. 运行 EODF Pipeline
 
 ### 执行命令
 
@@ -218,7 +218,7 @@ cd .worktrees/SON-157 && git diff main -- src/
 
 ---
 
-## 3. 验证 Builder 产出
+## 4. 验证 Builder 产出
 
 ### 手动验证代码质量
 
@@ -240,7 +240,7 @@ python3 -m pytest tests/unit/ -v --tb=short
 
 ---
 
-## 4. 整合代码到 Feature Branch
+## 5. 整合代码到 Feature Branch
 
 ### 创建 feature 分支
 
@@ -278,7 +278,7 @@ python3 -m ruff format --check src/ tests/
 
 ---
 
-## 5. 提交并创建 PR
+## 6. 提交并创建 PR
 
 ### Commit
 
