@@ -15,9 +15,7 @@ Usage via spec-orch.toml::
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 import subprocess
 import threading
 from collections.abc import Callable
@@ -28,6 +26,14 @@ from typing import Any
 from spec_orch.domain.compliance import default_turn_contract_compliance
 from spec_orch.domain.models import BuilderEvent, BuilderResult, Issue
 from spec_orch.services.io import atomic_write_json
+from spec_orch.services.workers._acpx_utils import (
+    build_acpx_command,
+    build_acpx_env,
+    cancel_acpx_session,
+    collect_stdout_events,
+    drain_stderr,
+    ensure_acpx_session,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -121,19 +127,12 @@ class AcpxBuilderAdapter:
         stderr_lines: list[str] = []
 
         def _read_stdout() -> None:
-            assert process.stdout is not None
-            for line in process.stdout:
-                stdout_lines.append(line)
-                stripped = line.strip()
-                if not stripped:
-                    continue
-                try:
-                    event = json.loads(stripped)
-                    raw_events.append(event)
-                    if event_logger:
-                        event_logger(event)
-                except json.JSONDecodeError:
-                    pass
+            collect_stdout_events(
+                process,
+                stdout_lines=stdout_lines,
+                raw_events=raw_events,
+                event_logger=event_logger,
+            )
 
         stdout_thread = threading.Thread(target=_read_stdout, daemon=True)
         stderr_thread = threading.Thread(
@@ -397,76 +396,39 @@ class AcpxBuilderAdapter:
         )
 
     def _build_command(self, prompt: str) -> list[str]:
-        # Global flags (--format, --approve-all, --model) go BEFORE the agent
-        # subcommand; session flags (-s) go AFTER the agent name.
-        cmd = [self.executable, "-y", self.acpx_package]
-
-        cmd.extend(["--format", "json"])
-
-        if self.permissions == "full-auto":
-            cmd.append("--approve-all")
-
-        if self.model:
-            cmd.extend(["--model", self.model])
-
-        cmd.append(self.agent)
-
-        if self.session_name:
-            cmd.extend(["-s", self.session_name])
-        else:
-            cmd.append("exec")
-
-        cmd.append(prompt)
-        return cmd
+        return build_acpx_command(
+            executable=self.executable,
+            acpx_package=self.acpx_package,
+            agent=self.agent,
+            prompt=prompt,
+            model=self.model,
+            session_name=self.session_name,
+            permissions=self.permissions,
+        )
 
     def _build_env(self) -> dict[str, str]:
-        return dict(os.environ)
+        return build_acpx_env()
 
     def _ensure_session(self, workspace: Path) -> None:
         """Ensure a named session exists (create if needed)."""
-        cmd = [
-            self.executable,
-            "-y",
-            self.acpx_package,
-            self.agent,
-            "sessions",
-            "ensure",
-            "--name",
-            self.session_name or "default",
-        ]
-        result = subprocess.run(
-            cmd,
-            cwd=workspace,
-            capture_output=True,
-            text=True,
-            check=False,
+        ensure_acpx_session(
+            workspace=workspace,
+            executable=self.executable,
+            acpx_package=self.acpx_package,
+            agent=self.agent,
+            session_name=self.session_name or "default",
         )
-        if result.returncode != 0:
-            logger.warning(
-                "Session ensure failed (rc=%d): %s",
-                result.returncode,
-                result.stderr.strip(),
-            )
 
     def cancel_session(self, workspace: Path) -> None:
         """Cancel the current prompt in the named session."""
         if not self.session_name:
             return
-        cmd = [
-            self.executable,
-            "-y",
-            self.acpx_package,
-            self.agent,
-            "cancel",
-            "-s",
-            self.session_name,
-        ]
-        subprocess.run(
-            cmd,
-            cwd=workspace,
-            capture_output=True,
-            text=True,
-            check=False,
+        cancel_acpx_session(
+            workspace=workspace,
+            executable=self.executable,
+            acpx_package=self.acpx_package,
+            agent=self.agent,
+            session_name=self.session_name,
         )
 
     @staticmethod
@@ -474,6 +436,4 @@ class AcpxBuilderAdapter:
         process: subprocess.Popen[str],
         container: list[str],
     ) -> None:
-        assert process.stderr is not None
-        for line in process.stderr:
-            container.append(line)
+        drain_stderr(process, container)

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from spec_orch.domain.models import RoundAction, RoundDecision, RoundStatus, RoundSummary
 from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
 from spec_orch.services.readiness_checker import ReadinessChecker
 
@@ -161,3 +162,39 @@ def test_poll_routes_to_mission_when_plan_exists(tmp_path: Path) -> None:
 
     mock_controller.advance_to_completion.assert_not_called()
     assert "SPC-40" in daemon._processed
+
+
+def test_execute_mission_uses_round_orchestrator_when_configured(tmp_path: Path) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestratorResult
+
+    cfg = DaemonConfig(
+        {
+            "daemon": {"lockfile_dir": str(tmp_path / "locks")},
+            "supervisor": {"adapter": "litellm", "model": "openai/gpt-4o"},
+        }
+    )
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon._readiness_checker = ReadinessChecker()
+
+    _make_plan_json(tmp_path, "SPC-41")
+    client = MagicMock()
+
+    stub_orchestrator = MagicMock()
+    stub_orchestrator.run_supervised.return_value = RoundOrchestratorResult(
+        completed=True,
+        rounds=[
+            RoundSummary(
+                round_id=1,
+                wave_id=0,
+                status=RoundStatus.COMPLETED,
+                decision=RoundDecision(action=RoundAction.STOP, summary="Done"),
+            )
+        ],
+    )
+    daemon._round_orchestrator = stub_orchestrator
+
+    daemon._execute_mission("SPC-41", "SPC-41", {"id": "uid-41"}, client)
+
+    stub_orchestrator.run_supervised.assert_called_once()
+    client.update_issue_state.assert_called_with("uid-41", "In Review")
+    assert "SPC-41" in daemon._processed

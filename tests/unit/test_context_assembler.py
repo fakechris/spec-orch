@@ -6,6 +6,7 @@ from pathlib import Path
 from spec_orch.domain.context import NodeContextSpec
 from spec_orch.domain.models import Issue, IssueContext
 from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.node_context_registry import get_node_context_spec
 
 
 def test_context_assembler_supports_unified_manifest_keys(tmp_path: Path) -> None:
@@ -49,3 +50,16 @@ def test_context_assembler_supports_unified_manifest_keys(tmp_path: Path) -> Non
     assert ctx.execution.gate_report.mergeable is False
     assert ctx.execution.verification_results is not None
     assert ctx.execution.builder_events_summary is not None
+
+
+def test_supervisor_node_context_spec_is_registered() -> None:
+    spec = get_node_context_spec("supervisor")
+
+    assert spec.node_name == "supervisor"
+    assert "constraints" in spec.required_task_fields
+    assert "git_diff" in spec.required_execution_fields
+    assert "verification_results" in spec.required_execution_fields
+    assert "gate_report" in spec.required_execution_fields
+    assert "builder_events_summary" in spec.required_execution_fields
+    assert "review_summary" in spec.required_execution_fields
+    assert "similar_failure_samples" in spec.required_learning_fields

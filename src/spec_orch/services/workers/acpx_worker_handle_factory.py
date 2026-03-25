@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from spec_orch.domain.protocols import WorkerHandle
+from spec_orch.services.workers.acpx_worker_handle import AcpxWorkerHandle
+
+
+class AcpxWorkerHandleFactory:
+    """Mission-local factory for ACPX-backed persistent worker sessions."""
+
+    def __init__(
+        self,
+        *,
+        agent: str = "opencode",
+        model: str | None = None,
+        permissions: str = "full-auto",
+        executable: str = "npx",
+        acpx_package: str = "acpx",
+        absolute_timeout_seconds: float = 1800.0,
+    ) -> None:
+        self.agent = agent
+        self.model = model
+        self.permissions = permissions
+        self.executable = executable
+        self.acpx_package = acpx_package
+        self.absolute_timeout_seconds = absolute_timeout_seconds
+        self._handles: dict[str, AcpxWorkerHandle] = {}
+
+    def create(
+        self,
+        *,
+        session_id: str,
+        workspace: Path,
+    ) -> WorkerHandle:
+        handle = self._handles.get(session_id)
+        if handle is None:
+            handle = AcpxWorkerHandle(
+                session_id=session_id,
+                agent=self.agent,
+                model=self.model,
+                permissions=self.permissions,
+                executable=self.executable,
+                acpx_package=self.acpx_package,
+                absolute_timeout_seconds=self.absolute_timeout_seconds,
+            )
+            self._handles[session_id] = handle
+        return handle
+
+    def get(self, session_id: str) -> WorkerHandle | None:
+        return self._handles.get(session_id)
+
+    def close_all(self, workspace: Path) -> None:
+        for handle in list(self._handles.values()):
+            handle.close(workspace)
+        self._handles.clear()

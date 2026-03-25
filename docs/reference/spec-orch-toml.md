@@ -83,6 +83,10 @@ See `docs/guides/ai-config-guide.md` for per-language templates.
 | `permissions` | string | `"full-auto"` | (ACPX only) Permission mode: `full-auto`, `approve-reads`, etc. |
 | `acpx_package` | string | `"acpx"` | (ACPX only) npm package name |
 
+Notes:
+- Mission round-loop workers reuse ACPX sessions by `mission-<mission_id>-<packet_id>` when `[supervisor]` is enabled.
+- `session_name` on `[builder]` still applies to the single-issue builder path.
+
 ## [reviewer]
 
 | Key | Type | Default | Description |
@@ -104,6 +108,31 @@ See `docs/guides/ai-config-guide.md` for per-language templates.
 | `api_key_env` | string | — | Environment variable for planner API key |
 | `api_base_env` | string | — | Environment variable for planner API base URL |
 | `token_command` | string | — | Shell command to fetch API token dynamically |
+
+## [supervisor]
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `adapter` | string | — | Supervisor adapter. Currently `litellm` is supported. |
+| `model` | string | — | LLM model used for mission round review. |
+| `api_key_env` | string | — | Environment variable for supervisor API key. |
+| `api_base_env` | string | — | Environment variable for supervisor API base URL. |
+| `max_rounds` | int | `20` | Maximum execute-review-decide rounds before mission failure. |
+
+When `[supervisor]` is configured, mission execution uses the supervised round loop:
+
+```text
+dispatch workers -> collect artifacts -> supervisor review -> next action
+```
+
+Supervisor artifacts are written under:
+
+```text
+docs/specs/<mission_id>/rounds/round-XX/
+  round_summary.json
+  round_decision.json
+  supervisor_review.md
+```
 
 ## [github]
 
@@ -259,17 +288,22 @@ token_env = "SPEC_ORCH_LINEAR_TOKEN"
 team_key = "SON"
 
 [builder]
-adapter = "acpx"
-agent = "opencode"
-model = "minimax/MiniMax-M2.5"
+adapter = "acpx_codex"
+model = "gpt-5-codex"
 timeout_seconds = 900
-
-# Shortcut: adapter = "acpx_codex" is equivalent to adapter = "acpx" + agent = "codex"
 
 [reviewer]
 adapter = "llm"
 model = "openai/gpt-4o"
 
+[supervisor]
+adapter = "litellm"
+model = "openai/gpt-4o"
+api_key_env = "OPENAI_API_KEY"
+max_rounds = 12
+
 [daemon]
 max_concurrent = 1
 ```
+
+Shortcut note: `adapter = "acpx_codex"` is equivalent to `adapter = "acpx"` plus `agent = "codex"`.

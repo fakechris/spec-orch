@@ -18,6 +18,9 @@ from spec_orch.domain.models import (
     ParallelConfig,
     PlannerResult,
     ReviewSummary,
+    RoundArtifacts,
+    RoundDecision,
+    RoundSummary,
     SpecSnapshot,
     WaveResult,
     WorkPacket,
@@ -174,6 +177,74 @@ class WaveExecutor(Protocol):
         config: ParallelConfig,
         cancel_event: asyncio.Event,
     ) -> WaveResult: ...
+
+
+@runtime_checkable
+class WorkerHandle(Protocol):
+    """Persistent or one-shot coding worker used by supervised mission rounds."""
+
+    @property
+    def session_id(self) -> str:
+        """Unique identifier for this worker session."""
+        ...
+
+    def send(
+        self,
+        *,
+        prompt: str,
+        workspace: Path,
+        event_logger: Callable[[dict[str, Any]], None] | None = None,
+    ) -> BuilderResult:
+        """Send work to this worker and return a standard BuilderResult."""
+        ...
+
+    def cancel(self, workspace: Path) -> None:
+        """Cancel in-flight work for this session if supported."""
+        ...
+
+    def close(self, workspace: Path) -> None:
+        """Release resources associated with this worker handle."""
+        ...
+
+
+@runtime_checkable
+class SupervisorAdapter(Protocol):
+    """Reviews one round of mission execution and decides the next action."""
+
+    ADAPTER_NAME: str
+
+    def review_round(
+        self,
+        *,
+        round_artifacts: RoundArtifacts,
+        plan: ExecutionPlan,
+        round_history: list[RoundSummary],
+        context: Any | None = None,
+    ) -> RoundDecision:
+        """Produce a structured round decision from current artifacts and history."""
+        ...
+
+
+@runtime_checkable
+class WorkerHandleFactory(Protocol):
+    """Creates and manages worker handles for a mission."""
+
+    def create(
+        self,
+        *,
+        session_id: str,
+        workspace: Path,
+    ) -> WorkerHandle:
+        """Create or resume a worker session."""
+        ...
+
+    def get(self, session_id: str) -> WorkerHandle | None:
+        """Return an existing handle if one is available."""
+        ...
+
+    def close_all(self, workspace: Path) -> None:
+        """Close all active worker handles for this mission."""
+        ...
 
 
 @runtime_checkable

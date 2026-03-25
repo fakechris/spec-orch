@@ -50,10 +50,15 @@ test = ["{python}", "-m", "pytest", "-q"]
 build = ["{python}", "-c", "print('build ok')"]
 
 [builder]
-adapter = "acpx"
-agent = "opencode"
-model = "minimax/MiniMax-M2.5"
+adapter = "acpx_codex"
+model = "gpt-5-codex"
 timeout_seconds = 1800
+
+[supervisor]
+adapter = "litellm"
+model = "openai/gpt-4o"
+api_key_env = "OPENAI_API_KEY"
+max_rounds = 12
 ```
 
 验证配置：
@@ -61,10 +66,15 @@ timeout_seconds = 1800
 ```bash
 spec-orch config check
 # 期望输出:
-# [PASS] builder: adapter=acpx, agent=opencode, model=minimax/MiniMax-M2.5
+# [PASS] builder: adapter=acpx_codex, agent=codex, model=gpt-5-codex
 ```
 
 > 配置详情参见 [AI Config Guide](ai-config-guide.md)，包含各语言的模板。
+
+说明：
+- `[builder]` 控制单 issue builder 和 mission worker 的底层 agent
+- `[supervisor]` 控制 mission round review。未配置时 mission 仍走旧的 wave 一次性执行路径
+- mission round 产物写到 `docs/specs/<mission_id>/rounds/round-XX/`
 
 ---
 
@@ -105,6 +115,43 @@ c.update_issue_state('<UUID>', 'Ready')
 print('Done')
 "
 ```
+
+---
+
+## 2. 启动 Mission Round Loop
+
+如果你要跑的是带 `plan.json` 的 mission，而不是单 issue，一般流程是：
+
+```bash
+spec-orch daemon start
+```
+
+daemon 检测到 `docs/specs/<mission_id>/plan.json` 且 `[supervisor]` 已配置后，会自动进入：
+
+```text
+wave dispatch -> round review -> next action
+```
+
+ACPX worker session 会按 packet 复用，session id 形式为：
+
+```text
+mission-<mission_id>-<packet_id>
+```
+
+每轮结果可在这里查看：
+
+```text
+docs/specs/<mission_id>/rounds/round-01/
+docs/specs/<mission_id>/rounds/round-02/
+...
+```
+
+关键文件：
+- `round_summary.json`
+- `round_decision.json`
+- `supervisor_review.md`
+
+如果执行中需要注入补充上下文，可继续用 `/btw`。下一次 builder envelope 会自动读取 `.spec_orch_runs/<issue_id>/btw_context.md`。
 
 ---
 

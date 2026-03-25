@@ -69,6 +69,19 @@ NODE_CONTEXT_SPEC_REGISTRY: dict[str, NodeContextSpec] = {
         required_learning_fields=["similar_failure_samples"],
         max_tokens_budget=10000,
     ),
+    "supervisor": NodeContextSpec(
+        node_name="supervisor",
+        required_task_fields=["spec_snapshot_text", "constraints", "acceptance_criteria"],
+        required_execution_fields=[
+            "git_diff",
+            "verification_results",
+            "gate_report",
+            "builder_events_summary",
+            "review_summary",
+        ],
+        required_learning_fields=["similar_failure_samples"],
+        max_tokens_budget=9000,
+    ),
     # SON-179 group B
     "prompt_evolver": NodeContextSpec(
         node_name="prompt_evolver",

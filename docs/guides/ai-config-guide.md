@@ -91,6 +91,10 @@ Only applicable when `adapter = "acpx"` or `adapter = "acpx_<agent>"`:
 | `permissions` | string | `"full-auto"` | `full-auto`, `approve-reads` |
 | `acpx_package` | string | `"acpx"` | npm package name |
 
+Mission round-loop note:
+- when `[supervisor]` is enabled, mission workers use ACPX session ids like `mission-<mission_id>-<packet_id>`
+- this is separate from `[builder].session_name`, which still controls the single-issue builder path
+
 ---
 
 ## `[verification]` — Verification Commands
@@ -104,6 +108,20 @@ spec-orch falls back to Python defaults (ruff/mypy/pytest).
 | `typecheck` | list[string] | — | Type checking command |
 | `test` | list[string] | — | Test command |
 | `build` | list[string] | — | Build command |
+
+---
+
+## `[supervisor]` — Mission Round Review
+
+Enables the mission execute-review-decide loop. This is used by mission execution in the daemon path, not by the single-issue `spec-orch run` path.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `adapter` | string | — | `litellm` |
+| `model` | string | — | Model used for round review |
+| `api_key_env` | string | — | Environment variable for supervisor API key |
+| `api_base_env` | string | — | Environment variable for supervisor API base |
+| `max_rounds` | int | `20` | Maximum mission rounds before fail-fast |
 
 Steps that are **omitted** are treated as "not applicable" and automatically
 pass the gate check. This means a JavaScript project without TypeScript can
@@ -336,6 +354,7 @@ build = ["npx", "nx", "run-many", "--target=build"]
 5. `[verification]` steps are optional — omitted steps auto-pass the gate
 6. The `{python}` token only works in `[verification]` commands, not in `[builder]`
 7. `[planner] model` is required for AI-assisted planning (question answering, spec generation)
+8. `[supervisor] model` is required if you want daemon mission execution to use the supervised round loop
 
 ---
 
@@ -351,9 +370,8 @@ team_key = "SON"
 poll_interval_seconds = 30
 
 [builder]
-adapter = "acpx"
-agent = "opencode"
-model = "minimax/MiniMax-M2.5"
+adapter = "acpx_codex"
+model = "gpt-5-codex"
 timeout_seconds = 900
 
 [reviewer]
@@ -364,6 +382,12 @@ api_key_env = "OPENAI_API_KEY"
 [planner]
 model = "anthropic/claude-sonnet-4-20250514"
 api_key_env = "ANTHROPIC_API_KEY"
+
+[supervisor]
+adapter = "litellm"
+model = "openai/gpt-4o"
+api_key_env = "OPENAI_API_KEY"
+max_rounds = 12
 
 [verification]
 lint = ["{python}", "-m", "ruff", "check", "src/"]
