@@ -411,13 +411,16 @@ class AcpxBuilderAdapter:
 
     def _ensure_session(self, workspace: Path) -> None:
         """Ensure a named session exists (create if needed)."""
-        ensure_acpx_session(
-            workspace=workspace,
-            executable=self.executable,
-            acpx_package=self.acpx_package,
-            agent=self.agent,
-            session_name=self.session_name or "default",
-        )
+        try:
+            ensure_acpx_session(
+                workspace=workspace,
+                executable=self.executable,
+                acpx_package=self.acpx_package,
+                agent=self.agent,
+                session_name=self.session_name or "default",
+            )
+        except RuntimeError as exc:
+            logger.warning("ACPX session ensure degraded gracefully: %s", exc)
 
     def cancel_session(self, workspace: Path) -> None:
         """Cancel the current prompt in the named session."""

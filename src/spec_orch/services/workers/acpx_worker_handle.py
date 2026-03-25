@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import subprocess
 import threading
 from collections.abc import Callable
@@ -22,6 +23,8 @@ _WORKER_PREAMBLE = (
     "You are the SpecOrch mission worker for this workspace. "
     "Continue implementation directly and keep file paths relative to cwd."
 )
+
+logger = logging.getLogger(__name__)
 
 
 class AcpxWorkerHandle:
@@ -187,6 +190,8 @@ class AcpxWorkerHandle:
                 agent=self.agent,
                 session_name=self._session_id,
             )
+        except RuntimeError as exc:
+            logger.warning("ACPX worker cancel degraded gracefully: %s", exc)
         finally:
             self._session_ready = False
 
