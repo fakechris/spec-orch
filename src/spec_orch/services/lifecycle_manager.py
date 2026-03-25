@@ -443,6 +443,9 @@ class MissionLifecycleManager:
                 timestamp = datetime.now(UTC).isoformat()
                 with open(btw_path, "a") as f:
                     f.write(f"\n## /btw [{channel}] {timestamp}\n\n{message}\n")
+                if state.round_orchestrator_state.get("paused"):
+                    state.round_orchestrator_state = {}
+                    self._save_state()
                 self._bus.emit_btw(issue_id, message, channel)
                 logger.info(
                     "BTW injected for %s from %s: %s",

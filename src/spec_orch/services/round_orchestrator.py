@@ -71,6 +71,7 @@ class RoundOrchestrator:
         initial_round: int = 0,
     ) -> RoundOrchestratorResult:
         round_history = self._load_history(mission_id, up_to_round=initial_round)
+        plan = self._replay_plan_patches(plan, round_history)
         current_wave_idx = self._determine_start_wave(plan, round_history)
         round_id = initial_round
 
@@ -239,6 +240,23 @@ class RoundOrchestrator:
             if summary.round_id <= up_to_round:
                 history.append(summary)
         return history
+
+    def _replay_plan_patches(
+        self,
+        plan: ExecutionPlan,
+        round_history: list[RoundSummary],
+    ) -> ExecutionPlan:
+        updated_plan = plan
+        for summary in round_history:
+            decision = summary.decision
+            if decision is None or decision.plan_patch is None:
+                continue
+            updated_plan = self._apply_plan_patch(
+                updated_plan,
+                current_wave_idx=summary.wave_id,
+                patch=decision.plan_patch,
+            )
+        return updated_plan
 
     @staticmethod
     def _determine_start_wave(plan: ExecutionPlan, round_history: list[RoundSummary]) -> int:

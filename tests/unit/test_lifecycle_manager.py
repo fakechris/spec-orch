@@ -166,6 +166,25 @@ class TestLifecycleManager:
         content = btw_path.read_text()
         assert "handle binary frames" in content
 
+    def test_btw_injection_clears_paused_round_state(
+        self, mgr: MissionLifecycleManager, repo: Path
+    ):
+        mgr.begin_tracking("m1")
+        mgr.promotion_complete("m1", ["SON-1", "SON-2"])
+        state = mgr.get_state("m1")
+        assert state is not None
+        state.round_orchestrator_state = {
+            "paused": True,
+            "blocking_questions": ["Need a human answer."],
+        }
+
+        result = mgr.inject_btw("SON-1", "resume with clarified constraints", "tui")
+
+        assert result is True
+        refreshed = mgr.get_state("m1")
+        assert refreshed is not None
+        assert refreshed.round_orchestrator_state == {}
+
     def test_btw_injection_unknown_issue(self, mgr: MissionLifecycleManager):
         result = mgr.inject_btw("UNKNOWN", "msg", "tui")
         assert result is False

@@ -379,3 +379,88 @@ def test_run_supervised_replans_remaining_packets(tmp_path: Path) -> None:
         "Do task 1",
         "Retarget remaining work.\n\nUpdated packet brief:\nDo task 1 again, but differently",
     ]
+
+
+def test_run_supervised_replays_plan_patch_on_resume(tmp_path: Path) -> None:
+    from spec_orch.services.io import atomic_write_json
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def __init__(self) -> None:
+            self.prompts: list[str] = []
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            self.prompts.append(issue.builder_prompt or "")
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            return RoundDecision(action=RoundAction.STOP, summary="Stop after resume.")
+
+    class StubAssembler:
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            return {}
+
+    rounds_dir = tmp_path / "docs" / "specs" / "mission-1" / "rounds" / "round-01"
+    rounds_dir.mkdir(parents=True)
+    atomic_write_json(
+        rounds_dir / "round_summary.json",
+        RoundSummary(
+            round_id=1,
+            wave_id=0,
+            status=RoundStatus.DECIDED,
+            decision=RoundDecision(
+                action=RoundAction.REPLAN_REMAINING,
+                summary="Replan current wave.",
+                plan_patch=PlanPatch(
+                    modified_packets={
+                        "pkt-1": {"builder_prompt": "Do task 1 with replayed plan patch"}
+                    }
+                ),
+            ),
+        ).to_dict(),
+    )
+
+    builder = StubBuilderAdapter()
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=builder,
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=factory,
+        context_assembler=StubAssembler(),
+    )
+
+    result = orchestrator.run_supervised(
+        mission_id="mission-1",
+        plan=_make_plan(),
+        initial_round=1,
+    )
+
+    assert result.completed is True
+    assert [round_.round_id for round_ in result.rounds] == [1, 2]
+    assert [round_.wave_id for round_ in result.rounds] == [0, 0]
+    assert builder.prompts == ["Do task 1 with replayed plan patch"]
