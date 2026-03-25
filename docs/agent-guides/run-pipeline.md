@@ -40,6 +40,25 @@ docs/specs/<mission_id>/rounds/round-XX/
 - `round_decision.json` — supervisor 的结构化决策
 - `supervisor_review.md` — 本轮富文本复盘
 
+每个 packet worker 还有独立 workspace：
+
+```text
+docs/specs/<mission_id>/workers/<packet_id>/
+  builder_report.json
+  telemetry/
+    incoming_events.jsonl
+    events.jsonl
+    activity.log
+```
+
+可直接查看：
+
+```bash
+spec-orch mission logs <mission_id> <packet_id>
+spec-orch mission logs <mission_id> <packet_id> --raw
+spec-orch mission logs <mission_id> <packet_id> --events
+```
+
 ## Spec 管理
 
 ```bash

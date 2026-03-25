@@ -13,6 +13,7 @@ spec-orch dashboard --port 8080  # 自定义端口
 
 ```bash
 spec-orch daemon start     # 前台启动，轮询 Linear
+spec-orch daemon start --live-mission-workers  # 前台实时展示 mission worker 事件
 spec-orch daemon health    # 检查 heartbeat
 spec-orch daemon dlq       # 查看死信队列
 ```
@@ -20,6 +21,8 @@ spec-orch daemon dlq       # 查看死信队列
 需要 `SPEC_ORCH_LINEAR_TOKEN` 和 `SPEC_ORCH_LLM_API_KEY`。
 
 如果要启用 mission round supervisor，还需要在 `spec-orch.toml` 中配置 `[supervisor]`，并提供对应模型的 API key。
+
+如果要调试 supervised mission，建议前台启动 daemon 并加 `--live-mission-workers`。这样 packet worker 的 activity log 会实时打印到 stderr，同时仍然落盘到各自 workspace。
 
 ## 关键点
 

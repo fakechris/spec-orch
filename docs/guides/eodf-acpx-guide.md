@@ -123,7 +123,7 @@ print('Done')
 如果你要跑的是带 `plan.json` 的 mission，而不是单 issue，一般流程是：
 
 ```bash
-spec-orch daemon start
+spec-orch daemon start --live-mission-workers
 ```
 
 daemon 检测到 `docs/specs/<mission_id>/plan.json` 且 `[supervisor]` 已配置后，会自动进入：
@@ -150,6 +150,25 @@ docs/specs/<mission_id>/rounds/round-02/
 - `round_summary.json`
 - `round_decision.json`
 - `supervisor_review.md`
+
+每个 packet worker 的详细日志位于：
+
+```text
+docs/specs/<mission_id>/workers/<packet_id>/
+  builder_report.json
+  telemetry/
+    incoming_events.jsonl
+    events.jsonl
+    activity.log
+```
+
+查看方式：
+
+```bash
+spec-orch mission logs <mission_id> <packet_id>
+spec-orch mission logs <mission_id> <packet_id> --raw
+spec-orch mission logs <mission_id> <packet_id> --events
+```
 
 如果执行中需要注入补充上下文，可继续用 `/btw`。下一次 builder envelope 会自动读取 `.spec_orch_runs/<issue_id>/btw_context.md`。
 

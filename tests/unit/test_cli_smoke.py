@@ -544,6 +544,106 @@ def test_logs_command_events_mode(tmp_path) -> None:
     assert "run_started" in result.stdout or "event_type" in result.stdout
 
 
+def test_mission_logs_command_shows_activity_log(tmp_path) -> None:
+    runner = CliRunner()
+    telemetry_dir = tmp_path / "docs/specs/mission-1/workers/pkt-1/telemetry"
+    telemetry_dir.mkdir(parents=True)
+    (telemetry_dir / "activity.log").write_text("BUILDER worker applied patch\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["mission", "logs", "mission-1", "pkt-1", "--repo-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "BUILDER" in result.stdout
+
+
+def test_mission_logs_command_supports_raw_and_events(tmp_path) -> None:
+    runner = CliRunner()
+    telemetry_dir = tmp_path / "docs/specs/mission-1/workers/pkt-1/telemetry"
+    telemetry_dir.mkdir(parents=True)
+    (telemetry_dir / "incoming_events.jsonl").write_text(
+        '{"type":"item.completed","item":{"type":"agent_message","text":"done"}}\n',
+        encoding="utf-8",
+    )
+    (telemetry_dir / "events.jsonl").write_text(
+        '{"event_type":"item.completed","message":"done"}\n',
+        encoding="utf-8",
+    )
+
+    raw_result = runner.invoke(
+        app,
+        ["mission", "logs", "mission-1", "pkt-1", "--repo-root", str(tmp_path), "--raw"],
+    )
+    events_result = runner.invoke(
+        app,
+        ["mission", "logs", "mission-1", "pkt-1", "--repo-root", str(tmp_path), "--events"],
+    )
+
+    assert raw_result.exit_code == 0
+    assert '"type":"item.completed"' in raw_result.stdout
+    assert events_result.exit_code == 0
+    assert '"event_type":"item.completed"' in events_result.stdout
+
+
+def test_mission_logs_command_reports_missing_log(tmp_path) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        ["mission", "logs", "mission-1", "pkt-404", "--repo-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 1
+    assert "no activity log found" in result.stdout
+
+
+def test_daemon_start_accepts_live_mission_workers_flag(tmp_path) -> None:
+    runner = CliRunner()
+    config_path = tmp_path / "spec-orch.toml"
+    config_path.write_text("", encoding="utf-8")
+
+    class StubConfig:
+        pass
+
+    stub_cfg = StubConfig()
+
+    captured: dict[str, object] = {}
+
+    class StubDaemon:
+        def __init__(self, *, config, repo_root, live_mission_workers=False) -> None:
+            captured["config"] = config
+            captured["repo_root"] = repo_root
+            captured["live_mission_workers"] = live_mission_workers
+
+        def run(self) -> None:
+            captured["ran"] = True
+
+    with (
+        patch("spec_orch.services.daemon.DaemonConfig.from_toml", return_value=stub_cfg),
+        patch("spec_orch.services.daemon.SpecOrchDaemon", StubDaemon),
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "daemon",
+                "start",
+                "--config",
+                str(config_path),
+                "--repo-root",
+                str(tmp_path),
+                "--live-mission-workers",
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert captured["config"] is stub_cfg
+    assert captured["repo_root"] == tmp_path.resolve()
+    assert captured["live_mission_workers"] is True
+    assert captured["ran"] is True
+
+
 def test_run_issue_with_live_flag(tmp_path) -> None:
     fixtures_dir = tmp_path / "fixtures" / "issues"
     fixtures_dir.mkdir(parents=True)

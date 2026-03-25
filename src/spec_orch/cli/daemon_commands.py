@@ -18,6 +18,11 @@ def daemon_start(
         "spec-orch.toml", "--config", "-c", help="Path to spec-orch.toml config file."
     ),
     repo_root: Path = typer.Option(".", "--repo-root", "-r", help="Repository root."),
+    live_mission_workers: bool = typer.Option(
+        False,
+        "--live-mission-workers",
+        help="Stream supervised mission worker events to stderr in foreground mode.",
+    ),
 ) -> None:
     """Start the SpecOrch daemon (foreground)."""
     import tomllib
@@ -26,7 +31,11 @@ def daemon_start(
 
     try:
         cfg = DaemonConfig.from_toml(config)
-        d = SpecOrchDaemon(config=cfg, repo_root=repo_root.resolve())
+        d = SpecOrchDaemon(
+            config=cfg,
+            repo_root=repo_root.resolve(),
+            live_mission_workers=live_mission_workers,
+        )
         d.run()
     except FileNotFoundError:
         typer.echo(f"Config file not found: {config}")

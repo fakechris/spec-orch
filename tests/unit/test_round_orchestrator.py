@@ -232,6 +232,85 @@ def test_run_supervised_retries_same_wave_when_decision_is_retry(tmp_path: Path)
     assert result.rounds[-1].decision.action is RoundAction.STOP
 
 
+def test_run_supervised_writes_packet_telemetry_and_activity_log(tmp_path: Path) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            assert event_logger is not None
+            event_logger(
+                {
+                    "event_type": "item.completed",
+                    "message": "worker applied patch",
+                    "component": "builder",
+                    "adapter": "stub",
+                    "agent": "stub",
+                    "data": {
+                        "type": "item.completed",
+                        "item": {"type": "agent_message", "text": "worker applied patch"},
+                    },
+                }
+            )
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            return RoundDecision(action=RoundAction.STOP, summary="Stop after one round.")
+
+    class StubAssembler:
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            return {}
+
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=StubBuilderAdapter(),
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=factory,
+        context_assembler=StubAssembler(),
+    )
+
+    result = orchestrator.run_supervised(mission_id="mission-1", plan=_make_plan())
+
+    assert result.completed is True
+    packet_workspace = tmp_path / "docs/specs/mission-1/workers/pkt-1"
+    telemetry_dir = packet_workspace / "telemetry"
+    events_path = telemetry_dir / "events.jsonl"
+    activity_log_path = telemetry_dir / "activity.log"
+    assert events_path.exists()
+    assert activity_log_path.exists()
+    events = [line for line in events_path.read_text(encoding="utf-8").splitlines() if line]
+    assert len(events) >= 3
+    assert any("mission_packet_started" in line for line in events)
+    assert any("item.completed" in line for line in events)
+    assert any("mission_packet_completed" in line for line in events)
+    activity_text = activity_log_path.read_text(encoding="utf-8")
+    assert "worker applied patch" in activity_text
+
+
 def test_run_supervised_resumes_from_persisted_history(tmp_path: Path) -> None:
     from spec_orch.services.io import atomic_write_json
     from spec_orch.services.round_orchestrator import RoundOrchestrator
