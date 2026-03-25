@@ -12,6 +12,7 @@ from spec_orch.domain.models import (
     BuilderResult,
     ExecutionPlan,
     Issue,
+    IssueContext,
     PlanPatch,
     RoundAction,
     RoundArtifacts,
@@ -185,9 +186,19 @@ class RoundOrchestrator:
             handle = self.worker_factory.get(session_id)
             if handle is None:
                 handle = self.worker_factory.create(session_id=session_id, workspace=workspace)
-                prompt = self._build_initial_prompt(packet)
+                prompt = self._build_worker_prompt(
+                    mission_id=mission_id,
+                    packet=packet,
+                    workspace=workspace,
+                    decision=None,
+                )
             else:
-                prompt = self._build_followup_prompt(packet, last_decision)
+                prompt = self._build_worker_prompt(
+                    mission_id=mission_id,
+                    packet=packet,
+                    workspace=workspace,
+                    decision=last_decision,
+                )
 
             result = handle.send(prompt=prompt, workspace=workspace)
             results.append((packet, result))
@@ -383,6 +394,39 @@ class RoundOrchestrator:
         if not decision.summary:
             return self._build_initial_prompt(packet)
         return f"{decision.summary}\n\nContinue work on packet: {packet.title}"
+
+    def _build_worker_prompt(
+        self,
+        *,
+        mission_id: str,
+        packet: WorkPacket,
+        workspace: Path,
+        decision: RoundDecision | None,
+    ) -> str:
+        from spec_orch.services.run_controller import RunController
+
+        if decision is None:
+            base_prompt = self._build_initial_prompt(packet)
+        else:
+            base_prompt = self._build_followup_prompt(packet, decision)
+
+        issue = Issue(
+            issue_id=packet.packet_id,
+            title=packet.title,
+            summary=base_prompt,
+            builder_prompt=base_prompt,
+            verification_commands=dict(packet.verification_commands),
+            context=IssueContext(files_to_read=list(packet.files_in_scope)),
+            acceptance_criteria=list(packet.acceptance_criteria),
+            mission_id=mission_id,
+            spec_section=packet.spec_section or None,
+            run_class=packet.run_class,
+        )
+        return RunController._render_builder_envelope(
+            issue,
+            workspace,
+            repo_root=self.repo_root,
+        )
 
     def _serialize_result(self, packet: WorkPacket, result: BuilderResult) -> dict[str, Any]:
         return {
