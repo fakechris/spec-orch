@@ -230,6 +230,8 @@ class MissionLifecycleManager:
         if state.phase == MissionPhase.PLANNED:
             return self._do_promote(mission_id)
         if state.phase == MissionPhase.EXECUTING:
+            if state.round_orchestrator_state.get("paused"):
+                return state
             return self._do_execute(mission_id)
         if state.phase == MissionPhase.ALL_DONE:
             return self._do_retro_and_evolve(mission_id)
@@ -262,6 +264,8 @@ class MissionLifecycleManager:
         state = self._states[mission_id]
         if self._round_orchestrator is None:
             return state
+        if state.round_orchestrator_state.get("paused"):
+            return state
 
         from spec_orch.services.parallel_run_controller import ParallelRunController
 
@@ -272,9 +276,16 @@ class MissionLifecycleManager:
                 plan=plan,
                 initial_round=state.current_round,
             )
-            state.current_round = len(result.rounds)
+            if result.rounds:
+                state.current_round = result.rounds[-1].round_id
             if result.paused:
-                state.round_orchestrator_state = {"paused": True}
+                blocking_questions: list[str] = []
+                if result.last_decision is not None:
+                    blocking_questions = list(result.last_decision.blocking_questions)
+                state.round_orchestrator_state = {
+                    "paused": True,
+                    "blocking_questions": blocking_questions,
+                }
                 self._save_state()
                 return state
             state.round_orchestrator_state = {}

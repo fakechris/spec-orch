@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
@@ -131,7 +132,7 @@ class LiteLLMSupervisorAdapter:
                 "worker_session_ids": round_artifacts.worker_session_ids,
             },
             "round_history": [summary.to_dict() for summary in round_history],
-            "context": context,
+            "context": self._serialize_value(context),
         }
         return json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -171,6 +172,25 @@ class LiteLLMSupervisorAdapter:
                 if isinstance(content, str):
                     return content
         raise ValueError("Unsupported chat completion response format")
+
+    @staticmethod
+    def _serialize_value(value: Any) -> Any:
+        if value is None:
+            return None
+        if is_dataclass(value) and not isinstance(value, type):
+            return asdict(value)
+        if isinstance(value, dict):
+            return {
+                str(key): LiteLLMSupervisorAdapter._serialize_value(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [LiteLLMSupervisorAdapter._serialize_value(item) for item in value]
+        if isinstance(value, tuple):
+            return [LiteLLMSupervisorAdapter._serialize_value(item) for item in value]
+        if isinstance(value, (str, int, float, bool)):
+            return value
+        return str(value)
 
     def _round_dir(self, mission_id: str, round_id: int) -> Path:
         return self.repo_root / "docs" / "specs" / mission_id / "rounds" / f"round-{round_id:02d}"

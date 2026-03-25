@@ -51,6 +51,14 @@ class AcpxWorkerHandleFactory:
         return self._handles.get(session_id)
 
     def close_all(self, workspace: Path) -> None:
+        errors: list[Exception] = []
         for handle in list(self._handles.values()):
-            handle.close(workspace)
+            try:
+                handle.close(workspace)
+            except Exception as exc:
+                errors.append(exc)
         self._handles.clear()
+        if errors:
+            raise RuntimeError(
+                f"Failed to close {len(errors)} ACPX worker handle(s): {errors[0]}"
+            ) from errors[0]

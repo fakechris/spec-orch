@@ -109,20 +109,6 @@ spec-orch falls back to Python defaults (ruff/mypy/pytest).
 | `test` | list[string] | — | Test command |
 | `build` | list[string] | — | Build command |
 
----
-
-## `[supervisor]` — Mission Round Review
-
-Enables the mission execute-review-decide loop. This is used by mission execution in the daemon path, not by the single-issue `spec-orch run` path.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `adapter` | string | — | `litellm` |
-| `model` | string | — | Model used for round review |
-| `api_key_env` | string | — | Environment variable for supervisor API key |
-| `api_base_env` | string | — | Environment variable for supervisor API base |
-| `max_rounds` | int | `20` | Maximum mission rounds before fail-fast |
-
 Steps that are **omitted** are treated as "not applicable" and automatically
 pass the gate check. This means a JavaScript project without TypeScript can
 simply omit `typecheck`.
@@ -143,6 +129,20 @@ For non-Python projects, use direct commands:
 [verification]
 lint = ["npm", "run", "lint"]
 ```
+
+---
+
+## `[supervisor]` — Mission Round Review
+
+Enables the mission execute-review-decide loop. This is used by mission execution in the daemon path, not by the single-issue `spec-orch run` path.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `adapter` | string | — | `litellm` |
+| `model` | string | — | Model used for round review |
+| `api_key_env` | string | — | Environment variable for supervisor API key |
+| `api_base_env` | string | — | Environment variable for supervisor API base |
+| `max_rounds` | int | `20` | Maximum mission rounds before fail-fast |
 
 ---
 

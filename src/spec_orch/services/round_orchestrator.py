@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import json
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from spec_orch.domain.models import (
     BuilderResult,
     ExecutionPlan,
     Issue,
+    PlanPatch,
     RoundAction,
     RoundArtifacts,
     RoundDecision,
@@ -68,8 +70,8 @@ class RoundOrchestrator:
         plan: ExecutionPlan,
         initial_round: int = 0,
     ) -> RoundOrchestratorResult:
-        round_history: list[RoundSummary] = []
-        current_wave_idx = 0
+        round_history = self._load_history(mission_id, up_to_round=initial_round)
+        current_wave_idx = self._determine_start_wave(plan, round_history)
         round_id = initial_round
 
         while round_id < self.max_rounds and current_wave_idx < len(plan.waves):
@@ -83,11 +85,19 @@ class RoundOrchestrator:
                 wave_id=current_wave_idx,
                 status=RoundStatus.EXECUTING,
             )
-            worker_results = self._dispatch_wave(
-                mission_id=mission_id,
-                wave=wave,
-                round_history=round_history,
-            )
+            try:
+                worker_results = self._dispatch_wave(
+                    mission_id=mission_id,
+                    wave=wave,
+                    round_history=round_history,
+                )
+            except Exception as exc:
+                summary.status = RoundStatus.FAILED
+                summary.completed_at = datetime.now(UTC).isoformat()
+                summary.worker_results = [{"error": str(exc), "wave_id": current_wave_idx}]
+                self._persist_round(round_dir, summary)
+                round_history.append(summary)
+                return RoundOrchestratorResult(completed=False, rounds=round_history)
             summary.worker_results = [
                 self._serialize_result(packet, result) for packet, result in worker_results
             ]
@@ -130,6 +140,14 @@ class RoundOrchestrator:
                     return RoundOrchestratorResult(completed=True, rounds=round_history)
                 continue
             if decision.action is RoundAction.RETRY:
+                continue
+            if decision.action is RoundAction.REPLAN_REMAINING:
+                if decision.plan_patch is not None:
+                    plan = self._apply_plan_patch(
+                        plan,
+                        current_wave_idx=current_wave_idx,
+                        patch=decision.plan_patch,
+                    )
                 continue
             if decision.action is RoundAction.ASK_HUMAN:
                 self._emit_round_paused(mission_id, round_id, decision)
@@ -200,6 +218,105 @@ class RoundOrchestrator:
             ],
         )
 
+    def _load_history(self, mission_id: str, *, up_to_round: int) -> list[RoundSummary]:
+        if up_to_round <= 0:
+            return []
+        rounds_dir = self._mission_dir(mission_id) / "rounds"
+        if not rounds_dir.exists():
+            return []
+
+        history: list[RoundSummary] = []
+        for round_dir in sorted(rounds_dir.glob("round-*")):
+            summary_path = round_dir / "round_summary.json"
+            if not summary_path.exists():
+                continue
+            try:
+                summary = RoundSummary.from_dict(
+                    json.loads(summary_path.read_text(encoding="utf-8"))
+                )
+            except Exception:
+                continue
+            if summary.round_id <= up_to_round:
+                history.append(summary)
+        return history
+
+    @staticmethod
+    def _determine_start_wave(plan: ExecutionPlan, round_history: list[RoundSummary]) -> int:
+        if not round_history:
+            return 0
+        last_round = round_history[-1]
+        last_action = last_round.decision.action if last_round.decision else None
+        if last_action is RoundAction.CONTINUE:
+            return min(last_round.wave_id + 1, len(plan.waves))
+        return min(last_round.wave_id, max(len(plan.waves) - 1, 0))
+
+    def _apply_plan_patch(
+        self,
+        plan: ExecutionPlan,
+        *,
+        current_wave_idx: int,
+        patch: PlanPatch,
+    ) -> ExecutionPlan:
+        updated_waves = list(plan.waves)
+        for wave_idx in range(current_wave_idx, len(updated_waves)):
+            wave = updated_waves[wave_idx]
+            packets: list[WorkPacket] = []
+            for packet in wave.work_packets:
+                if packet.packet_id in patch.removed_packet_ids:
+                    continue
+                patch_data = patch.modified_packets.get(packet.packet_id)
+                if patch_data:
+                    packet = replace(
+                        packet,
+                        title=patch_data.get("title", packet.title),
+                        spec_section=patch_data.get("spec_section", packet.spec_section),
+                        run_class=patch_data.get("run_class", packet.run_class),
+                        files_in_scope=patch_data.get("files_in_scope", packet.files_in_scope),
+                        files_out_of_scope=patch_data.get(
+                            "files_out_of_scope", packet.files_out_of_scope
+                        ),
+                        depends_on=patch_data.get("depends_on", packet.depends_on),
+                        acceptance_criteria=patch_data.get(
+                            "acceptance_criteria", packet.acceptance_criteria
+                        ),
+                        verification_commands=patch_data.get(
+                            "verification_commands", packet.verification_commands
+                        ),
+                        builder_prompt=patch_data.get("builder_prompt", packet.builder_prompt),
+                    )
+                packets.append(packet)
+            updated_waves[wave_idx] = replace(wave, work_packets=packets)
+
+        if patch.added_packets:
+            target_wave_idx = min(current_wave_idx, len(updated_waves) - 1)
+            if target_wave_idx >= 0:
+                target_wave = updated_waves[target_wave_idx]
+                added_packets = [
+                    self._packet_from_patch(packet_data) for packet_data in patch.added_packets
+                ]
+                updated_waves[target_wave_idx] = replace(
+                    target_wave,
+                    work_packets=[*target_wave.work_packets, *added_packets],
+                )
+
+        return replace(plan, waves=updated_waves)
+
+    @staticmethod
+    def _packet_from_patch(packet_data: dict[str, Any]) -> WorkPacket:
+        return WorkPacket(
+            packet_id=str(packet_data["packet_id"]),
+            title=packet_data.get("title", str(packet_data["packet_id"])),
+            spec_section=packet_data.get("spec_section", ""),
+            run_class=packet_data.get("run_class", "feature"),
+            files_in_scope=packet_data.get("files_in_scope", []),
+            files_out_of_scope=packet_data.get("files_out_of_scope", []),
+            depends_on=packet_data.get("depends_on", []),
+            acceptance_criteria=packet_data.get("acceptance_criteria", []),
+            verification_commands=packet_data.get("verification_commands", {}),
+            builder_prompt=packet_data.get("builder_prompt", ""),
+            linear_issue_id=packet_data.get("linear_issue_id"),
+        )
+
     def _persist_round(self, round_dir: Path, summary: RoundSummary) -> None:
         atomic_write_json(round_dir / "round_summary.json", summary.to_dict())
         if summary.decision is not None:
@@ -239,7 +356,13 @@ class RoundOrchestrator:
         packet: WorkPacket,
         decision: RoundDecision | None,
     ) -> str:
-        if decision is None or not decision.summary:
+        if decision is None:
+            return self._build_initial_prompt(packet)
+        if packet.builder_prompt:
+            if decision.summary:
+                return f"{decision.summary}\n\nUpdated packet brief:\n{packet.builder_prompt}"
+            return packet.builder_prompt
+        if not decision.summary:
             return self._build_initial_prompt(packet)
         return f"{decision.summary}\n\nContinue work on packet: {packet.title}"
 

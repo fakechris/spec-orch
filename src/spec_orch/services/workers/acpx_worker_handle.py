@@ -59,13 +59,24 @@ class AcpxWorkerHandle:
         event_logger: Callable[[dict[str, Any]], None] | None = None,
     ) -> BuilderResult:
         if not self._session_ready:
-            ensure_acpx_session(
-                workspace=workspace,
-                executable=self.executable,
-                acpx_package=self.acpx_package,
-                agent=self.agent,
-                session_name=self._session_id,
-            )
+            try:
+                ensure_acpx_session(
+                    workspace=workspace,
+                    executable=self.executable,
+                    acpx_package=self.acpx_package,
+                    agent=self.agent,
+                    session_name=self._session_id,
+                )
+            except RuntimeError as exc:
+                return BuilderResult(
+                    succeeded=False,
+                    command=[],
+                    stdout="",
+                    stderr=str(exc),
+                    report_path=workspace / "builder_report.json",
+                    adapter="acpx_worker",
+                    agent=self.agent,
+                )
             self._session_ready = True
 
         full_prompt = f"{_WORKER_PREAMBLE}\n\n{prompt}"
@@ -168,13 +179,17 @@ class AcpxWorkerHandle:
         )
 
     def cancel(self, workspace: Path) -> None:
-        cancel_acpx_session(
-            workspace=workspace,
-            executable=self.executable,
-            acpx_package=self.acpx_package,
-            agent=self.agent,
-            session_name=self._session_id,
-        )
+        try:
+            cancel_acpx_session(
+                workspace=workspace,
+                executable=self.executable,
+                acpx_package=self.acpx_package,
+                agent=self.agent,
+                session_name=self._session_id,
+            )
+        finally:
+            self._session_ready = False
 
     def close(self, workspace: Path) -> None:
+        self._session_ready = False
         return None

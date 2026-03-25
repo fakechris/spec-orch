@@ -462,6 +462,8 @@ class TestAdapterFactory:
 class TestSessionManagement:
     @patch("spec_orch.services.acpx_builder_adapter.subprocess.run")
     def test_ensure_session(self, mock_run: MagicMock) -> None:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stderr = ""
         adapter = AcpxBuilderAdapter(session_name="test-session")
         adapter._ensure_session(Path("/fake"))
         mock_run.assert_called_once()
@@ -471,6 +473,8 @@ class TestSessionManagement:
 
     @patch("spec_orch.services.acpx_builder_adapter.subprocess.run")
     def test_cancel_session(self, mock_run: MagicMock) -> None:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stderr = ""
         adapter = AcpxBuilderAdapter(session_name="test-session")
         adapter.cancel_session(Path("/fake"))
         mock_run.assert_called_once()

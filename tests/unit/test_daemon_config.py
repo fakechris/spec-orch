@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from spec_orch.services.daemon import DaemonConfig
+from spec_orch.services.round_orchestrator import RoundOrchestrator
 
 
 class TestDaemonConfig:
@@ -27,7 +28,7 @@ class TestDaemonConfig:
         cfg = DaemonConfig({})
         assert cfg.supervisor_adapter is None
         assert cfg.supervisor_model is None
-        assert cfg.supervisor_max_rounds == 20
+        assert cfg.supervisor_max_rounds == RoundOrchestrator.DEFAULT_MAX_ROUNDS
 
     def test_supervisor_custom_values(self) -> None:
         cfg = DaemonConfig(

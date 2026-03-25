@@ -289,10 +289,9 @@ class SpecOrchDaemon:
             api_base = os.environ.get(self.config.supervisor_api_base_env)
 
         if self.config.supervisor_adapter not in (None, "litellm"):
-            raise ValueError(
-                f"Unsupported supervisor adapter: {self.config.supervisor_adapter!r}"
-            )
+            raise ValueError(f"Unsupported supervisor adapter: {self.config.supervisor_adapter!r}")
 
+        from spec_orch.domain.protocols import WorkerHandleFactory
         from spec_orch.services.litellm_supervisor_adapter import LiteLLMSupervisorAdapter
         from spec_orch.services.round_orchestrator import RoundOrchestrator
         from spec_orch.services.workers.acpx_worker_handle_factory import AcpxWorkerHandleFactory
@@ -310,6 +309,7 @@ class SpecOrchDaemon:
 
         builder_cfg = self.config._raw.get("builder", {})
         adapter_name = builder_cfg.get("adapter", "codex_exec")
+        worker_factory: WorkerHandleFactory
         if adapter_name == "acpx" or str(adapter_name).startswith("acpx_"):
             agent = builder_cfg.get("agent")
             if not agent and str(adapter_name).startswith("acpx_"):
@@ -589,6 +589,19 @@ class SpecOrchDaemon:
                         f"- Round {round_summary.round_id} / Wave {round_summary.wave_id}: {action}"
                     )
                 summary = "\n".join(summary_lines)
+                if round_result.paused:
+                    self._event_bus.emit_issue_state(issue_id, "paused", mergeable=False)
+                    print(f"[daemon] {issue_id}: mission paused for human input")
+                    if linear_uid:
+                        try:
+                            client.add_comment(
+                                linear_uid,
+                                "Mission execution paused. Review the latest "
+                                "`round_decision.json` and `supervisor_review.md` before resuming.",
+                            )
+                        except Exception as exc:
+                            print(f"[daemon] pause comment failed: {exc}")
+                    return
             else:
                 prc = ParallelRunController(
                     repo_root=self.repo_root,

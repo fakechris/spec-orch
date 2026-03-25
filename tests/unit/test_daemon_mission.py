@@ -198,3 +198,43 @@ def test_execute_mission_uses_round_orchestrator_when_configured(tmp_path: Path)
     stub_orchestrator.run_supervised.assert_called_once()
     client.update_issue_state.assert_called_with("uid-41", "In Review")
     assert "SPC-41" in daemon._processed
+
+
+def test_execute_mission_leaves_issue_paused_when_rounds_pause(tmp_path: Path) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestratorResult
+
+    cfg = DaemonConfig(
+        {
+            "daemon": {"lockfile_dir": str(tmp_path / "locks")},
+            "supervisor": {"adapter": "litellm", "model": "openai/gpt-4o"},
+        }
+    )
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon._readiness_checker = ReadinessChecker()
+
+    _make_plan_json(tmp_path, "SPC-42")
+    client = MagicMock()
+
+    stub_orchestrator = MagicMock()
+    stub_orchestrator.run_supervised.return_value = RoundOrchestratorResult(
+        completed=False,
+        paused=True,
+        rounds=[
+            RoundSummary(
+                round_id=1,
+                wave_id=0,
+                status=RoundStatus.DECIDED,
+                decision=RoundDecision(
+                    action=RoundAction.ASK_HUMAN,
+                    summary="Need approval before continuing.",
+                    blocking_questions=["Approve migration direction?"],
+                ),
+            )
+        ],
+    )
+    daemon._round_orchestrator = stub_orchestrator
+
+    daemon._execute_mission("SPC-42", "SPC-42", {"id": "uid-42"}, client)
+
+    client.update_issue_state.assert_not_called()
+    assert "SPC-42" not in daemon._processed

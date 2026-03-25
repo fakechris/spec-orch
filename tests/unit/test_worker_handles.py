@@ -70,6 +70,35 @@ def test_in_memory_factory_reuses_session_id_handle(tmp_path: Path) -> None:
     assert handle2 is handle1
 
 
+def test_one_shot_worker_handle_raises_after_close(tmp_path: Path) -> None:
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub-agent"
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter=self.ADAPTER_NAME,
+                agent=self.AGENT_NAME,
+            )
+
+    handle = OneShotWorkerHandle(session_id="worker-1", builder_adapter=StubBuilderAdapter())
+    handle.close(tmp_path)
+
+    try:
+        handle.send(prompt="should fail", workspace=tmp_path)
+    except RuntimeError as exc:
+        assert "closed" in str(exc)
+    else:
+        raise AssertionError("expected closed worker handle to raise")
+
+
 def test_factory_close_all_closes_every_handle(tmp_path: Path) -> None:
     from spec_orch.services.workers.in_memory_worker_handle_factory import (
         InMemoryWorkerHandleFactory,

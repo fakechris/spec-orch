@@ -1542,7 +1542,14 @@ class RunController:
         for btw_path in btw_candidates:
             if not btw_path.exists():
                 continue
-            btw_content = btw_path.read_text(encoding="utf-8").strip()
+            try:
+                btw_content = btw_path.read_text(encoding="utf-8").strip()
+            except OSError as exc:
+                logger.warning("Failed to read /btw context from %s: %s", btw_path, exc)
+                continue
+            except UnicodeDecodeError as exc:
+                logger.warning("Failed to decode /btw context from %s: %s", btw_path, exc)
+                continue
             if btw_content:
                 sections.append(f"## Additional Context (injected via /btw)\n\n{btw_content}")
                 break

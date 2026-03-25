@@ -40,6 +40,32 @@ def _make_issue(prompt: str | None = "Fix the bug") -> Issue:
     )
 
 
+class StubWorkerHandle:
+    def __init__(self, session_id: str = "worker-1") -> None:
+        self._session_id = session_id
+
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+
+    def send(self, *, prompt: str, workspace: Path, event_logger=None) -> BuilderResult:
+        return BuilderResult(
+            succeeded=True,
+            command=["echo", prompt],
+            stdout="ok",
+            stderr="",
+            report_path=workspace / "builder_report.json",
+            adapter="stub",
+            agent="stub",
+        )
+
+    def cancel(self, workspace: Path) -> None:
+        return None
+
+    def close(self, workspace: Path) -> None:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Protocol conformance
 # ---------------------------------------------------------------------------
@@ -47,31 +73,6 @@ def _make_issue(prompt: str | None = "Fix the bug") -> Issue:
 
 class TestProtocolConformance:
     def test_stub_worker_handle_is_worker_protocol(self, tmp_path: Path):
-        class StubWorkerHandle:
-            def __init__(self) -> None:
-                self._session_id = "worker-1"
-
-            @property
-            def session_id(self) -> str:
-                return self._session_id
-
-            def send(self, *, prompt: str, workspace: Path, event_logger=None) -> BuilderResult:
-                return BuilderResult(
-                    succeeded=True,
-                    command=["echo", prompt],
-                    stdout="ok",
-                    stderr="",
-                    report_path=workspace / "builder_report.json",
-                    adapter="stub",
-                    agent="stub",
-                )
-
-            def cancel(self, workspace: Path) -> None:
-                return None
-
-            def close(self, workspace: Path) -> None:
-                return None
-
         assert isinstance(StubWorkerHandle(), WorkerHandle)
 
     def test_stub_supervisor_adapter_is_supervisor_protocol(self):
@@ -91,31 +92,6 @@ class TestProtocolConformance:
         assert isinstance(StubSupervisorAdapter(), SupervisorAdapter)
 
     def test_stub_worker_factory_is_factory_protocol(self, tmp_path: Path):
-        class StubWorkerHandle:
-            def __init__(self, session_id: str) -> None:
-                self._session_id = session_id
-
-            @property
-            def session_id(self) -> str:
-                return self._session_id
-
-            def send(self, *, prompt: str, workspace: Path, event_logger=None) -> BuilderResult:
-                return BuilderResult(
-                    succeeded=True,
-                    command=["echo", prompt],
-                    stdout="ok",
-                    stderr="",
-                    report_path=workspace / "builder_report.json",
-                    adapter="stub",
-                    agent="stub",
-                )
-
-            def cancel(self, workspace: Path) -> None:
-                return None
-
-            def close(self, workspace: Path) -> None:
-                return None
-
         class StubWorkerFactory:
             def create(self, *, session_id: str, workspace: Path) -> StubWorkerHandle:
                 return StubWorkerHandle(session_id)

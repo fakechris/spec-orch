@@ -566,8 +566,18 @@ class RoundDecision:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> RoundDecision:
+        if "action" not in data:
+            raise ValueError(f"Missing required field 'action' in RoundDecision data: {data!r}")
         session_ops = data.get("session_ops", {})
-        plan_patch = data.get("plan_patch")
+        plan_patch_raw = data.get("plan_patch")
+        plan_patch: PlanPatch | None = None
+        if isinstance(plan_patch_raw, dict):
+            plan_patch = PlanPatch(
+                modified_packets=plan_patch_raw.get("modified_packets", {}),
+                added_packets=plan_patch_raw.get("added_packets", []),
+                removed_packet_ids=plan_patch_raw.get("removed_packet_ids", []),
+                reason=plan_patch_raw.get("reason", ""),
+            )
         return cls(
             action=RoundAction(data["action"]),
             reason_code=data.get("reason_code", ""),
@@ -580,7 +590,7 @@ class RoundDecision:
                 spawn=session_ops.get("spawn", []),
                 cancel=session_ops.get("cancel", []),
             ),
-            plan_patch=PlanPatch(**plan_patch) if plan_patch else None,
+            plan_patch=plan_patch,
             blocking_questions=data.get("blocking_questions", []),
         )
 

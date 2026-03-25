@@ -65,10 +65,10 @@ def ensure_acpx_session(
         check=False,
     )
     if result.returncode != 0:
-        logger.warning(
-            "Session ensure failed (rc=%d): %s",
-            result.returncode,
-            result.stderr.strip(),
+        stderr = result.stderr.strip()
+        raise RuntimeError(
+            "ACPX session ensure failed "
+            f"(rc={result.returncode}, agent={agent}, session={session_name}): {stderr}"
         )
 
 
@@ -81,13 +81,19 @@ def cancel_acpx_session(
     session_name: str,
 ) -> None:
     cmd = [executable, "-y", acpx_package, agent, "cancel", "-s", session_name]
-    subprocess.run(
+    result = subprocess.run(
         cmd,
         cwd=workspace,
         capture_output=True,
         text=True,
         check=False,
     )
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        raise RuntimeError(
+            "ACPX session cancel failed "
+            f"(rc={result.returncode}, agent={agent}, session={session_name}): {stderr}"
+        )
 
 
 def drain_stderr(process: subprocess.Popen[str], container: list[str]) -> None:

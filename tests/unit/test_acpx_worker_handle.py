@@ -8,11 +8,11 @@ from spec_orch.services.workers.acpx_worker_handle import AcpxWorkerHandle
 from spec_orch.services.workers.acpx_worker_handle_factory import AcpxWorkerHandleFactory
 
 
-@patch("spec_orch.services.workers.acpx_worker_handle.subprocess.run")
+@patch("spec_orch.services.workers.acpx_worker_handle.ensure_acpx_session")
 @patch("spec_orch.services.workers.acpx_worker_handle.subprocess.Popen")
 def test_acpx_worker_handle_send_uses_session_and_writes_report(
     mock_popen: MagicMock,
-    mock_run: MagicMock,
+    mock_ensure_session: MagicMock,
     tmp_path: Path,
 ) -> None:
     mock_process = MagicMock()
@@ -37,9 +37,7 @@ def test_acpx_worker_handle_send_uses_session_and_writes_report(
     result = handle.send(prompt="Continue fixing the migration issue.", workspace=tmp_path)
 
     assert result.succeeded is True
-    ensure_cmd = mock_run.call_args[0][0]
-    assert "sessions" in ensure_cmd
-    assert "ensure" in ensure_cmd
+    mock_ensure_session.assert_called_once()
     send_cmd = mock_popen.call_args[0][0]
     assert "-s" in send_cmd
     assert "mission-m1-pkt1" in send_cmd
@@ -48,16 +46,18 @@ def test_acpx_worker_handle_send_uses_session_and_writes_report(
     assert report["session_name"] == "mission-m1-pkt1"
 
 
-@patch("spec_orch.services.workers.acpx_worker_handle.subprocess.run")
-def test_acpx_worker_handle_cancel_calls_acpx_cancel(mock_run: MagicMock, tmp_path: Path) -> None:
+@patch("spec_orch.services.workers.acpx_worker_handle.cancel_acpx_session")
+def test_acpx_worker_handle_cancel_calls_acpx_cancel(
+    mock_cancel_session: MagicMock,
+    tmp_path: Path,
+) -> None:
     handle = AcpxWorkerHandle(session_id="mission-m1-pkt1", agent="codex")
+    handle._session_ready = True
 
     handle.cancel(tmp_path)
 
-    cmd = mock_run.call_args[0][0]
-    assert "cancel" in cmd
-    assert "-s" in cmd
-    assert "mission-m1-pkt1" in cmd
+    mock_cancel_session.assert_called_once()
+    assert handle._session_ready is False
 
 
 def test_acpx_worker_handle_factory_reuses_existing_handles(tmp_path: Path) -> None:
