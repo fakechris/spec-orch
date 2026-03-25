@@ -309,6 +309,7 @@ def test_run_supervised_writes_packet_telemetry_and_activity_log(tmp_path: Path)
     assert any("mission_packet_completed" in line for line in events)
     activity_text = activity_log_path.read_text(encoding="utf-8")
     assert "worker applied patch" in activity_text
+    assert "Completed packet pkt-1" in activity_text
 
 
 def test_run_supervised_resumes_from_persisted_history(tmp_path: Path) -> None:

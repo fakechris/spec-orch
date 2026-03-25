@@ -122,7 +122,13 @@ class AcpxWorkerHandle:
 
         def _read_stdout() -> None:
             assert process.stdout is not None
-            with incoming_path.open("w", encoding="utf-8") as incoming_file:
+            incoming_file = None
+            try:
+                incoming_file = incoming_path.open("a", encoding="utf-8")
+            except OSError as exc:
+                logger.warning("Failed to open incoming ACPX event log %s: %s", incoming_path, exc)
+
+            try:
                 for line in process.stdout:
                     stdout_lines.append(line)
                     stripped = line.strip()
@@ -132,11 +138,24 @@ class AcpxWorkerHandle:
                         event = json.loads(stripped)
                     except ValueError:
                         continue
-                    incoming_file.write(line)
-                    incoming_file.flush()
+                    if incoming_file is not None:
+                        try:
+                            incoming_file.write(line)
+                            incoming_file.flush()
+                        except OSError as exc:
+                            logger.warning(
+                                "Failed to write incoming ACPX event log %s: %s",
+                                incoming_path,
+                                exc,
+                            )
+                            incoming_file.close()
+                            incoming_file = None
                     raw_events.append(event)
                     if event_logger is not None:
                         event_logger(event)
+            finally:
+                if incoming_file is not None:
+                    incoming_file.close()
 
         stdout_thread = threading.Thread(target=_read_stdout, daemon=True)
         stderr_thread = threading.Thread(

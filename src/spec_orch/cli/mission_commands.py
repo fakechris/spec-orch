@@ -401,6 +401,10 @@ def mission_logs(
     workspace = Path(repo_root) / "docs" / "specs" / mission_id / "workers" / packet_id
     telemetry_dir = workspace / "telemetry"
 
+    if raw and events:
+        typer.echo("choose either --raw or --events, not both")
+        raise typer.Exit(2)
+
     if raw:
         _print_jsonl(telemetry_dir / "incoming_events.jsonl", filter_type)
         return

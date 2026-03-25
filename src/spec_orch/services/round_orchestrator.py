@@ -245,24 +245,25 @@ class RoundOrchestrator:
                     workspace=workspace,
                     event_logger=event_logger,
                 )
+                self._event_logger.log_and_emit(
+                    activity_logger=activity_logger,
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=packet.packet_id,
+                    component="mission_worker",
+                    event_type="mission_packet_completed",
+                    severity="info" if result.succeeded else "error",
+                    message=f"Completed packet {packet.packet_id}",
+                    data={
+                        "mission_id": mission_id,
+                        "round_id": round_id,
+                        "packet_id": packet.packet_id,
+                        "succeeded": result.succeeded,
+                        "report_path": str(result.report_path),
+                    },
+                )
             finally:
                 activity_logger.close()
-            self._event_logger.log_and_emit(
-                workspace=workspace,
-                run_id=run_id,
-                issue_id=packet.packet_id,
-                component="mission_worker",
-                event_type="mission_packet_completed",
-                severity="info" if result.succeeded else "error",
-                message=f"Completed packet {packet.packet_id}",
-                data={
-                    "mission_id": mission_id,
-                    "round_id": round_id,
-                    "packet_id": packet.packet_id,
-                    "succeeded": result.succeeded,
-                    "report_path": str(result.report_path),
-                },
-            )
             results.append((packet, result))
 
         return results

@@ -587,6 +587,27 @@ def test_mission_logs_command_supports_raw_and_events(tmp_path) -> None:
     assert '"event_type":"item.completed"' in events_result.stdout
 
 
+def test_mission_logs_command_rejects_raw_and_events_together(tmp_path) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "mission",
+            "logs",
+            "mission-1",
+            "pkt-1",
+            "--repo-root",
+            str(tmp_path),
+            "--raw",
+            "--events",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "choose either --raw or --events" in result.stdout
+
+
 def test_mission_logs_command_reports_missing_log(tmp_path) -> None:
     runner = CliRunner()
 
