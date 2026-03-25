@@ -240,11 +240,31 @@ class RoundOrchestrator:
                 },
             )
             try:
-                result = handle.send(
-                    prompt=prompt,
-                    workspace=workspace,
-                    event_logger=event_logger,
-                )
+                try:
+                    result = handle.send(
+                        prompt=prompt,
+                        workspace=workspace,
+                        event_logger=event_logger,
+                    )
+                except Exception as exc:
+                    self._event_logger.log_and_emit(
+                        activity_logger=activity_logger,
+                        workspace=workspace,
+                        run_id=run_id,
+                        issue_id=packet.packet_id,
+                        component="mission_worker",
+                        event_type="mission_packet_completed",
+                        severity="error",
+                        message=f"Failed packet {packet.packet_id}: {exc}",
+                        data={
+                            "mission_id": mission_id,
+                            "round_id": round_id,
+                            "packet_id": packet.packet_id,
+                            "succeeded": False,
+                            "error": str(exc),
+                        },
+                    )
+                    raise
                 self._event_logger.log_and_emit(
                     activity_logger=activity_logger,
                     workspace=workspace,

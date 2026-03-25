@@ -582,9 +582,13 @@ def test_mission_logs_command_supports_raw_and_events(tmp_path) -> None:
     )
 
     assert raw_result.exit_code == 0
-    assert '"type":"item.completed"' in raw_result.stdout
+    raw_events = [json.loads(line) for line in raw_result.stdout.splitlines() if line.strip()]
+    assert any(event.get("type") == "item.completed" for event in raw_events)
     assert events_result.exit_code == 0
-    assert '"event_type":"item.completed"' in events_result.stdout
+    emitted_events = [
+        json.loads(line) for line in events_result.stdout.splitlines() if line.strip()
+    ]
+    assert any(event.get("event_type") == "item.completed" for event in emitted_events)
 
 
 def test_mission_logs_command_rejects_raw_and_events_together(tmp_path) -> None:

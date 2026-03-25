@@ -417,10 +417,12 @@ def mission_logs(
         typer.echo(f"no activity log found for {mission_id}/{packet_id}")
         raise typer.Exit(1)
 
-    for line in log_path.read_text(encoding="utf-8").splitlines():
-        if filter_type and filter_type.upper() not in line.upper():
-            continue
-        typer.echo(line)
+    with log_path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.rstrip("\n")
+            if filter_type and filter_type.upper() not in line.upper():
+                continue
+            typer.echo(line)
 
 
 # ---------------------------------------------------------------------------

@@ -133,7 +133,10 @@ def test_acpx_worker_handle_continues_when_incoming_events_file_cannot_open(
     assert result.succeeded is True
     mock_ensure_session.assert_called_once()
     assert event_types == ["text", "result"]
-    assert json.loads((tmp_path / "builder_report.json").read_text(encoding="utf-8"))["event_count"] == 2
+    assert (
+        json.loads((tmp_path / "builder_report.json").read_text(encoding="utf-8"))["event_count"]
+        == 2
+    )
 
 
 @patch("spec_orch.services.workers.acpx_worker_handle.cancel_acpx_session")
