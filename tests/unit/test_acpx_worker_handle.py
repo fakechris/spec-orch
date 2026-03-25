@@ -44,6 +44,12 @@ def test_acpx_worker_handle_send_uses_session_and_writes_report(
     assert "exec" not in send_cmd
     report = json.loads((tmp_path / "builder_report.json").read_text(encoding="utf-8"))
     assert report["session_name"] == "mission-m1-pkt1"
+    incoming_path = tmp_path / "telemetry" / "incoming_events.jsonl"
+    assert incoming_path.exists()
+    raw_lines = incoming_path.read_text(encoding="utf-8").splitlines()
+    assert len(raw_lines) == 2
+    assert json.loads(raw_lines[0])["type"] == "text"
+    assert json.loads(raw_lines[1])["type"] == "result"
 
 
 @patch("spec_orch.services.workers.acpx_worker_handle.cancel_acpx_session")

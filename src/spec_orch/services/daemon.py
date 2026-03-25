@@ -70,6 +70,7 @@ class DaemonConfig:
 
         daemon = raw.get("daemon", {})
         self.max_concurrent: int = daemon.get("max_concurrent", 1)
+        self.live_mission_workers: bool = daemon.get("live_mission_workers", False)
         self.lockfile_dir: str = daemon.get("lockfile_dir", ".spec_orch_locks/")
         self.consume_state: str = daemon.get("consume_state", "Ready")
         self.require_labels: list[str] = daemon.get("require_labels", [])
@@ -97,9 +98,16 @@ class DaemonConfig:
 class SpecOrchDaemon:
     STATE_FILE = "daemon_state.json"
 
-    def __init__(self, *, config: DaemonConfig, repo_root: Path) -> None:
+    def __init__(
+        self,
+        *,
+        config: DaemonConfig,
+        repo_root: Path,
+        live_mission_workers: bool = False,
+    ) -> None:
         self.config = config
         self.repo_root = repo_root
+        self._live_mission_workers = live_mission_workers or config.live_mission_workers
         self._running = True
         self._readiness_checker: Any = None
         self._context_assembler = ContextAssembler()
@@ -341,6 +349,7 @@ class SpecOrchDaemon:
             context_assembler=ContextAssembler(),
             event_bus=self._event_bus,
             max_rounds=self.config.supervisor_max_rounds,
+            live_stream=sys.stderr if self._live_mission_workers else None,
         )
 
     def _tick_missions(self) -> None:

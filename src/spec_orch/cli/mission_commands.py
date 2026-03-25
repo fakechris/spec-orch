@@ -14,6 +14,7 @@ from spec_orch.cli._helpers import (
     _build_planner_from_toml,
     _load_conversation_planner,
     _load_planner_config,
+    _print_jsonl,
     _show_next_step,
 )
 from spec_orch.services.workspace_service import WorkspaceService
@@ -381,6 +382,41 @@ def mission_show(
         typer.echo(spec_file.read_text())
     else:
         typer.echo(f"spec file not found: {m.spec_path}")
+
+
+@mission_app.command("logs")
+def mission_logs(
+    mission_id: str = typer.Argument(..., help="Mission ID."),
+    packet_id: str = typer.Argument(..., help="Packet/worker ID."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+    raw: bool = typer.Option(
+        False, "--raw", help="Print raw worker events (incoming_events.jsonl)."
+    ),
+    events: bool = typer.Option(
+        False, "--events", help="Print orchestrator events (events.jsonl)."
+    ),
+    filter_type: str = typer.Option("", "--filter", help="Filter by event type substring."),
+) -> None:
+    """View logs for a supervised mission worker packet."""
+    workspace = Path(repo_root) / "docs" / "specs" / mission_id / "workers" / packet_id
+    telemetry_dir = workspace / "telemetry"
+
+    if raw:
+        _print_jsonl(telemetry_dir / "incoming_events.jsonl", filter_type)
+        return
+    if events:
+        _print_jsonl(telemetry_dir / "events.jsonl", filter_type)
+        return
+
+    log_path = telemetry_dir / "activity.log"
+    if not log_path.exists():
+        typer.echo(f"no activity log found for {mission_id}/{packet_id}")
+        raise typer.Exit(1)
+
+    for line in log_path.read_text(encoding="utf-8").splitlines():
+        if filter_type and filter_type.upper() not in line.upper():
+            continue
+        typer.echo(line)
 
 
 # ---------------------------------------------------------------------------
