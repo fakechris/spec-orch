@@ -58,6 +58,13 @@ class DaemonConfig:
         self.planner_api_base_env: str | None = planner.get("api_base_env")
         self.planner_token_command: str | None = planner.get("token_command")
 
+        supervisor = raw.get("supervisor", {})
+        self.supervisor_adapter: str | None = supervisor.get("adapter")
+        self.supervisor_model: str | None = supervisor.get("model")
+        self.supervisor_api_key_env: str | None = supervisor.get("api_key_env")
+        self.supervisor_api_base_env: str | None = supervisor.get("api_base_env")
+        self.supervisor_max_rounds: int = supervisor.get("max_rounds", 20)
+
         github = raw.get("github", {})
         self.base_branch: str = github.get("base_branch", "main")
 
@@ -113,11 +120,14 @@ class SpecOrchDaemon:
         from spec_orch.services.event_bus import get_event_bus
 
         self._event_bus = get_event_bus()
+        self._round_orchestrator = self._build_round_orchestrator()
 
         from spec_orch.services.lifecycle_manager import MissionLifecycleManager
 
         self._lifecycle_manager = MissionLifecycleManager(
-            repo_root=repo_root, event_bus=self._event_bus
+            repo_root=repo_root,
+            event_bus=self._event_bus,
+            round_orchestrator=self._round_orchestrator,
         )
 
         from spec_orch.services.memory.service import get_memory_service
@@ -265,6 +275,73 @@ class SpecOrchDaemon:
         except ImportError:
             print("[daemon] litellm not installed, planner disabled")
             return None
+
+    def _build_round_orchestrator(self) -> Any | None:
+        if not self.config.supervisor_model:
+            return None
+
+        api_key: str | None = None
+        if self.config.supervisor_api_key_env:
+            api_key = os.environ.get(self.config.supervisor_api_key_env)
+
+        api_base: str | None = None
+        if self.config.supervisor_api_base_env:
+            api_base = os.environ.get(self.config.supervisor_api_base_env)
+
+        if self.config.supervisor_adapter not in (None, "litellm"):
+            raise ValueError(f"Unsupported supervisor adapter: {self.config.supervisor_adapter!r}")
+
+        from spec_orch.domain.protocols import WorkerHandleFactory
+        from spec_orch.services.litellm_supervisor_adapter import LiteLLMSupervisorAdapter
+        from spec_orch.services.round_orchestrator import RoundOrchestrator
+        from spec_orch.services.workers.acpx_worker_handle_factory import AcpxWorkerHandleFactory
+        from spec_orch.services.workers.in_memory_worker_handle_factory import (
+            InMemoryWorkerHandleFactory,
+        )
+        from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+        supervisor = LiteLLMSupervisorAdapter(
+            repo_root=self.repo_root,
+            model=self.config.supervisor_model,
+            api_key=api_key,
+            api_base=api_base,
+        )
+
+        builder_cfg = self.config._raw.get("builder", {})
+        adapter_name = builder_cfg.get("adapter", "codex_exec")
+        worker_factory: WorkerHandleFactory
+        if adapter_name == "acpx" or str(adapter_name).startswith("acpx_"):
+            agent = builder_cfg.get("agent")
+            if not agent and str(adapter_name).startswith("acpx_"):
+                agent = str(adapter_name)[len("acpx_") :]
+            agent = agent or "opencode"
+            worker_factory = AcpxWorkerHandleFactory(
+                agent=agent,
+                model=builder_cfg.get("model"),
+                permissions=builder_cfg.get("permissions", "full-auto"),
+                executable=builder_cfg.get("executable", "npx"),
+                acpx_package=builder_cfg.get("acpx_package", "acpx"),
+                absolute_timeout_seconds=float(builder_cfg.get("timeout_seconds", 1800)),
+            )
+        else:
+            worker_factory = InMemoryWorkerHandleFactory(
+                creator=lambda session_id, workspace: OneShotWorkerHandle(
+                    session_id=session_id,
+                    builder_adapter=create_builder(
+                        self.repo_root,
+                        toml_override=self.config._raw,
+                    ),
+                )
+            )
+
+        return RoundOrchestrator(
+            repo_root=self.repo_root,
+            supervisor=supervisor,
+            worker_factory=worker_factory,
+            context_assembler=ContextAssembler(),
+            event_bus=self._event_bus,
+            max_rounds=self.config.supervisor_max_rounds,
+        )
 
     def _tick_missions(self) -> None:
         """Advance mission lifecycles on each daemon tick."""
@@ -473,10 +550,6 @@ class SpecOrchDaemon:
 
         try:
             plan = ParallelRunController.load_plan(mission_id, self.repo_root)
-            prc = ParallelRunController(
-                repo_root=self.repo_root,
-                codex_bin=self.config.codex_executable,
-            )
 
             for wave in plan.waves:
                 if linear_uid:
@@ -489,23 +562,69 @@ class SpecOrchDaemon:
                     except Exception as exc:
                         print(f"[daemon] wave comment failed: {exc}")
 
-            plan_result = prc.run_plan(plan)
-
-            summary_lines = [
-                f"## Mission Execution: {mission_id}",
-                "",
-                f"**Duration**: {plan_result.total_duration:.1f}s",
-                f"**Result**: {'✅ Success' if plan_result.is_success() else '❌ Failed'}",
-                "",
-            ]
-            for wr in plan_result.wave_results:
-                status = "✅" if wr.all_succeeded else "❌"
-                summary_lines.append(
-                    f"- Wave {wr.wave_id}: {status} ({len(wr.packet_results)} packets)"
+            if self._round_orchestrator is not None:
+                round_result = self._round_orchestrator.run_supervised(
+                    mission_id=mission_id,
+                    plan=plan,
                 )
-                for pr in wr.failed_packets:
-                    summary_lines.append(f"  - ❌ {pr.packet_id}: exit={pr.exit_code}")
-            summary = "\n".join(summary_lines)
+                succeeded = (
+                    round_result.completed
+                    and not round_result.paused
+                    and not round_result.max_rounds_hit
+                )
+                summary_lines = [
+                    f"## Mission Execution: {mission_id}",
+                    "",
+                    f"**Rounds**: {len(round_result.rounds)}",
+                    f"**Result**: {'✅ Success' if succeeded else '❌ Failed'}",
+                    "",
+                ]
+                for round_summary in round_result.rounds:
+                    action = (
+                        round_summary.decision.action.value
+                        if round_summary.decision is not None
+                        else "none"
+                    )
+                    summary_lines.append(
+                        f"- Round {round_summary.round_id} / Wave {round_summary.wave_id}: {action}"
+                    )
+                summary = "\n".join(summary_lines)
+                if round_result.paused:
+                    self._event_bus.emit_issue_state(issue_id, "paused", mergeable=False)
+                    print(f"[daemon] {issue_id}: mission paused for human input")
+                    if linear_uid:
+                        try:
+                            client.add_comment(
+                                linear_uid,
+                                "Mission execution paused. Review the latest "
+                                "`round_decision.json` and `supervisor_review.md` before resuming.",
+                            )
+                        except Exception as exc:
+                            print(f"[daemon] pause comment failed: {exc}")
+                    return
+            else:
+                prc = ParallelRunController(
+                    repo_root=self.repo_root,
+                    codex_bin=self.config.codex_executable,
+                )
+                plan_result = prc.run_plan(plan)
+
+                summary_lines = [
+                    f"## Mission Execution: {mission_id}",
+                    "",
+                    f"**Duration**: {plan_result.total_duration:.1f}s",
+                    f"**Result**: {'✅ Success' if plan_result.is_success() else '❌ Failed'}",
+                    "",
+                ]
+                for wr in plan_result.wave_results:
+                    status = "✅" if wr.all_succeeded else "❌"
+                    summary_lines.append(
+                        f"- Wave {wr.wave_id}: {status} ({len(wr.packet_results)} packets)"
+                    )
+                    for pr in wr.failed_packets:
+                        summary_lines.append(f"  - ❌ {pr.packet_id}: exit={pr.exit_code}")
+                summary = "\n".join(summary_lines)
+                succeeded = plan_result.is_success()
 
             if linear_uid:
                 try:
@@ -513,7 +632,7 @@ class SpecOrchDaemon:
                 except Exception as exc:
                     print(f"[daemon] summary comment failed: {exc}")
 
-            if plan_result.is_success():
+            if succeeded:
                 self._event_bus.emit_issue_state(issue_id, "completed", mergeable=True)
                 print(f"[daemon] {issue_id}: mission succeeded")
                 if linear_uid:

@@ -680,6 +680,23 @@ def test_render_builder_envelope_includes_spec(tmp_path: Path) -> None:
     assert "Do the thing." in rendered
 
 
+def test_render_builder_envelope_includes_btw_context(tmp_path: Path) -> None:
+    from spec_orch.services.run_controller import RunController
+
+    repo_root = tmp_path / "repo"
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    btw_dir = repo_root / ".spec_orch_runs" / "ENV-3"
+    btw_dir.mkdir(parents=True)
+    (btw_dir / "btw_context.md").write_text("Re-run using the migration-safe path.\n")
+
+    issue = Issue(issue_id="ENV-3", title="t", summary="s", context=IssueContext())
+    rendered = RunController._render_builder_envelope(issue, workspace, repo_root=repo_root)
+
+    assert "## Additional Context (injected via /btw)" in rendered
+    assert "migration-safe path" in rendered
+
+
 def test_llm_review_adapter_collect_extra_context(tmp_path: Path) -> None:
     """SON-131: LLMReviewAdapter collects verification+gate+criteria context."""
     from spec_orch.services.llm_review_adapter import LLMReviewAdapter

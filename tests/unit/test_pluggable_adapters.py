@@ -8,8 +8,22 @@ from unittest.mock import patch
 
 import pytest
 
-from spec_orch.domain.models import Issue
-from spec_orch.domain.protocols import BuilderAdapter, ReviewAdapter
+from spec_orch.domain.models import (
+    BuilderResult,
+    ExecutionPlan,
+    Issue,
+    RoundAction,
+    RoundArtifacts,
+    RoundDecision,
+    RoundSummary,
+)
+from spec_orch.domain.protocols import (
+    BuilderAdapter,
+    ReviewAdapter,
+    SupervisorAdapter,
+    WorkerHandle,
+    WorkerHandleFactory,
+)
 from spec_orch.services.adapter_factory import create_builder, create_reviewer
 
 # ---------------------------------------------------------------------------
@@ -26,12 +40,70 @@ def _make_issue(prompt: str | None = "Fix the bug") -> Issue:
     )
 
 
+class StubWorkerHandle:
+    def __init__(self, session_id: str = "worker-1") -> None:
+        self._session_id = session_id
+
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+
+    def send(self, *, prompt: str, workspace: Path, event_logger=None) -> BuilderResult:
+        return BuilderResult(
+            succeeded=True,
+            command=["echo", prompt],
+            stdout="ok",
+            stderr="",
+            report_path=workspace / "builder_report.json",
+            adapter="stub",
+            agent="stub",
+        )
+
+    def cancel(self, workspace: Path) -> None:
+        return None
+
+    def close(self, workspace: Path) -> None:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Protocol conformance
 # ---------------------------------------------------------------------------
 
 
 class TestProtocolConformance:
+    def test_stub_worker_handle_is_worker_protocol(self, tmp_path: Path):
+        assert isinstance(StubWorkerHandle(), WorkerHandle)
+
+    def test_stub_supervisor_adapter_is_supervisor_protocol(self):
+        class StubSupervisorAdapter:
+            ADAPTER_NAME = "stub"
+
+            def review_round(
+                self,
+                *,
+                round_artifacts: RoundArtifacts,
+                plan: ExecutionPlan,
+                round_history: list[RoundSummary],
+                context=None,
+            ) -> RoundDecision:
+                return RoundDecision(action=RoundAction.CONTINUE)
+
+        assert isinstance(StubSupervisorAdapter(), SupervisorAdapter)
+
+    def test_stub_worker_factory_is_factory_protocol(self, tmp_path: Path):
+        class StubWorkerFactory:
+            def create(self, *, session_id: str, workspace: Path) -> StubWorkerHandle:
+                return StubWorkerHandle(session_id)
+
+            def get(self, session_id: str) -> StubWorkerHandle | None:
+                return StubWorkerHandle(session_id)
+
+            def close_all(self, workspace: Path) -> None:
+                return None
+
+        assert isinstance(StubWorkerFactory(), WorkerHandleFactory)
+
     def test_local_review_adapter_is_review_adapter(self):
         from spec_orch.services.review_adapter import LocalReviewAdapter
 

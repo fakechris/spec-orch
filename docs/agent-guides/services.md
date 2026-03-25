@@ -19,11 +19,14 @@ spec-orch daemon dlq       # 查看死信队列
 
 需要 `SPEC_ORCH_LINEAR_TOKEN` 和 `SPEC_ORCH_LLM_API_KEY`。
 
+如果要启用 mission round supervisor，还需要在 `spec-orch.toml` 中配置 `[supervisor]`，并提供对应模型的 API key。
+
 ## 关键点
 
 - Dashboard 和 Daemon 是**独立进程**，但共享同一个 `.env` 文件
 - 所有环境变量由 CLI 入口点自动加载，不需要每个进程单独设置
 - 在项目根目录执行命令（与 `spec-orch.toml` 同级）
+- 建议统一用 Python 3.13 环境执行本项目命令，例如 `uv run --python 3.13 ...`
 
 ## Evolution 管线
 

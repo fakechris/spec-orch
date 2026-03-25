@@ -44,6 +44,8 @@ class MissionState:
     completed_issues: list[str] = field(default_factory=list)
     error: str | None = None
     updated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    current_round: int = 0
+    round_orchestrator_state: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -73,9 +75,11 @@ class MissionLifecycleManager:
         self,
         repo_root: Path,
         event_bus: EventBus | None = None,
+        round_orchestrator: Any | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
         self._bus = event_bus or get_event_bus()
+        self._round_orchestrator = round_orchestrator
         self._states: dict[str, MissionState] = {}
         self._context_assembler = ContextAssembler()
         self._memory: Any | None = None
@@ -167,6 +171,8 @@ class MissionLifecycleManager:
         state = self._transition(mission_id, MissionPhase.EXECUTING)
         state.issue_ids = issue_ids
         state.completed_issues = []
+        state.current_round = 0
+        state.round_orchestrator_state = {}
         self._save_state()
         return state
 
@@ -223,6 +229,10 @@ class MissionLifecycleManager:
             return self._do_plan(mission_id)
         if state.phase == MissionPhase.PLANNED:
             return self._do_promote(mission_id)
+        if state.phase == MissionPhase.EXECUTING:
+            if state.round_orchestrator_state.get("paused"):
+                return state
+            return self._do_execute(mission_id)
         if state.phase == MissionPhase.ALL_DONE:
             return self._do_retro_and_evolve(mission_id)
         return state
@@ -249,6 +259,45 @@ class MissionLifecycleManager:
         except Exception as exc:
             logger.exception("Promotion failed for %s", mission_id)
             return self.mark_failed(mission_id, f"Promotion failed: {exc}")
+
+    def _do_execute(self, mission_id: str) -> MissionState:
+        state = self._states[mission_id]
+        if self._round_orchestrator is None:
+            return state
+        if state.round_orchestrator_state.get("paused"):
+            return state
+
+        from spec_orch.services.parallel_run_controller import ParallelRunController
+
+        try:
+            plan = ParallelRunController.load_plan(mission_id, self.repo_root)
+            result = self._round_orchestrator.run_supervised(
+                mission_id=mission_id,
+                plan=plan,
+                initial_round=state.current_round,
+            )
+            if result.rounds:
+                state.current_round = result.rounds[-1].round_id
+            if result.paused:
+                blocking_questions: list[str] = []
+                if result.last_decision is not None:
+                    blocking_questions = list(result.last_decision.blocking_questions)
+                state.round_orchestrator_state = {
+                    "paused": True,
+                    "blocking_questions": blocking_questions,
+                }
+                self._save_state()
+                return state
+            state.round_orchestrator_state = {}
+            self._save_state()
+            if result.completed:
+                return self._transition(mission_id, MissionPhase.ALL_DONE)
+            if result.max_rounds_hit:
+                return self.mark_failed(mission_id, "max_rounds_exhausted")
+            return state
+        except Exception as exc:
+            logger.exception("Execution failed for %s", mission_id)
+            return self.mark_failed(mission_id, f"Execution failed: {exc}")
 
     def _do_retro_and_evolve(self, mission_id: str) -> MissionState:
         try:
@@ -394,6 +443,9 @@ class MissionLifecycleManager:
                 timestamp = datetime.now(UTC).isoformat()
                 with open(btw_path, "a") as f:
                     f.write(f"\n## /btw [{channel}] {timestamp}\n\n{message}\n")
+                if state.round_orchestrator_state.get("paused"):
+                    state.round_orchestrator_state = {}
+                    self._save_state()
                 self._bus.emit_btw(issue_id, message, channel)
                 logger.info(
                     "BTW injected for %s from %s: %s",

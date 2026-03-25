@@ -1497,7 +1497,12 @@ class RunController:
         return "failed"
 
     @staticmethod
-    def _render_builder_envelope(issue: Issue, workspace: Path) -> str:
+    def _render_builder_envelope(
+        issue: Issue,
+        workspace: Path,
+        *,
+        repo_root: Path | None = None,
+    ) -> str:
         """Render a structured envelope that replaces bare builder_prompt."""
         sections: list[str] = []
         base = issue.builder_prompt or issue.summary or ""
@@ -1529,6 +1534,26 @@ class RunController:
             if spec_text.strip():
                 sections.append(f"## Spec\n{spec_text}")
 
+        btw_candidates = [workspace / "btw_context.md"]
+        if repo_root is not None:
+            btw_candidates.append(
+                Path(repo_root) / ".spec_orch_runs" / issue.issue_id / "btw_context.md"
+            )
+        for btw_path in btw_candidates:
+            if not btw_path.exists():
+                continue
+            try:
+                btw_content = btw_path.read_text(encoding="utf-8").strip()
+            except OSError as exc:
+                logger.warning("Failed to read /btw context from %s: %s", btw_path, exc)
+                continue
+            except UnicodeDecodeError as exc:
+                logger.warning("Failed to decode /btw context from %s: %s", btw_path, exc)
+                continue
+            if btw_content:
+                sections.append(f"## Additional Context (injected via /btw)\n\n{btw_content}")
+                break
+
         return "\n\n".join(sections)
 
     def _run_builder(
@@ -1542,7 +1567,11 @@ class RunController:
         if issue.builder_prompt:
             from dataclasses import replace
 
-            enriched_prompt = self._render_builder_envelope(issue, workspace)
+            enriched_prompt = self._render_builder_envelope(
+                issue,
+                workspace,
+                repo_root=self.repo_root,
+            )
             enriched_issue = replace(issue, builder_prompt=enriched_prompt)
         else:
             enriched_issue = issue

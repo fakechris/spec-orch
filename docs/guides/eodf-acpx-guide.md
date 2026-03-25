@@ -1,8 +1,8 @@
 # EODF 端到端开发闭环操作指引
 
-> End-to-End Development Flow with ACPX + OpenCode + MiniMax
+> End-to-End Development Flow with ACPX + Codex + Supervisor
 
-本文档记录了使用 spec-orch 的 ACPX adapter 通过 OpenCode agent 和 MiniMax 模型完成一次完整的端到端开发闭环（EODF）的每一步操作。
+本文档记录了使用 spec-orch 的 ACPX adapter 通过 Codex worker 和 LiteLLM supervisor 完成一次完整的端到端开发闭环（EODF）的每一步操作。
 
 ---
 
@@ -14,7 +14,7 @@
 |------|---------|------|
 | Python 3.11+ | `python3 --version` | spec-orch 运行时 |
 | Node.js + npx | `npx --version` | ACPX 通过 npx 运行 |
-| OpenCode | `which opencode` | ACPX 调用的底层 agent |
+| ACPX CLI | `npx -y acpx --help` | ACPX 适配层入口 |
 | Git | `git --version` | worktree 管理 |
 | GitHub CLI | `gh --version` | PR 创建和 CI 检查 |
 | spec-orch | `spec-orch --version` | 已安装到 PATH |
@@ -25,13 +25,13 @@
 # Linear API token（用于 issue 管理）
 export SPEC_ORCH_LINEAR_TOKEN="lin_api_xxxxx"
 
-# MiniMax API key（OpenCode 通过此 key 调用 MiniMax 模型）
-export MINIMAX_API_KEY="sk-cp-xxxxx"
+# Supervisor API key（`[supervisor]` 通过 LiteLLM 调用）
+export OPENAI_API_KEY="sk-xxxxx"
 ```
 
 ### spec-orch.toml 配置
 
-可以用 `spec-orch init` 自动生成基础配置，然后手动调整 builder 段为 ACPX：
+可以用 `spec-orch init` 自动生成基础配置，然后手动调整 builder / supervisor 段：
 
 ```bash
 spec-orch init  # 如果还没有 spec-orch.toml
@@ -50,10 +50,15 @@ test = ["{python}", "-m", "pytest", "-q"]
 build = ["{python}", "-c", "print('build ok')"]
 
 [builder]
-adapter = "acpx"
-agent = "opencode"
-model = "minimax/MiniMax-M2.5"
+adapter = "acpx_codex"
+model = "gpt-5-codex"
 timeout_seconds = 1800
+
+[supervisor]
+adapter = "litellm"
+model = "openai/gpt-4o"
+api_key_env = "OPENAI_API_KEY"
+max_rounds = 12
 ```
 
 验证配置：
@@ -61,10 +66,15 @@ timeout_seconds = 1800
 ```bash
 spec-orch config check
 # 期望输出:
-# [PASS] builder: adapter=acpx, agent=opencode, model=minimax/MiniMax-M2.5
+# [PASS] builder: adapter=acpx_codex, agent=codex, model=gpt-5-codex
 ```
 
 > 配置详情参见 [AI Config Guide](ai-config-guide.md)，包含各语言的模板。
+
+说明：
+- `[builder]` 控制单 issue builder 和 mission worker 的底层 agent
+- `[supervisor]` 控制 mission round review。未配置时 mission 仍走旧的 wave 一次性执行路径
+- mission round 产物写到 `docs/specs/<mission_id>/rounds/round-XX/`
 
 ---
 
@@ -108,7 +118,44 @@ print('Done')
 
 ---
 
-## 2. 运行 EODF Pipeline
+## 2. 启动 Mission Round Loop
+
+如果你要跑的是带 `plan.json` 的 mission，而不是单 issue，一般流程是：
+
+```bash
+spec-orch daemon start
+```
+
+daemon 检测到 `docs/specs/<mission_id>/plan.json` 且 `[supervisor]` 已配置后，会自动进入：
+
+```text
+wave dispatch -> round review -> next action
+```
+
+ACPX worker session 会按 packet 复用，session id 形式为：
+
+```text
+mission-<mission_id>-<packet_id>
+```
+
+每轮结果可在这里查看：
+
+```text
+docs/specs/<mission_id>/rounds/round-01/
+docs/specs/<mission_id>/rounds/round-02/
+...
+```
+
+关键文件：
+- `round_summary.json`
+- `round_decision.json`
+- `supervisor_review.md`
+
+如果执行中需要注入补充上下文，可继续用 `/btw`。下一次 builder envelope 会自动读取 `.spec_orch_runs/<issue_id>/btw_context.md`。
+
+---
+
+## 3. 运行 EODF Pipeline
 
 ### 执行命令
 
@@ -125,14 +172,14 @@ spec-orch run SON-157 -s linear --live
 
 执行后 spec-orch 自动完成以下步骤：
 
-```
+```text
 1. [RUN]     创建 git worktree: .worktrees/SON-157/
 2. [SPEC]    保存 spec snapshot（从 issue description 提取）
 3. [BUILDER] 调用 ACPX adapter:
              npx -y acpx --format json --approve-all \
-               --model minimax/MiniMax-M2.5 \
-               opencode exec "<builder_prompt>"
-             ↓ OpenCode 使用 MiniMax 模型在 worktree 中编码
+               --model gpt-5-codex \
+               codex exec "<builder_prompt>"
+             ↓ Codex 在 worktree 中编码
              ↓ 生成 builder_report.json
 4. [VERIFY]  运行验证:
              - lint: ruff check
@@ -151,8 +198,8 @@ spec-orch run SON-157 -s linear --live
 
 | 阶段 | 典型耗时 |
 |------|---------|
-| ACPX/OpenCode 初始化 | ~5s |
-| MiniMax 编码 | 3-8 min |
+| ACPX/Codex 初始化 | ~5s |
+| Codex 编码 | 3-8 min |
 | 验证 | ~30s |
 | 总计 | 4-9 min |
 
@@ -171,7 +218,7 @@ cd .worktrees/SON-157 && git diff main -- src/
 
 ---
 
-## 3. 验证 Builder 产出
+## 4. 验证 Builder 产出
 
 ### 手动验证代码质量
 
@@ -193,7 +240,7 @@ python3 -m pytest tests/unit/ -v --tb=short
 
 ---
 
-## 4. 整合代码到 Feature Branch
+## 5. 整合代码到 Feature Branch
 
 ### 创建 feature 分支
 
@@ -231,7 +278,7 @@ python3 -m ruff format --check src/ tests/
 
 ---
 
-## 5. 提交并创建 PR
+## 6. 提交并创建 PR
 
 ### Commit
 
@@ -239,7 +286,7 @@ python3 -m ruff format --check src/ tests/
 git add -A
 git commit -m "feat: status 命令显示 flow type + adapter 信息 (SON-157)
 
-由 OpenCode/MiniMax 通过 ACPX pipeline 实现。
+由 ACPX + Codex + Supervisor pipeline 实现。
 "
 ```
 
@@ -255,7 +302,7 @@ gh pr create \
 - 新增 EODF 端到端操作指引文档
 
 ## EODF Validation
-Builder: ACPX + OpenCode + MiniMax-M2.5
+Builder: ACPX + Codex + gpt-5-codex
 "
 ```
 
@@ -351,11 +398,11 @@ git diff --name-only main | grep '\.py$' | xargs python3 -m mypy
 
 EODF 闭环体现了 spec-orch 的 Orchestration 模式（非 Multi-Agent）：
 
-```
+```text
 spec-orch (orchestrator)
   ├─ Linear API → 加载 issue（输入）
-  ├─ ACPX adapter → spawn OpenCode sub-agent（fire-and-forget）
-  │   └─ OpenCode + MiniMax → 在 worktree 中编码（独立执行）
+  ├─ ACPX adapter → spawn Codex worker（fire-and-forget）
+  │   └─ gpt-5-codex → 在 worktree 中编码（独立执行）
   ├─ Verification → 代码强制检查（gate script）
   ├─ Review → 自动/人工审查
   └─ Gate → 代码强制的合并条件

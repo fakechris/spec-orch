@@ -6,6 +6,13 @@ from pathlib import Path
 
 import pytest
 
+from spec_orch.domain.models import (
+    ExecutionPlan,
+    RoundAction,
+    RoundDecision,
+    RoundStatus,
+    RoundSummary,
+)
 from spec_orch.services.event_bus import EventBus, EventTopic
 from spec_orch.services.lifecycle_manager import (
     MissionLifecycleManager,
@@ -44,6 +51,17 @@ class TestMissionState:
         assert restored.phase == MissionPhase.EXECUTING
         assert restored.issue_ids == ["A", "B"]
         assert restored.completed_issues == ["A"]
+
+    def test_round_fields_roundtrip(self):
+        state = MissionState(
+            mission_id="test",
+            phase=MissionPhase.EXECUTING,
+            current_round=2,
+            round_orchestrator_state={"wave_index": 1},
+        )
+        restored = MissionState.from_dict(state.to_dict())
+        assert restored.current_round == 2
+        assert restored.round_orchestrator_state == {"wave_index": 1}
 
 
 class TestLifecycleManager:
@@ -148,6 +166,25 @@ class TestLifecycleManager:
         content = btw_path.read_text()
         assert "handle binary frames" in content
 
+    def test_btw_injection_clears_paused_round_state(
+        self, mgr: MissionLifecycleManager, repo: Path
+    ):
+        mgr.begin_tracking("m1")
+        mgr.promotion_complete("m1", ["SON-1", "SON-2"])
+        state = mgr.get_state("m1")
+        assert state is not None
+        state.round_orchestrator_state = {
+            "paused": True,
+            "blocking_questions": ["Need a human answer."],
+        }
+
+        result = mgr.inject_btw("SON-1", "resume with clarified constraints", "tui")
+
+        assert result is True
+        refreshed = mgr.get_state("m1")
+        assert refreshed is not None
+        assert refreshed.round_orchestrator_state == {}
+
     def test_btw_injection_unknown_issue(self, mgr: MissionLifecycleManager):
         result = mgr.inject_btw("UNKNOWN", "msg", "tui")
         assert result is False
@@ -172,3 +209,156 @@ class TestAutoAdvance:
         assert state is not None
         assert state.phase == MissionPhase.FAILED
         assert "Planning failed" in (state.error or "")
+
+    def test_auto_advance_executes_via_round_orchestrator(
+        self, repo: Path, bus: EventBus, monkeypatch
+    ):
+        from spec_orch.services.round_orchestrator import RoundOrchestratorResult
+
+        class StubRoundOrchestrator:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, ExecutionPlan, int]] = []
+
+            def run_supervised(
+                self, *, mission_id: str, plan: ExecutionPlan, initial_round: int = 0
+            ):
+                self.calls.append((mission_id, plan, initial_round))
+                return RoundOrchestratorResult(
+                    completed=True,
+                    rounds=[
+                        RoundSummary(
+                            round_id=3,
+                            wave_id=0,
+                            status=RoundStatus.COMPLETED,
+                            decision=RoundDecision(action=RoundAction.STOP),
+                        )
+                    ],
+                )
+
+        plan = ExecutionPlan(plan_id="p1", mission_id="m1")
+        monkeypatch.setattr(
+            "spec_orch.services.parallel_run_controller.ParallelRunController.load_plan",
+            staticmethod(lambda mission_id, repo_root: plan),
+        )
+        orchestrator = StubRoundOrchestrator()
+        mgr = MissionLifecycleManager(
+            repo_root=repo, event_bus=bus, round_orchestrator=orchestrator
+        )
+        mgr.begin_tracking("m1")
+        mgr.promotion_complete("m1", ["SON-1"])
+
+        state = mgr.auto_advance("m1")
+
+        assert state is not None
+        assert state.phase == MissionPhase.ALL_DONE
+        assert orchestrator.calls == [("m1", plan, 0)]
+        assert state.current_round == 3
+
+    def test_auto_advance_marks_failed_when_max_rounds_exhausted(
+        self, repo: Path, bus: EventBus, monkeypatch
+    ):
+        from spec_orch.services.round_orchestrator import RoundOrchestratorResult
+
+        class StubRoundOrchestrator:
+            def run_supervised(
+                self, *, mission_id: str, plan: ExecutionPlan, initial_round: int = 0
+            ):
+                return RoundOrchestratorResult(completed=False, max_rounds_hit=True)
+
+        monkeypatch.setattr(
+            "spec_orch.services.parallel_run_controller.ParallelRunController.load_plan",
+            staticmethod(
+                lambda mission_id, repo_root: ExecutionPlan(plan_id="p1", mission_id=mission_id)
+            ),
+        )
+        mgr = MissionLifecycleManager(
+            repo_root=repo,
+            event_bus=bus,
+            round_orchestrator=StubRoundOrchestrator(),
+        )
+        mgr.begin_tracking("m1")
+        mgr.promotion_complete("m1", ["SON-1"])
+
+        state = mgr.auto_advance("m1")
+
+        assert state is not None
+        assert state.phase == MissionPhase.FAILED
+        assert state.error == "max_rounds_exhausted"
+
+    def test_auto_advance_does_not_execute_when_paused(
+        self, repo: Path, bus: EventBus, monkeypatch
+    ):
+        class StubRoundOrchestrator:
+            def run_supervised(
+                self, *, mission_id: str, plan: ExecutionPlan, initial_round: int = 0
+            ):
+                raise AssertionError("run_supervised should not be called while paused")
+
+        monkeypatch.setattr(
+            "spec_orch.services.parallel_run_controller.ParallelRunController.load_plan",
+            staticmethod(
+                lambda mission_id, repo_root: ExecutionPlan(plan_id="p1", mission_id=mission_id)
+            ),
+        )
+        mgr = MissionLifecycleManager(
+            repo_root=repo,
+            event_bus=bus,
+            round_orchestrator=StubRoundOrchestrator(),
+        )
+        mgr.begin_tracking("m1")
+        mgr.promotion_complete("m1", ["SON-1"])
+        state = mgr.get_state("m1")
+        assert state is not None
+        state.round_orchestrator_state = {"paused": True}
+
+        paused_state = mgr.auto_advance("m1")
+
+        assert paused_state is not None
+        assert paused_state.phase == MissionPhase.EXECUTING
+
+    def test_auto_advance_persists_pause_metadata(self, repo: Path, bus: EventBus, monkeypatch):
+        from spec_orch.services.round_orchestrator import RoundOrchestratorResult
+
+        class StubRoundOrchestrator:
+            def run_supervised(
+                self, *, mission_id: str, plan: ExecutionPlan, initial_round: int = 0
+            ):
+                return RoundOrchestratorResult(
+                    completed=False,
+                    paused=True,
+                    rounds=[
+                        RoundSummary(
+                            round_id=2,
+                            wave_id=1,
+                            status=RoundStatus.DECIDED,
+                            decision=RoundDecision(
+                                action=RoundAction.ASK_HUMAN,
+                                blocking_questions=["Approve the revised migration plan?"],
+                            ),
+                        )
+                    ],
+                )
+
+        monkeypatch.setattr(
+            "spec_orch.services.parallel_run_controller.ParallelRunController.load_plan",
+            staticmethod(
+                lambda mission_id, repo_root: ExecutionPlan(plan_id="p1", mission_id=mission_id)
+            ),
+        )
+        mgr = MissionLifecycleManager(
+            repo_root=repo,
+            event_bus=bus,
+            round_orchestrator=StubRoundOrchestrator(),
+        )
+        mgr.begin_tracking("m1")
+        mgr.promotion_complete("m1", ["SON-1"])
+
+        state = mgr.auto_advance("m1")
+
+        assert state is not None
+        assert state.phase == MissionPhase.EXECUTING
+        assert state.current_round == 2
+        assert state.round_orchestrator_state == {
+            "paused": True,
+            "blocking_questions": ["Approve the revised migration plan?"],
+        }

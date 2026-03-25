@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from spec_orch.domain.models import Issue
 from spec_orch.services.acpx_builder_adapter import AcpxBuilderAdapter
 
@@ -462,6 +464,8 @@ class TestAdapterFactory:
 class TestSessionManagement:
     @patch("spec_orch.services.acpx_builder_adapter.subprocess.run")
     def test_ensure_session(self, mock_run: MagicMock) -> None:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stderr = ""
         adapter = AcpxBuilderAdapter(session_name="test-session")
         adapter._ensure_session(Path("/fake"))
         mock_run.assert_called_once()
@@ -470,12 +474,33 @@ class TestSessionManagement:
         assert "ensure" in cmd
 
     @patch("spec_orch.services.acpx_builder_adapter.subprocess.run")
+    def test_ensure_session_gracefully_degrades_on_nonzero_returncode(
+        self, mock_run: MagicMock
+    ) -> None:
+        mock_run.return_value.returncode = 2
+        mock_run.return_value.stderr = "session create failed"
+        adapter = AcpxBuilderAdapter(session_name="test-session")
+
+        adapter._ensure_session(Path("/fake"))
+
+    @patch("spec_orch.services.acpx_builder_adapter.subprocess.run")
     def test_cancel_session(self, mock_run: MagicMock) -> None:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stderr = ""
         adapter = AcpxBuilderAdapter(session_name="test-session")
         adapter.cancel_session(Path("/fake"))
         mock_run.assert_called_once()
         cmd = mock_run.call_args[0][0]
         assert "cancel" in cmd
+
+    @patch("spec_orch.services.acpx_builder_adapter.subprocess.run")
+    def test_cancel_session_raises_on_nonzero_returncode(self, mock_run: MagicMock) -> None:
+        mock_run.return_value.returncode = 3
+        mock_run.return_value.stderr = "session cancel failed"
+        adapter = AcpxBuilderAdapter(session_name="test-session")
+
+        with pytest.raises(RuntimeError, match="ACPX session cancel failed"):
+            adapter.cancel_session(Path("/fake"))
 
     def test_cancel_without_session_noop(self) -> None:
         adapter = AcpxBuilderAdapter()
