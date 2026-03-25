@@ -668,3 +668,78 @@ def test_run_supervised_replays_plan_patch_on_resume(tmp_path: Path) -> None:
     assert len(builder.prompts) == 1
     assert "## Task" in builder.prompts[0]
     assert "Do task 1 with replayed plan patch" in builder.prompts[0]
+
+
+def test_run_supervised_applies_plan_patch_during_retry(tmp_path: Path) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def __init__(self) -> None:
+            self.prompts: list[str] = []
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            self.prompts.append(issue.builder_prompt or "")
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            self.calls += 1
+            if self.calls == 1:
+                return RoundDecision(
+                    action=RoundAction.RETRY,
+                    summary="Retry with narrowed packet brief.",
+                    plan_patch=PlanPatch(
+                        modified_packets={
+                            "pkt-1": {"builder_prompt": "Retry migration with narrowed scope"}
+                        }
+                    ),
+                )
+            return RoundDecision(action=RoundAction.STOP, summary="done")
+
+    class StubAssembler:
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            return {}
+
+    builder = StubBuilderAdapter()
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=builder,
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=factory,
+        context_assembler=StubAssembler(),
+        max_rounds=2,
+    )
+
+    result = orchestrator.run_supervised(mission_id="mission-1", plan=_make_plan())
+
+    assert result.completed is True
+    assert len(builder.prompts) == 2
+    assert "Do task 1" in builder.prompts[0]
+    assert "Retry migration with narrowed scope" in builder.prompts[1]

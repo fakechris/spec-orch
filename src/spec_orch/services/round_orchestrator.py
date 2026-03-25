@@ -150,6 +150,12 @@ class RoundOrchestrator:
                     return RoundOrchestratorResult(completed=True, rounds=round_history)
                 continue
             if decision.action is RoundAction.RETRY:
+                if decision.plan_patch is not None:
+                    plan = self._apply_plan_patch(
+                        plan,
+                        current_wave_idx=current_wave_idx,
+                        patch=decision.plan_patch,
+                    )
                 continue
             if decision.action is RoundAction.REPLAN_REMAINING:
                 if decision.plan_patch is not None:
