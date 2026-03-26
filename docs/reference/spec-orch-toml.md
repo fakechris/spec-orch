@@ -134,6 +134,68 @@ docs/specs/<mission_id>/rounds/round-XX/
   supervisor_review.md
 ```
 
+### `[supervisor.visual_evaluator]`
+
+Optional hook that runs after worker execution and before supervisor review.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `adapter` | string | — | Visual evaluator adapter. `command` and `noop` are supported. |
+| `command` | list[string] | `[]` | External command for `adapter = "command"`. |
+| `timeout_seconds` | int | `300` | Timeout for the command visual evaluator. |
+
+`command` tokens support:
+
+- `{python}` — current Python interpreter
+- `{mission_id}`
+- `{round_id}`
+- `{repo_root}`
+- `{round_dir}`
+- `{input_json}`
+- `{output_json}`
+
+For `adapter = "command"`, spec-orch writes evaluator input to:
+
+```text
+docs/specs/<mission_id>/rounds/round-XX/visual/input.json
+```
+
+The command may either:
+
+- write JSON to `{output_json}`, or
+- print a JSON object to stdout
+
+The returned object should match `VisualEvaluationResult`:
+
+```json
+{
+  "evaluator": "command",
+  "summary": "Checked homepage and settings screen.",
+  "confidence": 0.82,
+  "findings": [
+    {"severity": "low", "summary": "Minor spacing drift in settings header"}
+  ],
+  "artifacts": {
+    "homepage": "docs/specs/m1/rounds/round-01/visual/homepage.png"
+  }
+}
+```
+
+## Example (Supervised Mission with MiniMax + Visual Evaluator)
+
+```toml
+[supervisor]
+adapter = "litellm"
+model = "minimax/MiniMax-M2.5"
+api_key_env = "MINIMAX_API_KEY"
+max_rounds = 12
+
+[supervisor.visual_evaluator]
+adapter = "command"
+command = ["{python}", "tools/visual_eval.py", "{input_json}", "{output_json}"]
+timeout_seconds = 120
+```
+
 ## [github]
 
 | Key | Type | Default | Description |

@@ -21,6 +21,7 @@ from spec_orch.domain.protocols import (
     BuilderAdapter,
     ReviewAdapter,
     SupervisorAdapter,
+    VisualEvaluatorAdapter,
     WorkerHandle,
     WorkerHandleFactory,
 )
@@ -103,6 +104,28 @@ class TestProtocolConformance:
                 return None
 
         assert isinstance(StubWorkerFactory(), WorkerHandleFactory)
+
+    def test_stub_visual_evaluator_is_visual_evaluator_protocol(self):
+        from spec_orch.domain.models import VisualEvaluationResult, Wave, WorkPacket
+
+        class StubVisualEvaluator:
+            ADAPTER_NAME = "stub_visual"
+
+            def evaluate_round(
+                self,
+                *,
+                mission_id: str,
+                round_id: int,
+                wave: Wave,
+                worker_results: list[tuple[WorkPacket, BuilderResult]],
+                repo_root: Path,
+            ) -> VisualEvaluationResult | None:
+                return VisualEvaluationResult(
+                    evaluator="stub_visual",
+                    summary="Looks fine",
+                )
+
+        assert isinstance(StubVisualEvaluator(), VisualEvaluatorAdapter)
 
     def test_local_review_adapter_is_review_adapter(self):
         from spec_orch.services.review_adapter import LocalReviewAdapter

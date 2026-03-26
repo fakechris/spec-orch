@@ -22,6 +22,8 @@ from spec_orch.domain.models import (
     RoundDecision,
     RoundSummary,
     SpecSnapshot,
+    VisualEvaluationResult,
+    Wave,
     WaveResult,
     WorkPacket,
 )
@@ -244,6 +246,26 @@ class WorkerHandleFactory(Protocol):
 
     def close_all(self, workspace: Path) -> None:
         """Close all active worker handles for this mission."""
+        ...
+
+
+@runtime_checkable
+class VisualEvaluatorAdapter(Protocol):
+    """Optional visual evaluator that inspects a round before supervisor review."""
+
+    ADAPTER_NAME: str
+
+    def evaluate_round(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        wave: Wave,
+        worker_results: list[tuple[WorkPacket, BuilderResult]],
+        repo_root: Path,
+        round_dir: Path,
+    ) -> VisualEvaluationResult | None:
+        """Return visual evaluation artifacts or None when evaluation is skipped."""
         ...
 
 

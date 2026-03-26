@@ -13,6 +13,7 @@ from spec_orch.domain.models import (
     ExecutionPlan,
     Issue,
     IssueContext,
+    Mission,
     PlanPatch,
     RoundAction,
     RoundArtifacts,
@@ -22,7 +23,11 @@ from spec_orch.domain.models import (
     Wave,
     WorkPacket,
 )
-from spec_orch.domain.protocols import SupervisorAdapter, WorkerHandleFactory
+from spec_orch.domain.protocols import (
+    SupervisorAdapter,
+    VisualEvaluatorAdapter,
+    WorkerHandleFactory,
+)
 from spec_orch.services.event_bus import Event, EventBus, EventTopic
 from spec_orch.services.io import atomic_write_json
 from spec_orch.services.node_context_registry import get_node_context_spec
@@ -56,6 +61,7 @@ class RoundOrchestrator:
         supervisor: SupervisorAdapter,
         worker_factory: WorkerHandleFactory,
         context_assembler: Any,
+        visual_evaluator: VisualEvaluatorAdapter | None = None,
         event_bus: EventBus | None = None,
         max_rounds: int = DEFAULT_MAX_ROUNDS,
         live_stream: IO[str] | None = None,
@@ -64,6 +70,7 @@ class RoundOrchestrator:
         self.supervisor = supervisor
         self.worker_factory = worker_factory
         self.context_assembler = context_assembler
+        self.visual_evaluator = visual_evaluator
         self.event_bus = event_bus
         self.max_rounds = max_rounds
         self._event_logger = RunEventLogger(
@@ -116,19 +123,35 @@ class RoundOrchestrator:
             artifacts = self._collect_artifacts(
                 mission_id=mission_id,
                 round_id=round_id,
+                wave=wave,
                 worker_results=worker_results,
+                round_dir=round_dir,
+            )
+            supervisor_issue = self._build_supervisor_issue(
+                mission_id=mission_id,
+                round_id=round_id,
+                wave=wave,
+            )
+            self._write_supervisor_task_spec(
+                round_dir=round_dir,
+                mission_id=mission_id,
+                wave=wave,
             )
             summary.status = RoundStatus.REVIEWING
 
-            context = self.context_assembler.assemble(
+            assembled_context = self.context_assembler.assemble(
                 get_node_context_spec("supervisor"),
-                Issue(
-                    issue_id=mission_id,
-                    title=f"Mission {mission_id}",
-                    summary=f"Round {round_id} review",
-                ),
-                self._mission_dir(mission_id),
+                supervisor_issue,
+                round_dir,
                 repo_root=self.repo_root,
+            )
+            context = self._build_supervisor_context(
+                mission_id=mission_id,
+                round_id=round_id,
+                wave=wave,
+                issue=supervisor_issue,
+                assembled_context=assembled_context,
+                artifacts=artifacts,
             )
             decision = self.supervisor.review_round(
                 round_artifacts=artifacts,
@@ -293,8 +316,17 @@ class RoundOrchestrator:
         *,
         mission_id: str,
         round_id: int,
+        wave: Wave,
         worker_results: list[tuple[WorkPacket, BuilderResult]],
+        round_dir: Path,
     ) -> RoundArtifacts:
+        visual_evaluation = self._run_visual_evaluation(
+            mission_id=mission_id,
+            round_id=round_id,
+            wave=wave,
+            worker_results=worker_results,
+            round_dir=round_dir,
+        )
         return RoundArtifacts(
             round_id=round_id,
             mission_id=mission_id,
@@ -311,6 +343,7 @@ class RoundOrchestrator:
             worker_session_ids=[
                 f"mission-{mission_id}-{packet.packet_id}" for packet, _ in worker_results
             ],
+            visual_evaluation=visual_evaluation,
         )
 
     def _load_history(self, mission_id: str, *, up_to_round: int) -> list[RoundSummary]:
@@ -538,3 +571,154 @@ class RoundOrchestrator:
 
     def _packet_workspace(self, mission_id: str, packet: WorkPacket) -> Path:
         return self._mission_dir(mission_id) / "workers" / packet.packet_id
+
+    def _run_visual_evaluation(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        wave: Wave,
+        worker_results: list[tuple[WorkPacket, BuilderResult]],
+        round_dir: Path,
+    ) -> Any | None:
+        if self.visual_evaluator is None:
+            return None
+        result = self.visual_evaluator.evaluate_round(
+            mission_id=mission_id,
+            round_id=round_id,
+            wave=wave,
+            worker_results=worker_results,
+            repo_root=self.repo_root,
+            round_dir=round_dir,
+        )
+        if result is not None:
+            atomic_write_json(round_dir / "visual_evaluation.json", result.to_dict())
+        return result
+
+    def _build_supervisor_issue(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        wave: Wave,
+    ) -> Issue:
+        mission = self._load_mission(mission_id)
+        mission_title = mission.title if mission is not None else f"Mission {mission_id}"
+        acceptance_criteria = self._unique_preserve_order(
+            [
+                *(mission.acceptance_criteria if mission is not None else []),
+                *[
+                    criterion
+                    for packet in wave.work_packets
+                    for criterion in packet.acceptance_criteria
+                ],
+            ]
+        )
+        constraints = list(mission.constraints) if mission is not None else []
+        files_to_read = self._unique_preserve_order(
+            [path for packet in wave.work_packets for path in packet.files_in_scope]
+        )
+        architecture_notes = self._build_supervisor_notes(mission, wave)
+        return Issue(
+            issue_id=mission_id,
+            title=mission_title,
+            summary=f"Round {round_id} review for wave {wave.wave_number}",
+            acceptance_criteria=acceptance_criteria,
+            context=IssueContext(
+                files_to_read=files_to_read,
+                constraints=constraints,
+                architecture_notes=architecture_notes,
+            ),
+            mission_id=mission_id,
+        )
+
+    def _write_supervisor_task_spec(
+        self,
+        *,
+        round_dir: Path,
+        mission_id: str,
+        wave: Wave,
+    ) -> None:
+        mission = self._load_mission(mission_id)
+        mission_spec = self._load_mission_spec(mission)
+        wave_lines = [
+            "",
+            "## Active Wave",
+            "",
+            f"- Wave {wave.wave_number}: {wave.description}",
+            "",
+            "## Active Packets",
+            "",
+        ]
+        for packet in wave.work_packets:
+            wave_lines.append(f"- {packet.packet_id}: {packet.title}")
+        task_spec = mission_spec or f"# {mission.title if mission else mission_id}\n"
+        task_spec = task_spec.rstrip() + "\n" + "\n".join(wave_lines) + "\n"
+        (round_dir / "task.spec.md").write_text(task_spec, encoding="utf-8")
+
+    def _build_supervisor_context(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        wave: Wave,
+        issue: Issue,
+        assembled_context: Any,
+        artifacts: RoundArtifacts,
+    ) -> dict[str, Any]:
+        mission = self._load_mission(mission_id)
+        return {
+            "mission": {
+                "mission_id": mission_id,
+                "title": mission.title if mission is not None else issue.title,
+                "constraints": list(issue.context.constraints),
+                "acceptance_criteria": list(issue.acceptance_criteria),
+            },
+            "wave": {
+                "round_id": round_id,
+                "wave_number": wave.wave_number,
+                "description": wave.description,
+                "packet_ids": [packet.packet_id for packet in wave.work_packets],
+                "packet_titles": [packet.title for packet in wave.work_packets],
+            },
+            "assembled_context": assembled_context,
+            "visual_evaluation": (
+                artifacts.visual_evaluation.to_dict()
+                if artifacts.visual_evaluation is not None
+                else None
+            ),
+        }
+
+    def _load_mission(self, mission_id: str) -> Mission | None:
+        from spec_orch.services.mission_service import MissionService
+
+        try:
+            return MissionService(self.repo_root).get_mission(mission_id)
+        except Exception:
+            return None
+
+    def _load_mission_spec(self, mission: Mission | None) -> str:
+        if mission is None or not mission.spec_path:
+            return ""
+        spec_path = self.repo_root / mission.spec_path
+        if not spec_path.exists():
+            return ""
+        return spec_path.read_text(encoding="utf-8")
+
+    @staticmethod
+    def _build_supervisor_notes(mission: Mission | None, wave: Wave) -> str:
+        notes = [f"Wave {wave.wave_number}: {wave.description}"]
+        if mission is not None and mission.interface_contracts:
+            notes.extend(["", "Interface Contracts:"])
+            notes.extend([f"- {item}" for item in mission.interface_contracts])
+        return "\n".join(notes)
+
+    @staticmethod
+    def _unique_preserve_order(items: list[str]) -> list[str]:
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for item in items:
+            if item and item not in seen:
+                seen.add(item)
+                ordered.append(item)
+        return ordered

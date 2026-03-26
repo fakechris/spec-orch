@@ -10,6 +10,10 @@ spec-orch run --source fixture --codex-executable codex  # 指定 builder
 
 Mission 级别执行由 `plan.json` 驱动。若 `docs/specs/<mission_id>/plan.json` 存在，daemon 会把对应 Linear issue 识别为 mission 执行入口。
 
+如果要跑带 supervisor 的 mission 端到端试跑，优先看：
+
+- `docs/guides/supervised-mission-e2e-playbook.md`
+
 ## Pipeline 阶段
 
 ```
@@ -39,6 +43,7 @@ docs/specs/<mission_id>/rounds/round-XX/
 - `round_summary.json` — 本轮执行摘要
 - `round_decision.json` — supervisor 的结构化决策
 - `supervisor_review.md` — 本轮富文本复盘
+- `visual_evaluation.json` — 可选的视觉/浏览器检查结果
 
 每个 packet worker 还有独立 workspace：
 

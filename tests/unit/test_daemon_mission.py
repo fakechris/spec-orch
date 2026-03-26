@@ -238,3 +238,26 @@ def test_execute_mission_leaves_issue_paused_when_rounds_pause(tmp_path: Path) -
 
     client.update_issue_state.assert_not_called()
     assert "SPC-42" not in daemon._processed
+
+
+def test_execute_mission_delegates_to_mission_execution_service(tmp_path: Path) -> None:
+    from spec_orch.domain.models import MissionExecutionResult
+
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon._readiness_checker = ReadinessChecker()
+
+    client = MagicMock()
+    stub_service = MagicMock()
+    stub_service.execute_mission.return_value = MissionExecutionResult(
+        mission_id="SPC-50",
+        completed=True,
+        summary_markdown="## Mission Execution: SPC-50\n\n**Result**: ✅ Success",
+    )
+    daemon._mission_execution_service = stub_service
+
+    daemon._execute_mission("SPC-50", "SPC-50", {"id": "uid-50"}, client)
+
+    stub_service.execute_mission.assert_called_once_with(mission_id="SPC-50", initial_round=0)
+    client.update_issue_state.assert_called_with("uid-50", "In Review")
+    assert "SPC-50" in daemon._processed

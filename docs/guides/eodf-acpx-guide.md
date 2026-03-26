@@ -4,6 +4,10 @@
 
 本文档记录了使用 spec-orch 的 ACPX adapter 通过 Codex worker 和 LiteLLM supervisor 完成一次完整的端到端开发闭环（EODF）的每一步操作。
 
+如果你现在要做的是 supervised mission 的真实试跑，而不是单 issue EODF，优先看：
+
+- `docs/guides/supervised-mission-e2e-playbook.md`
+
 ---
 
 ## 0. 前置条件
@@ -59,6 +63,11 @@ adapter = "litellm"
 model = "openai/gpt-4o"
 api_key_env = "OPENAI_API_KEY"
 max_rounds = 12
+
+[supervisor.visual_evaluator]
+adapter = "command"
+command = ["{python}", "tools/visual_eval.py", "{input_json}", "{output_json}"]
+timeout_seconds = 120
 ```
 
 验证配置：
@@ -74,6 +83,7 @@ spec-orch config check
 说明：
 - `[builder]` 控制单 issue builder 和 mission worker 的底层 agent
 - `[supervisor]` 控制 mission round review。未配置时 mission 仍走旧的 wave 一次性执行路径
+- `[supervisor.visual_evaluator]` 可选地在 round review 前运行视觉检查脚本，并把结果写进 `visual_evaluation.json`
 - mission round 产物写到 `docs/specs/<mission_id>/rounds/round-XX/`
 
 ---

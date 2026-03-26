@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from spec_orch.domain.models import (
     ExecutionPlan,
+    MissionExecutionResult,
     RoundAction,
+    RoundArtifacts,
     RoundDecision,
     RoundStatus,
     RoundSummary,
@@ -253,6 +256,46 @@ class TestAutoAdvance:
         assert state.phase == MissionPhase.ALL_DONE
         assert orchestrator.calls == [("m1", plan, 0)]
         assert state.current_round == 3
+
+    def test_auto_advance_executes_via_mission_execution_service(self, repo: Path, bus: EventBus):
+        stub_service = MagicMock()
+        stub_service.execute_mission.return_value = MissionExecutionResult(
+            mission_id="m1",
+            completed=False,
+            paused=True,
+            rounds=[
+                RoundSummary(
+                    round_id=2,
+                    wave_id=1,
+                    status=RoundStatus.DECIDED,
+                    decision=RoundDecision(
+                        action=RoundAction.ASK_HUMAN,
+                        blocking_questions=["Approve the revised migration plan?"],
+                    ),
+                )
+            ],
+            last_round_artifacts=RoundArtifacts(round_id=2, mission_id="m1"),
+            blocking_questions=["Approve the revised migration plan?"],
+        )
+
+        mgr = MissionLifecycleManager(
+            repo_root=repo,
+            event_bus=bus,
+            mission_execution_service=stub_service,
+        )
+        mgr.begin_tracking("m1")
+        mgr.promotion_complete("m1", ["SON-1"])
+
+        state = mgr.auto_advance("m1")
+
+        stub_service.execute_mission.assert_called_once_with(mission_id="m1", initial_round=0)
+        assert state is not None
+        assert state.phase == MissionPhase.EXECUTING
+        assert state.current_round == 2
+        assert state.round_orchestrator_state == {
+            "paused": True,
+            "blocking_questions": ["Approve the revised migration plan?"],
+        }
 
     def test_auto_advance_marks_failed_when_max_rounds_exhausted(
         self, repo: Path, bus: EventBus, monkeypatch

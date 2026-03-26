@@ -10,6 +10,7 @@ from spec_orch.domain.models import (
     RoundDecision,
     RoundStatus,
     RoundSummary,
+    VisualEvaluationResult,
     Wave,
     WorkPacket,
 )
@@ -34,6 +35,28 @@ def _make_plan() -> ExecutionPlan:
                     WorkPacket(packet_id="pkt-2", title="Task 2", builder_prompt="Do task 2")
                 ],
             ),
+        ],
+    )
+
+
+def _make_single_wave_plan() -> ExecutionPlan:
+    return ExecutionPlan(
+        plan_id="plan-ctx",
+        mission_id="mission-ctx",
+        waves=[
+            Wave(
+                wave_number=0,
+                description="Wave ctx",
+                work_packets=[
+                    WorkPacket(
+                        packet_id="pkt-ctx",
+                        title="Task ctx",
+                        builder_prompt="Do task ctx",
+                        files_in_scope=["src/a.py", "src/b.py"],
+                        acceptance_criteria=["packet done"],
+                    )
+                ],
+            )
         ],
     )
 
@@ -162,6 +185,124 @@ def test_run_supervised_pauses_on_ask_human(tmp_path: Path) -> None:
     assert len(result.rounds) == 1
     assert result.last_decision is not None
     assert result.last_decision.action is RoundAction.ASK_HUMAN
+
+
+def test_run_supervised_enriches_supervisor_context_and_persists_visual_eval(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.mission_service import MissionService
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def __init__(self) -> None:
+            self.round_artifacts = None
+            self.context = None
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            self.round_artifacts = round_artifacts
+            self.context = context
+            return RoundDecision(action=RoundAction.STOP, summary="Done")
+
+    class StubAssembler:
+        def __init__(self) -> None:
+            self.issue = None
+            self.workspace = None
+
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            self.issue = issue
+            self.workspace = workspace
+            return {"node": spec.node_name, "constraints": issue.context.constraints}
+
+    class StubVisualEvaluator:
+        ADAPTER_NAME = "stub_visual"
+
+        def evaluate_round(
+            self,
+            *,
+            mission_id: str,
+            round_id: int,
+            wave,
+            worker_results,
+            repo_root: Path,
+            round_dir: Path,
+        ) -> VisualEvaluationResult | None:
+            return VisualEvaluationResult(
+                evaluator="stub_visual",
+                summary="UI looks correct.",
+                confidence=0.82,
+                findings=[{"severity": "low", "summary": "Minor spacing issue."}],
+                artifacts={"screenshot": str(round_dir / "screenshot.png")},
+            )
+
+    mission_service = MissionService(tmp_path)
+    mission = mission_service.create_mission(
+        "Mission ctx",
+        mission_id="mission-ctx",
+        acceptance_criteria=["mission done"],
+        constraints=["stay within API"],
+    )
+    spec_path = tmp_path / mission.spec_path
+    spec_path.write_text("# Mission ctx\n\n## Intent\n\nShip the feature.\n")
+
+    builder = StubBuilderAdapter()
+    supervisor = StubSupervisor()
+    assembler = StubAssembler()
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=builder,
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=supervisor,
+        worker_factory=factory,
+        context_assembler=assembler,
+        visual_evaluator=StubVisualEvaluator(),
+    )
+
+    result = orchestrator.run_supervised(mission_id="mission-ctx", plan=_make_single_wave_plan())
+
+    assert result.completed is True
+    assert supervisor.round_artifacts is not None
+    assert supervisor.round_artifacts.visual_evaluation is not None
+    assert supervisor.round_artifacts.visual_evaluation.summary == "UI looks correct."
+    assert assembler.issue is not None
+    assert assembler.issue.acceptance_criteria == ["mission done", "packet done"]
+    assert assembler.issue.context.constraints == ["stay within API"]
+    assert sorted(assembler.issue.context.files_to_read) == ["src/a.py", "src/b.py"]
+    assert supervisor.context["mission"]["mission_id"] == "mission-ctx"
+    assert supervisor.context["wave"]["packet_ids"] == ["pkt-ctx"]
+    assert (
+        (tmp_path / "docs/specs/mission-ctx/rounds/round-01/task.spec.md")
+        .read_text(encoding="utf-8")
+        .startswith("# Mission ctx")
+    )
+    visual_path = tmp_path / "docs/specs/mission-ctx/rounds/round-01/visual_evaluation.json"
+    assert visual_path.exists()
 
 
 def test_run_supervised_retries_same_wave_when_decision_is_retry(tmp_path: Path) -> None:
