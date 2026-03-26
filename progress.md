@@ -216,3 +216,65 @@
 - **ruff**: All checks passed
 - **mypy**: No issues found
 - **pytest**: 470+ tests passed (72 new tests for self-evolution)
+
+## Session: 2026-03-25
+
+### Phase 1: Research Setup
+- **Status:** in_progress
+- Actions taken:
+  - Fetched `origin/main` and created a fresh branch `paperclip-observability-research`.
+  - Initialized a new research-oriented `task_plan.md`.
+  - Updated `findings.md` with the scope and hypotheses for the Paperclip / agent observability comparison.
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+### Phase 2: Source Collection
+- **Status:** in_progress
+- Actions taken:
+  - Collected current repo metadata for `paperclipai/paperclip`, `ZacharyZhang-NY/AgentCompany`, and `msitarzewski/agency-agents`.
+  - Read the current READMEs and extracted architecture / UX claims.
+  - Queried repository trees to identify whether observability concepts are first-class objects in code.
+  - Read `agentcompanies.io` documentation to position it as a vendor-neutral packaging/spec layer rather than an operator UI reference.
+- Files created/modified:
+  - `findings.md`
+  - `progress.md`
+
+### Phase 3: Design Context and Console Draft
+- **Status:** in_progress
+- Actions taken:
+  - Wrote `.impeccable.md` with persistent design context for the operator console.
+  - Synced the same Design Context into `.github/copilot-instructions.md`.
+  - Drafted the first dedicated operator console design document focused on Mission Detail and Run Transcript.
+- Files created/modified:
+  - `.impeccable.md`
+  - `.github/copilot-instructions.md`
+  - `docs/plans/2026-03-25-operator-console-design.md`
+  - `task_plan.md`
+  - `progress.md`
+
+### Phase 4: Implementation Planning
+- **Status:** in_progress
+- Actions taken:
+  - Mapped current dashboard endpoints and mission/transcript data sources.
+  - Chose an incremental implementation strategy: keep FastAPI, split the dashboard into a package, and build a workbench-style operator console on top.
+  - Wrote a task-by-task implementation plan for Mission Detail and Run Transcript.
+- Files created/modified:
+  - `docs/plans/2026-03-25-operator-console-implementation-plan.md`
+  - `findings.md`
+  - `progress.md`
+
+### Phase 5: Dashboard Foundations
+- **Status:** in_progress
+- Actions taken:
+  - Added stable static asset entrypoints for the operator console shell and mounted them at `/static`.
+  - Added a new mission detail API projection at `/api/missions/{mission_id}/detail`.
+  - Added a new packet transcript API projection at `/api/missions/{mission_id}/packets/{packet_id}/transcript`.
+  - Verified dashboard-related tests and lint after the changes.
+- Files created/modified:
+  - `src/spec_orch/dashboard.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.css`
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `tests/unit/test_dashboard_api.py`
+  - `pyproject.toml`

@@ -80,7 +80,11 @@ spec-orch = "spec_orch.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-spec_orch = ["py.typed"]
+spec_orch = [
+  "py.typed",
+  "dashboard_assets/static/*.css",
+  "dashboard_assets/static/*.js",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

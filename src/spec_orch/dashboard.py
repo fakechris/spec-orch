@@ -102,6 +102,185 @@ def _gather_missions(repo_root: Path) -> list[dict[str, Any]]:
     return results
 
 
+def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] | None:
+    svc = MissionService(repo_root=repo_root)
+    try:
+        mission = svc.get_mission(mission_id)
+    except FileNotFoundError:
+        return None
+
+    plan_path = repo_root / "docs/specs" / mission_id / "plan.json"
+    plan = load_plan(plan_path) if plan_path.exists() else None
+    lifecycle = _gather_lifecycle_states(repo_root).get(mission_id)
+
+    rounds_dir = repo_root / "docs/specs" / mission_id / "rounds"
+    round_summaries: list[dict[str, Any]] = []
+    current_round = 0
+    if rounds_dir.exists():
+        from spec_orch.domain.models import RoundSummary
+
+        for round_dir in sorted(rounds_dir.glob("round-*")):
+            summary_path = round_dir / "round_summary.json"
+            if not summary_path.exists():
+                continue
+            try:
+                summary = RoundSummary.from_dict(json.loads(summary_path.read_text(encoding="utf-8")))
+            except (OSError, ValueError, json.JSONDecodeError):
+                logger.warning("Skipping malformed round summary: %s", summary_path)
+                continue
+            current_round = max(current_round, summary.round_id)
+            review_path = round_dir / "supervisor_review.md"
+            visual_path = round_dir / "visual_evaluation.json"
+            payload = summary.to_dict()
+            payload["paths"] = {
+                "round_dir": str(round_dir.relative_to(repo_root)),
+                "review_memo": str(review_path.relative_to(repo_root)) if review_path.exists() else None,
+                "visual_evaluation": str(visual_path.relative_to(repo_root)) if visual_path.exists() else None,
+            }
+            round_summaries.append(payload)
+
+    packets: list[dict[str, Any]] = []
+    if plan is not None:
+        for wave in plan.waves:
+            for packet in wave.work_packets:
+                packets.append(
+                    {
+                        "packet_id": packet.packet_id,
+                        "title": packet.title,
+                        "wave_id": wave.wave_number,
+                        "run_class": packet.run_class,
+                        "linear_issue_id": packet.linear_issue_id,
+                        "depends_on": packet.depends_on,
+                        "files_in_scope": packet.files_in_scope,
+                    }
+                )
+
+    actions = ["inject_guidance"]
+    status_value = mission.status.value
+    if status_value in {"approved", "drafting"}:
+        actions.append("approve")
+    if status_value in {"failed"}:
+        actions.extend(["retry", "rerun"])
+    if status_value in {"executing", "planned", "promoting"}:
+        actions.extend(["resume", "stop", "rerun"])
+
+    if lifecycle and lifecycle.get("round_orchestrator_state", {}).get("paused"):
+        actions.append("resume")
+
+    detail = {
+        "mission": {
+            "mission_id": mission.mission_id,
+            "title": mission.title,
+            "status": mission.status.value,
+            "created_at": mission.created_at,
+            "approved_at": mission.approved_at,
+            "completed_at": mission.completed_at,
+            "acceptance_criteria": mission.acceptance_criteria,
+            "constraints": mission.constraints,
+            "spec_path": mission.spec_path,
+        },
+        "lifecycle": lifecycle,
+        "current_round": current_round,
+        "rounds": round_summaries,
+        "packets": packets,
+        "actions": sorted(set(actions)),
+        "artifacts": {
+            "spec": str((repo_root / mission.spec_path).relative_to(repo_root)),
+            "plan": str(plan_path.relative_to(repo_root)) if plan_path.exists() else None,
+            "rounds_dir": str(rounds_dir.relative_to(repo_root)) if rounds_dir.exists() else None,
+        },
+    }
+    return detail
+
+
+def _gather_packet_transcript(
+    repo_root: Path,
+    mission_id: str,
+    packet_id: str,
+) -> dict[str, Any] | None:
+    telemetry_dir = (
+        repo_root / "docs" / "specs" / mission_id / "workers" / packet_id / "telemetry"
+    )
+    activity_path = telemetry_dir / "activity.log"
+    events_path = telemetry_dir / "events.jsonl"
+    incoming_path = telemetry_dir / "incoming_events.jsonl"
+    if not telemetry_dir.exists():
+        return {
+            "mission_id": mission_id,
+            "packet_id": packet_id,
+            "entries": [],
+            "telemetry": {
+                "activity_log": None,
+                "events": None,
+                "incoming": None,
+            },
+        }
+
+    entries: list[dict[str, Any]] = []
+    if activity_path.exists():
+        for line in activity_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            ts, _, message = line.partition(" ")
+            entries.append(
+                {
+                    "kind": "activity",
+                    "timestamp": ts if message else "",
+                    "message": message or line,
+                    "raw": line,
+                }
+            )
+
+    if events_path.exists():
+        for line in events_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            entries.append(
+                {
+                    "kind": "event",
+                    "timestamp": payload.get("timestamp", ""),
+                    "message": payload.get("message", payload.get("event_type", "event")),
+                    "event_type": payload.get("event_type", ""),
+                    "raw": payload,
+                }
+            )
+
+    if incoming_path.exists():
+        for line in incoming_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            entries.append(
+                {
+                    "kind": "incoming",
+                    "timestamp": payload.get("ts", payload.get("timestamp", "")),
+                    "message": payload.get("excerpt", payload.get("message", payload.get("kind", ""))),
+                    "event_type": payload.get("kind", ""),
+                    "raw": payload,
+                }
+            )
+
+    entries.sort(key=lambda entry: (entry.get("timestamp", ""), entry.get("kind", "")))
+
+    return {
+        "mission_id": mission_id,
+        "packet_id": packet_id,
+        "entries": entries,
+        "telemetry": {
+            "activity_log": str(activity_path.relative_to(repo_root)) if activity_path.exists() else None,
+            "events": str(events_path.relative_to(repo_root)) if events_path.exists() else None,
+            "incoming": str(incoming_path.relative_to(repo_root)) if incoming_path.exists() else None,
+        },
+    }
+
+
 def _gather_lifecycle_states(repo_root: Path) -> dict[str, Any]:
     mgr = _get_lifecycle_manager(repo_root)
     if mgr is None:
@@ -427,6 +606,7 @@ DASHBOARD_HTML = """\
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>spec-orch dashboard</title>
+<link rel="stylesheet" href="/static/operator-console.css"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -573,7 +753,36 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
 <!-- ===== MAIN ===== -->
 <div class="main-wrap">
   <div class="main-content" id="main">
-    <div id="root" class="grid"></div>
+    <div id="operator-shell" class="operator-shell">
+      <aside class="operator-pane operator-nav">
+        <div class="operator-nav-header">
+          <h2>Mission Control</h2>
+        </div>
+        <div class="operator-nav-modes">
+          <span class="operator-mode">Inbox</span>
+          <span class="operator-mode">Missions</span>
+          <span class="operator-mode">Approvals</span>
+          <span class="operator-mode">Evidence</span>
+        </div>
+        <div id="mission-list" class="mission-list"></div>
+      </aside>
+
+      <section class="operator-pane operator-main">
+        <div class="operator-main-header">
+          <h2>Mission Detail</h2>
+        </div>
+        <div id="mission-detail-view" class="mission-detail-view">
+          <div id="packet-transcript-view" class="transcript-list"></div>
+        </div>
+      </section>
+
+      <aside class="operator-pane operator-context">
+        <div class="operator-context-header">
+          <h2>Context Rail</h2>
+        </div>
+        <div id="operator-context-rail" class="mission-detail-view operator-context-rail"></div>
+      </aside>
+    </div>
   </div>
 
   <!-- ===== SIDEBAR CHAT ===== -->
@@ -625,6 +834,10 @@ let ws = null;
 let wsRetryMs = 1000;
 let chatThreadId = null;
 let chatMessages = [];
+let selectedMissionId = null;
+let selectedMissionDetail = null;
+let selectedPacketId = null;
+let selectedPacketTranscript = null;
 
 /* ===== DATA LOADING ===== */
 async function load() {
@@ -638,6 +851,7 @@ async function load() {
       lifecycleStates = await lcRes.json();
     }
     renderMissions();
+    await ensureMissionSelection();
   } catch(e) {
     console.error('load failed', e);
   }
@@ -704,67 +918,408 @@ function phaseFor(m) {
 }
 
 function renderMissions() {
-  const root = document.getElementById('root');
+  const root = document.getElementById('mission-list');
   if (!missions.length) {
-    root.innerHTML = '<div class="empty">No missions found. Click <b>+ New Mission</b> to start.</div>';
+    selectedMissionId = null;
+    selectedMissionDetail = null;
+    selectedPacketId = null;
+    root.innerHTML = '<div class="empty-panel">No missions found yet.</div>';
+    renderMissionDetail(null);
+    renderContextRail(null);
     return;
+  }
+  if (!selectedMissionId || !missions.some(m => m.mission_id === selectedMissionId)) {
+    selectedMissionId = missions[0].mission_id;
   }
   root.innerHTML = missions.map(m => {
     const phase = phaseFor(m);
     const lc = lifecycleStates[m.mission_id];
-    const stages = m.pipeline.map(s =>
-      `<div class="stage ${s.status} tooltip" data-tip="${s.label}"></div>`).join('');
-
-    let actionsHtml = '';
-    if (phase === 'approved' || phase === 'drafting') {
-      actionsHtml = `<button class="btn btn-green btn-sm" onclick="approveGo('${m.mission_id}')">Approve &amp; Go</button>`;
-    } else if (phase === 'failed') {
-      const errHtml = lc && lc.error
-        ? `<div class="error-banner">${escHtml(lc.error)}</div>`
-        : '';
-      actionsHtml = errHtml +
-        `<button class="btn btn-red btn-sm" onclick="retryMission('${m.mission_id}')">Retry</button>`;
-    } else if (phase === 'completed' || phase === 'all_done') {
-      actionsHtml = `<button class="btn btn-sm" onclick="alert('Retrospective coming soon')">View Retrospective</button>`;
-    }
-
-    let issueBar = '';
-    if (phase === 'executing' && lc) {
-      const done = (lc.completed_issues || []).length;
-      const total = (lc.issue_ids || []).length || 1;
-      const pct = Math.round(done / total * 100);
-      issueBar = `<div class="issue-progress">
-        <div class="issue-bar"><div class="issue-bar-fill" style="width:${pct}%"></div></div>
-        <div class="issue-label">${done}/${total} issues completed</div>
-      </div>`;
-    }
-
-    let wavesHtml = '';
-    if (m.plan) {
-      wavesHtml = '<div class="waves">' + m.plan.waves.map(w =>
-        `<div class="wave"><div class="wave-label">Wave ${w.wave_number}: ${w.description}</div>` +
-        w.packets.map(p =>
-          `<div class="packet"><span class="run-class">${p.run_class}</span> ${escHtml(p.title)}` +
-          (p.linear_issue_id ? ` <span class="linear-id">${p.linear_issue_id}</span>` : '') +
-          `</div>`).join('') +
-        `</div>`).join('') + '</div>';
-    }
-
-    return `<div class="card" id="card-${m.mission_id}" data-mid="${m.mission_id}">
-      <div class="card-header">
-        <div class="card-title">${escHtml(m.title)}</div>
+    const pipelineText = `${m.pipeline_done}/${m.pipeline_total} stages complete`;
+    const issueSummary = lc && phase === 'executing'
+      ? `${(lc.completed_issues || []).length}/${(lc.issue_ids || []).length || 1} issues complete`
+      : m.plan ? `${m.plan.packet_count} packets across ${m.plan.wave_count} waves` : 'Spec in progress';
+    return `<button class="mission-list-item ${selectedMissionId === m.mission_id ? 'active' : ''}"
+      id="card-${m.mission_id}" data-mid="${m.mission_id}" onclick="selectMission('${m.mission_id}')">
+      <div class="mission-list-title">${escHtml(m.title)}</div>
+      <div class="mission-list-meta">
         <span class="badge ${phase}">${phase}</span>
+        <span>${pipelineText}</span>
       </div>
-      <div class="pipeline">${stages}</div>
-      <div class="progress-text">${m.pipeline_done}/${m.pipeline_total} stages complete</div>
-      ${issueBar}
-      ${wavesHtml}
-      <div class="card-actions">${actionsHtml}
-        <button class="btn btn-sm" onclick="openDiscuss('${m.mission_id}')">Discuss</button>
+      <div class="mission-list-meta">
+        <span>${escHtml(m.mission_id)}</span>
+        <span>${escHtml(issueSummary)}</span>
       </div>
-      <div class="meta">${m.mission_id}</div>
-    </div>`;
+    </button>`;
   }).join('');
+}
+
+async function ensureMissionSelection() {
+  if (!selectedMissionId) return;
+  await selectMission(selectedMissionId, {force:true});
+}
+
+async function selectMission(missionId, options = {}) {
+  if (!options.force && missionId === selectedMissionId && selectedMissionDetail) {
+    renderMissions();
+    renderMissionDetail(selectedMissionDetail);
+    renderContextRail(selectedMissionDetail);
+    return;
+  }
+  selectedMissionId = missionId;
+  renderMissions();
+  renderMissionDetailLoading();
+  renderContextRailLoading();
+  try {
+    const response = await fetch(`/api/missions/${missionId}/detail`);
+    if (!response.ok) throw new Error(`Failed to load mission detail (${response.status})`);
+    selectedMissionDetail = await response.json();
+    selectedPacketId = selectedMissionDetail.packets?.[0]?.packet_id || null;
+    selectedPacketTranscript = null;
+    renderMissionDetail(selectedMissionDetail);
+    renderContextRail(selectedMissionDetail);
+    await loadSelectedPacketTranscript();
+  } catch (error) {
+    console.error(error);
+    selectedMissionDetail = null;
+    selectedPacketTranscript = null;
+    renderMissionDetailError(error);
+    renderContextRailError(error);
+  }
+}
+
+function renderMissionDetailLoading() {
+  const view = document.getElementById('mission-detail-view');
+  view.innerHTML = '<div class="empty-panel">Loading mission detail…</div>';
+}
+
+function renderContextRailLoading() {
+  const rail = document.getElementById('operator-context-rail');
+  rail.innerHTML = '<div class="empty-panel">Loading context…</div>';
+}
+
+function renderMissionDetailError(error) {
+  const view = document.getElementById('mission-detail-view');
+  view.innerHTML = `<div class="error-banner">${escHtml(error?.message || 'Failed to load mission detail')}</div>`;
+}
+
+function renderContextRailError(error) {
+  const rail = document.getElementById('operator-context-rail');
+  rail.innerHTML = `<div class="error-banner">${escHtml(error?.message || 'Failed to load context')}</div>`;
+}
+
+function renderMissionDetail(detail) {
+  const view = document.getElementById('mission-detail-view');
+  if (!detail) {
+    view.innerHTML = '<div class="empty-panel">Select a mission to inspect its rounds, packets, and evidence.</div>';
+    return;
+  }
+
+  const mission = detail.mission || {};
+  const lifecycle = detail.lifecycle || {};
+  const packets = detail.packets || [];
+  const rounds = detail.rounds || [];
+  const latestRound = rounds.length ? rounds[rounds.length - 1] : null;
+  const currentPhase = lifecycle.phase || mission.status || 'unknown';
+  const completedIssues = lifecycle.completed_issues || [];
+  const issueIds = lifecycle.issue_ids || [];
+  const metrics = [
+    { label: 'Phase', value: currentPhase },
+    { label: 'Round', value: detail.current_round || '—' },
+    { label: 'Packets', value: packets.length || '—' },
+    { label: 'Issues', value: issueIds.length ? `${completedIssues.length}/${issueIds.length}` : '—' },
+  ];
+
+  view.innerHTML = `
+    <section class="mission-hero">
+      <div class="mission-hero-copy">
+        <div class="mission-kicker">Mission ${escHtml(mission.mission_id || '')}</div>
+        <div class="mission-hero-title">${escHtml(mission.title || 'Untitled mission')}</div>
+        <div class="mission-hero-subtitle">${escHtml(buildMissionSubtitle(detail))}</div>
+      </div>
+      <div class="mission-primary-actions">
+        ${renderActionButtons(detail.actions || [], mission.mission_id || '')}
+      </div>
+    </section>
+    <section class="mission-metrics">
+      ${metrics.map(metric => `
+        <div class="mission-metric">
+          <div class="mission-metric-label">${escHtml(metric.label)}</div>
+          <div class="mission-metric-value">${escHtml(String(metric.value))}</div>
+        </div>
+      `).join('')}
+    </section>
+    <section class="mission-tabs">
+      <button class="mission-tab active" type="button">Overview</button>
+      <button class="mission-tab" type="button" onclick="openDiscuss('${escHtml(mission.mission_id || '')}')">Discuss</button>
+      <button class="mission-tab" type="button" onclick="load()">Refresh</button>
+    </section>
+    <section class="mission-workbench">
+      <div class="mission-section">
+        <h3>Packets</h3>
+        <div class="packet-list">
+          ${packets.length ? packets.map(packet => renderPacketRow(packet)).join('') : '<div class="empty-panel">No packets scoped yet.</div>'}
+        </div>
+      </div>
+      <div class="mission-section">
+        <h3>Latest Round</h3>
+        ${latestRound ? renderLatestRound(latestRound) : '<div class="empty-panel">No round evidence yet.</div>'}
+      </div>
+    </section>
+    <section class="mission-section">
+      <h3>Transcript</h3>
+      <div id="packet-transcript-view" class="transcript-list">${renderTranscriptPreview()}</div>
+    </section>
+    <section class="mission-workbench">
+      <div class="mission-section">
+        <h3>Acceptance Criteria</h3>
+        ${renderSimpleList(mission.acceptance_criteria, 'No acceptance criteria recorded yet.')}
+      </div>
+      <div class="mission-section">
+        <h3>Constraints</h3>
+        ${renderSimpleList(mission.constraints, 'No constraints recorded yet.')}
+      </div>
+    </section>
+  `;
+}
+
+function renderContextRail(detail) {
+  const rail = document.getElementById('operator-context-rail');
+  if (!detail) {
+    rail.innerHTML = '<div class="empty-panel">Mission context will appear here.</div>';
+    return;
+  }
+  const mission = detail.mission || {};
+  const rounds = detail.rounds || [];
+  const latestRound = rounds.length ? rounds[rounds.length - 1] : null;
+  const packet = (detail.packets || []).find(item => item.packet_id === selectedPacketId) || detail.packets?.[0];
+  rail.innerHTML = `
+    <div class="mission-section">
+      <h3>Interventions</h3>
+      <div class="context-list">
+        <div class="context-card">
+          <div class="context-title">Available actions</div>
+          <div class="context-meta">${(detail.actions || []).join(' • ') || 'No actions'}</div>
+        </div>
+        <div class="context-card">
+          <div class="context-title">Current packet</div>
+          <div class="context-meta">${packet ? escHtml(packet.title) : 'No packet selected'}</div>
+        </div>
+      </div>
+    </div>
+    <div class="mission-section">
+      <h3>Artifacts</h3>
+      <div class="artifact-list">
+        ${renderArtifactLinks(detail.artifacts || {})}
+      </div>
+    </div>
+    <div class="mission-section">
+      <h3>Round evidence</h3>
+      <div class="context-list">
+        ${latestRound ? renderRoundContext(latestRound) : '<div class="empty-panel">Waiting for first round evidence.</div>'}
+      </div>
+    </div>
+    <div class="mission-section">
+      <h3>Spec</h3>
+      <div class="context-list">
+        <div class="context-card">
+          <div class="context-title">${escHtml(mission.spec_path || 'No spec path')}</div>
+          <div class="context-meta">Mission source of truth</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderActionButtons(actions, missionId) {
+  return actions.map(action => {
+    if (action === 'approve') {
+      return `<button class="btn btn-green btn-sm" onclick="approveGo('${missionId}')">Approve</button>`;
+    }
+    if (action === 'retry' || action === 'rerun') {
+      return `<button class="btn btn-red btn-sm" onclick="retryMission('${missionId}')">${action}</button>`;
+    }
+    if (action === 'resume') {
+      return `<button class="btn btn-sm" onclick="openDiscuss('${missionId}')">Resume</button>`;
+    }
+    if (action === 'inject_guidance') {
+      return `<button class="btn btn-primary btn-sm" onclick="openDiscuss('${missionId}')">Inject guidance</button>`;
+    }
+    return `<button class="btn btn-sm" type="button">${escHtml(action)}</button>`;
+  }).join('');
+}
+
+function renderPacketRow(packet) {
+  const inScope = (packet.files_in_scope || []).slice(0, 2).join(', ');
+  const isSelected = packet.packet_id === selectedPacketId;
+  return `
+    <button class="packet-row ${isSelected ? 'active' : ''}" type="button" onclick="selectPacket('${packet.packet_id}')">
+      <div class="packet-row-header">
+        <div class="packet-row-title">${escHtml(packet.title)}</div>
+        <span class="run-class">${escHtml(packet.run_class || 'packet')}</span>
+      </div>
+      <div class="packet-row-meta">
+        <span>${escHtml(packet.packet_id)}</span>
+        <span>Wave ${escHtml(String(packet.wave_id ?? '—'))}</span>
+        ${packet.linear_issue_id ? `<span>${escHtml(packet.linear_issue_id)}</span>` : ''}
+      </div>
+      <div class="packet-row-meta">
+        <span>${escHtml(inScope || 'No scoped files')}</span>
+      </div>
+    </button>
+  `;
+}
+
+function renderLatestRound(round) {
+  const decision = round.decision || {};
+  const succeeded = (round.worker_results || []).filter(result => result.succeeded).length;
+  const total = (round.worker_results || []).length;
+  return `
+    <div class="context-card">
+      <div class="context-title">${escHtml(decision.summary || 'No supervisor decision summary')}</div>
+      <div class="context-meta">
+        <span>Action ${escHtml(decision.action || '—')}</span>
+        <span>Confidence ${decision.confidence != null ? escHtml(String(decision.confidence)) : '—'}</span>
+        <span>Workers ${succeeded}/${total}</span>
+      </div>
+    </div>
+    <div class="context-list">
+      ${(round.worker_results || []).map(result => `
+        <div class="context-card">
+          <div class="context-title">${escHtml(result.title || result.packet_id || 'worker')}</div>
+          <div class="context-meta">
+            <span>${escHtml(result.packet_id || '—')}</span>
+            <span>${result.succeeded ? 'succeeded' : 'failed'}</span>
+            ${result.report_path ? `<span>${escHtml(result.report_path)}</span>` : ''}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderSimpleList(items, emptyText) {
+  if (!items || !items.length) {
+    return `<div class="empty-panel">${escHtml(emptyText)}</div>`;
+  }
+  return `<div class="context-list">${items.map(item => `
+    <div class="context-card">
+      <div class="context-title">${escHtml(item)}</div>
+    </div>
+  `).join('')}</div>`;
+}
+
+function renderArtifactLinks(artifacts) {
+  const entries = Object.entries(artifacts).filter(([, value]) => Boolean(value));
+  if (!entries.length) {
+    return '<div class="empty-panel">No artifact paths available.</div>';
+  }
+  return entries.map(([key, value]) => `
+    <div class="context-card">
+      <div class="context-title">${escHtml(key)}</div>
+      <div class="context-meta"><span class="artifact-link">${escHtml(String(value))}</span></div>
+    </div>
+  `).join('');
+}
+
+function renderRoundContext(round) {
+  const paths = round.paths || {};
+  const decision = round.decision || {};
+  return `
+    <div class="context-card">
+      <div class="context-title">${escHtml(decision.reason_code || 'round decision')}</div>
+      <div class="context-meta">
+        <span>Round ${escHtml(String(round.round_id || '—'))}</span>
+        <span>${escHtml(round.status || 'unknown')}</span>
+      </div>
+    </div>
+    ${Object.entries(paths).filter(([, value]) => Boolean(value)).map(([key, value]) => `
+      <div class="context-card">
+        <div class="context-title">${escHtml(key)}</div>
+        <div class="context-meta">${escHtml(String(value))}</div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function buildMissionSubtitle(detail) {
+  const mission = detail.mission || {};
+  const rounds = detail.rounds || [];
+  const lifecycle = detail.lifecycle || {};
+  const paused = lifecycle.round_orchestrator_state?.paused;
+  const stateText = paused ? 'Paused for human input.' : 'Supervisor loop active.';
+  const criterionCount = (mission.acceptance_criteria || []).length;
+  return `${stateText} ${criterionCount} acceptance criteria, ${rounds.length} recorded rounds, and ${(detail.packets || []).length} scoped packets.`;
+}
+
+async function selectPacket(packetId) {
+  selectedPacketId = packetId;
+  selectedPacketTranscript = null;
+  renderMissionDetail(selectedMissionDetail);
+  renderContextRail(selectedMissionDetail);
+  await loadSelectedPacketTranscript();
+}
+
+async function loadSelectedPacketTranscript() {
+  if (!selectedMissionId || !selectedPacketId) {
+    selectedPacketTranscript = null;
+    renderTranscriptContainer();
+    return;
+  }
+  selectedPacketTranscript = {loading: true, entries: []};
+  renderTranscriptContainer();
+  try {
+    const response = await fetch(`/api/missions/${selectedMissionId}/packets/${selectedPacketId}/transcript`);
+    if (!response.ok) {
+      selectedPacketTranscript = {error: 'No transcript available for this packet yet.', entries: []};
+      renderTranscriptContainer();
+      return;
+    }
+    selectedPacketTranscript = await response.json();
+  } catch (error) {
+    selectedPacketTranscript = {error: error?.message || 'Failed to load transcript.', entries: []};
+  }
+  renderTranscriptContainer();
+}
+
+function renderTranscriptContainer() {
+  const container = document.getElementById('packet-transcript-view');
+  if (!container) return;
+  container.innerHTML = renderTranscriptPreview();
+}
+
+function renderTranscriptPreview() {
+  if (!selectedPacketId) {
+    return '<div class="empty-panel">Select a packet to inspect its transcript.</div>';
+  }
+  if (!selectedPacketTranscript || selectedPacketTranscript.loading) {
+    return '<div class="empty-panel">Loading transcript…</div>';
+  }
+  if (selectedPacketTranscript.error) {
+    return `<div class="empty-panel">${escHtml(selectedPacketTranscript.error)}</div>`;
+  }
+  const entries = selectedPacketTranscript.entries || [];
+  if (!entries.length) {
+    return '<div class="empty-panel">No transcript events have been recorded yet.</div>';
+  }
+  return entries.slice(-8).map(entry => `
+    <div class="transcript-entry ${escHtml(entry.kind || '')}">
+      <div class="transcript-entry-header">
+        <div class="context-title">${escHtml(entry.message || entry.event_type || entry.kind || 'event')}</div>
+        <span class="run-class">${escHtml(entry.kind || 'event')}</span>
+      </div>
+      <div class="transcript-entry-meta">
+        <span>${escHtml(entry.timestamp || '—')}</span>
+        ${entry.event_type ? `<span>${escHtml(entry.event_type)}</span>` : ''}
+      </div>
+      ${renderTranscriptBody(entry)}
+    </div>
+  `).join('');
+}
+
+function renderTranscriptBody(entry) {
+  if (!entry.raw) return '';
+  const body = typeof entry.raw === 'string' ? entry.raw : JSON.stringify(entry.raw, null, 2);
+  return `<div class="transcript-entry-body">${escHtml(body)}</div>`;
 }
 
 function escHtml(s) {
@@ -922,9 +1477,13 @@ async function loadSingleMission(mid) {
     const m = await r.json();
     const idx = missions.findIndex(x => x.mission_id === mid);
     if (idx >= 0) missions[idx] = m;
+    if (idx < 0) missions.push(m);
     const lcr = await fetch('/api/lifecycle').catch(() => ({ok:false}));
     if (lcr.ok) lifecycleStates = await lcr.json();
     renderMissions();
+    if (selectedMissionId === mid) {
+      await selectMission(mid, {force:true});
+    }
   } catch(e) {}
 }
 
@@ -935,6 +1494,7 @@ connectWs();
 setInterval(load, 15000);
 setInterval(loadEvolution, 30000);
 </script>
+<script src="/static/operator-console.js" defer></script>
 </body>
 </html>
 """
@@ -949,15 +1509,23 @@ def create_app(repo_root: Path | None = None) -> Any:
     """Create the FastAPI app. Requires ``pip install fastapi uvicorn``."""
     from fastapi import Body, FastAPI, WebSocket, WebSocketDisconnect
     from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+    from fastapi.staticfiles import StaticFiles
 
     root = repo_root or Path(".")
     app = FastAPI(title="spec-orch dashboard")
+    static_dir = Path(__file__).resolve().parent / "dashboard_assets" / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=static_dir), name="dashboard-static")
 
     # ---- pages ----
 
     @app.get("/", response_class=HTMLResponse)
     async def index() -> str:
         return DASHBOARD_HTML
+
+    @app.get("/favicon.ico")
+    async def favicon() -> PlainTextResponse:
+        return PlainTextResponse("", status_code=204)
 
     # ---- existing read endpoints ----
 
@@ -972,6 +1540,18 @@ def create_app(repo_root: Path | None = None) -> Any:
             if m["mission_id"] == mission_id:
                 return JSONResponse(m)
         return JSONResponse({"error": "not found"}, status_code=404)
+
+    @app.get("/api/missions/{mission_id}/detail")
+    async def api_mission_detail(mission_id: str) -> JSONResponse:
+        detail = _gather_mission_detail(root, mission_id)
+        if detail is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse(detail)
+
+    @app.get("/api/missions/{mission_id}/packets/{packet_id}/transcript")
+    async def api_packet_transcript(mission_id: str, packet_id: str) -> JSONResponse:
+        transcript = _gather_packet_transcript(root, mission_id, packet_id)
+        return JSONResponse(transcript)
 
     @app.get("/api/missions/{mission_id}/spec")
     async def api_mission_spec(mission_id: str) -> PlainTextResponse:
@@ -1174,6 +1754,12 @@ def create_app(repo_root: Path | None = None) -> Any:
         finally:
             bus.remove_async_queue(queue)
 
+    # `from __future__ import annotations` turns nested function annotations into
+    # strings. FastAPI can't resolve the local `WebSocket` symbol from the
+    # function's globals, so it misclassifies `websocket` as a query param and
+    # rejects the handshake with 403. Patch the concrete type back in before
+    # route registration.
+    _ws_handler.__annotations__["websocket"] = WebSocket
     app.add_api_websocket_route("/ws", _ws_handler)
 
     return app
