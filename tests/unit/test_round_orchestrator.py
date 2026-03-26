@@ -305,6 +305,82 @@ def test_run_supervised_enriches_supervisor_context_and_persists_visual_eval(
     assert visual_path.exists()
 
 
+def test_run_supervised_treats_visual_evaluator_failure_as_non_fatal(tmp_path: Path) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def __init__(self) -> None:
+            self.visual_evaluation = "unset"
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            self.visual_evaluation = round_artifacts.visual_evaluation
+            return RoundDecision(action=RoundAction.STOP, summary="Done")
+
+    class StubAssembler:
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            return {}
+
+    class FailingVisualEvaluator:
+        ADAPTER_NAME = "failing_visual"
+
+        def evaluate_round(
+            self,
+            *,
+            mission_id: str,
+            round_id: int,
+            wave,
+            worker_results,
+            repo_root: Path,
+            round_dir: Path,
+        ) -> VisualEvaluationResult | None:
+            raise RuntimeError("browser exploded")
+
+    supervisor = StubSupervisor()
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=StubBuilderAdapter(),
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=supervisor,
+        worker_factory=factory,
+        context_assembler=StubAssembler(),
+        visual_evaluator=FailingVisualEvaluator(),
+    )
+
+    result = orchestrator.run_supervised(mission_id="mission-1", plan=_make_single_wave_plan())
+
+    assert result.completed is True
+    assert supervisor.visual_evaluation is None
+    visual_path = tmp_path / "docs/specs/mission-1/rounds/round-01/visual_evaluation.json"
+    assert not visual_path.exists()
+
+
 def test_run_supervised_retries_same_wave_when_decision_is_retry(tmp_path: Path) -> None:
     from spec_orch.services.round_orchestrator import RoundOrchestrator
     from spec_orch.services.workers.in_memory_worker_handle_factory import (

@@ -33,7 +33,7 @@ class PageSnapshot:
 
 
 def parse_request(input_path: Path) -> VisualEvalRequest:
-    payload = json.loads(Path(input_path).read_text(encoding="utf-8"))
+    payload = json.loads(input_path.read_text(encoding="utf-8"))
     base_url = os.environ.get("SPEC_ORCH_VISUAL_EVAL_URL", "").strip()
     if not base_url:
         raise ValueError("SPEC_ORCH_VISUAL_EVAL_URL is required")
@@ -104,6 +104,11 @@ def build_visual_evaluation_result(
 
 
 def run_playwright_visual_evaluation(request: VisualEvalRequest) -> VisualEvaluationResult:
+    valid_browsers = ("chromium", "firefox", "webkit")
+    if request.browser not in valid_browsers:
+        raise ValueError(
+            f"Invalid browser '{request.browser}'. Must be one of: {', '.join(valid_browsers)}"
+        )
     try:
         from playwright.sync_api import sync_playwright  # type: ignore[import-not-found]
     except ImportError as exc:
@@ -116,6 +121,7 @@ def run_playwright_visual_evaluation(request: VisualEvalRequest) -> VisualEvalua
     visual_dir.mkdir(parents=True, exist_ok=True)
 
     snapshots: list[PageSnapshot] = []
+    findings: list[dict[str, str]] = []
     with sync_playwright() as playwright:
         browser_launcher = getattr(playwright, request.browser)
         browser = browser_launcher.launch(headless=request.headless)
@@ -124,35 +130,50 @@ def run_playwright_visual_evaluation(request: VisualEvalRequest) -> VisualEvalua
                 console_errors: list[str] = []
                 page_errors: list[str] = []
                 page = browser.new_page()
-                page.on(
-                    "console",
-                    lambda msg, errors=console_errors: (
-                        errors.append(msg.text) if msg.type == "error" else None
-                    ),
-                )
-                page.on("pageerror", lambda exc, errors=page_errors: errors.append(str(exc)))
-                url = f"{request.base_url}{path}" if path != "/" else f"{request.base_url}/"
-                page.goto(url, wait_until="networkidle", timeout=request.timeout_ms)
-                if request.wait_for_selector:
-                    page.wait_for_selector(request.wait_for_selector, timeout=request.timeout_ms)
-                title = page.title()
-                screenshot_path = visual_dir / _slugify_path(path)
-                page.screenshot(path=str(screenshot_path), full_page=True)
-                snapshots.append(
-                    PageSnapshot(
-                        path=path,
-                        url=url,
-                        title=title,
-                        screenshot_path=screenshot_path,
-                        console_errors=console_errors,
-                        page_errors=page_errors,
+                try:
+                    page.on(
+                        "console",
+                        lambda msg, errors=console_errors: (
+                            errors.append(msg.text) if msg.type == "error" else None
+                        ),
                     )
-                )
-                page.close()
+                    page.on("pageerror", lambda exc, errors=page_errors: errors.append(str(exc)))
+                    url = f"{request.base_url}{path}" if path != "/" else f"{request.base_url}/"
+                    page.goto(url, wait_until="networkidle", timeout=request.timeout_ms)
+                    if request.wait_for_selector:
+                        page.wait_for_selector(
+                            request.wait_for_selector, timeout=request.timeout_ms
+                        )
+                    title = page.title()
+                    screenshot_path = visual_dir / _slugify_path(path)
+                    page.screenshot(path=str(screenshot_path), full_page=True)
+                    snapshots.append(
+                        PageSnapshot(
+                            path=path,
+                            url=url,
+                            title=title,
+                            screenshot_path=screenshot_path,
+                            console_errors=console_errors,
+                            page_errors=page_errors,
+                        )
+                    )
+                except Exception as exc:
+                    findings.append(
+                        {
+                            "severity": "error",
+                            "path": path,
+                            "summary": f"visual evaluation failed on {path}: {exc}",
+                        }
+                    )
+                finally:
+                    page.close()
         finally:
             browser.close()
 
     result = build_visual_evaluation_result(request, snapshots)
+    result.findings.extend(findings)
+    if findings:
+        result.confidence = min(result.confidence, 0.4)
     atomic_write_json(visual_dir / "playwright_result.json", result.to_dict())
     return result
 

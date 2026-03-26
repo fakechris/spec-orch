@@ -37,6 +37,7 @@ warn() { echo -e "${YELLOW}⚠ $1${NC}"; }
 
 command -v python3 >/dev/null || fail "python3 not found"
 command -v git >/dev/null || fail "git not found"
+command -v rsync >/dev/null || fail "rsync not found"
 
 if [ "$FULL_MODE" = true ]; then
   [ -n "${MINIMAX_API_KEY:-}" ] || fail "MINIMAX_API_KEY required for --full mode"

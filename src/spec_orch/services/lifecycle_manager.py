@@ -89,6 +89,7 @@ class MissionLifecycleManager:
         self._load_state()
 
     def _get_mission_execution_service(self) -> MissionExecutionService:
+        # Tests sometimes inject a stub directly on this attribute.
         if self._mission_execution_service is not None and not isinstance(
             self._mission_execution_service, MissionExecutionService
         ):
@@ -308,7 +309,7 @@ class MissionLifecycleManager:
                 return self._transition(mission_id, MissionPhase.ALL_DONE)
             if result.max_rounds_hit:
                 return self.mark_failed(mission_id, "max_rounds_exhausted")
-            return state
+            return self.mark_failed(mission_id, "execution_result_failed")
         except Exception as exc:
             logger.exception("Execution failed for %s", mission_id)
             return self.mark_failed(mission_id, f"Execution failed: {exc}")

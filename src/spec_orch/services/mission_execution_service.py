@@ -3,9 +3,25 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Protocol
 
-from spec_orch.domain.models import MissionExecutionResult, RoundSummary
+from spec_orch.domain.models import (
+    ExecutionPlan,
+    ExecutionPlanResult,
+    MissionExecutionResult,
+    RoundSummary,
+)
+from spec_orch.services.round_orchestrator import RoundOrchestratorResult
+
+
+class RoundOrchestratorProtocol(Protocol):
+    def run_supervised(
+        self,
+        *,
+        mission_id: str,
+        plan: ExecutionPlan,
+        initial_round: int = 0,
+    ) -> RoundOrchestratorResult: ...
 
 
 class MissionExecutionService:
@@ -15,7 +31,7 @@ class MissionExecutionService:
         self,
         *,
         repo_root: Path,
-        round_orchestrator: Any | None,
+        round_orchestrator: RoundOrchestratorProtocol | None,
         codex_bin: str = "codex",
     ) -> None:
         self.repo_root = Path(repo_root)
@@ -27,10 +43,12 @@ class MissionExecutionService:
         *,
         mission_id: str,
         initial_round: int = 0,
+        plan: ExecutionPlan | None = None,
     ) -> MissionExecutionResult:
         from spec_orch.services.parallel_run_controller import ParallelRunController
 
-        plan = ParallelRunController.load_plan(mission_id, self.repo_root)
+        if plan is None:
+            plan = ParallelRunController.load_plan(mission_id, self.repo_root)
         if self.round_orchestrator is not None:
             result = self.round_orchestrator.run_supervised(
                 mission_id=mission_id,
@@ -65,7 +83,7 @@ class MissionExecutionService:
     def _summarize_supervised(
         mission_id: str,
         rounds: list[RoundSummary],
-        result: Any,
+        result: RoundOrchestratorResult,
     ) -> str:
         succeeded = result.completed and not result.paused and not result.max_rounds_hit
         summary_lines = [
@@ -83,7 +101,7 @@ class MissionExecutionService:
         return "\n".join(summary_lines)
 
     @staticmethod
-    def _summarize_parallel(mission_id: str, plan_result: Any) -> str:
+    def _summarize_parallel(mission_id: str, plan_result: ExecutionPlanResult) -> str:
         summary_lines = [
             f"## Mission Execution: {mission_id}",
             "",

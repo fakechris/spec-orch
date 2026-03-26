@@ -20,11 +20,15 @@ def main(argv: list[str] | None = None) -> int:
 
     input_json = Path(args[0])
     output_json = Path(args[1])
-    request = parse_request(input_json)
-    result = run_playwright_visual_evaluation(request)
-    output_json.parent.mkdir(parents=True, exist_ok=True)
-    output_json.write_text(json.dumps(result.to_dict(), indent=2) + "\n", encoding="utf-8")
-    return 0
+    try:
+        request = parse_request(input_json)
+        result = run_playwright_visual_evaluation(request)
+        output_json.parent.mkdir(parents=True, exist_ok=True)
+        output_json.write_text(json.dumps(result.to_dict(), indent=2) + "\n", encoding="utf-8")
+        return 0
+    except Exception as exc:
+        print(f"visual evaluation failed: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -33,6 +34,8 @@ from spec_orch.services.io import atomic_write_json
 from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.run_event_logger import RunEventLogger
 from spec_orch.services.telemetry_service import TelemetryService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -239,30 +242,31 @@ class RoundOrchestrator:
                 )
 
             run_id = f"mission_{mission_id}_round_{round_id}_{packet.packet_id}"
-            activity_logger = self._event_logger.open_activity_logger(workspace)
-            event_logger = self._event_logger.make_event_logger(
-                workspace=workspace,
-                run_id=run_id,
-                issue_id=packet.packet_id,
-                activity_logger=activity_logger,
-            )
-
-            self._event_logger.log_and_emit(
-                activity_logger=activity_logger,
-                workspace=workspace,
-                run_id=run_id,
-                issue_id=packet.packet_id,
-                component="mission_worker",
-                event_type="mission_packet_started",
-                message=f"Started packet {packet.packet_id}",
-                data={
-                    "mission_id": mission_id,
-                    "round_id": round_id,
-                    "packet_id": packet.packet_id,
-                    "session_id": session_id,
-                },
-            )
+            activity_logger = None
             try:
+                activity_logger = self._event_logger.open_activity_logger(workspace)
+                event_logger = self._event_logger.make_event_logger(
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=packet.packet_id,
+                    activity_logger=activity_logger,
+                )
+
+                self._event_logger.log_and_emit(
+                    activity_logger=activity_logger,
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=packet.packet_id,
+                    component="mission_worker",
+                    event_type="mission_packet_started",
+                    message=f"Started packet {packet.packet_id}",
+                    data={
+                        "mission_id": mission_id,
+                        "round_id": round_id,
+                        "packet_id": packet.packet_id,
+                        "session_id": session_id,
+                    },
+                )
                 try:
                     result = handle.send(
                         prompt=prompt,
@@ -306,7 +310,8 @@ class RoundOrchestrator:
                     },
                 )
             finally:
-                activity_logger.close()
+                if activity_logger is not None:
+                    activity_logger.close()
             results.append((packet, result))
 
         return results
@@ -583,14 +588,18 @@ class RoundOrchestrator:
     ) -> Any | None:
         if self.visual_evaluator is None:
             return None
-        result = self.visual_evaluator.evaluate_round(
-            mission_id=mission_id,
-            round_id=round_id,
-            wave=wave,
-            worker_results=worker_results,
-            repo_root=self.repo_root,
-            round_dir=round_dir,
-        )
+        try:
+            result = self.visual_evaluator.evaluate_round(
+                mission_id=mission_id,
+                round_id=round_id,
+                wave=wave,
+                worker_results=worker_results,
+                repo_root=self.repo_root,
+                round_dir=round_dir,
+            )
+        except Exception:
+            logger.exception("Visual evaluation failed for %s round %s", mission_id, round_id)
+            return None
         if result is not None:
             atomic_write_json(round_dir / "visual_evaluation.json", result.to_dict())
         return result

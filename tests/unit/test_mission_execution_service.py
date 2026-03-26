@@ -93,3 +93,36 @@ def test_execute_unsupervised_falls_back_to_parallel_run_controller(tmp_path: Pa
     assert result.paused is False
     assert "Duration" in result.summary_markdown
     assert "Success" in result.summary_markdown
+
+
+def test_execute_mission_uses_provided_plan_without_reloading(tmp_path: Path) -> None:
+    from spec_orch.services.mission_execution_service import MissionExecutionService
+    from spec_orch.services.round_orchestrator import RoundOrchestratorResult
+
+    provided_plan = _make_plan()
+    stub_orchestrator = MagicMock()
+    stub_orchestrator.run_supervised.return_value = RoundOrchestratorResult(
+        completed=True,
+        rounds=[],
+    )
+    service = MissionExecutionService(
+        repo_root=tmp_path,
+        round_orchestrator=stub_orchestrator,
+    )
+
+    with patch(
+        "spec_orch.services.parallel_run_controller.ParallelRunController.load_plan"
+    ) as load:
+        result = service.execute_mission(
+            mission_id="mission-1",
+            initial_round=2,
+            plan=provided_plan,
+        )
+
+    load.assert_not_called()
+    stub_orchestrator.run_supervised.assert_called_once_with(
+        mission_id="mission-1",
+        plan=provided_plan,
+        initial_round=2,
+    )
+    assert result.completed is True

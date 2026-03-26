@@ -328,6 +328,32 @@ class TestAutoAdvance:
         assert state.phase == MissionPhase.FAILED
         assert state.error == "max_rounds_exhausted"
 
+    def test_auto_advance_marks_failed_on_non_terminal_execution_result(
+        self, repo: Path, bus: EventBus
+    ):
+        stub_service = MagicMock()
+        stub_service.execute_mission.return_value = MissionExecutionResult(
+            mission_id="m1",
+            completed=False,
+            paused=False,
+            max_rounds_hit=False,
+            summary_markdown="## Mission Execution: m1\n\n**Result**: ❌ Failed",
+        )
+
+        mgr = MissionLifecycleManager(
+            repo_root=repo,
+            event_bus=bus,
+            mission_execution_service=stub_service,
+        )
+        mgr.begin_tracking("m1")
+        mgr.promotion_complete("m1", ["SON-1"])
+
+        state = mgr.auto_advance("m1")
+
+        assert state is not None
+        assert state.phase == MissionPhase.FAILED
+        assert state.error == "execution_result_failed"
+
     def test_auto_advance_does_not_execute_when_paused(
         self, repo: Path, bus: EventBus, monkeypatch
     ):

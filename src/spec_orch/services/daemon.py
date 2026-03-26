@@ -157,6 +157,7 @@ class SpecOrchDaemon:
     HEARTBEAT_FILE = "daemon_heartbeat.json"
 
     def _get_mission_execution_service(self) -> MissionExecutionService:
+        # Tests sometimes inject a stub directly on this attribute.
         if self._mission_execution_service is not None and not isinstance(
             self._mission_execution_service, MissionExecutionService
         ):
@@ -628,6 +629,7 @@ class SpecOrchDaemon:
             execution_result = self._get_mission_execution_service().execute_mission(
                 mission_id=mission_id,
                 initial_round=0,
+                plan=plan,
             )
             summary = execution_result.summary_markdown
             succeeded = execution_result.completed
