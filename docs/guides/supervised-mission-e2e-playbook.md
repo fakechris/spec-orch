@@ -50,7 +50,7 @@ git --version
 
 ```bash
 export SPEC_ORCH_LINEAR_TOKEN="lin_api_xxx"
-export OPENAI_API_KEY="sk-xxx"
+export MINIMAX_API_KEY="xxx"
 ```
 
 如果 `[supervisor]` 或 `[builder]` 用别的 provider，就换成对应的 key。

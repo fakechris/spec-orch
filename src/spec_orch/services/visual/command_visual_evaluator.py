@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -125,7 +126,8 @@ class CommandVisualEvaluator:
                 stderr_log=stderr_log,
             )
 
-        artifacts = dict(parsed.get("artifacts", {}))
+        raw_artifacts = parsed.get("artifacts", {})
+        artifacts = dict(raw_artifacts) if isinstance(raw_artifacts, Mapping) else {}
         artifacts.setdefault("input_json", str(input_json))
         artifacts.setdefault("output_json", str(output_json))
         artifacts.setdefault("stdout_log", str(stdout_log))

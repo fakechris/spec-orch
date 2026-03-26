@@ -140,7 +140,13 @@ def test_run_playwright_visual_evaluation_continues_after_single_page_failure(
             return None
 
     class FakeBrowser:
+        def __init__(self) -> None:
+            self.calls = 0
+
         def new_page(self) -> FakePage:
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("tab creation failed")
             return FakePage()
 
         def close(self) -> None:
@@ -180,6 +186,8 @@ def test_run_playwright_visual_evaluation_continues_after_single_page_failure(
 
     result = run_playwright_visual_evaluation(request)
 
-    assert "1 pages" in result.summary
+    assert "2 pages" in result.summary
+    assert "2 browser errors" in result.summary
+    assert result.confidence == 0.4
     assert result.artifacts["/"].endswith("root.png")
-    assert any("navigation timeout" in finding["summary"] for finding in result.findings)
+    assert any("tab creation failed" in finding["summary"] for finding in result.findings)

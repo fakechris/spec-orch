@@ -129,8 +129,9 @@ def run_playwright_visual_evaluation(request: VisualEvalRequest) -> VisualEvalua
             for path in request.paths:
                 console_errors: list[str] = []
                 page_errors: list[str] = []
-                page = browser.new_page()
+                page = None
                 try:
+                    page = browser.new_page()
                     page.on(
                         "console",
                         lambda msg, errors=console_errors: (
@@ -166,14 +167,21 @@ def run_playwright_visual_evaluation(request: VisualEvalRequest) -> VisualEvalua
                         }
                     )
                 finally:
-                    page.close()
+                    if page is not None:
+                        page.close()
         finally:
             browser.close()
 
     result = build_visual_evaluation_result(request, snapshots)
     result.findings.extend(findings)
-    if findings:
-        result.confidence = min(result.confidence, 0.4)
+    total_errors = len(result.findings)
+    attempted_pages = len(request.paths)
+    result.summary = (
+        f"Checked {attempted_pages} pages with no browser errors."
+        if total_errors == 0
+        else f"Checked {attempted_pages} pages and found {total_errors} browser errors."
+    )
+    result.confidence = 0.9 if total_errors == 0 else 0.4
     atomic_write_json(visual_dir / "playwright_result.json", result.to_dict())
     return result
 

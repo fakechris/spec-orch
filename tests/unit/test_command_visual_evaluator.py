@@ -95,3 +95,41 @@ def test_command_visual_evaluator_degrades_to_error_result_on_command_failure(
     assert result.confidence == 0.0
     assert result.findings[0]["severity"] == "error"
     assert "exit code 7" in result.findings[0]["summary"]
+
+
+def test_command_visual_evaluator_handles_non_mapping_artifacts(tmp_path: Path) -> None:
+    from spec_orch.services.visual.command_visual_evaluator import CommandVisualEvaluator
+
+    script = """
+import json
+import pathlib
+import sys
+
+pathlib.Path(sys.argv[2]).write_text(
+    json.dumps(
+        {
+            "summary": "ok",
+            "confidence": 0.9,
+            "findings": [],
+            "artifacts": None,
+        }
+    )
+)
+""".strip()
+    evaluator = CommandVisualEvaluator(
+        command=[sys.executable, "-c", script, "{input_json}", "{output_json}"],
+    )
+
+    result = evaluator.evaluate_round(
+        mission_id="mission-null-artifacts",
+        round_id=1,
+        wave=Wave(wave_number=0, description="Artifacts", work_packets=[]),
+        worker_results=[],
+        repo_root=tmp_path,
+        round_dir=tmp_path / "round-01",
+    )
+
+    assert result is not None
+    assert result.summary == "ok"
+    assert result.artifacts["input_json"].endswith("input.json")
+    assert result.artifacts["output_json"].endswith("output.json")
