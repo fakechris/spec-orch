@@ -109,13 +109,108 @@ class TestDashboardAPI:
         r = client.get("/api/inbox")
         assert r.status_code == 200
         data = r.json()
-        assert data["counts"] == {"paused": 1, "failed": 1, "attention": 2}
+        assert data["counts"] == {"paused": 1, "failed": 1, "approvals": 0, "attention": 2}
         assert data["items"][0]["mission_id"] == paused_id
         assert data["items"][0]["kind"] == "paused"
         assert data["items"][0]["summary"] == "Approve the revised rollout?"
         assert data["items"][1]["mission_id"] == failed_id
         assert data["items"][1]["kind"] == "failed"
         assert data["items"][1]["summary"] == "verification failed"
+
+    def test_inbox_endpoint_promotes_ask_human_rounds_to_approval_items(
+        self,
+        client,
+        repo: Path,
+    ):
+        mission_id = "mission-approval"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-03"
+        specs.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Approval Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Approval Mission\n", encoding="utf-8")
+        (round_dir / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 3,
+                    "wave_id": 1,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:10:00+00:00",
+                    "completed_at": "2026-03-25T00:18:00+00:00",
+                    "worker_results": [],
+                    "decision": {
+                        "action": "ask_human",
+                        "reason_code": "needs_approval",
+                        "summary": "Approve the rollout after visual QA review.",
+                        "confidence": 0.72,
+                        "affected_workers": [],
+                        "artifacts": {},
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": [
+                            "Approve the rollout after visual QA review?"
+                        ],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (repo / ".spec_orch_runs" / "lifecycle_state.json").write_text(
+            json.dumps(
+                {
+                    mission_id: {
+                        "mission_id": mission_id,
+                        "phase": "executing",
+                        "issue_ids": ["SON-3"],
+                        "completed_issues": [],
+                        "error": None,
+                        "updated_at": "2026-03-25T00:18:30+00:00",
+                        "current_round": 3,
+                        "round_orchestrator_state": {
+                            "paused": True,
+                            "blocking_questions": [
+                                "Approve the rollout after visual QA review?"
+                            ],
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        r = client.get("/api/inbox")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["counts"] == {"paused": 0, "failed": 0, "approvals": 1, "attention": 1}
+        assert data["items"] == [
+            {
+                "mission_id": mission_id,
+                "title": "Approval Mission",
+                "kind": "approval",
+                "phase": "executing",
+                "summary": "Approve the rollout after visual QA review.",
+                "updated_at": "2026-03-25T00:18:30+00:00",
+                "current_round": 3,
+                "blocking_question": "Approve the rollout after visual QA review?",
+                "decision_action": "ask_human",
+            }
+        ]
 
     def test_mission_detail_endpoint(self, client, repo: Path):
         mission_id = "mission-detail"
@@ -351,6 +446,79 @@ class TestDashboardAPI:
             "events": None,
             "incoming": None,
         }
+
+    def test_packet_transcript_endpoint_includes_round_evidence_blocks(self, client, repo: Path):
+        mission_id = "mission-transcript-evidence"
+        packet_id = "pkt-1"
+        telemetry = repo / "docs" / "specs" / mission_id / "workers" / packet_id / "telemetry"
+        round_dir = repo / "docs" / "specs" / mission_id / "rounds" / "round-02"
+        telemetry.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+
+        (telemetry / "activity.log").write_text(
+            "2026-03-25T00:11:00Z BUILDER packet started\n",
+            encoding="utf-8",
+        )
+        (round_dir / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 2,
+                    "wave_id": 1,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:12:10Z",
+                    "completed_at": "2026-03-25T00:12:30Z",
+                    "worker_results": [
+                        {
+                            "packet_id": packet_id,
+                            "title": "Build mission detail",
+                            "report_path": f"docs/specs/{mission_id}/workers/{packet_id}/builder_report.json",
+                            "succeeded": True,
+                        }
+                    ],
+                    "decision": {
+                        "action": "ask_human",
+                        "reason_code": "needs_review",
+                        "summary": "Need human approval before rollout.",
+                        "confidence": 0.74,
+                        "affected_workers": [packet_id],
+                        "artifacts": {},
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": ["Approve rollout?"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (round_dir / "visual_evaluation.json").write_text(
+            json.dumps(
+                {
+                    "evaluator": "playwright",
+                    "summary": "Visual QA found a spacing regression.",
+                    "confidence": 0.81,
+                    "findings": [{"severity": "blocking", "message": "Header overlaps metrics."}],
+                    "artifacts": {"dashboard": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png"},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        r = client.get(f"/api/missions/{mission_id}/packets/{packet_id}/transcript")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["blocks"][-2:] == [
+            {
+                "block_type": "supervisor",
+                "timestamp": "2026-03-25T00:12:30Z",
+                "title": "Need human approval before rollout.",
+                "body": "ask_human",
+            },
+            {
+                "block_type": "visual_finding",
+                "timestamp": "2026-03-25T00:12:30Z",
+                "title": "Visual QA found a spacing regression.",
+                "body": "playwright",
+            },
+        ]
 
     def test_lifecycle_endpoint(self, client):
         r = client.get("/api/lifecycle")

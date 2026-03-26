@@ -258,6 +258,47 @@
 - **Status:** in_progress
 - Actions taken:
   - Mapped current dashboard endpoints and mission/transcript data sources.
+  - Drafted the operator console implementation plan with Mission Detail and Run Transcript as the first two product surfaces.
+  - Chose an incremental FastAPI-backed migration instead of a React rewrite.
+- Files created/modified:
+  - `docs/plans/2026-03-25-operator-console-implementation-plan.md`
+  - `task_plan.md`
+  - `progress.md`
+
+### Phase 5: Operator Console Foundations
+- **Status:** in_progress
+- Actions taken:
+  - Added the operator workbench shell to the dashboard homepage with persistent mission, transcript, and context panes.
+  - Added mission-detail, packet-transcript, and inbox APIs to back the new console.
+  - Root-caused and fixed the dashboard WebSocket `403` issue caused by a deferred `WebSocket` annotation being misread as a query parameter.
+  - Added `/favicon.ico` handling so browser dogfooding no longer produces avoidable console noise.
+  - Hardened transcript handling so missing telemetry returns an empty payload instead of a `404`.
+  - Added transcript timeline blocks and round evidence blocks for supervisor decisions and visual findings.
+  - Added inbox scaffolding and then promoted `ask_human` rounds into first-class `approval` items instead of treating them as generic pauses.
+- Files created/modified:
+  - `src/spec_orch/dashboard.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.css`
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `tests/unit/test_dashboard.py`
+  - `tests/unit/test_dashboard_api.py`
+  - `task_plan.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| Dashboard API slice | `uv run --python 3.13 python -m pytest tests/unit/test_dashboard_api.py -q` | Inbox, transcript, and mission-detail API tests pass | `27 passed` | pass |
+| Dashboard shell slice | `uv run --python 3.13 python -m pytest tests/unit/test_dashboard.py tests/unit/test_dashboard_api.py -q` | Dashboard UI/API regression suite stays green | `29 passed` | pass |
+| Dashboard lint | `uv run --python 3.13 python -m ruff check src/spec_orch/dashboard.py tests/unit/test_dashboard_api.py pyproject.toml` | Dashboard files lint cleanly | `All checks passed` | pass |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Midway through the operator-console implementation slice on `paperclip-observability-research` |
+| Where am I going? | From basic shell + APIs toward richer inbox actions, deeper transcript UX, and eventual dashboard modularization |
+| What's the goal? | Turn the current dashboard into a Paperclip-like operator console without rewriting the whole frontend stack |
+| What have I learned? | The system already has enough artifacts for a strong control plane; the missing layer is productized object surfaces and intervention UX |
+| What have I done? | Landed the workbench shell, mission/transcript APIs, transcript evidence blocks, WebSocket hardening, and approval-aware inbox triage |
   - Chose an incremental implementation strategy: keep FastAPI, split the dashboard into a package, and build a workbench-style operator console on top.
   - Wrote a task-by-task implementation plan for Mission Detail and Run Transcript.
 - Files created/modified:

@@ -111,6 +111,23 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
         mission_id = mission["mission_id"]
         lifecycle = lifecycle_states.get(mission_id, {})
         round_state = lifecycle.get("round_orchestrator_state", {})
+        approval_request = _gather_latest_approval_request(repo_root, mission_id)
+
+        if approval_request is not None:
+            items.append(
+                {
+                    "mission_id": mission_id,
+                    "title": mission["title"],
+                    "kind": "approval",
+                    "phase": lifecycle.get("phase", mission["status"]),
+                    "summary": approval_request["summary"],
+                    "updated_at": lifecycle.get("updated_at") or approval_request["timestamp"],
+                    "current_round": lifecycle.get("current_round", approval_request["round_id"]),
+                    "blocking_question": approval_request["blocking_question"],
+                    "decision_action": approval_request["decision_action"],
+                }
+            )
+            continue
 
         if round_state.get("paused"):
             blocking_questions = round_state.get("blocking_questions", [])
@@ -142,19 +159,53 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
 
     items.sort(
         key=lambda item: (
-            {"paused": 0, "failed": 1}.get(item["kind"], 9),
+            {"approval": 0, "paused": 1, "failed": 2}.get(item["kind"], 9),
             item.get("updated_at") or "",
         )
     )
 
     return {
         "counts": {
+            "approvals": sum(1 for item in items if item["kind"] == "approval"),
             "paused": sum(1 for item in items if item["kind"] == "paused"),
             "failed": sum(1 for item in items if item["kind"] == "failed"),
             "attention": len(items),
         },
         "items": items,
     }
+
+
+def _gather_latest_approval_request(repo_root: Path, mission_id: str) -> dict[str, Any] | None:
+    rounds_dir = repo_root / "docs" / "specs" / mission_id / "rounds"
+    if not rounds_dir.exists():
+        return None
+
+    from spec_orch.domain.models import RoundAction, RoundSummary
+
+    latest: dict[str, Any] | None = None
+    for round_dir in sorted(rounds_dir.glob("round-*")):
+        summary_path = round_dir / "round_summary.json"
+        if not summary_path.exists():
+            continue
+        try:
+            summary = RoundSummary.from_dict(json.loads(summary_path.read_text(encoding="utf-8")))
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        if summary.decision is None or summary.decision.action is not RoundAction.ASK_HUMAN:
+            continue
+
+        latest = {
+            "round_id": summary.round_id,
+            "timestamp": summary.completed_at or summary.started_at or "",
+            "summary": summary.decision.summary or "Human approval required.",
+            "blocking_question": (
+                summary.decision.blocking_questions[0]
+                if summary.decision.blocking_questions
+                else None
+            ),
+            "decision_action": summary.decision.action.value,
+        }
+    return latest
 
 
 def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] | None:
@@ -349,6 +400,8 @@ def _gather_packet_transcript(
         if isinstance(timestamp, str) and timestamp:
             latest_timestamp = timestamp
     blocks = [_transcript_block_from_entry(entry) for entry in entries]
+    blocks.extend(_gather_round_evidence_blocks(repo_root, mission_id, packet_id))
+    blocks.sort(key=lambda block: (block.get("timestamp", ""), block.get("block_type", "")))
 
     return {
         "mission_id": mission_id,
@@ -414,6 +467,60 @@ def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
         "title": message,
         "body": event_type or kind,
     }
+
+
+def _gather_round_evidence_blocks(
+    repo_root: Path,
+    mission_id: str,
+    packet_id: str,
+) -> list[dict[str, Any]]:
+    rounds_dir = repo_root / "docs" / "specs" / mission_id / "rounds"
+    if not rounds_dir.exists():
+        return []
+
+    from spec_orch.domain.models import RoundSummary, VisualEvaluationResult
+
+    blocks: list[dict[str, Any]] = []
+    for round_dir in sorted(rounds_dir.glob("round-*")):
+        summary_path = round_dir / "round_summary.json"
+        if not summary_path.exists():
+            continue
+        try:
+            summary = RoundSummary.from_dict(json.loads(summary_path.read_text(encoding="utf-8")))
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        if not any(result.get("packet_id") == packet_id for result in summary.worker_results):
+            continue
+
+        timestamp = summary.completed_at or summary.started_at or ""
+        if summary.decision is not None:
+            blocks.append(
+                {
+                    "block_type": "supervisor",
+                    "timestamp": timestamp,
+                    "title": summary.decision.summary or "Supervisor decision",
+                    "body": summary.decision.action.value,
+                }
+            )
+
+        visual_path = round_dir / "visual_evaluation.json"
+        if visual_path.exists():
+            try:
+                visual = VisualEvaluationResult.from_dict(
+                    json.loads(visual_path.read_text(encoding="utf-8"))
+                )
+            except (OSError, ValueError, json.JSONDecodeError):
+                continue
+            blocks.append(
+                {
+                    "block_type": "visual_finding",
+                    "timestamp": timestamp,
+                    "title": visual.summary or "Visual evaluation result",
+                    "body": visual.evaluator,
+                }
+            )
+
+    return blocks
 
 
 def _gather_lifecycle_states(repo_root: Path) -> dict[str, Any]:
@@ -974,7 +1081,7 @@ let selectedMissionId = null;
 let selectedMissionDetail = null;
 let selectedPacketId = null;
 let selectedPacketTranscript = null;
-let inboxSummary = {counts:{paused:0, failed:0, attention:0}, items:[]};
+let inboxSummary = {counts:{approvals:0, paused:0, failed:0, attention:0}, items:[]};
 
 /* ===== DATA LOADING ===== */
 async function load() {
@@ -1102,12 +1209,12 @@ function renderInboxSummary() {
   const attention = inboxSummary?.counts?.attention || 0;
   chip.textContent = attention ? `Inbox ${attention}` : 'Inbox';
   chip.title = attention
-    ? `${inboxSummary.counts.paused || 0} paused, ${inboxSummary.counts.failed || 0} failed`
+    ? `${inboxSummary.counts.approvals || 0} approvals, ${inboxSummary.counts.paused || 0} paused, ${inboxSummary.counts.failed || 0} failed`
     : 'No operator attention items';
   if (!list) return;
   const items = inboxSummary?.items || [];
   if (!items.length) {
-    list.innerHTML = '<div class="empty-panel">No paused or failed missions.</div>';
+    list.innerHTML = '<div class="empty-panel">No approvals, paused missions, or failures.</div>';
     return;
   }
   list.innerHTML = items.map(item => `
