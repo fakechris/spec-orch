@@ -279,6 +279,7 @@
   - Re-ran local browser dogfood and confirmed the dashboard loads cleanly with a live WebSocket connection and zero console errors.
   - Added transcript block source/artifact paths and a transcript inspector section in the context rail for selected evidence.
   - Added `approval_request` to mission detail and surfaced an approval workspace in the context rail with the current blocking question and intervention entry points.
+  - Created a `spec_orch.dashboard` package with `app.py`, `api.py`, and package exports so the dashboard now has a modular import surface instead of only a top-level module.
 - Files created/modified:
   - `src/spec_orch/dashboard.py`
   - `src/spec_orch/dashboard_assets/static/operator-console.css`
