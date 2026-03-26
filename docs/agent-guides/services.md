@@ -22,7 +22,13 @@ spec-orch daemon dlq       # 查看死信队列
 
 如果要启用 mission round supervisor，还需要在 `spec-orch.toml` 中配置 `[supervisor]`，并提供对应模型的 API key。
 
+如果要在 round review 前加浏览器/截图类检查，可再配置 `[supervisor.visual_evaluator]`。推荐先用 `adapter = "command"`，把 Playwright 或自定义脚本挂进去。
+
 如果要调试 supervised mission，建议前台启动 daemon 并加 `--live-mission-workers`。这样 packet worker 的 activity log 会实时打印到 stderr，同时仍然落盘到各自 workspace。
+
+更完整的实操与观测手册见：
+
+- `docs/guides/supervised-mission-e2e-playbook.md`
 
 ## 关键点
 

@@ -21,6 +21,7 @@ from spec_orch.services.io import atomic_write_json
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
 from spec_orch.services.linear_write_back import LinearWriteBackService
+from spec_orch.services.mission_execution_service import MissionExecutionService
 from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.reaction_engine import (
     ReactionDecision,
@@ -64,6 +65,14 @@ class DaemonConfig:
         self.supervisor_api_key_env: str | None = supervisor.get("api_key_env")
         self.supervisor_api_base_env: str | None = supervisor.get("api_base_env")
         self.supervisor_max_rounds: int = supervisor.get("max_rounds", 20)
+        visual_evaluator = supervisor.get("visual_evaluator", {})
+        self.supervisor_visual_evaluator_adapter: str | None = visual_evaluator.get("adapter")
+        self.supervisor_visual_evaluator_command: list[str] = list(
+            visual_evaluator.get("command", [])
+        )
+        self.supervisor_visual_evaluator_timeout_seconds: int = visual_evaluator.get(
+            "timeout_seconds", 300
+        )
 
         github = raw.get("github", {})
         self.base_branch: str = github.get("base_branch", "main")
@@ -129,6 +138,7 @@ class SpecOrchDaemon:
 
         self._event_bus = get_event_bus()
         self._round_orchestrator = self._build_round_orchestrator()
+        self._mission_execution_service: MissionExecutionService | None = None
 
         from spec_orch.services.lifecycle_manager import MissionLifecycleManager
 
@@ -136,6 +146,8 @@ class SpecOrchDaemon:
             repo_root=repo_root,
             event_bus=self._event_bus,
             round_orchestrator=self._round_orchestrator,
+            mission_execution_service=self._get_mission_execution_service(),
+            codex_bin=self.config.codex_executable,
         )
 
         from spec_orch.services.memory.service import get_memory_service
@@ -144,6 +156,28 @@ class SpecOrchDaemon:
         self._memory_service.subscribe_to_event_bus()
 
     HEARTBEAT_FILE = "daemon_heartbeat.json"
+
+    def _get_mission_execution_service(self) -> MissionExecutionService:
+        # Tests sometimes inject a stub directly on this attribute.
+        if self._mission_execution_service is not None and not isinstance(
+            self._mission_execution_service, MissionExecutionService
+        ):
+            return self._mission_execution_service
+        current_orchestrator = getattr(
+            self._mission_execution_service,
+            "round_orchestrator",
+            self._round_orchestrator,
+        )
+        if (
+            self._mission_execution_service is None
+            or current_orchestrator is not self._round_orchestrator
+        ):
+            self._mission_execution_service = MissionExecutionService(
+                repo_root=self.repo_root,
+                round_orchestrator=self._round_orchestrator,
+                codex_bin=self.config.codex_executable,
+            )
+        return self._mission_execution_service
 
     def _load_state(self) -> dict[str, Any]:
         if self._state_path.exists():
@@ -302,6 +336,8 @@ class SpecOrchDaemon:
         from spec_orch.domain.protocols import WorkerHandleFactory
         from spec_orch.services.litellm_supervisor_adapter import LiteLLMSupervisorAdapter
         from spec_orch.services.round_orchestrator import RoundOrchestrator
+        from spec_orch.services.visual.command_visual_evaluator import CommandVisualEvaluator
+        from spec_orch.services.visual.noop_visual_evaluator import NoopVisualEvaluator
         from spec_orch.services.workers.acpx_worker_handle_factory import AcpxWorkerHandleFactory
         from spec_orch.services.workers.in_memory_worker_handle_factory import (
             InMemoryWorkerHandleFactory,
@@ -342,11 +378,28 @@ class SpecOrchDaemon:
                 )
             )
 
+        visual_evaluator: Any | None = None
+        if self.config.supervisor_visual_evaluator_adapter == "noop":
+            visual_evaluator = NoopVisualEvaluator()
+        elif self.config.supervisor_visual_evaluator_adapter == "command":
+            if not self.config.supervisor_visual_evaluator_command:
+                raise ValueError("supervisor.visual_evaluator.command must not be empty")
+            visual_evaluator = CommandVisualEvaluator(
+                command=self.config.supervisor_visual_evaluator_command,
+                timeout_seconds=self.config.supervisor_visual_evaluator_timeout_seconds,
+            )
+        elif self.config.supervisor_visual_evaluator_adapter not in (None, ""):
+            raise ValueError(
+                "Unsupported visual evaluator adapter: "
+                f"{self.config.supervisor_visual_evaluator_adapter!r}"
+            )
+
         return RoundOrchestrator(
             repo_root=self.repo_root,
             supervisor=supervisor,
             worker_factory=worker_factory,
             context_assembler=ContextAssembler(),
+            visual_evaluator=visual_evaluator,
             event_bus=self._event_bus,
             max_rounds=self.config.supervisor_max_rounds,
             live_stream=sys.stderr if self._live_mission_workers else None,
@@ -549,91 +602,52 @@ class SpecOrchDaemon:
         client: LinearClient,
     ) -> None:
         """Execute a mission-level plan with parallel wave execution."""
-        from spec_orch.services.parallel_run_controller import (
-            ParallelRunController,
-        )
+        from spec_orch.services.parallel_run_controller import ParallelRunController
 
         linear_uid = raw_issue.get("id", "")
         print(f"[daemon] processing {issue_id} (mission: {mission_id})")
         self._event_bus.emit_issue_state(issue_id, "building")
 
         try:
-            plan = ParallelRunController.load_plan(mission_id, self.repo_root)
+            try:
+                plan = ParallelRunController.load_plan(mission_id, self.repo_root)
+            except Exception as exc:
+                plan = None
+                print(f"[daemon] {issue_id}: wave preview unavailable: {exc}")
 
-            for wave in plan.waves:
-                if linear_uid:
-                    try:
-                        wave_msg = (
-                            f"🔄 Wave {wave.wave_number}: "
-                            f"{len(wave.work_packets)} packets — {wave.description}"
-                        )
-                        client.add_comment(linear_uid, wave_msg)
-                    except Exception as exc:
-                        print(f"[daemon] wave comment failed: {exc}")
-
-            if self._round_orchestrator is not None:
-                round_result = self._round_orchestrator.run_supervised(
-                    mission_id=mission_id,
-                    plan=plan,
-                )
-                succeeded = (
-                    round_result.completed
-                    and not round_result.paused
-                    and not round_result.max_rounds_hit
-                )
-                summary_lines = [
-                    f"## Mission Execution: {mission_id}",
-                    "",
-                    f"**Rounds**: {len(round_result.rounds)}",
-                    f"**Result**: {'✅ Success' if succeeded else '❌ Failed'}",
-                    "",
-                ]
-                for round_summary in round_result.rounds:
-                    action = (
-                        round_summary.decision.action.value
-                        if round_summary.decision is not None
-                        else "none"
-                    )
-                    summary_lines.append(
-                        f"- Round {round_summary.round_id} / Wave {round_summary.wave_id}: {action}"
-                    )
-                summary = "\n".join(summary_lines)
-                if round_result.paused:
-                    self._event_bus.emit_issue_state(issue_id, "paused", mergeable=False)
-                    print(f"[daemon] {issue_id}: mission paused for human input")
+            if plan is not None:
+                for wave in plan.waves:
                     if linear_uid:
                         try:
-                            client.add_comment(
-                                linear_uid,
-                                "Mission execution paused. Review the latest "
-                                "`round_decision.json` and `supervisor_review.md` before resuming.",
+                            wave_msg = (
+                                f"🔄 Wave {wave.wave_number}: "
+                                f"{len(wave.work_packets)} packets — {wave.description}"
                             )
+                            client.add_comment(linear_uid, wave_msg)
                         except Exception as exc:
-                            print(f"[daemon] pause comment failed: {exc}")
-                    return
-            else:
-                prc = ParallelRunController(
-                    repo_root=self.repo_root,
-                    codex_bin=self.config.codex_executable,
-                )
-                plan_result = prc.run_plan(plan)
+                            print(f"[daemon] wave comment failed: {exc}")
 
-                summary_lines = [
-                    f"## Mission Execution: {mission_id}",
-                    "",
-                    f"**Duration**: {plan_result.total_duration:.1f}s",
-                    f"**Result**: {'✅ Success' if plan_result.is_success() else '❌ Failed'}",
-                    "",
-                ]
-                for wr in plan_result.wave_results:
-                    status = "✅" if wr.all_succeeded else "❌"
-                    summary_lines.append(
-                        f"- Wave {wr.wave_id}: {status} ({len(wr.packet_results)} packets)"
-                    )
-                    for pr in wr.failed_packets:
-                        summary_lines.append(f"  - ❌ {pr.packet_id}: exit={pr.exit_code}")
-                summary = "\n".join(summary_lines)
-                succeeded = plan_result.is_success()
+            execution_result = self._get_mission_execution_service().execute_mission(
+                mission_id=mission_id,
+                initial_round=0,
+                plan=plan,
+            )
+            summary = execution_result.summary_markdown
+            succeeded = execution_result.completed
+
+            if execution_result.paused:
+                self._event_bus.emit_issue_state(issue_id, "paused", mergeable=False)
+                print(f"[daemon] {issue_id}: mission paused for human input")
+                if linear_uid:
+                    try:
+                        client.add_comment(
+                            linear_uid,
+                            "Mission execution paused. Review the latest "
+                            "`round_decision.json` and `supervisor_review.md` before resuming.",
+                        )
+                    except Exception as exc:
+                        print(f"[daemon] pause comment failed: {exc}")
+                return
 
             if linear_uid:
                 try:

@@ -18,6 +18,7 @@ from spec_orch.domain.models import Issue, IssueContext
 from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.event_bus import EventBus, get_event_bus
 from spec_orch.services.io import atomic_write_json
+from spec_orch.services.mission_execution_service import MissionExecutionService
 from spec_orch.services.node_context_registry import get_node_context_spec
 
 logger = logging.getLogger(__name__)
@@ -76,14 +77,40 @@ class MissionLifecycleManager:
         repo_root: Path,
         event_bus: EventBus | None = None,
         round_orchestrator: Any | None = None,
+        mission_execution_service: MissionExecutionService | None = None,
+        codex_bin: str = "codex",
     ) -> None:
         self.repo_root = Path(repo_root)
         self._bus = event_bus or get_event_bus()
         self._round_orchestrator = round_orchestrator
+        self._mission_execution_service = mission_execution_service
+        self._codex_bin = codex_bin
         self._states: dict[str, MissionState] = {}
         self._context_assembler = ContextAssembler()
         self._memory: Any | None = None
         self._load_state()
+
+    def _get_mission_execution_service(self) -> MissionExecutionService:
+        # Tests sometimes inject a stub directly on this attribute.
+        if self._mission_execution_service is not None and not isinstance(
+            self._mission_execution_service, MissionExecutionService
+        ):
+            return self._mission_execution_service
+        current_orchestrator = getattr(
+            self._mission_execution_service,
+            "round_orchestrator",
+            self._round_orchestrator,
+        )
+        if (
+            self._mission_execution_service is None
+            or current_orchestrator is not self._round_orchestrator
+        ):
+            self._mission_execution_service = MissionExecutionService(
+                repo_root=self.repo_root,
+                round_orchestrator=self._round_orchestrator,
+                codex_bin=self._codex_bin,
+            )
+        return self._mission_execution_service
 
     def _get_memory(self) -> Any | None:
         if self._memory is not None:
@@ -262,29 +289,20 @@ class MissionLifecycleManager:
 
     def _do_execute(self, mission_id: str) -> MissionState:
         state = self._states[mission_id]
-        if self._round_orchestrator is None:
-            return state
         if state.round_orchestrator_state.get("paused"):
             return state
 
-        from spec_orch.services.parallel_run_controller import ParallelRunController
-
         try:
-            plan = ParallelRunController.load_plan(mission_id, self.repo_root)
-            result = self._round_orchestrator.run_supervised(
+            result = self._get_mission_execution_service().execute_mission(
                 mission_id=mission_id,
-                plan=plan,
                 initial_round=state.current_round,
             )
             if result.rounds:
                 state.current_round = result.rounds[-1].round_id
             if result.paused:
-                blocking_questions: list[str] = []
-                if result.last_decision is not None:
-                    blocking_questions = list(result.last_decision.blocking_questions)
                 state.round_orchestrator_state = {
                     "paused": True,
-                    "blocking_questions": blocking_questions,
+                    "blocking_questions": list(result.blocking_questions),
                 }
                 self._save_state()
                 return state
@@ -294,7 +312,7 @@ class MissionLifecycleManager:
                 return self._transition(mission_id, MissionPhase.ALL_DONE)
             if result.max_rounds_hit:
                 return self.mark_failed(mission_id, "max_rounds_exhausted")
-            return state
+            return self.mark_failed(mission_id, "execution_result_failed")
         except Exception as exc:
             logger.exception("Execution failed for %s", mission_id)
             return self.mark_failed(mission_id, f"Execution failed: {exc}")

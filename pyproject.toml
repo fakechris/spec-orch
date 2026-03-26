@@ -49,8 +49,11 @@ cjk = [
 memory = [
   "qdrant-client[fastembed]>=1.9",
 ]
+visual = [
+  "playwright>=1.52",
+]
 all = [
-  "spec-orch[planner,dashboard,slack,cjk,memory]",
+  "spec-orch[planner,dashboard,slack,cjk,memory,visual]",
 ]
 dev = [
   "spec-orch[all]",
@@ -114,4 +117,8 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "jieba"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["playwright", "playwright.*"]
 ignore_missing_imports = true

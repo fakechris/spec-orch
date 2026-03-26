@@ -607,6 +607,37 @@ class RoundArtifacts:
     manifest_paths: list[str] = field(default_factory=list)
     diff_summary: str = ""
     worker_session_ids: list[str] = field(default_factory=list)
+    visual_evaluation: VisualEvaluationResult | None = None
+
+
+@dataclass
+class VisualEvaluationResult:
+    """Optional visual/interactive evaluation produced between execution and review."""
+
+    evaluator: str
+    summary: str = ""
+    confidence: float = 0.0
+    findings: list[dict[str, Any]] = field(default_factory=list)
+    artifacts: dict[str, str] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "evaluator": self.evaluator,
+            "summary": self.summary,
+            "confidence": self.confidence,
+            "findings": self.findings,
+            "artifacts": self.artifacts,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> VisualEvaluationResult:
+        return cls(
+            evaluator=data.get("evaluator", ""),
+            summary=data.get("summary", ""),
+            confidence=data.get("confidence", 0.0),
+            findings=data.get("findings", []),
+            artifacts=data.get("artifacts", {}),
+        )
 
 
 @dataclass
@@ -646,6 +677,20 @@ class RoundSummary:
             worker_results=data.get("worker_results", []),
             decision=RoundDecision.from_dict(decision) if decision else None,
         )
+
+
+@dataclass
+class MissionExecutionResult:
+    """Unified mission execution result shared by lifecycle and daemon owners."""
+
+    mission_id: str
+    completed: bool
+    paused: bool = False
+    max_rounds_hit: bool = False
+    summary_markdown: str = ""
+    rounds: list[RoundSummary] = field(default_factory=list)
+    last_round_artifacts: RoundArtifacts | None = None
+    blocking_questions: list[str] = field(default_factory=list)
 
 
 @dataclass

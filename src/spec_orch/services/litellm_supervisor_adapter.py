@@ -121,6 +121,7 @@ class LiteLLMSupervisorAdapter:
         payload = {
             "plan_id": plan.plan_id,
             "mission_id": plan.mission_id,
+            "plan_overview": self._serialize_plan(plan),
             "round_artifacts": {
                 "round_id": round_artifacts.round_id,
                 "mission_id": round_artifacts.mission_id,
@@ -130,6 +131,11 @@ class LiteLLMSupervisorAdapter:
                 "manifest_paths": round_artifacts.manifest_paths,
                 "diff_summary": round_artifacts.diff_summary,
                 "worker_session_ids": round_artifacts.worker_session_ids,
+                "visual_evaluation": (
+                    round_artifacts.visual_evaluation.to_dict()
+                    if round_artifacts.visual_evaluation is not None
+                    else None
+                ),
             },
             "round_history": [summary.to_dict() for summary in round_history],
             "context": self._serialize_value(context),
@@ -191,6 +197,18 @@ class LiteLLMSupervisorAdapter:
         if isinstance(value, (str, int, float, bool)):
             return value
         return str(value)
+
+    @staticmethod
+    def _serialize_plan(plan: ExecutionPlan) -> list[dict[str, Any]]:
+        return [
+            {
+                "wave_number": wave.wave_number,
+                "description": wave.description,
+                "packet_ids": [packet.packet_id for packet in wave.work_packets],
+                "packet_titles": [packet.title for packet in wave.work_packets],
+            }
+            for wave in plan.waves
+        ]
 
     def _round_dir(self, mission_id: str, round_id: int) -> Path:
         return self.repo_root / "docs" / "specs" / mission_id / "rounds" / f"round-{round_id:02d}"

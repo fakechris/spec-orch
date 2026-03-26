@@ -118,6 +118,47 @@ def test_daemon_config_planner_defaults() -> None:
     assert cfg.planner_token_command is None
 
 
+def test_build_round_orchestrator_wires_command_visual_evaluator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = DaemonConfig(
+        {
+            "supervisor": {
+                "adapter": "litellm",
+                "model": "openai/gpt-4o",
+                "visual_evaluator": {
+                    "adapter": "command",
+                    "command": ["{python}", "tools/visual_eval.py"],
+                    "timeout_seconds": 30,
+                },
+            }
+        }
+    )
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    captured: dict[str, object] = {}
+
+    class StubRoundOrchestrator:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(
+        "spec_orch.services.litellm_supervisor_adapter.LiteLLMSupervisorAdapter",
+        lambda **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "spec_orch.services.round_orchestrator.RoundOrchestrator",
+        StubRoundOrchestrator,
+    )
+
+    orchestrator = daemon._build_round_orchestrator()
+
+    assert isinstance(orchestrator, StubRoundOrchestrator)
+    visual_evaluator = captured["visual_evaluator"]
+    assert visual_evaluator is not None
+    assert visual_evaluator.__class__.__name__ == "CommandVisualEvaluator"
+
+
 def test_daemon_poll_and_run_skips_locked(tmp_path: Path) -> None:
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
