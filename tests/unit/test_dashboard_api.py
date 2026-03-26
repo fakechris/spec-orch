@@ -323,7 +323,90 @@ class TestDashboardAPI:
         assert data["packets"][0]["packet_id"] == "pkt-1"
         assert data["rounds"][0]["decision"]["action"] == "continue"
         assert "inject_guidance" in data["actions"]
+        assert data["approval_request"] is None
         assert data["artifacts"]["spec"].endswith(f"docs/specs/{mission_id}/spec.md")
+
+    def test_mission_detail_endpoint_surfaces_approval_request(self, client, repo: Path):
+        mission_id = "mission-detail-approval"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-02"
+        specs.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Mission Detail Approval",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": ["Ship safely"],
+                    "constraints": ["Keep rollback path available"],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Mission Detail Approval\n", encoding="utf-8")
+        (round_dir / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 2,
+                    "wave_id": 1,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:10:00+00:00",
+                    "completed_at": "2026-03-25T00:12:30+00:00",
+                    "worker_results": [],
+                    "decision": {
+                        "action": "ask_human",
+                        "reason_code": "needs_review",
+                        "summary": "Approve the rollout after checking the visual diff.",
+                        "confidence": 0.78,
+                        "affected_workers": [],
+                        "artifacts": {
+                            "review_memo": f"docs/specs/{mission_id}/rounds/round-02/supervisor_review.md"
+                        },
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": ["Approve rollout after visual diff review?"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (repo / ".spec_orch_runs" / "lifecycle_state.json").write_text(
+            json.dumps(
+                {
+                    mission_id: {
+                        "mission_id": mission_id,
+                        "phase": "executing",
+                        "issue_ids": ["SON-500"],
+                        "completed_issues": [],
+                        "error": None,
+                        "updated_at": "2026-03-25T00:13:00+00:00",
+                        "current_round": 2,
+                        "round_orchestrator_state": {
+                            "paused": True,
+                            "blocking_questions": ["Approve rollout after visual diff review?"],
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        r = client.get(f"/api/missions/{mission_id}/detail")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["approval_request"] == {
+            "round_id": 2,
+            "timestamp": "2026-03-25T00:12:30+00:00",
+            "summary": "Approve the rollout after checking the visual diff.",
+            "blocking_question": "Approve rollout after visual diff review?",
+            "decision_action": "ask_human",
+        }
 
     def test_packet_transcript_endpoint(self, client, repo: Path):
         mission_id = "mission-transcript"

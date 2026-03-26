@@ -218,6 +218,7 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
     plan_path = repo_root / "docs/specs" / mission_id / "plan.json"
     plan = load_plan(plan_path) if plan_path.exists() else None
     lifecycle = _gather_lifecycle_states(repo_root).get(mission_id)
+    approval_request = _gather_latest_approval_request(repo_root, mission_id)
 
     rounds_dir = repo_root / "docs/specs" / mission_id / "rounds"
     round_summaries: list[dict[str, Any]] = []
@@ -290,6 +291,7 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
         "rounds": round_summaries,
         "packets": packets,
         "actions": sorted(set(actions)),
+        "approval_request": approval_request,
         "artifacts": {
             "spec": str((repo_root / mission.spec_path).relative_to(repo_root)),
             "plan": str(plan_path.relative_to(repo_root)) if plan_path.exists() else None,
@@ -1394,6 +1396,7 @@ function renderContextRail(detail) {
   const mission = detail.mission || {};
   const rounds = detail.rounds || [];
   const latestRound = rounds.length ? rounds[rounds.length - 1] : null;
+  const approvalRequest = detail.approval_request || null;
   const packet = (detail.packets || []).find(item => item.packet_id === selectedPacketId) || detail.packets?.[0];
   rail.innerHTML = `
     <div class="mission-section">
@@ -1407,6 +1410,12 @@ function renderContextRail(detail) {
           <div class="context-title">Current packet</div>
           <div class="context-meta">${packet ? escHtml(packet.title) : 'No packet selected'}</div>
         </div>
+      </div>
+    </div>
+    <div class="mission-section">
+      <h3>Approval workspace</h3>
+      <div class="context-list">
+        ${approvalRequest ? renderApprovalWorkspace(approvalRequest, mission.mission_id || '') : '<div class="empty-panel">No active approval request.</div>'}
       </div>
     </div>
     <div class="mission-section">
@@ -1434,6 +1443,30 @@ function renderContextRail(detail) {
           <div class="context-title">${escHtml(mission.spec_path || 'No spec path')}</div>
           <div class="context-meta">Mission source of truth</div>
         </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderApprovalWorkspace(approvalRequest, missionId) {
+  return `
+    <div class="context-card">
+      <div class="context-title">${escHtml(approvalRequest.summary || 'Approval required')}</div>
+      <div class="context-meta">
+        <span>Round ${escHtml(String(approvalRequest.round_id || '—'))}</span>
+        <span>${escHtml(approvalRequest.decision_action || 'ask_human')}</span>
+        <span>${escHtml(approvalRequest.timestamp || '—')}</span>
+      </div>
+    </div>
+    <div class="context-card">
+      <div class="context-title">Blocking question</div>
+      <div class="transcript-entry-body">${escHtml(approvalRequest.blocking_question || 'No blocking question recorded.')}</div>
+    </div>
+    <div class="context-card">
+      <div class="context-title">Operator actions</div>
+      <div class="context-meta">
+        <button class="btn btn-primary btn-sm" type="button" onclick="openDiscuss('${missionId}')">Respond in discuss</button>
+        <button class="btn btn-sm" type="button" onclick="load()">Refresh state</button>
       </div>
     </div>
   `;
