@@ -406,6 +406,23 @@ class TestDashboardAPI:
             "summary": "Approve the rollout after checking the visual diff.",
             "blocking_question": "Approve rollout after visual diff review?",
             "decision_action": "ask_human",
+            "actions": [
+                {
+                    "key": "approve",
+                    "label": "Approve",
+                    "message": "@approve Approve rollout after visual diff review?",
+                },
+                {
+                    "key": "request_revision",
+                    "label": "Request revision",
+                    "message": "@request-revision Please revise this round before rollout.",
+                },
+                {
+                    "key": "ask_followup",
+                    "label": "Ask follow-up",
+                    "message": "@follow-up I need more detail before approving this round.",
+                },
+            ],
         }
 
     def test_packet_transcript_endpoint(self, client, repo: Path):
@@ -617,6 +634,79 @@ class TestDashboardAPI:
             },
         ]
 
+    def test_packet_transcript_endpoint_groups_tool_events_into_bursts(self, client, repo: Path):
+        mission_id = "mission-transcript-burst"
+        packet_id = "pkt-2"
+        telemetry = repo / "docs" / "specs" / mission_id / "workers" / packet_id / "telemetry"
+        telemetry.mkdir(parents=True)
+
+        (telemetry / "events.jsonl").write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "timestamp": "2026-03-25T00:11:45Z",
+                            "event_type": "tool_call_started",
+                            "message": "running ruff",
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "timestamp": "2026-03-25T00:11:46Z",
+                            "event_type": "tool_call_completed",
+                            "message": "ruff clean",
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "timestamp": "2026-03-25T00:11:47Z",
+                            "event_type": "tool_call_completed",
+                            "message": "pytest passed",
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        r = client.get(f"/api/missions/{mission_id}/packets/{packet_id}/transcript")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["summary"]["block_counts"] == {"command_burst": 1}
+        assert data["blocks"] == [
+            {
+                "block_type": "command_burst",
+                "timestamp": "2026-03-25T00:11:45Z",
+                "title": "3 tool events",
+                "body": "running ruff • ruff clean • pytest passed",
+                "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                "items": [
+                    {
+                        "block_type": "tool",
+                        "timestamp": "2026-03-25T00:11:45Z",
+                        "title": "running ruff",
+                        "body": "tool_call_started",
+                        "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                    },
+                    {
+                        "block_type": "tool",
+                        "timestamp": "2026-03-25T00:11:46Z",
+                        "title": "ruff clean",
+                        "body": "tool_call_completed",
+                        "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                    },
+                    {
+                        "block_type": "tool",
+                        "timestamp": "2026-03-25T00:11:47Z",
+                        "title": "pytest passed",
+                        "body": "tool_call_completed",
+                        "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                    },
+                ],
+            }
+        ]
+
     def test_lifecycle_endpoint(self, client):
         r = client.get("/api/lifecycle")
         assert r.status_code == 200
@@ -673,6 +763,83 @@ class TestDashboardAPI:
             headers={"Content-Type": "application/json"},
         )
         assert r.status_code in (200, 503)
+
+    def test_approval_action_endpoint_injects_guidance(self, client, repo: Path, monkeypatch):
+        mission_id = "mission-approval-action"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-01"
+        specs.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Approval Action Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Approval Action Mission\n", encoding="utf-8")
+        (round_dir / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 1,
+                    "wave_id": 0,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:10:00+00:00",
+                    "completed_at": "2026-03-25T00:11:00+00:00",
+                    "worker_results": [],
+                    "decision": {
+                        "action": "ask_human",
+                        "reason_code": "needs_approval",
+                        "summary": "Approve rollout after QA.",
+                        "confidence": 0.8,
+                        "affected_workers": [],
+                        "artifacts": {},
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": ["Approve rollout after QA?"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        calls: list[tuple[str, str, str]] = []
+
+        class FakeLifecycleManager:
+            def inject_btw(self, issue_id: str, message: str, channel: str) -> bool:
+                calls.append((issue_id, message, channel))
+                return True
+
+        monkeypatch.setattr(
+            "spec_orch.dashboard.routes.dashboard_app._get_lifecycle_manager",
+            lambda _root: FakeLifecycleManager(),
+        )
+
+        response = client.post(
+            f"/api/missions/{mission_id}/approval-action",
+            content='{"action_key": "approve"}',
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "ok": True,
+            "message": "@approve Approve rollout after QA?",
+            "action_key": "approve",
+        }
+        assert calls == [
+            (mission_id, "@approve Approve rollout after QA?", "web-dashboard")
+        ]
 
     def test_homepage(self, client):
         r = client.get("/")

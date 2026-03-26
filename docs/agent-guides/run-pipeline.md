@@ -64,6 +64,25 @@ spec-orch mission logs <mission_id> <packet_id> --raw
 spec-orch mission logs <mission_id> <packet_id> --events
 ```
 
+Dashboard 里的 operator console 现在会把这几层信息汇总成三个可直接消费的 surface：
+
+- `Inbox`：把 approval-needed、paused、failed mission 统一成 triage 入口
+- `Mission Detail`：展示当前 mission、packets、latest round 和 transcript timeline
+- `Context Rail`：展示 approval workspace、transcript inspector、artifact path
+
+其中 transcript 已支持：
+
+- timeline block 过滤
+- supervisor / visual evidence block
+- block 级别的 linked evidence path
+- command-burst 分组，把连续 tool 事件折叠成更可读的 operator timeline
+
+approval-needed 的 round 现在也能直接在 dashboard 里触发预设动作：
+
+- `Approve`
+- `Request revision`
+- `Ask follow-up`
+
 ## Spec 管理
 
 ```bash

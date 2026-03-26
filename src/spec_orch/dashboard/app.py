@@ -206,8 +206,48 @@ def _gather_latest_approval_request(repo_root: Path, mission_id: str) -> dict[st
                 else None
             ),
             "decision_action": summary.decision.action.value,
+            "actions": [
+                {
+                    "key": "approve",
+                    "label": "Approve",
+                    "message": "@approve "
+                    + (
+                        summary.decision.blocking_questions[0]
+                        if summary.decision.blocking_questions
+                        else "Approve this round."
+                    ),
+                },
+                {
+                    "key": "request_revision",
+                    "label": "Request revision",
+                    "message": "@request-revision Please revise this round before rollout.",
+                },
+                {
+                    "key": "ask_followup",
+                    "label": "Ask follow-up",
+                    "message": "@follow-up I need more detail before approving this round.",
+                },
+            ],
         }
     return latest
+
+
+def _resolve_approval_action(
+    repo_root: Path,
+    mission_id: str,
+    action_key: str,
+) -> dict[str, str] | None:
+    approval_request = _gather_latest_approval_request(repo_root, mission_id)
+    if approval_request is None:
+        return None
+    for action in approval_request.get("actions", []):
+        if action.get("key") == action_key:
+            return {
+                "key": action_key,
+                "label": str(action.get("label") or action_key),
+                "message": str(action.get("message") or ""),
+            }
+    return None
 
 
 def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] | None:
@@ -408,6 +448,7 @@ def _gather_packet_transcript(
         if isinstance(timestamp, str) and timestamp:
             latest_timestamp = timestamp
     blocks = [_transcript_block_from_entry(entry) for entry in entries]
+    blocks = _group_transcript_blocks(blocks)
     blocks.extend(_gather_round_evidence_blocks(repo_root, mission_id, packet_id))
     blocks.sort(key=lambda block: (block.get("timestamp", ""), block.get("block_type", "")))
     block_counts: dict[str, int] = {}
@@ -485,6 +526,43 @@ def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
         "body": event_type or kind,
         "source_path": entry.get("source_path"),
     }
+
+
+def _group_transcript_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: list[dict[str, Any]] = []
+    current_tool_burst: list[dict[str, Any]] = []
+
+    def flush_tool_burst() -> None:
+        nonlocal current_tool_burst
+        if not current_tool_burst:
+            return
+        if len(current_tool_burst) == 1:
+            grouped.extend(current_tool_burst)
+        else:
+            grouped.append(
+                {
+                    "block_type": "command_burst",
+                    "timestamp": current_tool_burst[0].get("timestamp", ""),
+                    "title": f"{len(current_tool_burst)} tool events",
+                    "body": " • ".join(
+                        str(item.get("title", item.get("body", "tool event")))
+                        for item in current_tool_burst
+                    ),
+                    "source_path": current_tool_burst[0].get("source_path"),
+                    "items": current_tool_burst,
+                }
+            )
+        current_tool_burst = []
+
+    for block in blocks:
+        if block.get("block_type") == "tool":
+            current_tool_burst.append(block)
+            continue
+        flush_tool_burst()
+        grouped.append(block)
+
+    flush_tool_burst()
+    return grouped
 
 
 def _gather_round_evidence_blocks(
@@ -1467,7 +1545,18 @@ function renderApprovalWorkspace(approvalRequest, missionId) {
     <div class="context-card">
       <div class="context-title">Operator actions</div>
       <div class="context-meta">
-        <button class="btn btn-primary btn-sm" type="button" onclick="openDiscuss('${missionId}')">Respond in discuss</button>
+        ${(approvalRequest.actions || []).map(action => `
+          <button
+            class="btn ${action.key === 'approve' ? 'btn-primary' : ''} btn-sm"
+            type="button"
+            onclick="triggerApprovalAction('${missionId}', '${escHtml(action.key || '')}')"
+          >${escHtml(action.label || action.key || 'Action')}</button>
+        `).join('')}
+        <button
+          class="btn btn-sm"
+          type="button"
+          onclick="openDiscussPreset('${missionId}', '${escHtml((approvalRequest.actions || [])[0]?.message || '')}')"
+        >Open discuss</button>
         <button class="btn btn-sm" type="button" onclick="load()">Refresh state</button>
       </div>
     </div>
@@ -1747,6 +1836,7 @@ function renderTranscriptInspector() {
   }
   const block = blocks[selectedTranscriptBlockIndex];
   const links = [block.artifact_path, block.source_path].filter(Boolean);
+  const burstItems = Array.isArray(block.items) ? block.items : [];
   return `
     <div class="context-card">
       <div class="context-title">${escHtml(block.title || 'Transcript evidence')}</div>
@@ -1756,6 +1846,23 @@ function renderTranscriptInspector() {
       </div>
       ${block.body ? `<div class="transcript-entry-body">${escHtml(block.body)}</div>` : ''}
     </div>
+    ${burstItems.length ? `
+      <div class="context-card">
+        <div class="context-title">Burst items</div>
+        <div class="context-list">
+          ${burstItems.map(item => `
+            <div class="context-card">
+              <div class="context-title">${escHtml(item.title || item.block_type || 'tool')}</div>
+              <div class="context-meta">
+                <span>${escHtml(item.block_type || 'tool')}</span>
+                <span>${escHtml(item.timestamp || '—')}</span>
+              </div>
+              ${item.body ? `<div class="transcript-entry-body">${escHtml(item.body)}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
     ${links.length ? links.map(path => `
       <div class="context-card">
         <div class="context-title">Linked evidence</div>
@@ -1802,6 +1909,25 @@ async function retryMission(mid) {
   finally { btn.disabled = false; btn.textContent = 'Retry'; }
 }
 
+async function triggerApprovalAction(missionId, actionKey) {
+  try {
+    const response = await fetch(`/api/missions/${missionId}/approval-action`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action_key: actionKey}),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || 'Approval action failed');
+    }
+    openDiscussPreset(missionId, data.message || '');
+    addSystemMsg(`Sent ${actionKey} guidance for ${missionId}`);
+    await load();
+  } catch (error) {
+    alert('Error: ' + (error?.message || 'Approval action failed'));
+  }
+}
+
 /* ===== CHAT / DISCUSS ===== */
 function openSidebar() {
   document.getElementById('sidebar').classList.add('open');
@@ -1826,6 +1952,15 @@ function openDiscuss(missionId) {
   document.getElementById('chat-title').textContent = 'Discuss: ' + missionId.slice(0,12);
   openSidebar();
   addSystemMsg('Discussing mission ' + missionId);
+}
+
+function openDiscussPreset(missionId, presetMessage) {
+  openDiscuss(missionId);
+  const input = document.getElementById('chat-input');
+  if (input) {
+    input.value = presetMessage || '';
+    input.focus();
+  }
 }
 
 function addSystemMsg(text) {
@@ -1954,7 +2089,7 @@ setInterval(loadEvolution, 30000);
 # ---------------------------------------------------------------------------
 
 
-def create_app(repo_root: Path | None = None) -> Any:
+def _legacy_create_app(repo_root: Path | None = None) -> Any:
     """Create the FastAPI app. Requires ``pip install fastapi uvicorn``."""
     from fastapi import Body, FastAPI, WebSocket, WebSocketDisconnect
     from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
@@ -2215,4 +2350,20 @@ def create_app(repo_root: Path | None = None) -> Any:
     _ws_handler.__annotations__["websocket"] = WebSocket
     app.add_api_websocket_route("/ws", _ws_handler)
 
+    return app
+
+
+def create_app(repo_root: Path | None = None) -> Any:
+    """Create the FastAPI app. Requires ``pip install fastapi uvicorn``."""
+    from fastapi import FastAPI
+    from fastapi.staticfiles import StaticFiles
+
+    from .routes import register_routes
+
+    root = repo_root or Path(".")
+    app = FastAPI(title="spec-orch dashboard")
+    static_dir = Path(__file__).resolve().parent.parent / "dashboard_assets" / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=static_dir), name="dashboard-static")
+    register_routes(app, root)
     return app

@@ -12,8 +12,8 @@
 | 2. Source collection | complete | Gathered Paperclip, agentcompanies.io, AgentCompany, and agency-agents primary sources |
 | 3. Comparative analysis | complete | Compared product model, observability surfaces, UX patterns, and architecture choices |
 | 4. SpecOrch implications | complete | Converted research into operator-console design principles, workbench IA, and implementation slices |
-| 5. Operator console implementation | in_progress | Mission detail shell, transcript timeline blocks, websocket hardening, inbox scaffolding, approval-aware inbox semantics, transcript filter-bar depth, transcript inspector scaffolding, approval workspace surfacing, and dashboard package refactor are in place |
-| 6. Deliver research memo and shipable plan | in_progress | Remaining work is actionable approval commands, deeper transcript grouping/payload UX, and docs sync |
+| 5. Operator console implementation | in_progress | Mission detail shell, transcript timeline blocks, websocket hardening, inbox scaffolding, approval-aware inbox semantics, transcript filter-bar depth, transcript inspector scaffolding, approval workspace surfacing, approval action presets, transcript command-burst grouping, and dashboard package refactor are in place |
+| 6. Deliver research memo and shipable plan | in_progress | Remaining work is deeper payload UX in transcript inspector, stronger approval workflows beyond canned guidance, and continuing to split the transitional dashboard app module |
 
 ## Comparison Dimensions
 - User entry points and onboarding flow
@@ -28,5 +28,5 @@
 - Paperclip may expose stronger demos/docs than actual implementation details.
 - Some referenced projects may be early-stage or lightly maintained, which affects how much to borrow directly.
 - Need to separate "good demo UX" from "operationally durable observability."
-- The dashboard now has a package shell, but `app.py` is still a transitional large module that should be split further.
-- The inbox now distinguishes approval-needed items from generic paused missions, but intervention actions are not yet first-class in the UI.
+- The dashboard now has `routes.py` and a package shell, but `app.py` is still a transitional large module that should be split further.
+- The inbox now distinguishes approval-needed items from generic paused missions, and approval actions can inject canned guidance directly, but the UI still lacks a fully explicit approve/reject/request-revision workflow with stateful confirmations.

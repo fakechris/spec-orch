@@ -30,6 +30,22 @@ spec-orch daemon dlq       # 查看死信队列
 
 - `docs/guides/supervised-mission-e2e-playbook.md`
 
+Dashboard 现在已经进入 operator-console 形态，首页主要看三块：
+
+- `Inbox`：paused / failed / approval-needed mission triage
+- `Mission Detail`：当前 mission、packets、latest round、transcript
+- `Context Rail`：approval workspace、transcript inspector、artifact links
+
+其中 approval workspace 已经支持直接发送预设 guidance：
+
+- `Approve`
+- `Request revision`
+- `Ask follow-up`
+
+这些动作会通过 dashboard API 直接写回 paused mission 的 `/btw` 注入链路，不需要先切到 CLI。
+
+实现代码现在在 `src/spec_orch/dashboard/` 包下；顶层 `src/spec_orch/dashboard.py` 只保留兼容导出。
+
 ## 关键点
 
 - Dashboard 和 Daemon 是**独立进程**，但共享同一个 `.env` 文件

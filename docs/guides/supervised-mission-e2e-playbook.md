@@ -194,6 +194,22 @@ daemon
 
 把观测分成三层，不要把所有文件混在一起看。
 
+如果你同时开着 dashboard，可以按下面这三个 surface 看：
+
+- `Inbox`
+  - 先看有没有 `approval` / `paused` / `failed`
+- `Mission Detail`
+  - 看当前 packet、latest round、transcript 过滤后的时间线
+- `Context Rail`
+  - 看 `Approval workspace`、`Transcript inspector`、artifact path
+  - approval request 出现时，可以直接点击 `Approve` / `Request revision` / `Ask follow-up`
+
+换句话说：
+
+- CLI 更适合原始排查
+- dashboard 更适合 operator 视角的持续监督
+- 当 round 进入 `ask_human` 时，优先从 dashboard 的 approval workspace 介入；它会把预设 guidance 直接写回 mission 的 `/btw` 注入链路
+
 ### 6.1 Layer 1: 原始 worker 输出
 
 路径：

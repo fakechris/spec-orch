@@ -13,3 +13,9 @@ def test_dashboard_package_exposes_api_helpers() -> None:
 
     assert callable(_gather_inbox)
     assert callable(_gather_packet_transcript)
+
+
+def test_dashboard_package_exposes_route_registrar() -> None:
+    from spec_orch.dashboard.routes import register_routes
+
+    assert callable(register_routes)

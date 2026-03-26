@@ -238,6 +238,35 @@
   - Queried repository trees to identify whether observability concepts are first-class objects in code.
   - Read `agentcompanies.io` documentation to position it as a vendor-neutral packaging/spec layer rather than an operator UI reference.
 - Files created/modified:
+
+## Session: 2026-03-26
+
+### Operator Console Delivery
+- **Status:** in_progress
+- Actions taken:
+  - Added approval-aware inbox semantics so `ask_human` round decisions surface as first-class approval items.
+  - Added transcript timeline block filtering, transcript inspector, and linked evidence paths for round artifacts.
+  - Grouped consecutive tool events into `command_burst` timeline blocks to make packet execution easier to read.
+  - Surfaced `approval_request` in mission detail and added approval action presets that inject canned guidance back into paused missions.
+  - Refactored the dashboard into a package shape with `spec_orch/dashboard/`, a compatibility wrapper, and extracted `routes.py`.
+  - Synced agent docs to describe the operator-console surfaces and supervised mission observability workflow.
+- Files created/modified:
+  - `src/spec_orch/dashboard.py`
+  - `src/spec_orch/dashboard/__init__.py`
+  - `src/spec_orch/dashboard/api.py`
+  - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/dashboard/routes.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.css`
+  - `docs/agent-guides/services.md`
+  - `docs/agent-guides/run-pipeline.md`
+  - `docs/guides/supervised-mission-e2e-playbook.md`
+  - `tests/unit/test_dashboard.py`
+  - `tests/unit/test_dashboard_api.py`
+  - `tests/unit/test_dashboard_package.py`
+
+### Verification
+- Dashboard API/unit verification: `uv run --python 3.13 python -m pytest tests/unit/test_dashboard.py tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py -q`
+- Dashboard lint verification: `uv run --python 3.13 python -m ruff check src/spec_orch/dashboard.py src/spec_orch/dashboard tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py docs/agent-guides/services.md docs/agent-guides/run-pipeline.md docs/guides/supervised-mission-e2e-playbook.md pyproject.toml`
   - `findings.md`
   - `progress.md`
 
