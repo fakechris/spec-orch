@@ -263,6 +263,25 @@
   min-width: 0;
 }
 
+.transcript-entry {
+  width: 100%;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.01);
+  color: var(--text);
+}
+
+button.transcript-entry {
+  appearance: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+button.transcript-entry:hover,
+button.transcript-entry.active {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.08);
+}
+
 .packet-row {
   width: 100%;
   text-align: left;

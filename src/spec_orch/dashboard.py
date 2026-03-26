@@ -343,6 +343,7 @@ def _gather_packet_transcript(
                     "timestamp": ts if message else "",
                     "message": message or line,
                     "raw": line,
+                    "source_path": str(activity_path.relative_to(repo_root)),
                 }
             )
 
@@ -361,6 +362,7 @@ def _gather_packet_transcript(
                     "message": payload.get("message", payload.get("event_type", "event")),
                     "event_type": payload.get("event_type", ""),
                     "raw": payload,
+                    "source_path": str(events_path.relative_to(repo_root)),
                 }
             )
             event_type = payload.get("event_type", "")
@@ -388,6 +390,7 @@ def _gather_packet_transcript(
                     "message": payload.get("excerpt", payload.get("message", payload.get("kind", ""))),
                     "event_type": payload.get("kind", ""),
                     "raw": payload,
+                    "source_path": str(incoming_path.relative_to(repo_root)),
                 }
             )
 
@@ -441,6 +444,7 @@ def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
             "timestamp": str(entry.get("timestamp", "")),
             "title": message,
             "body": body,
+            "source_path": entry.get("source_path"),
         }
 
     if kind == "incoming":
@@ -449,6 +453,7 @@ def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
             "timestamp": str(entry.get("timestamp", "")),
             "title": message,
             "body": event_type or kind,
+            "source_path": entry.get("source_path"),
         }
 
     if event_type.startswith("mission_packet_"):
@@ -457,6 +462,7 @@ def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
             "timestamp": str(entry.get("timestamp", "")),
             "title": message,
             "body": event_type,
+            "source_path": entry.get("source_path"),
         }
 
     if "tool_call" in event_type:
@@ -465,6 +471,7 @@ def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
             "timestamp": str(entry.get("timestamp", "")),
             "title": message,
             "body": event_type,
+            "source_path": entry.get("source_path"),
         }
 
     return {
@@ -472,6 +479,7 @@ def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
         "timestamp": str(entry.get("timestamp", "")),
         "title": message,
         "body": event_type or kind,
+        "source_path": entry.get("source_path"),
     }
 
 
@@ -506,6 +514,7 @@ def _gather_round_evidence_blocks(
                     "timestamp": timestamp,
                     "title": summary.decision.summary or "Supervisor decision",
                     "body": summary.decision.action.value,
+                    "artifact_path": str((round_dir / "supervisor_review.md").relative_to(repo_root)),
                 }
             )
 
@@ -523,6 +532,7 @@ def _gather_round_evidence_blocks(
                     "timestamp": timestamp,
                     "title": visual.summary or "Visual evaluation result",
                     "body": visual.evaluator,
+                    "artifact_path": str(visual_path.relative_to(repo_root)),
                 }
             )
 
@@ -1029,7 +1039,9 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
         <div class="operator-context-header">
           <h2>Context Rail</h2>
         </div>
-        <div id="operator-context-rail" class="mission-detail-view operator-context-rail"></div>
+        <div id="operator-context-rail" class="mission-detail-view operator-context-rail">
+          <div id="transcript-inspector"></div>
+        </div>
       </aside>
     </div>
   </div>
@@ -1088,6 +1100,7 @@ let selectedMissionDetail = null;
 let selectedPacketId = null;
 let selectedPacketTranscript = null;
 let selectedTranscriptFilter = 'all';
+let selectedTranscriptBlockIndex = null;
 let inboxSummary = {counts:{approvals:0, paused:0, failed:0, attention:0}, items:[]};
 
 /* ===== DATA LOADING ===== */
@@ -1261,6 +1274,7 @@ async function selectMission(missionId, options = {}) {
     selectedPacketId = selectedMissionDetail.packets?.[0]?.packet_id || null;
     selectedPacketTranscript = null;
     selectedTranscriptFilter = 'all';
+    selectedTranscriptBlockIndex = null;
     renderMissionDetail(selectedMissionDetail);
     renderContextRail(selectedMissionDetail);
     await loadSelectedPacketTranscript();
@@ -1408,6 +1422,12 @@ function renderContextRail(detail) {
       </div>
     </div>
     <div class="mission-section">
+      <h3>Transcript inspector</h3>
+      <div id="transcript-inspector" class="context-list">
+        ${renderTranscriptInspector()}
+      </div>
+    </div>
+    <div class="mission-section">
       <h3>Spec</h3>
       <div class="context-list">
         <div class="context-card">
@@ -1543,6 +1563,7 @@ function buildMissionSubtitle(detail) {
 async function selectPacket(packetId) {
   selectedPacketId = packetId;
   selectedPacketTranscript = null;
+  selectedTranscriptBlockIndex = null;
   renderMissionDetail(selectedMissionDetail);
   renderContextRail(selectedMissionDetail);
   await loadSelectedPacketTranscript();
@@ -1561,13 +1582,17 @@ async function loadSelectedPacketTranscript() {
     if (!response.ok) {
       selectedPacketTranscript = {error: 'No transcript available for this packet yet.', entries: []};
       renderTranscriptContainer();
+      renderContextRail(selectedMissionDetail);
       return;
     }
     selectedPacketTranscript = await response.json();
+    const blocks = selectedPacketTranscript.blocks || [];
+    selectedTranscriptBlockIndex = blocks.length ? blocks.length - 1 : null;
   } catch (error) {
     selectedPacketTranscript = {error: error?.message || 'Failed to load transcript.', entries: []};
   }
   renderTranscriptContainer();
+  renderContextRail(selectedMissionDetail);
 }
 
 function renderTranscriptContainer() {
@@ -1575,6 +1600,12 @@ function renderTranscriptContainer() {
   const container = document.getElementById('packet-transcript-view');
   if (!container) return;
   container.innerHTML = renderTranscriptPreview();
+}
+
+function selectTranscriptBlock(index) {
+  selectedTranscriptBlockIndex = index;
+  renderTranscriptContainer();
+  renderContextRail(selectedMissionDetail);
 }
 
 function renderTranscriptFilters() {
@@ -1631,8 +1662,11 @@ function renderTranscriptPreview() {
       <div class="context-meta">${summaryMeta.map(item => `<span>${escHtml(String(item))}</span>`).join('')}</div>
       ${milestones.length ? `<div class="context-meta">${milestones.map(item => `<span class="run-class">${escHtml(item.event_type || 'milestone')}</span>`).join('')}</div>` : ''}
     </div>
-    ${(visibleBlocks.length ? visibleBlocks.slice(-8).map(block => `
-    <div class="transcript-entry ${escHtml(block.block_type || 'event')}">
+    ${(visibleBlocks.length ? visibleBlocks.slice(-8).map(block => {
+      const blockIndex = blocks.indexOf(block);
+      const active = blockIndex === selectedTranscriptBlockIndex;
+      return `
+    <button type="button" class="transcript-entry ${escHtml(block.block_type || 'event')} ${active ? 'active' : ''}" onclick="selectTranscriptBlock(${blockIndex})">
       <div class="transcript-entry-header">
         <div class="context-title">${escHtml(block.title || 'event')}</div>
         <span class="run-class">${escHtml(block.block_type || 'event')}</span>
@@ -1642,8 +1676,9 @@ function renderTranscriptPreview() {
         ${block.body ? `<span>${escHtml(block.body)}</span>` : ''}
       </div>
       ${block.body ? `<div class="transcript-entry-body">${escHtml(block.body)}</div>` : ''}
-    </div>
-  `).join('') : (blocks.length
+    </button>
+  `;
+    }).join('') : (blocks.length
     ? '<div class="empty-panel">No transcript blocks match the current filter.</div>'
     : entries.slice(-8).map(entry => `
     <div class="transcript-entry ${escHtml(entry.kind || '')}">
@@ -1658,6 +1693,40 @@ function renderTranscriptPreview() {
       ${renderTranscriptBody(entry)}
     </div>
   `).join('')))}
+  `;
+}
+
+function renderTranscriptInspector() {
+  if (!selectedPacketId) {
+    return '<div class="empty-panel">Select a packet to inspect transcript evidence.</div>';
+  }
+  if (!selectedPacketTranscript || selectedPacketTranscript.loading) {
+    return '<div class="empty-panel">Loading transcript evidence…</div>';
+  }
+  if (selectedPacketTranscript.error) {
+    return `<div class="empty-panel">${escHtml(selectedPacketTranscript.error)}</div>`;
+  }
+  const blocks = selectedPacketTranscript.blocks || [];
+  if (!blocks.length || selectedTranscriptBlockIndex == null || !blocks[selectedTranscriptBlockIndex]) {
+    return '<div class="empty-panel">Select a transcript block to inspect its evidence.</div>';
+  }
+  const block = blocks[selectedTranscriptBlockIndex];
+  const links = [block.artifact_path, block.source_path].filter(Boolean);
+  return `
+    <div class="context-card">
+      <div class="context-title">${escHtml(block.title || 'Transcript evidence')}</div>
+      <div class="context-meta">
+        <span>${escHtml(block.block_type || 'event')}</span>
+        <span>${escHtml(block.timestamp || '—')}</span>
+      </div>
+      ${block.body ? `<div class="transcript-entry-body">${escHtml(block.body)}</div>` : ''}
+    </div>
+    ${links.length ? links.map(path => `
+      <div class="context-card">
+        <div class="context-title">Linked evidence</div>
+        <div class="context-meta"><span class="artifact-link">${escHtml(String(path))}</span></div>
+      </div>
+    `).join('') : '<div class="empty-panel">No linked evidence path for this block.</div>'}
   `;
 }
 

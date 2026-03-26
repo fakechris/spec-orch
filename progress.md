@@ -277,6 +277,7 @@
   - Added inbox scaffolding and then promoted `ask_human` rounds into first-class `approval` items instead of treating them as generic pauses.
   - Added transcript block-count summaries and a filter bar so operators can narrow the timeline by evidence type.
   - Re-ran local browser dogfood and confirmed the dashboard loads cleanly with a live WebSocket connection and zero console errors.
+  - Added transcript block source/artifact paths and a transcript inspector section in the context rail for selected evidence.
 - Files created/modified:
   - `src/spec_orch/dashboard.py`
   - `src/spec_orch/dashboard_assets/static/operator-console.css`

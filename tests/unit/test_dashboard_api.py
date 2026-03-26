@@ -400,30 +400,35 @@ class TestDashboardAPI:
                 "timestamp": "2026-03-25T00:11:00Z",
                 "title": "BUILDER packet started",
                 "body": "2026-03-25T00:11:00Z BUILDER packet started",
+                "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/activity.log",
             },
             {
                 "block_type": "milestone",
                 "timestamp": "2026-03-25T00:11:30Z",
                 "title": "packet started",
                 "body": "mission_packet_started",
+                "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
             },
             {
                 "block_type": "message",
                 "timestamp": "2026-03-25T00:11:40Z",
                 "title": "Implementing mission detail now.",
                 "body": "assistant_message",
+                "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/incoming_events.jsonl",
             },
             {
                 "block_type": "tool",
                 "timestamp": "2026-03-25T00:11:45Z",
                 "title": "applied patch",
                 "body": "tool_call_completed",
+                "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
             },
             {
                 "block_type": "activity",
                 "timestamp": "2026-03-25T00:12:00Z",
                 "title": "BUILDER packet completed",
                 "body": "2026-03-25T00:12:00Z BUILDER packet completed",
+                "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/activity.log",
             },
         ]
         kinds = {entry["kind"] for entry in data["entries"]}
@@ -518,12 +523,14 @@ class TestDashboardAPI:
                 "timestamp": "2026-03-25T00:12:30Z",
                 "title": "Need human approval before rollout.",
                 "body": "ask_human",
+                "artifact_path": f"docs/specs/{mission_id}/rounds/round-02/supervisor_review.md",
             },
             {
                 "block_type": "visual_finding",
                 "timestamp": "2026-03-25T00:12:30Z",
                 "title": "Visual QA found a spacing regression.",
                 "body": "playwright",
+                "artifact_path": f"docs/specs/{mission_id}/rounds/round-02/visual_evaluation.json",
             },
         ]
 
@@ -596,6 +603,7 @@ class TestDashboardAPI:
         assert 'id="mission-detail-view"' in r.text
         assert 'id="operator-context-rail"' in r.text
         assert 'id="transcript-filter-bar"' in r.text
+        assert 'id="transcript-inspector"' in r.text
         assert 'id="packet-transcript-view"' in r.text
 
     def test_static_operator_console_assets(self, client):
