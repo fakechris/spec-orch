@@ -212,6 +212,18 @@ class TestDashboardAPI:
         assert data["mission_id"] == mission_id
         assert data["packet_id"] == packet_id
         assert len(data["entries"]) == 5
+        assert data["summary"] == {
+            "entry_count": 5,
+            "kind_counts": {"activity": 2, "event": 2, "incoming": 1},
+            "latest_timestamp": "2026-03-25T00:12:00Z",
+        }
+        assert data["milestones"] == [
+            {
+                "timestamp": "2026-03-25T00:11:30Z",
+                "event_type": "mission_packet_started",
+                "message": "packet started",
+            }
+        ]
         kinds = {entry["kind"] for entry in data["entries"]}
         assert kinds == {"activity", "event", "incoming"}
         assert data["entries"][0]["message"] == "BUILDER packet started"
@@ -226,6 +238,12 @@ class TestDashboardAPI:
         assert data["mission_id"] == mission_id
         assert data["packet_id"] == packet_id
         assert data["entries"] == []
+        assert data["summary"] == {
+            "entry_count": 0,
+            "kind_counts": {},
+            "latest_timestamp": None,
+        }
+        assert data["milestones"] == []
         assert data["telemetry"] == {
             "activity_log": None,
             "events": None,

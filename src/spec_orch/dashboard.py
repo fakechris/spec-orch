@@ -209,6 +209,12 @@ def _gather_packet_transcript(
             "mission_id": mission_id,
             "packet_id": packet_id,
             "entries": [],
+            "summary": {
+                "entry_count": 0,
+                "kind_counts": {},
+                "latest_timestamp": None,
+            },
+            "milestones": [],
             "telemetry": {
                 "activity_log": None,
                 "events": None,
@@ -217,6 +223,7 @@ def _gather_packet_transcript(
         }
 
     entries: list[dict[str, Any]] = []
+    milestones: list[dict[str, Any]] = []
     if activity_path.exists():
         for line in activity_path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
@@ -248,6 +255,15 @@ def _gather_packet_transcript(
                     "raw": payload,
                 }
             )
+            event_type = payload.get("event_type", "")
+            if isinstance(event_type, str) and event_type.startswith("mission_packet_"):
+                milestones.append(
+                    {
+                        "timestamp": payload.get("timestamp", ""),
+                        "event_type": event_type,
+                        "message": payload.get("message", event_type),
+                    }
+                )
 
     if incoming_path.exists():
         for line in incoming_path.read_text(encoding="utf-8").splitlines():
@@ -268,11 +284,25 @@ def _gather_packet_transcript(
             )
 
     entries.sort(key=lambda entry: (entry.get("timestamp", ""), entry.get("kind", "")))
+    kind_counts: dict[str, int] = {}
+    latest_timestamp: str | None = None
+    for entry in entries:
+        kind = str(entry.get("kind", "event"))
+        kind_counts[kind] = kind_counts.get(kind, 0) + 1
+        timestamp = entry.get("timestamp")
+        if isinstance(timestamp, str) and timestamp:
+            latest_timestamp = timestamp
 
     return {
         "mission_id": mission_id,
         "packet_id": packet_id,
         "entries": entries,
+        "summary": {
+            "entry_count": len(entries),
+            "kind_counts": kind_counts,
+            "latest_timestamp": latest_timestamp,
+        },
+        "milestones": milestones,
         "telemetry": {
             "activity_log": str(activity_path.relative_to(repo_root)) if activity_path.exists() else None,
             "events": str(events_path.relative_to(repo_root)) if events_path.exists() else None,
@@ -1301,7 +1331,20 @@ function renderTranscriptPreview() {
   if (!entries.length) {
     return '<div class="empty-panel">No transcript events have been recorded yet.</div>';
   }
-  return entries.slice(-8).map(entry => `
+  const summary = selectedPacketTranscript.summary || {};
+  const milestones = selectedPacketTranscript.milestones || [];
+  const summaryMeta = [
+    `${summary.entry_count || 0} events`,
+    ...(summary.latest_timestamp ? [summary.latest_timestamp] : []),
+    ...Object.entries(summary.kind_counts || {}).map(([kind, count]) => `${kind} ${count}`),
+  ];
+  return `
+    <div class="context-card">
+      <div class="context-title">Packet timeline</div>
+      <div class="context-meta">${summaryMeta.map(item => `<span>${escHtml(String(item))}</span>`).join('')}</div>
+      ${milestones.length ? `<div class="context-meta">${milestones.map(item => `<span class="run-class">${escHtml(item.event_type || 'milestone')}</span>`).join('')}</div>` : ''}
+    </div>
+    ${entries.slice(-8).map(entry => `
     <div class="transcript-entry ${escHtml(entry.kind || '')}">
       <div class="transcript-entry-header">
         <div class="context-title">${escHtml(entry.message || entry.event_type || entry.kind || 'event')}</div>
@@ -1313,7 +1356,8 @@ function renderTranscriptPreview() {
       </div>
       ${renderTranscriptBody(entry)}
     </div>
-  `).join('');
+  `).join('')}
+  `;
 }
 
 function renderTranscriptBody(entry) {
