@@ -48,6 +48,75 @@ class TestDashboardAPI:
         assert r.status_code == 200
         assert isinstance(r.json(), list)
 
+    def test_inbox_endpoint_groups_paused_and_failed_missions(self, client, repo: Path):
+        paused_id = "mission-paused"
+        failed_id = "mission-failed"
+
+        for mission_id, status in ((paused_id, "approved"), (failed_id, "completed")):
+            specs = repo / "docs" / "specs" / mission_id
+            specs.mkdir(parents=True)
+            (specs / "mission.json").write_text(
+                json.dumps(
+                    {
+                        "mission_id": mission_id,
+                        "title": mission_id.replace("-", " ").title(),
+                        "status": status,
+                        "spec_path": f"docs/specs/{mission_id}/spec.md",
+                        "acceptance_criteria": [],
+                        "constraints": [],
+                        "interface_contracts": [],
+                        "created_at": "2026-03-25T00:00:00+00:00",
+                        "approved_at": "2026-03-25T00:05:00+00:00",
+                        "completed_at": None,
+                    }
+                )
+            )
+            (specs / "spec.md").write_text("# Spec\n", encoding="utf-8")
+
+        lifecycle_dir = repo / ".spec_orch_runs"
+        lifecycle_dir.mkdir(exist_ok=True)
+        (lifecycle_dir / "lifecycle_state.json").write_text(
+            json.dumps(
+                {
+                    paused_id: {
+                        "mission_id": paused_id,
+                        "phase": "executing",
+                        "issue_ids": ["SON-1"],
+                        "completed_issues": [],
+                        "error": None,
+                        "updated_at": "2026-03-25T00:20:00+00:00",
+                        "current_round": 2,
+                        "round_orchestrator_state": {
+                            "paused": True,
+                            "blocking_questions": ["Approve the revised rollout?"],
+                        },
+                    },
+                    failed_id: {
+                        "mission_id": failed_id,
+                        "phase": "failed",
+                        "issue_ids": ["SON-2"],
+                        "completed_issues": [],
+                        "error": "verification failed",
+                        "updated_at": "2026-03-25T00:30:00+00:00",
+                        "current_round": 1,
+                        "round_orchestrator_state": {},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        r = client.get("/api/inbox")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["counts"] == {"paused": 1, "failed": 1, "attention": 2}
+        assert data["items"][0]["mission_id"] == paused_id
+        assert data["items"][0]["kind"] == "paused"
+        assert data["items"][0]["summary"] == "Approve the revised rollout?"
+        assert data["items"][1]["mission_id"] == failed_id
+        assert data["items"][1]["kind"] == "failed"
+        assert data["items"][1]["summary"] == "verification failed"
+
     def test_mission_detail_endpoint(self, client, repo: Path):
         mission_id = "mission-detail"
         specs = repo / "docs" / "specs" / mission_id
@@ -315,6 +384,7 @@ class TestDashboardAPI:
         assert "/static/operator-console.js" in r.text
         assert 'id="operator-shell"' in r.text
         assert 'id="mission-list"' in r.text
+        assert 'id="inbox-list"' in r.text
         assert 'id="mission-detail-view"' in r.text
         assert 'id="operator-context-rail"' in r.text
         assert 'id="packet-transcript-view"' in r.text

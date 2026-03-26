@@ -102,6 +102,61 @@ def _gather_missions(repo_root: Path) -> list[dict[str, Any]]:
     return results
 
 
+def _gather_inbox(repo_root: Path) -> dict[str, Any]:
+    missions = _gather_missions(repo_root)
+    lifecycle_states = _gather_lifecycle_states(repo_root)
+    items: list[dict[str, Any]] = []
+
+    for mission in missions:
+        mission_id = mission["mission_id"]
+        lifecycle = lifecycle_states.get(mission_id, {})
+        round_state = lifecycle.get("round_orchestrator_state", {})
+
+        if round_state.get("paused"):
+            blocking_questions = round_state.get("blocking_questions", [])
+            items.append(
+                {
+                    "mission_id": mission_id,
+                    "title": mission["title"],
+                    "kind": "paused",
+                    "phase": lifecycle.get("phase", mission["status"]),
+                    "summary": blocking_questions[0] if blocking_questions else "Paused for human input.",
+                    "updated_at": lifecycle.get("updated_at"),
+                    "current_round": lifecycle.get("current_round", 0),
+                }
+            )
+            continue
+
+        if lifecycle.get("phase") == "failed":
+            items.append(
+                {
+                    "mission_id": mission_id,
+                    "title": mission["title"],
+                    "kind": "failed",
+                    "phase": lifecycle.get("phase", mission["status"]),
+                    "summary": lifecycle.get("error") or "Mission execution failed.",
+                    "updated_at": lifecycle.get("updated_at"),
+                    "current_round": lifecycle.get("current_round", 0),
+                }
+            )
+
+    items.sort(
+        key=lambda item: (
+            {"paused": 0, "failed": 1}.get(item["kind"], 9),
+            item.get("updated_at") or "",
+        )
+    )
+
+    return {
+        "counts": {
+            "paused": sum(1 for item in items if item["kind"] == "paused"),
+            "failed": sum(1 for item in items if item["kind"] == "failed"),
+            "attention": len(items),
+        },
+        "items": items,
+    }
+
+
 def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] | None:
     svc = MissionService(repo_root=repo_root)
     try:
@@ -789,11 +844,12 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
           <h2>Mission Control</h2>
         </div>
         <div class="operator-nav-modes">
-          <span class="operator-mode">Inbox</span>
+          <span class="operator-mode" id="inbox-attention-chip">Inbox</span>
           <span class="operator-mode">Missions</span>
           <span class="operator-mode">Approvals</span>
           <span class="operator-mode">Evidence</span>
         </div>
+        <div id="inbox-list" class="mission-list"></div>
         <div id="mission-list" class="mission-list"></div>
       </aside>
 
@@ -868,17 +924,22 @@ let selectedMissionId = null;
 let selectedMissionDetail = null;
 let selectedPacketId = null;
 let selectedPacketTranscript = null;
+let inboxSummary = {counts:{paused:0, failed:0, attention:0}, items:[]};
 
 /* ===== DATA LOADING ===== */
 async function load() {
   try {
-    const [mRes, lcRes] = await Promise.all([
+    const [mRes, lcRes, inboxRes] = await Promise.all([
       fetch('/api/missions'),
-      fetch('/api/lifecycle').catch(() => ({ok:false}))
+      fetch('/api/lifecycle').catch(() => ({ok:false})),
+      fetch('/api/inbox').catch(() => ({ok:false}))
     ]);
     missions = await mRes.json();
     if (lcRes.ok) {
       lifecycleStates = await lcRes.json();
+    }
+    if (inboxRes.ok) {
+      inboxSummary = await inboxRes.json();
     }
     renderMissions();
     await ensureMissionSelection();
@@ -981,6 +1042,36 @@ function renderMissions() {
       </div>
     </button>`;
   }).join('');
+  renderInboxSummary();
+}
+
+function renderInboxSummary() {
+  const chip = document.getElementById('inbox-attention-chip');
+  const list = document.getElementById('inbox-list');
+  if (!chip) return;
+  const attention = inboxSummary?.counts?.attention || 0;
+  chip.textContent = attention ? `Inbox ${attention}` : 'Inbox';
+  chip.title = attention
+    ? `${inboxSummary.counts.paused || 0} paused, ${inboxSummary.counts.failed || 0} failed`
+    : 'No operator attention items';
+  if (!list) return;
+  const items = inboxSummary?.items || [];
+  if (!items.length) {
+    list.innerHTML = '<div class="empty-panel">No paused or failed missions.</div>';
+    return;
+  }
+  list.innerHTML = items.map(item => `
+    <button class="mission-list-item" type="button" onclick="selectMission('${item.mission_id}')">
+      <div class="mission-list-title">${escHtml(item.title)}</div>
+      <div class="mission-list-meta">
+        <span class="badge ${escHtml(item.phase || item.kind || 'attention')}">${escHtml(item.kind)}</span>
+        ${item.current_round ? `<span>Round ${escHtml(String(item.current_round))}</span>` : ''}
+      </div>
+      <div class="mission-list-meta">
+        <span>${escHtml(item.summary || '')}</span>
+      </div>
+    </button>
+  `).join('');
 }
 
 async function ensureMissionSelection() {
@@ -1576,6 +1667,10 @@ def create_app(repo_root: Path | None = None) -> Any:
     @app.get("/api/missions")
     async def api_missions() -> JSONResponse:
         return JSONResponse(_gather_missions(root))
+
+    @app.get("/api/inbox")
+    async def api_inbox() -> JSONResponse:
+        return JSONResponse(_gather_inbox(root))
 
     @app.get("/api/missions/{mission_id}")
     async def api_mission(mission_id: str) -> JSONResponse:
