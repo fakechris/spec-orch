@@ -147,6 +147,7 @@ class SpecOrchDaemon:
             event_bus=self._event_bus,
             round_orchestrator=self._round_orchestrator,
             mission_execution_service=self._get_mission_execution_service(),
+            codex_bin=self.config.codex_executable,
         )
 
         from spec_orch.services.memory.service import get_memory_service

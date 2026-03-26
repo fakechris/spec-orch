@@ -103,7 +103,7 @@ live_mission_workers = true
 
 ```bash
 ./tests/e2e/supervised_mission_minimax.sh
-MINIMAX_API_KEY=$KEY ./tests/e2e/supervised_mission_minimax.sh --full
+MINIMAX_API_KEY=$MINIMAX_API_KEY ./tests/e2e/supervised_mission_minimax.sh --full
 ```
 
 ---

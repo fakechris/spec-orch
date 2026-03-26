@@ -354,6 +354,19 @@ class TestAutoAdvance:
         assert state.phase == MissionPhase.FAILED
         assert state.error == "execution_result_failed"
 
+    def test_lifecycle_created_execution_service_uses_configured_codex_bin(
+        self, repo: Path, bus: EventBus
+    ):
+        mgr = MissionLifecycleManager(
+            repo_root=repo,
+            event_bus=bus,
+            codex_bin="/custom/codex",
+        )
+
+        service = mgr._get_mission_execution_service()
+
+        assert service.codex_bin == "/custom/codex"
+
     def test_auto_advance_does_not_execute_when_paused(
         self, repo: Path, bus: EventBus, monkeypatch
     ):

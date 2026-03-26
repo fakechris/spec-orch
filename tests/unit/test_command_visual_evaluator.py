@@ -133,3 +133,24 @@ pathlib.Path(sys.argv[2]).write_text(
     assert result.summary == "ok"
     assert result.artifacts["input_json"].endswith("input.json")
     assert result.artifacts["output_json"].endswith("output.json")
+
+
+def test_command_visual_evaluator_reports_timeout_distinctly(tmp_path: Path) -> None:
+    from spec_orch.services.visual.command_visual_evaluator import CommandVisualEvaluator
+
+    evaluator = CommandVisualEvaluator(
+        command=[sys.executable, "-c", "import time; time.sleep(1)"],
+        timeout_seconds=0,
+    )
+
+    result = evaluator.evaluate_round(
+        mission_id="mission-timeout",
+        round_id=1,
+        wave=Wave(wave_number=0, description="Timeout", work_packets=[]),
+        worker_results=[],
+        repo_root=tmp_path,
+        round_dir=tmp_path / "round-01",
+    )
+
+    assert result is not None
+    assert "timed out" in result.summary

@@ -72,6 +72,14 @@ class CommandVisualEvaluator:
                 text=True,
                 timeout=self.timeout_seconds,
             )
+        except subprocess.TimeoutExpired:
+            return self._error_result(
+                f"visual evaluator command timed out after {self.timeout_seconds}s",
+                input_json=input_json,
+                output_json=output_json,
+                stdout_log=stdout_log,
+                stderr_log=stderr_log,
+            )
         except Exception as exc:
             return self._error_result(
                 f"visual evaluator command failed to start: {exc}",
