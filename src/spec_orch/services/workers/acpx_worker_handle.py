@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
 import threading
@@ -14,7 +15,6 @@ from spec_orch.services.workers._acpx_utils import (
     build_acpx_command,
     build_acpx_env,
     cancel_acpx_session,
-    collect_stdout_events,
     drain_stderr,
     ensure_acpx_session,
 )
@@ -93,6 +93,9 @@ class AcpxWorkerHandle:
             permissions=self.permissions,
         )
         report_path = workspace / "builder_report.json"
+        telemetry_dir = workspace / "telemetry"
+        telemetry_dir.mkdir(parents=True, exist_ok=True)
+        incoming_path = telemetry_dir / "incoming_events.jsonl"
         raw_events: list[dict[str, Any]] = []
         stdout_lines: list[str] = []
         stderr_lines: list[str] = []
@@ -117,16 +120,44 @@ class AcpxWorkerHandle:
                 agent=self.agent,
             )
 
-        stdout_thread = threading.Thread(
-            target=collect_stdout_events,
-            kwargs={
-                "process": process,
-                "stdout_lines": stdout_lines,
-                "raw_events": raw_events,
-                "event_logger": event_logger,
-            },
-            daemon=True,
-        )
+        def _read_stdout() -> None:
+            assert process.stdout is not None
+            incoming_file = None
+            try:
+                incoming_file = incoming_path.open("a", encoding="utf-8")
+            except OSError as exc:
+                logger.warning("Failed to open incoming ACPX event log %s: %s", incoming_path, exc)
+
+            try:
+                for line in process.stdout:
+                    stdout_lines.append(line)
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    try:
+                        event = json.loads(stripped)
+                    except ValueError:
+                        continue
+                    if incoming_file is not None:
+                        try:
+                            incoming_file.write(line)
+                            incoming_file.flush()
+                        except OSError as exc:
+                            logger.warning(
+                                "Failed to write incoming ACPX event log %s: %s",
+                                incoming_path,
+                                exc,
+                            )
+                            incoming_file.close()
+                            incoming_file = None
+                    raw_events.append(event)
+                    if event_logger is not None:
+                        event_logger(event)
+            finally:
+                if incoming_file is not None:
+                    incoming_file.close()
+
+        stdout_thread = threading.Thread(target=_read_stdout, daemon=True)
         stderr_thread = threading.Thread(
             target=drain_stderr,
             args=(process, stderr_lines),

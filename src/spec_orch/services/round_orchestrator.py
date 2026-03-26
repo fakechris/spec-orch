@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from spec_orch.domain.models import (
     BuilderResult,
@@ -26,6 +26,8 @@ from spec_orch.domain.protocols import SupervisorAdapter, WorkerHandleFactory
 from spec_orch.services.event_bus import Event, EventBus, EventTopic
 from spec_orch.services.io import atomic_write_json
 from spec_orch.services.node_context_registry import get_node_context_spec
+from spec_orch.services.run_event_logger import RunEventLogger
+from spec_orch.services.telemetry_service import TelemetryService
 
 
 @dataclass
@@ -56,6 +58,7 @@ class RoundOrchestrator:
         context_assembler: Any,
         event_bus: EventBus | None = None,
         max_rounds: int = DEFAULT_MAX_ROUNDS,
+        live_stream: IO[str] | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
         self.supervisor = supervisor
@@ -63,6 +66,10 @@ class RoundOrchestrator:
         self.context_assembler = context_assembler
         self.event_bus = event_bus
         self.max_rounds = max_rounds
+        self._event_logger = RunEventLogger(
+            telemetry_service=TelemetryService(),
+            live_stream=live_stream,
+        )
 
     def run_supervised(
         self,
@@ -90,6 +97,7 @@ class RoundOrchestrator:
             try:
                 worker_results = self._dispatch_wave(
                     mission_id=mission_id,
+                    round_id=round_id,
                     wave=wave,
                     round_history=round_history,
                 )
@@ -142,6 +150,12 @@ class RoundOrchestrator:
                     return RoundOrchestratorResult(completed=True, rounds=round_history)
                 continue
             if decision.action is RoundAction.RETRY:
+                if decision.plan_patch is not None:
+                    plan = self._apply_plan_patch(
+                        plan,
+                        current_wave_idx=current_wave_idx,
+                        patch=decision.plan_patch,
+                    )
                 continue
             if decision.action is RoundAction.REPLAN_REMAINING:
                 if decision.plan_patch is not None:
@@ -172,6 +186,7 @@ class RoundOrchestrator:
         self,
         *,
         mission_id: str,
+        round_id: int,
         wave: Wave,
         round_history: list[RoundSummary],
     ) -> list[tuple[WorkPacket, BuilderResult]]:
@@ -200,7 +215,75 @@ class RoundOrchestrator:
                     decision=last_decision,
                 )
 
-            result = handle.send(prompt=prompt, workspace=workspace)
+            run_id = f"mission_{mission_id}_round_{round_id}_{packet.packet_id}"
+            activity_logger = self._event_logger.open_activity_logger(workspace)
+            event_logger = self._event_logger.make_event_logger(
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=packet.packet_id,
+                activity_logger=activity_logger,
+            )
+
+            self._event_logger.log_and_emit(
+                activity_logger=activity_logger,
+                workspace=workspace,
+                run_id=run_id,
+                issue_id=packet.packet_id,
+                component="mission_worker",
+                event_type="mission_packet_started",
+                message=f"Started packet {packet.packet_id}",
+                data={
+                    "mission_id": mission_id,
+                    "round_id": round_id,
+                    "packet_id": packet.packet_id,
+                    "session_id": session_id,
+                },
+            )
+            try:
+                try:
+                    result = handle.send(
+                        prompt=prompt,
+                        workspace=workspace,
+                        event_logger=event_logger,
+                    )
+                except Exception as exc:
+                    self._event_logger.log_and_emit(
+                        activity_logger=activity_logger,
+                        workspace=workspace,
+                        run_id=run_id,
+                        issue_id=packet.packet_id,
+                        component="mission_worker",
+                        event_type="mission_packet_completed",
+                        severity="error",
+                        message=f"Failed packet {packet.packet_id}: {exc}",
+                        data={
+                            "mission_id": mission_id,
+                            "round_id": round_id,
+                            "packet_id": packet.packet_id,
+                            "succeeded": False,
+                            "error": str(exc),
+                        },
+                    )
+                    raise
+                self._event_logger.log_and_emit(
+                    activity_logger=activity_logger,
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=packet.packet_id,
+                    component="mission_worker",
+                    event_type="mission_packet_completed",
+                    severity="info" if result.succeeded else "error",
+                    message=f"Completed packet {packet.packet_id}",
+                    data={
+                        "mission_id": mission_id,
+                        "round_id": round_id,
+                        "packet_id": packet.packet_id,
+                        "succeeded": result.succeeded,
+                        "report_path": str(result.report_path),
+                    },
+                )
+            finally:
+                activity_logger.close()
             results.append((packet, result))
 
         return results
@@ -429,13 +512,23 @@ class RoundOrchestrator:
         )
 
     def _serialize_result(self, packet: WorkPacket, result: BuilderResult) -> dict[str, Any]:
+        telemetry_dir = result.report_path.parent / "telemetry"
         return {
             "packet_id": packet.packet_id,
             "succeeded": result.succeeded,
             "adapter": result.adapter,
             "agent": result.agent,
             "report_path": str(result.report_path),
+            "incoming_events_path": self._maybe_path(telemetry_dir / "incoming_events.jsonl"),
+            "events_path": self._maybe_path(telemetry_dir / "events.jsonl"),
+            "activity_log_path": self._maybe_path(telemetry_dir / "activity.log"),
         }
+
+    @staticmethod
+    def _maybe_path(path: Path) -> str | None:
+        if path.exists():
+            return str(path)
+        return None
 
     def _mission_dir(self, mission_id: str) -> Path:
         return self.repo_root / "docs" / "specs" / mission_id

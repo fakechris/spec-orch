@@ -145,6 +145,7 @@ docs/specs/<mission_id>/rounds/round-XX/
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `max_concurrent` | int | `1` | Maximum concurrent issue executions |
+| `live_mission_workers` | bool | `false` | Stream supervised mission worker events to stderr when daemon runs in foreground |
 | `lockfile_dir` | string | `".spec_orch_locks/"` | Directory for lock files and daemon state |
 | `consume_state` | string | `"Ready"` | Linear state to poll for new issues |
 | `require_labels` | list[str] | `[]` | Only process issues with these labels |
