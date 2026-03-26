@@ -275,6 +275,8 @@
   - Hardened transcript handling so missing telemetry returns an empty payload instead of a `404`.
   - Added transcript timeline blocks and round evidence blocks for supervisor decisions and visual findings.
   - Added inbox scaffolding and then promoted `ask_human` rounds into first-class `approval` items instead of treating them as generic pauses.
+  - Added transcript block-count summaries and a filter bar so operators can narrow the timeline by evidence type.
+  - Re-ran local browser dogfood and confirmed the dashboard loads cleanly with a live WebSocket connection and zero console errors.
 - Files created/modified:
   - `src/spec_orch/dashboard.py`
   - `src/spec_orch/dashboard_assets/static/operator-console.css`

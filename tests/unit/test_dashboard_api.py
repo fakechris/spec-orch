@@ -379,6 +379,12 @@ class TestDashboardAPI:
         assert data["summary"] == {
             "entry_count": 5,
             "kind_counts": {"activity": 2, "event": 2, "incoming": 1},
+            "block_counts": {
+                "activity": 2,
+                "message": 1,
+                "milestone": 1,
+                "tool": 1,
+            },
             "latest_timestamp": "2026-03-25T00:12:00Z",
         }
         assert data["milestones"] == [
@@ -437,6 +443,7 @@ class TestDashboardAPI:
         assert data["summary"] == {
             "entry_count": 0,
             "kind_counts": {},
+            "block_counts": {},
             "latest_timestamp": None,
         }
         assert data["milestones"] == []
@@ -588,6 +595,7 @@ class TestDashboardAPI:
         assert 'id="inbox-list"' in r.text
         assert 'id="mission-detail-view"' in r.text
         assert 'id="operator-context-rail"' in r.text
+        assert 'id="transcript-filter-bar"' in r.text
         assert 'id="packet-transcript-view"' in r.text
 
     def test_static_operator_console_assets(self, client):

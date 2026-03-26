@@ -318,6 +318,7 @@ def _gather_packet_transcript(
             "summary": {
                 "entry_count": 0,
                 "kind_counts": {},
+                "block_counts": {},
                 "latest_timestamp": None,
             },
             "milestones": [],
@@ -402,6 +403,10 @@ def _gather_packet_transcript(
     blocks = [_transcript_block_from_entry(entry) for entry in entries]
     blocks.extend(_gather_round_evidence_blocks(repo_root, mission_id, packet_id))
     blocks.sort(key=lambda block: (block.get("timestamp", ""), block.get("block_type", "")))
+    block_counts: dict[str, int] = {}
+    for block in blocks:
+        block_type = str(block.get("block_type", "event"))
+        block_counts[block_type] = block_counts.get(block_type, 0) + 1
 
     return {
         "mission_id": mission_id,
@@ -410,6 +415,7 @@ def _gather_packet_transcript(
         "summary": {
             "entry_count": len(entries),
             "kind_counts": kind_counts,
+            "block_counts": block_counts,
             "latest_timestamp": latest_timestamp,
         },
         "milestones": milestones,
@@ -1081,6 +1087,7 @@ let selectedMissionId = null;
 let selectedMissionDetail = null;
 let selectedPacketId = null;
 let selectedPacketTranscript = null;
+let selectedTranscriptFilter = 'all';
 let inboxSummary = {counts:{approvals:0, paused:0, failed:0, attention:0}, items:[]};
 
 /* ===== DATA LOADING ===== */
@@ -1253,6 +1260,7 @@ async function selectMission(missionId, options = {}) {
     selectedMissionDetail = await response.json();
     selectedPacketId = selectedMissionDetail.packets?.[0]?.packet_id || null;
     selectedPacketTranscript = null;
+    selectedTranscriptFilter = 'all';
     renderMissionDetail(selectedMissionDetail);
     renderContextRail(selectedMissionDetail);
     await loadSelectedPacketTranscript();
@@ -1344,7 +1352,10 @@ function renderMissionDetail(detail) {
       </div>
     </section>
     <section class="mission-section">
-      <h3>Transcript</h3>
+      <div class="section-heading">
+        <h3>Transcript</h3>
+        <div id="transcript-filter-bar" class="transcript-filter-bar"></div>
+      </div>
       <div id="packet-transcript-view" class="transcript-list">${renderTranscriptPreview()}</div>
     </section>
     <section class="mission-workbench">
@@ -1560,9 +1571,33 @@ async function loadSelectedPacketTranscript() {
 }
 
 function renderTranscriptContainer() {
+  renderTranscriptFilters();
   const container = document.getElementById('packet-transcript-view');
   if (!container) return;
   container.innerHTML = renderTranscriptPreview();
+}
+
+function renderTranscriptFilters() {
+  const root = document.getElementById('transcript-filter-bar');
+  if (!root) return;
+  const counts = selectedPacketTranscript?.summary?.block_counts || {};
+  const filters = [{key: 'all', label: 'All'}].concat(
+    Object.entries(counts)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, value]) => ({key, label: `${key} (${value})`}))
+  );
+  root.innerHTML = filters.map(filter => `
+    <button
+      class="mission-tab ${selectedTranscriptFilter === filter.key ? 'active' : ''}"
+      type="button"
+      onclick="selectTranscriptFilter('${escHtml(filter.key)}')"
+    >${escHtml(filter.label)}</button>
+  `).join('');
+}
+
+function selectTranscriptFilter(filterKey) {
+  selectedTranscriptFilter = filterKey || 'all';
+  renderTranscriptContainer();
 }
 
 function renderTranscriptPreview() {
@@ -1577,11 +1612,14 @@ function renderTranscriptPreview() {
   }
   const entries = selectedPacketTranscript.entries || [];
   const blocks = selectedPacketTranscript.blocks || [];
-  if (!entries.length) {
+  if (!entries.length && !blocks.length) {
     return '<div class="empty-panel">No transcript events have been recorded yet.</div>';
   }
   const summary = selectedPacketTranscript.summary || {};
   const milestones = selectedPacketTranscript.milestones || [];
+  const visibleBlocks = selectedTranscriptFilter === 'all'
+    ? blocks
+    : blocks.filter(block => (block.block_type || 'event') === selectedTranscriptFilter);
   const summaryMeta = [
     `${summary.entry_count || 0} events`,
     ...(summary.latest_timestamp ? [summary.latest_timestamp] : []),
@@ -1593,7 +1631,7 @@ function renderTranscriptPreview() {
       <div class="context-meta">${summaryMeta.map(item => `<span>${escHtml(String(item))}</span>`).join('')}</div>
       ${milestones.length ? `<div class="context-meta">${milestones.map(item => `<span class="run-class">${escHtml(item.event_type || 'milestone')}</span>`).join('')}</div>` : ''}
     </div>
-    ${(blocks.length ? blocks.slice(-8).map(block => `
+    ${(visibleBlocks.length ? visibleBlocks.slice(-8).map(block => `
     <div class="transcript-entry ${escHtml(block.block_type || 'event')}">
       <div class="transcript-entry-header">
         <div class="context-title">${escHtml(block.title || 'event')}</div>
@@ -1605,7 +1643,9 @@ function renderTranscriptPreview() {
       </div>
       ${block.body ? `<div class="transcript-entry-body">${escHtml(block.body)}</div>` : ''}
     </div>
-  `).join('') : entries.slice(-8).map(entry => `
+  `).join('') : (blocks.length
+    ? '<div class="empty-panel">No transcript blocks match the current filter.</div>'
+    : entries.slice(-8).map(entry => `
     <div class="transcript-entry ${escHtml(entry.kind || '')}">
       <div class="transcript-entry-header">
         <div class="context-title">${escHtml(entry.message || entry.event_type || entry.kind || 'event')}</div>
@@ -1617,7 +1657,7 @@ function renderTranscriptPreview() {
       </div>
       ${renderTranscriptBody(entry)}
     </div>
-  `).join(''))}
+  `).join('')))}
   `;
 }
 

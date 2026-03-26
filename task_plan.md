@@ -12,7 +12,7 @@
 | 2. Source collection | complete | Gathered Paperclip, agentcompanies.io, AgentCompany, and agency-agents primary sources |
 | 3. Comparative analysis | complete | Compared product model, observability surfaces, UX patterns, and architecture choices |
 | 4. SpecOrch implications | complete | Converted research into operator-console design principles, workbench IA, and implementation slices |
-| 5. Operator console implementation | in_progress | Mission detail shell, transcript timeline blocks, websocket hardening, inbox scaffolding, and approval-aware inbox semantics are in place |
+| 5. Operator console implementation | in_progress | Mission detail shell, transcript timeline blocks, websocket hardening, inbox scaffolding, approval-aware inbox semantics, and transcript filter-bar depth are in place |
 | 6. Deliver research memo and shipable plan | in_progress | Remaining work is transcript inspector depth, approvals action surfacing, docs sync, and package refactor follow-through |
 
 ## Comparison Dimensions
