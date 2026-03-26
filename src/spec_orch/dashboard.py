@@ -270,6 +270,7 @@ def _gather_packet_transcript(
                 "latest_timestamp": None,
             },
             "milestones": [],
+            "blocks": [],
             "telemetry": {
                 "activity_log": None,
                 "events": None,
@@ -347,6 +348,7 @@ def _gather_packet_transcript(
         timestamp = entry.get("timestamp")
         if isinstance(timestamp, str) and timestamp:
             latest_timestamp = timestamp
+    blocks = [_transcript_block_from_entry(entry) for entry in entries]
 
     return {
         "mission_id": mission_id,
@@ -358,11 +360,59 @@ def _gather_packet_transcript(
             "latest_timestamp": latest_timestamp,
         },
         "milestones": milestones,
+        "blocks": blocks,
         "telemetry": {
             "activity_log": str(activity_path.relative_to(repo_root)) if activity_path.exists() else None,
             "events": str(events_path.relative_to(repo_root)) if events_path.exists() else None,
             "incoming": str(incoming_path.relative_to(repo_root)) if incoming_path.exists() else None,
         },
+    }
+
+
+def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    kind = str(entry.get("kind", "event"))
+    event_type = str(entry.get("event_type", ""))
+    message = str(entry.get("message", event_type or kind))
+    raw = entry.get("raw")
+
+    if kind == "activity":
+        body = raw if isinstance(raw, str) else message
+        return {
+            "block_type": "activity",
+            "timestamp": str(entry.get("timestamp", "")),
+            "title": message,
+            "body": body,
+        }
+
+    if kind == "incoming":
+        return {
+            "block_type": "message",
+            "timestamp": str(entry.get("timestamp", "")),
+            "title": message,
+            "body": event_type or kind,
+        }
+
+    if event_type.startswith("mission_packet_"):
+        return {
+            "block_type": "milestone",
+            "timestamp": str(entry.get("timestamp", "")),
+            "title": message,
+            "body": event_type,
+        }
+
+    if "tool_call" in event_type:
+        return {
+            "block_type": "tool",
+            "timestamp": str(entry.get("timestamp", "")),
+            "title": message,
+            "body": event_type,
+        }
+
+    return {
+        "block_type": "event",
+        "timestamp": str(entry.get("timestamp", "")),
+        "title": message,
+        "body": event_type or kind,
     }
 
 
@@ -1419,6 +1469,7 @@ function renderTranscriptPreview() {
     return `<div class="empty-panel">${escHtml(selectedPacketTranscript.error)}</div>`;
   }
   const entries = selectedPacketTranscript.entries || [];
+  const blocks = selectedPacketTranscript.blocks || [];
   if (!entries.length) {
     return '<div class="empty-panel">No transcript events have been recorded yet.</div>';
   }
@@ -1435,7 +1486,19 @@ function renderTranscriptPreview() {
       <div class="context-meta">${summaryMeta.map(item => `<span>${escHtml(String(item))}</span>`).join('')}</div>
       ${milestones.length ? `<div class="context-meta">${milestones.map(item => `<span class="run-class">${escHtml(item.event_type || 'milestone')}</span>`).join('')}</div>` : ''}
     </div>
-    ${entries.slice(-8).map(entry => `
+    ${(blocks.length ? blocks.slice(-8).map(block => `
+    <div class="transcript-entry ${escHtml(block.block_type || 'event')}">
+      <div class="transcript-entry-header">
+        <div class="context-title">${escHtml(block.title || 'event')}</div>
+        <span class="run-class">${escHtml(block.block_type || 'event')}</span>
+      </div>
+      <div class="transcript-entry-meta">
+        <span>${escHtml(block.timestamp || '—')}</span>
+        ${block.body ? `<span>${escHtml(block.body)}</span>` : ''}
+      </div>
+      ${block.body ? `<div class="transcript-entry-body">${escHtml(block.body)}</div>` : ''}
+    </div>
+  `).join('') : entries.slice(-8).map(entry => `
     <div class="transcript-entry ${escHtml(entry.kind || '')}">
       <div class="transcript-entry-header">
         <div class="context-title">${escHtml(entry.message || entry.event_type || entry.kind || 'event')}</div>
@@ -1447,7 +1510,7 @@ function renderTranscriptPreview() {
       </div>
       ${renderTranscriptBody(entry)}
     </div>
-  `).join('')}
+  `).join(''))}
   `;
 }
 

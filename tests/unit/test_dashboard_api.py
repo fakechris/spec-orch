@@ -293,6 +293,38 @@ class TestDashboardAPI:
                 "message": "packet started",
             }
         ]
+        assert data["blocks"] == [
+            {
+                "block_type": "activity",
+                "timestamp": "2026-03-25T00:11:00Z",
+                "title": "BUILDER packet started",
+                "body": "2026-03-25T00:11:00Z BUILDER packet started",
+            },
+            {
+                "block_type": "milestone",
+                "timestamp": "2026-03-25T00:11:30Z",
+                "title": "packet started",
+                "body": "mission_packet_started",
+            },
+            {
+                "block_type": "message",
+                "timestamp": "2026-03-25T00:11:40Z",
+                "title": "Implementing mission detail now.",
+                "body": "assistant_message",
+            },
+            {
+                "block_type": "tool",
+                "timestamp": "2026-03-25T00:11:45Z",
+                "title": "applied patch",
+                "body": "tool_call_completed",
+            },
+            {
+                "block_type": "activity",
+                "timestamp": "2026-03-25T00:12:00Z",
+                "title": "BUILDER packet completed",
+                "body": "2026-03-25T00:12:00Z BUILDER packet completed",
+            },
+        ]
         kinds = {entry["kind"] for entry in data["entries"]}
         assert kinds == {"activity", "event", "incoming"}
         assert data["entries"][0]["message"] == "BUILDER packet started"
@@ -313,6 +345,7 @@ class TestDashboardAPI:
             "latest_timestamp": None,
         }
         assert data["milestones"] == []
+        assert data["blocks"] == []
         assert data["telemetry"] == {
             "activity_log": None,
             "events": None,
