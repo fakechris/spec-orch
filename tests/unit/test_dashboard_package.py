@@ -25,3 +25,17 @@ def test_dashboard_package_exposes_transcript_helpers() -> None:
     from spec_orch.dashboard.transcript import _gather_packet_transcript
 
     assert callable(_gather_packet_transcript)
+
+
+def test_dashboard_package_exposes_approval_helpers() -> None:
+    from spec_orch.dashboard.approvals import (
+        _gather_latest_approval_request,
+        _load_approval_history,
+        _record_approval_action,
+        _resolve_approval_action,
+    )
+
+    assert callable(_gather_latest_approval_request)
+    assert callable(_load_approval_history)
+    assert callable(_record_approval_action)
+    assert callable(_resolve_approval_action)

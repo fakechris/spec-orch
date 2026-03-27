@@ -18,18 +18,22 @@ from spec_orch.services.mission_service import MissionService
 from spec_orch.services.pipeline_checker import check_pipeline
 from spec_orch.services.promotion_service import load_plan
 
-from .transcript import (
-    _gather_packet_transcript as _transcript_gather_packet_transcript,
+from .approvals import (
+    _gather_latest_approval_request,
+    _load_approval_history,
 )
+from .approvals import (
+    _record_approval_action as _approval_record_approval_action,
+)
+from .approvals import (
+    _resolve_approval_action as _approval_resolve_approval_action,
+)
+from .transcript import _gather_packet_transcript as _transcript_gather_packet_transcript
 from .transcript import (
     _gather_round_evidence_blocks as _transcript_gather_round_evidence_blocks,
 )
-from .transcript import (
-    _group_transcript_blocks as _transcript_group_transcript_blocks,
-)
-from .transcript import (
-    _transcript_block_from_entry as _transcript_block_from_entry_impl,
-)
+from .transcript import _group_transcript_blocks as _transcript_group_transcript_blocks
+from .transcript import _transcript_block_from_entry as _transcript_block_from_entry_impl
 
 logger = logging.getLogger(__name__)
 
@@ -190,79 +194,6 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
     }
 
 
-def _gather_latest_approval_request(repo_root: Path, mission_id: str) -> dict[str, Any] | None:
-    rounds_dir = repo_root / "docs" / "specs" / mission_id / "rounds"
-    if not rounds_dir.exists():
-        return None
-
-    from spec_orch.domain.models import RoundAction, RoundSummary
-
-    latest: dict[str, Any] | None = None
-    for round_dir in sorted(rounds_dir.glob("round-*")):
-        summary_path = round_dir / "round_summary.json"
-        if not summary_path.exists():
-            continue
-        try:
-            summary = RoundSummary.from_dict(json.loads(summary_path.read_text(encoding="utf-8")))
-        except (OSError, ValueError, json.JSONDecodeError):
-            continue
-        if summary.decision is None or summary.decision.action is not RoundAction.ASK_HUMAN:
-            continue
-
-        latest = {
-            "round_id": summary.round_id,
-            "timestamp": summary.completed_at or summary.started_at or "",
-            "summary": summary.decision.summary or "Human approval required.",
-            "blocking_question": (
-                summary.decision.blocking_questions[0]
-                if summary.decision.blocking_questions
-                else None
-            ),
-            "decision_action": summary.decision.action.value,
-            "actions": [
-                {
-                    "key": "approve",
-                    "label": "Approve",
-                    "message": "@approve "
-                    + (
-                        summary.decision.blocking_questions[0]
-                        if summary.decision.blocking_questions
-                        else "Approve this round."
-                    ),
-                },
-                {
-                    "key": "request_revision",
-                    "label": "Request revision",
-                    "message": "@request-revision Please revise this round before rollout.",
-                },
-                {
-                    "key": "ask_followup",
-                    "label": "Ask follow-up",
-                    "message": "@follow-up I need more detail before approving this round.",
-                },
-            ],
-        }
-    return latest
-
-
-def _resolve_approval_action(
-    repo_root: Path,
-    mission_id: str,
-    action_key: str,
-) -> dict[str, str] | None:
-    approval_request = _gather_latest_approval_request(repo_root, mission_id)
-    if approval_request is None:
-        return None
-    for action in approval_request.get("actions", []):
-        if action.get("key") == action_key:
-            return {
-                "key": action_key,
-                "label": str(action.get("label") or action_key),
-                "message": str(action.get("message") or ""),
-            }
-    return None
-
-
 def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] | None:
     svc = MissionService(repo_root=repo_root)
     try:
@@ -274,6 +205,7 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
     plan = load_plan(plan_path) if plan_path.exists() else None
     lifecycle = _gather_lifecycle_states(repo_root).get(mission_id)
     approval_request = _gather_latest_approval_request(repo_root, mission_id)
+    approval_history = _load_approval_history(repo_root, mission_id)
 
     rounds_dir = repo_root / "docs/specs" / mission_id / "rounds"
     round_summaries: list[dict[str, Any]] = []
@@ -347,6 +279,7 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
         "packets": packets,
         "actions": sorted(set(actions)),
         "approval_request": approval_request,
+        "approval_history": approval_history,
         "artifacts": {
             "spec": str((repo_root / mission.spec_path).relative_to(repo_root)),
             "plan": str(plan_path.relative_to(repo_root)) if plan_path.exists() else None,
@@ -638,6 +571,8 @@ _gather_packet_transcript = _transcript_gather_packet_transcript
 _transcript_block_from_entry = _transcript_block_from_entry_impl
 _group_transcript_blocks = _transcript_group_transcript_blocks
 _gather_round_evidence_blocks = _transcript_gather_round_evidence_blocks
+_record_approval_action = _approval_record_approval_action
+_resolve_approval_action = _approval_resolve_approval_action
 
 
 def _gather_lifecycle_states(repo_root: Path) -> dict[str, Any]:
@@ -1496,6 +1431,7 @@ function renderContextRail(detail) {
   const rounds = detail.rounds || [];
   const latestRound = rounds.length ? rounds[rounds.length - 1] : null;
   const approvalRequest = detail.approval_request || null;
+  const approvalHistory = detail.approval_history || [];
   const packet = (detail.packets || []).find(item => item.packet_id === selectedPacketId) || detail.packets?.[0];
   rail.innerHTML = `
     <div class="mission-section">
@@ -1514,7 +1450,7 @@ function renderContextRail(detail) {
     <div class="mission-section">
       <h3>Approval workspace</h3>
       <div class="context-list">
-        ${approvalRequest ? renderApprovalWorkspace(approvalRequest, mission.mission_id || '') : '<div class="empty-panel">No active approval request.</div>'}
+        ${approvalRequest ? renderApprovalWorkspace(approvalRequest, approvalHistory, mission.mission_id || '') : '<div class="empty-panel">No active approval request.</div>'}
       </div>
     </div>
     <div class="mission-section">
@@ -1547,7 +1483,7 @@ function renderContextRail(detail) {
   `;
 }
 
-function renderApprovalWorkspace(approvalRequest, missionId) {
+function renderApprovalWorkspace(approvalRequest, approvalHistory, missionId) {
   return `
     <div class="context-card">
       <div class="context-title">${escHtml(approvalRequest.summary || 'Approval required')}</div>
@@ -1578,6 +1514,25 @@ function renderApprovalWorkspace(approvalRequest, missionId) {
         >Open discuss</button>
         <button class="btn btn-sm" type="button" onclick="load()">Refresh state</button>
       </div>
+    </div>
+    <div class="context-card">
+      <div class="context-title">Recent operator actions</div>
+      ${
+        approvalHistory && approvalHistory.length
+          ? `<div class="context-list">
+              ${approvalHistory.slice(0, 3).map(item => `
+                <div class="context-card">
+                  <div class="context-title">${escHtml(item.label || item.action_key || 'Action')}</div>
+                  <div class="context-meta">
+                    <span>${escHtml(item.timestamp || '—')}</span>
+                    <span>${escHtml(item.channel || 'web-dashboard')}</span>
+                  </div>
+                  <div class="transcript-entry-body">${escHtml(item.message || '')}</div>
+                </div>
+              `).join('')}
+            </div>`
+          : '<div class="empty-panel">No operator actions recorded yet.</div>'
+      }
     </div>
   `;
 }

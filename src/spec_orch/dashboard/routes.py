@@ -206,11 +206,20 @@ def register_routes(app: FastAPI, root: Path) -> None:
 
         try:
             ok = mgr.inject_btw(mission_id, action["message"], channel="web-dashboard")
+            action_record = dashboard_app._record_approval_action(
+                root,
+                mission_id,
+                action_key=action_key,
+                label=action["label"],
+                message=action["message"],
+                channel="web-dashboard",
+            )
             return JSONResponse(
                 {
                     "ok": ok,
                     "action_key": action_key,
                     "message": action["message"],
+                    "action": action_record,
                 }
             )
         except Exception:

@@ -248,8 +248,9 @@
   - Added transcript timeline block filtering, transcript inspector, and linked evidence paths for round artifacts.
   - Grouped consecutive tool events into `command_burst` timeline blocks to make packet execution easier to read.
   - Surfaced `approval_request` in mission detail and added approval action presets that inject canned guidance back into paused missions.
+  - Persisted approval action history so operator interventions are visible in mission detail instead of disappearing into the `/btw` file alone.
   - Exposed structured `details` payloads on transcript blocks so the inspector can show richer evidence than title/body alone.
-  - Refactored the dashboard into a package shape with `spec_orch/dashboard/`, a compatibility wrapper, extracted `routes.py`, and a dedicated `transcript.py` module.
+  - Refactored the dashboard into a package shape with `spec_orch/dashboard/`, a compatibility wrapper, extracted `routes.py`, plus dedicated `transcript.py` and `approvals.py` modules.
   - Synced agent docs to describe the operator-console surfaces and supervised mission observability workflow.
 - Files created/modified:
   - `src/spec_orch/dashboard.py`
@@ -258,6 +259,7 @@
   - `src/spec_orch/dashboard/app.py`
   - `src/spec_orch/dashboard/routes.py`
   - `src/spec_orch/dashboard/transcript.py`
+  - `src/spec_orch/dashboard/approvals.py`
   - `src/spec_orch/dashboard_assets/static/operator-console.css`
   - `docs/agent-guides/services.md`
   - `docs/agent-guides/run-pipeline.md`

@@ -424,6 +424,7 @@ class TestDashboardAPI:
                 },
             ],
         }
+        assert data["approval_history"] == []
 
     def test_packet_transcript_endpoint(self, client, repo: Path):
         mission_id = "mission-transcript"
@@ -967,13 +968,128 @@ class TestDashboardAPI:
         )
 
         assert response.status_code == 200
-        assert response.json() == {
+        payload = response.json()
+        assert payload == {
             "ok": True,
             "message": "@approve Approve rollout after QA?",
             "action_key": "approve",
+            "action": {
+                "timestamp": payload["action"]["timestamp"],
+                "action_key": "approve",
+                "label": "Approve",
+                "message": "@approve Approve rollout after QA?",
+                "channel": "web-dashboard",
+            },
         }
         assert calls == [
             (mission_id, "@approve Approve rollout after QA?", "web-dashboard")
+        ]
+        history_path = repo / "docs" / "specs" / mission_id / "operator" / "approval_actions.jsonl"
+        history = [
+            json.loads(line)
+            for line in history_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert len(history) == 1
+        assert history[0]["action_key"] == "approve"
+        assert history[0]["message"] == "@approve Approve rollout after QA?"
+        assert history[0]["channel"] == "web-dashboard"
+
+    def test_mission_detail_endpoint_includes_approval_history(self, client, repo: Path):
+        mission_id = "mission-approval-history"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-01"
+        operator_dir = specs / "operator"
+        specs.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+        operator_dir.mkdir(parents=True)
+
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Approval History Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Approval History Mission\n", encoding="utf-8")
+        (round_dir / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 1,
+                    "wave_id": 0,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:10:00+00:00",
+                    "completed_at": "2026-03-25T00:11:00+00:00",
+                    "worker_results": [],
+                    "decision": {
+                        "action": "ask_human",
+                        "reason_code": "needs_approval",
+                        "summary": "Approve rollout after QA.",
+                        "confidence": 0.8,
+                        "affected_workers": [],
+                        "artifacts": {},
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": ["Approve rollout after QA?"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (operator_dir / "approval_actions.jsonl").write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "timestamp": "2026-03-25T00:12:00+00:00",
+                            "action_key": "ask_followup",
+                            "label": "Ask follow-up",
+                            "message": "@follow-up I need more detail before approving this round.",
+                            "channel": "web-dashboard",
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "timestamp": "2026-03-25T00:13:00+00:00",
+                            "action_key": "approve",
+                            "label": "Approve",
+                            "message": "@approve Approve rollout after QA?",
+                            "channel": "web-dashboard",
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        response = client.get(f"/api/missions/{mission_id}/detail")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["approval_history"] == [
+            {
+                "timestamp": "2026-03-25T00:13:00+00:00",
+                "action_key": "approve",
+                "label": "Approve",
+                "message": "@approve Approve rollout after QA?",
+                "channel": "web-dashboard",
+            },
+            {
+                "timestamp": "2026-03-25T00:12:00+00:00",
+                "action_key": "ask_followup",
+                "label": "Ask follow-up",
+                "message": "@follow-up I need more detail before approving this round.",
+                "channel": "web-dashboard",
+            },
         ]
 
     def test_homepage(self, client):
