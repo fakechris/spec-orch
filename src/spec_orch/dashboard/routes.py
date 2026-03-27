@@ -287,6 +287,11 @@ def register_routes(app: FastAPI, root: Path) -> None:
         try:
             mgr.retry(mission_id)
             state = mgr.auto_advance(mission_id)
+            if state is None:
+                get_state = getattr(mgr, "get_state", None)
+                state = get_state(mission_id) if callable(get_state) else None
+            if state is None:
+                raise RuntimeError("Mission did not return lifecycle state after retry")
             return JSONResponse({"ok": True, "state": state.to_dict()})
         except Exception:
             return JSONResponse({"error": "Mission retry failed"}, status_code=500)

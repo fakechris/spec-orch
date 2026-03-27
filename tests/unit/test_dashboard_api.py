@@ -2465,6 +2465,52 @@ class TestDashboardAPI:
             ("auto_advance", mission_id),
         ]
 
+    def test_retry_existing_mission_falls_back_to_get_state_after_auto_advance(
+        self,
+        client,
+        monkeypatch,
+    ):
+        mission_id = "mission-retry-fallback"
+        calls: list[tuple[str, str]] = []
+
+        class FakeState:
+            def __init__(self, phase: str) -> None:
+                self.phase = phase
+
+            def to_dict(self) -> dict[str, str]:
+                return {"mission_id": mission_id, "phase": self.phase}
+
+        class FakeLifecycleManager:
+            def retry(self, tracked_mission_id: str) -> FakeState:
+                calls.append(("retry", tracked_mission_id))
+                return FakeState("approved")
+
+            def auto_advance(self, tracked_mission_id: str) -> None:
+                calls.append(("auto_advance", tracked_mission_id))
+                return None
+
+            def get_state(self, tracked_mission_id: str) -> FakeState:
+                calls.append(("get_state", tracked_mission_id))
+                return FakeState("planning")
+
+        monkeypatch.setattr(
+            "spec_orch.dashboard.routes.dashboard_app._get_lifecycle_manager",
+            lambda _root: FakeLifecycleManager(),
+        )
+
+        response = client.post(f"/api/missions/{mission_id}/retry")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "ok": True,
+            "state": {"mission_id": mission_id, "phase": "planning"},
+        }
+        assert calls == [
+            ("retry", mission_id),
+            ("auto_advance", mission_id),
+            ("get_state", mission_id),
+        ]
+
     def test_discuss_endpoint(self, client):
         r = client.post(
             "/api/discuss",
@@ -3011,6 +3057,8 @@ class TestDashboardAPI:
         assert 'id="transcript-filter-bar"' in r.text
         assert 'id="transcript-inspector"' in r.text
         assert 'id="packet-transcript-view"' in r.text
+        assert 'id="card-${escAttr(m.mission_id)}"' in r.text
+        assert 'data-mid="${escAttr(m.mission_id)}"' in r.text
         assert 'onclick="selectMission(${safeJsArg(m.mission_id)})"' in r.text
 
     def test_static_operator_console_assets(self, client):
