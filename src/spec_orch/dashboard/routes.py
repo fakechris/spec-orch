@@ -213,6 +213,7 @@ def register_routes(app: FastAPI, root: Path) -> None:
                 label=action["label"],
                 message=action["message"],
                 channel="web-dashboard",
+                status="applied" if ok else "not_applied",
             )
             return JSONResponse(
                 {

@@ -1083,7 +1083,7 @@ class TestDashboardAPI:
                 "label": "Approve",
                 "message": "@approve Approve rollout after QA?",
                 "channel": "web-dashboard",
-                "status": "sent",
+                "status": "applied",
                 "effect": "approval_granted",
             },
         }
@@ -1100,8 +1100,86 @@ class TestDashboardAPI:
         assert history[0]["action_key"] == "approve"
         assert history[0]["message"] == "@approve Approve rollout after QA?"
         assert history[0]["channel"] == "web-dashboard"
-        assert history[0]["status"] == "sent"
+        assert history[0]["status"] == "applied"
         assert history[0]["effect"] == "approval_granted"
+
+    def test_approval_action_endpoint_records_not_applied_status_when_injection_returns_false(
+        self,
+        client,
+        repo: Path,
+        monkeypatch,
+    ):
+        mission_id = "mission-approval-soft-fail"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-01"
+        specs.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Approval Soft Fail",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Approval Soft Fail\n", encoding="utf-8")
+        (round_dir / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 1,
+                    "wave_id": 0,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:10:00+00:00",
+                    "completed_at": "2026-03-25T00:11:00+00:00",
+                    "worker_results": [],
+                    "decision": {
+                        "action": "ask_human",
+                        "reason_code": "needs_approval",
+                        "summary": "Approve rollout after QA.",
+                        "confidence": 0.8,
+                        "affected_workers": [],
+                        "artifacts": {},
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": ["Approve rollout after QA?"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        class FakeLifecycleManager:
+            def inject_btw(self, issue_id: str, message: str, channel: str) -> bool:
+                assert issue_id == mission_id
+                assert message == "@approve Approve rollout after QA?"
+                assert channel == "web-dashboard"
+                return False
+
+        monkeypatch.setattr(
+            "spec_orch.dashboard.routes.dashboard_app._get_lifecycle_manager",
+            lambda _root: FakeLifecycleManager(),
+        )
+
+        response = client.post(
+            f"/api/missions/{mission_id}/approval-action",
+            content='{"action_key": "approve"}',
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["ok"] is False
+        assert payload["action"]["status"] == "not_applied"
+        assert payload["action"]["effect"] == "approval_granted"
 
     def test_mission_detail_endpoint_includes_approval_history(self, client, repo: Path):
         mission_id = "mission-approval-history"
@@ -1231,6 +1309,9 @@ class TestDashboardAPI:
         js = client.get("/static/operator-console.js")
         assert js.status_code == 200
         assert "javascript" in js.headers.get("content-type", "")
+        assert "window.SpecOrchOperatorConsole" in js.text
+        assert "renderTranscriptDetails" in js.text
+        assert "renderDetailValue" in js.text
 
     def test_favicon_route_returns_no_content(self, client):
         response = client.get("/favicon.ico")

@@ -1260,6 +1260,7 @@ function renderContextRail(detail) {
 
 function renderApprovalWorkspace(approvalRequest, approvalHistory, missionId) {
   const latestAction = approvalHistory && approvalHistory.length ? approvalHistory[0] : null;
+  const latestActionSummary = formatApprovalActionState(latestAction);
   return `
     <div class="context-card">
       <div class="context-title">${escHtml(approvalRequest.summary || 'Approval required')}</div>
@@ -1277,6 +1278,7 @@ function renderApprovalWorkspace(approvalRequest, approvalHistory, missionId) {
           <span class="detail-chip">${escHtml(latestAction.effect || 'guidance_sent')}</span>
           <span>${escHtml(latestAction.timestamp || '—')}</span>
         </div>
+        ${latestActionSummary ? `<div class="context-meta"><span>${escHtml(latestActionSummary)}</span></div>` : ''}
         <div class="transcript-entry-body">${escHtml(latestAction.message || '')}</div>
       </div>
     ` : ''}
@@ -1637,69 +1639,55 @@ function renderTranscriptInspector() {
 }
 
 function renderTranscriptDetails(details) {
-  if (!details || typeof details !== 'object') {
-    return '';
-  }
-  const entries = Object.entries(details);
-  const artifactRows = [];
-  const findingRows = [];
-  const genericRows = [];
-
-  for (const [key, value] of entries) {
-    if (key === 'artifacts' && value && typeof value === 'object' && !Array.isArray(value)) {
-      for (const [artifactKey, artifactValue] of Object.entries(value)) {
-        artifactRows.push(`
-          <div class="detail-row">
-            <div class="detail-key">${escHtml(artifactKey)}</div>
-            <div class="detail-value artifact-link">${escHtml(String(artifactValue))}</div>
-          </div>
-        `);
-      }
-      continue;
-    }
-
-    if (key === 'findings' && Array.isArray(value)) {
-      for (const finding of value) {
-        findingRows.push(`
-          <div class="context-card detail-finding">
-            <div class="context-title">${escHtml(String(finding?.severity || 'finding'))}</div>
-            <div class="transcript-entry-body">${escHtml(String(finding?.message || ''))}</div>
-          </div>
-        `);
-      }
-      continue;
-    }
-
-    genericRows.push(`
-      <div class="detail-row">
-        <div class="detail-key">${escHtml(key)}</div>
-        <div class="detail-value">${renderDetailValue(value)}</div>
-      </div>
-    `);
-  }
-
-  return `
-    <div class="context-card">
-      <div class="context-title">Structured details</div>
-      ${genericRows.length ? `<div class="detail-grid">${genericRows.join('')}</div>` : '<div class="empty-panel">No structured fields.</div>'}
-      ${findingRows.length ? `<div class="context-list detail-section"><div class="context-title">Findings</div>${findingRows.join('')}</div>` : ''}
-      ${artifactRows.length ? `<div class="detail-grid detail-section">${artifactRows.join('')}</div>` : ''}
-    </div>
-  `;
+  return getOperatorConsoleHelpers().renderTranscriptDetails(details, escHtml);
 }
 
 function renderDetailValue(value) {
-  if (Array.isArray(value)) {
-    if (!value.length) return '<span class="detail-empty">—</span>';
-    return value.map(item => `<span class="detail-chip">${escHtml(String(item))}</span>`).join('');
+  return getOperatorConsoleHelpers().renderDetailValue(value, escHtml);
+}
+
+function formatApprovalActionState(action) {
+  return getOperatorConsoleHelpers().formatApprovalActionState(action);
+}
+
+function getOperatorConsoleHelpers() {
+  if (window.SpecOrchOperatorConsole) {
+    return window.SpecOrchOperatorConsole;
   }
-  if (value && typeof value === 'object') {
-    return `<span class="detail-json">${escHtml(JSON.stringify(value))}</span>`;
-  }
-  if (value === null || value === undefined || value === '') {
-    return '<span class="detail-empty">—</span>';
-  }
-  return escHtml(String(value));
+  return {
+    renderDetailValue(value, esc) {
+      if (Array.isArray(value)) {
+        if (!value.length) return '<span class="detail-empty">—</span>';
+        return value.map(item => `<span class="detail-chip">${esc(String(item))}</span>`).join('');
+      }
+      if (value && typeof value === 'object') {
+        return `<span class="detail-json">${esc(JSON.stringify(value))}</span>`;
+      }
+      if (value === null || value === undefined || value === '') {
+        return '<span class="detail-empty">—</span>';
+      }
+      return esc(String(value));
+    },
+    renderTranscriptDetails(details, esc) {
+      if (!details || typeof details !== 'object') return '';
+      return `
+        <div class="context-card">
+          <div class="context-title">Structured details</div>
+          <div class="detail-grid">
+            ${Object.entries(details).map(([key, value]) => `
+              <div class="detail-row">
+                <div class="detail-key">${esc(key)}</div>
+                <div class="detail-value">${this.renderDetailValue(value, esc)}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    },
+    formatApprovalActionState(action) {
+      return action?.status || '';
+    },
+  };
 }
 
 function renderTranscriptBody(entry) {
@@ -1747,11 +1735,14 @@ async function triggerApprovalAction(missionId, actionKey) {
       body: JSON.stringify({action_key: actionKey}),
     });
     const data = await response.json();
-    if (!response.ok || !data.ok) {
+    if (!response.ok) {
       throw new Error(data.error || 'Approval action failed');
     }
-    openDiscussPreset(missionId, data.message || '');
-    addSystemMsg(`Sent ${actionKey} guidance for ${missionId}`);
+    const actionState = formatApprovalActionState(data.action || {});
+    addSystemMsg(`${data.ok ? 'Applied' : 'Recorded'} ${actionKey} for ${missionId}${actionState ? ` (${actionState})` : ''}`);
+    if (!data.ok) {
+      openDiscussPreset(missionId, data.message || '');
+    }
     await load();
   } catch (error) {
     alert('Error: ' + (error?.message || 'Approval action failed'));

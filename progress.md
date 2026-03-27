@@ -227,6 +227,8 @@
   - Preserved approval workspace, transcript inspector, and operator shell behavior while moving aggregation ownership out of the UI shell.
   - Continued operator-console UX work with richer transcript evidence rendering and approval action state feedback.
   - Linked approval action history back into inbox items so triage surfaces the latest operator decision without opening mission detail first.
+  - Added explicit `applied` vs `not_applied` approval-action persistence so operator decisions are no longer flattened into a generic `sent` status.
+  - Promoted transcript evidence-rendering helpers into `static/operator-console.js`, reducing inline dashboard script weight and creating a stable helper namespace for future UI extraction.
 - Files created/modified:
   - `src/spec_orch/dashboard/missions.py`
   - `src/spec_orch/dashboard/api.py`
