@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.models import VisualEvaluationResult
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_timestamp(value: str | None) -> datetime | None:
@@ -41,10 +44,13 @@ def _load_cost_thresholds(repo_root: Path) -> dict[str, float] | None:
     warning = costs_cfg.get("warning_usd")
     critical = costs_cfg.get("critical_usd")
     thresholds: dict[str, float] = {}
-    if warning is not None:
-        thresholds["warning_usd"] = float(warning)
-    if critical is not None:
-        thresholds["critical_usd"] = float(critical)
+    for key, value in (("warning_usd", warning), ("critical_usd", critical)):
+        if value is None:
+            continue
+        try:
+            thresholds[key] = float(value)
+        except (TypeError, ValueError):
+            logger.warning("Ignoring invalid dashboard cost threshold %s=%r", key, value)
     return thresholds or None
 
 

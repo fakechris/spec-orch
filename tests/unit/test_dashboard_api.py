@@ -1705,6 +1705,40 @@ class TestDashboardAPI:
             }
         ]
 
+    def test_costs_endpoint_ignores_invalid_budget_threshold_values(
+        self,
+        client,
+        repo: Path,
+    ):
+        mission_id = "mission-costs-invalid-threshold"
+        worker = repo / "docs" / "specs" / mission_id / "workers" / "pkt-1"
+        worker.mkdir(parents=True)
+        (repo / "spec-orch.toml").write_text(
+            '[dashboard.costs]\nwarning_usd = "oops"\ncritical_usd = "bad"\n',
+            encoding="utf-8",
+        )
+        (worker / "builder_report.json").write_text(
+            json.dumps(
+                {
+                    "adapter": "claude_code",
+                    "metadata": {
+                        "turn_status": "success",
+                        "usage": {"input_tokens": 100, "output_tokens": 50},
+                        "cost_usd": 1.5,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get(f"/api/missions/{mission_id}/costs")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["summary"]["thresholds"] is None
+        assert data["summary"]["incident_count"] == 0
+        assert data["summary"]["remaining_budget_usd"] is None
+        assert data["incidents"] == []
+
     def test_packet_transcript_endpoint_groups_tool_events_into_bursts(self, client, repo: Path):
         mission_id = "mission-transcript-burst"
         packet_id = "pkt-2"
@@ -2418,6 +2452,15 @@ class TestDashboardAPI:
         assert payload["topic"] == "issue.state"
         assert payload["payload"] == {"issue_id": "SON-WS", "state": "building"}
         assert payload["source"] == "test"
+
+    def test_websocket_disconnect_cleans_up_async_queue(self, client):
+        bus = get_event_bus()
+        before = len(bus._async_queues)
+
+        with client.websocket_connect("/ws"):
+            assert len(bus._async_queues) == before + 1
+
+        assert len(bus._async_queues) == before
 
     def test_runs_endpoint(self, client):
         r = client.get("/api/runs")

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -373,7 +375,26 @@ def register_routes(app: FastAPI, root: Path) -> None:
         queue = bus.create_async_queue()
         try:
             while True:
-                event = await queue.get()
+                queue_task = asyncio.create_task(queue.get())
+                receive_task = asyncio.create_task(websocket.receive_text())
+                done, pending = await asyncio.wait(
+                    {queue_task, receive_task},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for task in pending:
+                    task.cancel()
+                for task in pending:
+                    with suppress(asyncio.CancelledError):
+                        await task
+
+                if receive_task in done:
+                    try:
+                        receive_task.result()
+                    except WebSocketDisconnect:
+                        break
+                    continue
+
+                event = queue_task.result()
                 payload = {
                     "topic": event.topic.value
                     if hasattr(event.topic, "value")
