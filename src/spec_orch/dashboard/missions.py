@@ -94,6 +94,7 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
         lifecycle = lifecycle_states.get(mission_id, {})
         round_state = lifecycle.get("round_orchestrator_state", {})
         approval_request = _gather_latest_approval_request(repo_root, mission_id)
+        approval_history = _load_approval_history(repo_root, mission_id)
 
         if approval_request is not None:
             items.append(
@@ -110,6 +111,9 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
                     ),
                     "blocking_question": approval_request["blocking_question"],
                     "decision_action": approval_request["decision_action"],
+                    "latest_operator_action": (
+                        approval_history[0] if approval_history else None
+                    ),
                 }
             )
             continue

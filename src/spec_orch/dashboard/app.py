@@ -1052,6 +1052,12 @@ function renderInboxSummary() {
       <div class="mission-list-meta">
         <span>${escHtml(item.summary || '')}</span>
       </div>
+      ${item.latest_operator_action ? `
+        <div class="mission-list-meta">
+          <span class="detail-chip">${escHtml(item.latest_operator_action.label || item.latest_operator_action.action_key || 'Action')}</span>
+          <span>${escHtml(item.latest_operator_action.effect || 'guidance_sent')}</span>
+        </div>
+      ` : ''}
     </button>
   `).join('');
 }

@@ -209,8 +209,112 @@ class TestDashboardAPI:
                 "current_round": 3,
                 "blocking_question": "Approve the rollout after visual QA review?",
                 "decision_action": "ask_human",
+                "latest_operator_action": None,
             }
         ]
+
+    def test_inbox_endpoint_surfaces_latest_operator_action_for_approval_items(
+        self,
+        client,
+        repo: Path,
+    ):
+        mission_id = "mission-approval-history"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-02"
+        operator_dir = specs / "operator"
+        specs.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+        operator_dir.mkdir(parents=True)
+
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Approval History Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Approval History Mission\n", encoding="utf-8")
+        (round_dir / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 2,
+                    "wave_id": 1,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:10:00+00:00",
+                    "completed_at": "2026-03-25T00:16:00+00:00",
+                    "worker_results": [],
+                    "decision": {
+                        "action": "ask_human",
+                        "reason_code": "needs_approval",
+                        "summary": "Need operator approval before rollout.",
+                        "confidence": 0.66,
+                        "affected_workers": [],
+                        "artifacts": {},
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": ["Approve this rollout?"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (operator_dir / "approval_actions.jsonl").write_text(
+            json.dumps(
+                {
+                    "timestamp": "2026-03-25T00:17:00+00:00",
+                    "action_key": "request_revision",
+                    "label": "Request revision",
+                    "message": "@request-revision Please tighten the rollout evidence.",
+                    "channel": "web-dashboard",
+                    "status": "sent",
+                    "effect": "revision_requested",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (repo / ".spec_orch_runs" / "lifecycle_state.json").write_text(
+            json.dumps(
+                {
+                    mission_id: {
+                        "mission_id": mission_id,
+                        "phase": "executing",
+                        "issue_ids": ["SON-4"],
+                        "completed_issues": [],
+                        "error": None,
+                        "updated_at": "2026-03-25T00:17:30+00:00",
+                        "current_round": 2,
+                        "round_orchestrator_state": {
+                            "paused": True,
+                            "blocking_questions": ["Approve this rollout?"],
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get("/api/inbox")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["items"][0]["latest_operator_action"] == {
+            "timestamp": "2026-03-25T00:17:00+00:00",
+            "action_key": "request_revision",
+            "label": "Request revision",
+            "message": "@request-revision Please tighten the rollout evidence.",
+            "channel": "web-dashboard",
+            "status": "sent",
+            "effect": "revision_requested",
+        }
 
     def test_mission_detail_endpoint(self, client, repo: Path):
         mission_id = "mission-detail"

@@ -226,6 +226,7 @@
   - Kept dashboard route and package exports stable while shrinking the transitional `dashboard/app.py` surface.
   - Preserved approval workspace, transcript inspector, and operator shell behavior while moving aggregation ownership out of the UI shell.
   - Continued operator-console UX work with richer transcript evidence rendering and approval action state feedback.
+  - Linked approval action history back into inbox items so triage surfaces the latest operator decision without opening mission detail first.
 - Files created/modified:
   - `src/spec_orch/dashboard/missions.py`
   - `src/spec_orch/dashboard/api.py`
