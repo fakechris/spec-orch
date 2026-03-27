@@ -67,15 +67,14 @@ The following items from the refreshed foundation backlog are now complete:
 
 ### 1. Transcript UX Push
 
-The transcript is functional and inspectable, but it is still short of the Paperclip bar.
+The transcript now has block filtering, emphasis, jump targets, and structured inspection, but it is still short of the Paperclip bar.
 
 What remains:
 
-- improve evidence reading beyond structured key-value details
+- improve evidence reading beyond structured key-value details and link lists
 - make command bursts easier to scan and expand at a glance
-- add clearer linked jumps across artifact, round, and packet context
-- improve milestone prominence so pauses, approvals, failures, and supervisor decisions stand out immediately
-- reduce the remaining "payload browser" feel inside the inspector
+- add richer round / packet / artifact navigation, not just file jumps
+- further reduce the remaining "payload browser" feel inside the inspector
 
 Success criteria:
 
@@ -84,7 +83,7 @@ Success criteria:
 
 ### 2. Approval Workflow Depth
 
-Approval Queue now exists as a first-class surface with batch handling, but the workflow can still go deeper.
+Approval Queue now exists as a first-class, stateful surface with batch handling, but the workflow can still go deeper.
 
 What remains:
 
@@ -99,14 +98,14 @@ Success criteria:
 
 ### 3. Visual QA Depth
 
-Visual QA now exists as a surface and now shows gallery artifacts, but it is still artifact-linked rather than comparison-driven.
+Visual QA now exists as a comparison-aware surface, but it can still go deeper.
 
 What remains:
 
 - richer screenshot/gallery presentation
 - sharper linkage back to transcript and round context
 - stronger changed-area and regression emphasis
-- true diff-first workflows when before/after assets exist
+- true side-by-side or swipe-style workflows once the UI shell is ready
 
 Success criteria:
 
@@ -114,13 +113,14 @@ Success criteria:
 
 ### 4. Costs and Budgets Depth
 
-Costs surface now exists with thresholds and incidents, but budget policy and escalation are still minimal.
+Costs surface now exists with thresholds, incidents, and operator guidance, but budget policy and escalation are still minimal.
 
 What remains:
 
 - stronger threshold markers across mission detail and rails
 - richer incident presentation and escalation copy
 - clearer operator guidance when a mission enters warning/critical spend
+- budget-aware intervention suggestions that tie back to mission scope or retry policy
 
 Success criteria:
 
@@ -137,6 +137,7 @@ What remains:
 - isolate Mission Detail page composition further
 - isolate Inbox rendering further
 - decide whether `DASHBOARD_HTML` should move fully out of `app.py`
+- keep moving non-UI helpers out of the app entrypoint
 
 Success criteria:
 

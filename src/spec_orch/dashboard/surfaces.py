@@ -57,7 +57,8 @@ def _extract_visual_gallery(artifacts: dict[str, Any]) -> list[dict[str, str]]:
         lowered = value.lower()
         if not lowered.endswith(image_suffixes):
             continue
-        kind = "diff" if "diff" in label.lower() or "diff" in lowered else "image"
+        basename = Path(value).name.lower()
+        kind = "diff" if "diff" in label.lower() or "diff" in basename else "image"
         gallery.append(
             {
                 "label": str(label),
@@ -66,6 +67,48 @@ def _extract_visual_gallery(artifacts: dict[str, Any]) -> list[dict[str, str]]:
             }
         )
     return gallery
+
+
+def _visual_comparison_from_gallery(
+    gallery: list[dict[str, str]],
+) -> dict[str, Any] | None:
+    if not gallery:
+        return None
+    primary = next((item for item in gallery if item.get("kind") == "diff"), None)
+    if primary is None:
+        return None
+    related = [
+        {
+            "label": str(item.get("label", "")),
+            "path": str(item.get("path", "")),
+            "kind": str(item.get("kind", "image")),
+        }
+        for item in gallery
+        if item is not primary
+    ]
+    return {
+        "mode": "diff-first",
+        "primary": {
+            "label": str(primary.get("label", "")),
+            "path": str(primary.get("path", "")),
+            "kind": str(primary.get("kind", "diff")),
+        },
+        "related": related,
+    }
+
+
+def _budget_guidance(severity: str) -> tuple[str, str]:
+    if severity == "critical":
+        return (
+            "Critical budget threshold exceeded",
+            "Pause new work, review packet cost hotspots, "
+            "and decide whether to cut scope or raise the budget.",
+        )
+    return (
+        "Warning budget threshold reached",
+        "Review recent worker spend and decide whether "
+        "this mission should continue unchanged.",
+    )
 
 
 def _gather_approval_queue(repo_root: Path) -> dict[str, Any]:
@@ -155,6 +198,8 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
             status = "warning"
         else:
             status = "pass"
+        gallery = _extract_visual_gallery(visual.artifacts)
+        comparison = _visual_comparison_from_gallery(gallery)
         visual_rounds.append(
             {
                 "round_id": round_id,
@@ -164,12 +209,11 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
                 "artifact_path": str(visual_path.relative_to(repo_root)),
                 "findings": findings,
                 "artifacts": visual.artifacts,
-                "gallery": _extract_visual_gallery(visual.artifacts),
+                "gallery": gallery,
                 "primary_artifact": (
-                    _extract_visual_gallery(visual.artifacts)[0]["path"]
-                    if _extract_visual_gallery(visual.artifacts)
-                    else None
+                    gallery[0]["path"] if gallery else None
                 ),
+                "comparison": comparison,
             }
         )
 
@@ -191,6 +235,15 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
         item["round_id"] for item in visual_rounds if item.get("status") == "blocking"
     ]
     gallery_items = sum(len(item.get("gallery", [])) for item in visual_rounds)
+    diff_items = sum(
+        1
+        for item in visual_rounds
+        for gallery_item in item.get("gallery", [])
+        if gallery_item.get("kind") == "diff"
+    )
+    comparison_rounds = sum(
+        1 for item in visual_rounds if item.get("comparison") is not None
+    )
     return {
         "mission_id": mission_id,
         "summary": {
@@ -200,6 +253,8 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
             "latest_confidence": latest_confidence,
             "blocking_rounds": blocking_rounds,
             "gallery_items": gallery_items,
+            "diff_items": diff_items,
+            "comparison_rounds": comparison_rounds,
         },
         "rounds": visual_rounds,
     }
@@ -262,20 +317,34 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
         critical = thresholds.get("critical_usd")
         if critical is not None and total_cost >= critical:
             budget_status = "critical"
+            status_copy, operator_guidance = _budget_guidance("critical")
             incidents.append(
                 {
                     "severity": "critical",
                     "message": "Mission cost exceeded critical budget threshold.",
+                    "status_copy": status_copy,
+                    "recommended_action": operator_guidance,
+                    "operator_guidance": (
+                        "Open the mission, inspect the most expensive packets, "
+                        "and either reduce scope or explicitly continue at higher spend."
+                    ),
                     "actual_cost_usd": round(total_cost, 4),
                     "threshold_usd": critical,
                 }
             )
         elif warning is not None and total_cost >= warning:
             budget_status = "warning"
+            status_copy, operator_guidance = _budget_guidance("warning")
             incidents.append(
                 {
                     "severity": "warning",
                     "message": "Mission cost exceeded warning budget threshold.",
+                    "status_copy": status_copy,
+                    "recommended_action": operator_guidance,
+                    "operator_guidance": (
+                        "Open the mission, inspect the highest-cost packets, "
+                        "and decide whether to keep spending at the current pace."
+                    ),
                     "actual_cost_usd": round(total_cost, 4),
                     "threshold_usd": warning,
                 }

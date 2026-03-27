@@ -838,6 +838,8 @@ class TestDashboardAPI:
                 "latest_confidence": 0.0,
                 "blocking_rounds": [],
                 "gallery_items": 0,
+                "diff_items": 0,
+                "comparison_rounds": 0,
             },
             "rounds": [],
         }
@@ -932,6 +934,14 @@ class TestDashboardAPI:
                 "title": "BUILDER packet started",
                 "body": "2026-03-25T00:11:00Z BUILDER packet started",
                 "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/activity.log",
+                "jump_targets": [
+                    {
+                        "kind": "source",
+                        "label": "Activity log",
+                        "path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/activity.log",
+                        "href": f"/artifacts/docs/specs/{mission_id}/workers/{packet_id}/telemetry/activity.log",
+                    }
+                ],
             },
             {
                 "block_type": "milestone",
@@ -945,6 +955,14 @@ class TestDashboardAPI:
                     "event_type": "mission_packet_started",
                     "message": "packet started",
                 },
+                "jump_targets": [
+                    {
+                        "kind": "source",
+                        "label": "Events stream",
+                        "path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                        "href": f"/artifacts/docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                    }
+                ],
             },
             {
                 "block_type": "message",
@@ -958,6 +976,14 @@ class TestDashboardAPI:
                     "kind": "assistant_message",
                     "excerpt": "Implementing mission detail now.",
                 },
+                "jump_targets": [
+                    {
+                        "kind": "source",
+                        "label": "Incoming events",
+                        "path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/incoming_events.jsonl",
+                        "href": f"/artifacts/docs/specs/{mission_id}/workers/{packet_id}/telemetry/incoming_events.jsonl",
+                    }
+                ],
             },
             {
                 "block_type": "tool",
@@ -971,6 +997,14 @@ class TestDashboardAPI:
                     "event_type": "tool_call_completed",
                     "message": "applied patch",
                 },
+                "jump_targets": [
+                    {
+                        "kind": "source",
+                        "label": "Events stream",
+                        "path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                        "href": f"/artifacts/docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                    }
+                ],
             },
             {
                 "block_type": "activity",
@@ -979,6 +1013,14 @@ class TestDashboardAPI:
                 "title": "BUILDER packet completed",
                 "body": "2026-03-25T00:12:00Z BUILDER packet completed",
                 "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/activity.log",
+                "jump_targets": [
+                    {
+                        "kind": "source",
+                        "label": "Activity log",
+                        "path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/activity.log",
+                        "href": f"/artifacts/docs/specs/{mission_id}/workers/{packet_id}/telemetry/activity.log",
+                    }
+                ],
             },
         ]
         kinds = {entry["kind"] for entry in data["entries"]}
@@ -1080,6 +1122,14 @@ class TestDashboardAPI:
                     "confidence": 0.74,
                     "blocking_questions": ["Approve rollout?"],
                 },
+                "jump_targets": [
+                    {
+                        "kind": "artifact",
+                        "label": "Supervisor review",
+                        "path": f"docs/specs/{mission_id}/rounds/round-02/supervisor_review.md",
+                        "href": f"/artifacts/docs/specs/{mission_id}/rounds/round-02/supervisor_review.md",
+                    }
+                ],
             },
             {
                 "block_type": "visual_finding",
@@ -1095,6 +1145,20 @@ class TestDashboardAPI:
                         "dashboard": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png"
                     },
                 },
+                "jump_targets": [
+                    {
+                        "kind": "artifact",
+                        "label": "Visual evaluation",
+                        "path": f"docs/specs/{mission_id}/rounds/round-02/visual_evaluation.json",
+                        "href": f"/artifacts/docs/specs/{mission_id}/rounds/round-02/visual_evaluation.json",
+                    },
+                    {
+                        "kind": "artifact",
+                        "label": "dashboard",
+                        "path": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png",
+                        "href": f"/artifacts/docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png",
+                    },
+                ],
             },
         ]
 
@@ -1153,6 +1217,8 @@ class TestDashboardAPI:
                 "latest_confidence": 0.81,
                 "blocking_rounds": [2],
                 "gallery_items": 1,
+                "diff_items": 0,
+                "comparison_rounds": 0,
             },
             "rounds": [
                 {
@@ -1176,7 +1242,78 @@ class TestDashboardAPI:
                         }
                     ],
                     "primary_artifact": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png",
+                    "comparison": None,
                 }
+            ],
+        }
+
+    def test_visual_qa_endpoint_promotes_diff_first_comparisons(self, client, repo: Path):
+        mission_id = "mission-visual-diff"
+        round_dir = repo / "docs" / "specs" / mission_id / "rounds" / "round-04"
+        specs = repo / "docs" / "specs" / mission_id
+        specs.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Visual Diff Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Visual Diff Mission\n", encoding="utf-8")
+        (round_dir / "visual_evaluation.json").write_text(
+            json.dumps(
+                {
+                    "evaluator": "playwright",
+                    "summary": "Diff highlights a nav spacing regression.",
+                    "confidence": 0.89,
+                    "findings": [
+                        {"severity": "blocking", "message": "Left rail width changed."},
+                    ],
+                    "artifacts": {
+                        "before": f"docs/specs/{mission_id}/rounds/round-04/visual/before.png",
+                        "after": f"docs/specs/{mission_id}/rounds/round-04/visual/after.png",
+                        "diff": f"docs/specs/{mission_id}/rounds/round-04/visual/diff.png",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get(f"/api/missions/{mission_id}/visual-qa")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["summary"]["diff_items"] == 1
+        assert data["summary"]["comparison_rounds"] == 1
+        assert data["rounds"][0]["comparison"] == {
+            "mode": "diff-first",
+            "primary": {
+                "label": "diff",
+                "path": f"docs/specs/{mission_id}/rounds/round-04/visual/diff.png",
+                "kind": "diff",
+            },
+            "related": [
+                {
+                    "label": "before",
+                    "path": f"docs/specs/{mission_id}/rounds/round-04/visual/before.png",
+                    "kind": "image",
+                },
+                {
+                    "label": "after",
+                    "path": f"docs/specs/{mission_id}/rounds/round-04/visual/after.png",
+                    "kind": "image",
+                },
             ],
         }
 
@@ -1234,6 +1371,9 @@ class TestDashboardAPI:
                 {
                     "severity": "critical",
                     "message": "Mission cost exceeded critical budget threshold.",
+                    "status_copy": "Critical budget threshold exceeded",
+                    "recommended_action": "Pause new work, review packet cost hotspots, and decide whether to cut scope or raise the budget.",
+                    "operator_guidance": "Open the mission, inspect the most expensive packets, and either reduce scope or explicitly continue at higher spend.",
                     "actual_cost_usd": 0.12,
                     "threshold_usd": 0.11,
                 }
@@ -1323,6 +1463,7 @@ class TestDashboardAPI:
                 "current_round": 0,
                 "budget_status": "critical",
                 "cost_usd": 1.5,
+                "operator_guidance": "Open the mission, inspect the most expensive packets, and either reduce scope or explicitly continue at higher spend.",
             }
         ]
 
@@ -1382,6 +1523,14 @@ class TestDashboardAPI:
                         "tool_call_completed",
                     ],
                 },
+                "jump_targets": [
+                    {
+                        "kind": "source",
+                        "label": "Events stream",
+                        "path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                        "href": f"/artifacts/docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                    }
+                ],
                 "items": [
                     {
                         "block_type": "tool",
@@ -1395,6 +1544,14 @@ class TestDashboardAPI:
                             "event_type": "tool_call_started",
                             "message": "running ruff",
                         },
+                        "jump_targets": [
+                            {
+                                "kind": "source",
+                                "label": "Events stream",
+                                "path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                                "href": f"/artifacts/docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                            }
+                        ],
                     },
                     {
                         "block_type": "tool",
@@ -1408,6 +1565,14 @@ class TestDashboardAPI:
                             "event_type": "tool_call_completed",
                             "message": "ruff clean",
                         },
+                        "jump_targets": [
+                            {
+                                "kind": "source",
+                                "label": "Events stream",
+                                "path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                                "href": f"/artifacts/docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                            }
+                        ],
                     },
                     {
                         "block_type": "tool",
@@ -1421,6 +1586,14 @@ class TestDashboardAPI:
                             "event_type": "tool_call_completed",
                             "message": "pytest passed",
                         },
+                        "jump_targets": [
+                            {
+                                "kind": "source",
+                                "label": "Events stream",
+                                "path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                                "href": f"/artifacts/docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                            }
+                        ],
                     },
                 ],
             }

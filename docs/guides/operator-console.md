@@ -104,6 +104,7 @@ Current transcript UX includes:
 - command-burst grouping
 - emphasis states for milestones / decisions / alerts
 - linked evidence markers
+- direct jump targets for source logs, round artifacts, and visual evidence
 - transcript inspector in the right rail
 
 ### Approvals
@@ -133,6 +134,7 @@ It shows:
 - blocking findings
 - warnings
 - latest confidence
+- diff-first comparison view when before / after / diff artifacts exist
 - per-round findings
 - screenshot gallery cards when available
 - primary artifact links and gallery thumbnails
@@ -151,6 +153,7 @@ It shows:
 - budget status
 - configured thresholds when present in `spec-orch.toml`
 - budget incidents when warning/critical thresholds are crossed
+- operator guidance and escalation copy for warning/critical incidents
 - per-worker builder report linkage
 - budget-aware Inbox surfacing for warning/critical missions
 
@@ -166,6 +169,7 @@ It currently includes:
 - artifact links
 - round evidence
 - transcript inspector
+- transcript jump targets
 - spec path
 
 This rail should stay visible while switching mission tabs.
@@ -232,7 +236,7 @@ Recommended order:
 2. `Mission Detail`
    - understand current phase, round, and packet structure
 3. `Transcript`
-   - inspect command bursts, milestones, and linked evidence
+   - inspect command bursts, milestones, linked evidence, and direct jump targets
 4. `Context Rail`
    - inspect blocking question, latest operator action, and artifact paths
 5. `Visual QA` or `Costs`

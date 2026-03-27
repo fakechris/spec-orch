@@ -227,6 +227,7 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
                     "current_round": lifecycle.get("current_round", 0),
                     "budget_status": budget_status,
                     "cost_usd": costs.get("summary", {}).get("cost_usd", 0.0),
+                    "operator_guidance": incidents[0].get("operator_guidance"),
                 }
             )
 

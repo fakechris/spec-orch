@@ -69,6 +69,22 @@ def test_dashboard_package_exposes_surface_helpers() -> None:
     assert callable(_gather_mission_costs)
 
 
+def test_dashboard_package_exposes_control_helpers() -> None:
+    from spec_orch.dashboard.control import (
+        _control_eval,
+        _control_overview,
+        _gather_evolution_metrics,
+        _gather_run_history,
+        _get_spec_content,
+    )
+
+    assert callable(_gather_evolution_metrics)
+    assert callable(_control_overview)
+    assert callable(_control_eval)
+    assert callable(_gather_run_history)
+    assert callable(_get_spec_content)
+
+
 def test_dashboard_package_exposes_shell_template() -> None:
     from spec_orch.dashboard.shell import DASHBOARD_HTML, build_dashboard_html
 

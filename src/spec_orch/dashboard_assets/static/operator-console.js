@@ -112,6 +112,25 @@
       .join('');
   }
 
+  function renderJumpTargets(targets, escHtml) {
+    if (!Array.isArray(targets) || !targets.length) {
+      return '<div class="empty-panel">No linked evidence available.</div>';
+    }
+    return `
+      <div class="context-list">
+        ${targets.map(target => `
+          <div class="context-card">
+            <div class="context-title">${safeEsc(escHtml, target?.label || target?.kind || 'link')}</div>
+            <div class="context-meta">
+              <span class="detail-chip">${safeEsc(escHtml, target?.kind || 'artifact')}</span>
+              ${target?.href ? `<a class="artifact-link" href="${safeEsc(escHtml, target.href)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, target?.path || '')}</a>` : `<span class="artifact-link">${safeEsc(escHtml, target?.path || '')}</span>`}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
   function renderRoundContext(round, escHtml) {
     const paths = round?.paths || {};
     const decision = round?.decision || {};
@@ -437,6 +456,10 @@
           <div class="mission-metric-label">Confidence</div>
           <div class="mission-metric-value">${safeEsc(escHtml, String(summary.latest_confidence ?? 0))}</div>
         </div>
+        <div class="mission-metric">
+          <div class="mission-metric-label">Diff artifacts</div>
+          <div class="mission-metric-value">${safeEsc(escHtml, String(summary.diff_items || 0))}</div>
+        </div>
       </div>
       ${summary.blocking_rounds?.length ? `
         <div class="context-card budget-incident critical">
@@ -444,6 +467,7 @@
           <div class="context-meta">
             <span>${safeEsc(escHtml, `Rounds ${summary.blocking_rounds.join(', ')}`)}</span>
             <span>${safeEsc(escHtml, `${summary.gallery_items || 0} gallery items`)}</span>
+            <span>${safeEsc(escHtml, `${summary.comparison_rounds || 0} comparison rounds`)}</span>
           </div>
         </div>
       ` : ''}
@@ -455,6 +479,34 @@
               <span class="detail-chip">${safeEsc(escHtml, round.status || 'pass')}</span>
               <span>${safeEsc(escHtml, round.summary || '')}</span>
             </div>
+            ${round.comparison ? `
+              <div class="visual-compare detail-section">
+                <a class="visual-shot visual-shot-primary" href="/artifacts/${safeEsc(escHtml, round.comparison.primary?.path || '')}" target="_blank" rel="noreferrer">
+                  <div class="visual-shot-frame">
+                    <img src="/artifacts/${safeEsc(escHtml, round.comparison.primary?.path || '')}" alt="${safeEsc(escHtml, round.comparison.primary?.label || 'diff')}" loading="lazy"/>
+                  </div>
+                  <div class="visual-shot-meta">
+                    <span class="detail-chip">${safeEsc(escHtml, round.comparison.mode || 'comparison')}</span>
+                    <span>${safeEsc(escHtml, round.comparison.primary?.label || 'diff')}</span>
+                  </div>
+                </a>
+                ${round.comparison.related?.length ? `
+                  <div class="visual-gallery visual-gallery-secondary">
+                    ${round.comparison.related.map(item => `
+                      <a class="visual-shot" href="/artifacts/${safeEsc(escHtml, item.path)}" target="_blank" rel="noreferrer">
+                        <div class="visual-shot-frame">
+                          <img src="/artifacts/${safeEsc(escHtml, item.path)}" alt="${safeEsc(escHtml, item.label || 'artifact')}" loading="lazy"/>
+                        </div>
+                        <div class="visual-shot-meta">
+                          <span class="detail-chip">${safeEsc(escHtml, item.kind || 'image')}</span>
+                          <span>${safeEsc(escHtml, item.label || item.path)}</span>
+                        </div>
+                      </a>
+                    `).join('')}
+                  </div>
+                ` : ''}
+              </div>
+            ` : ''}
             ${round.gallery?.length ? `
               <div class="visual-gallery">
                 ${round.gallery.map(item => `
@@ -525,6 +577,9 @@
               <span>${safeEsc(escHtml, `Actual ${incident?.actual_cost_usd ?? 0}`)}</span>
               <span>${safeEsc(escHtml, `Threshold ${incident?.threshold_usd ?? 0}`)}</span>
             </div>
+            ${incident?.status_copy ? `<div class="context-meta"><span class="detail-chip">${safeEsc(escHtml, incident.status_copy)}</span></div>` : ''}
+            ${incident?.recommended_action ? `<div class="transcript-entry-body">${safeEsc(escHtml, incident.recommended_action)}</div>` : ''}
+            ${incident?.operator_guidance ? `<div class="context-meta">${safeEsc(escHtml, incident.operator_guidance)}</div>` : ''}
           </div>
         `).join('')}
       </div>` : ''}
@@ -620,6 +675,7 @@
                     ${block.body ? `<span>${safeEsc(escHtml, block.body)}</span>` : ''}
                     ${block.artifact_path ? `<span class="detail-chip">artifact</span>` : ''}
                     ${block.source_path ? `<span class="detail-chip">source</span>` : ''}
+                    ${block.jump_targets?.length ? `<span class="detail-chip">${safeEsc(escHtml, `${block.jump_targets.length} links`)}</span>` : ''}
                   </div>
                   ${block.body ? `<div class="transcript-entry-body">${safeEsc(escHtml, block.body)}</div>` : ''}
                 </button>
@@ -665,7 +721,7 @@
       return '<div class="empty-panel">Select a transcript block to inspect its evidence.</div>'
     }
     const block = blocks[selectedTranscriptBlockIndex]
-    const links = [block.artifact_path, block.source_path].filter(Boolean)
+    const jumpTargets = Array.isArray(block.jump_targets) ? block.jump_targets : []
     const burstItems = Array.isArray(block.items) ? block.items : []
     return `
         <div class="context-card">
@@ -695,12 +751,10 @@
           </div>
         </div>
       ` : ''}
-      ${links.length ? links.map(path => `
-        <div class="context-card">
-          <div class="context-title">Linked evidence</div>
-          <div class="context-meta"><span class="artifact-link">${safeEsc(escHtml, String(path))}</span></div>
-        </div>
-      `).join('') : '<div class="empty-panel">No linked evidence path for this block.</div>'}
+      <div class="context-card">
+        <div class="context-title">Linked evidence</div>
+        ${renderJumpTargets(jumpTargets, escHtml)}
+      </div>
     `
   }
 
@@ -711,6 +765,7 @@
     renderApprovalQueuePanel,
     renderApprovalWorkspace,
     renderArtifactLinks,
+    renderJumpTargets,
     renderCostsPanel,
     renderDetailValue,
     renderLatestRound,

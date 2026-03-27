@@ -8,6 +8,65 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _artifact_href(path: str) -> str:
+    return f"/artifacts/{path}"
+
+
+def _source_label(path: str) -> str:
+    suffix = Path(path).name
+    if suffix == "activity.log":
+        return "Activity log"
+    if suffix == "events.jsonl":
+        return "Events stream"
+    if suffix == "incoming_events.jsonl":
+        return "Incoming events"
+    return suffix
+
+
+def _artifact_label(path: str) -> str:
+    suffix = Path(path).name
+    if suffix == "supervisor_review.md":
+        return "Supervisor review"
+    if suffix == "visual_evaluation.json":
+        return "Visual evaluation"
+    return suffix
+
+
+def _jump_targets_for_block(
+    *,
+    source_path: str | None = None,
+    artifact_path: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> list[dict[str, str]]:
+    targets: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add_target(kind: str, label: str, path: str) -> None:
+        key = (kind, path)
+        if key in seen:
+            return
+        seen.add(key)
+        targets.append(
+            {
+                "kind": kind,
+                "label": label,
+                "path": path,
+                "href": _artifact_href(path),
+            }
+        )
+
+    if source_path:
+        add_target("source", _source_label(source_path), source_path)
+    if artifact_path:
+        add_target("artifact", _artifact_label(artifact_path), artifact_path)
+    artifacts = details.get("artifacts") if isinstance(details, dict) else None
+    if isinstance(artifacts, dict):
+        for label, value in artifacts.items():
+            if isinstance(value, str) and value:
+                add_target("artifact", str(label), value)
+    return targets
+
+
 def _block_emphasis(
     block_type: str,
     event_type: str = "",
@@ -190,64 +249,86 @@ def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
 
     if kind == "activity":
         body = raw if isinstance(raw, str) else message
+        source_path = entry.get("source_path")
         return {
             "block_type": "activity",
             "emphasis": _block_emphasis("activity"),
             "timestamp": str(entry.get("timestamp", "")),
             "title": message,
             "body": body,
-            "source_path": entry.get("source_path"),
+            "source_path": source_path,
+            "jump_targets": _jump_targets_for_block(source_path=source_path),
         }
 
     if kind == "incoming":
+        source_path = entry.get("source_path")
         block = {
             "block_type": "message",
             "emphasis": _block_emphasis("message"),
             "timestamp": str(entry.get("timestamp", "")),
             "title": message,
             "body": event_type or kind,
-            "source_path": entry.get("source_path"),
+            "source_path": source_path,
         }
         if details is not None:
             block["details"] = details
+        block["jump_targets"] = _jump_targets_for_block(
+            source_path=source_path,
+            details=details,
+        )
         return block
 
     if event_type.startswith("mission_packet_"):
+        source_path = entry.get("source_path")
         block = {
             "block_type": "milestone",
             "emphasis": _block_emphasis("milestone", event_type, details),
             "timestamp": str(entry.get("timestamp", "")),
             "title": message,
             "body": event_type,
-            "source_path": entry.get("source_path"),
+            "source_path": source_path,
         }
         if details is not None:
             block["details"] = details
+        block["jump_targets"] = _jump_targets_for_block(
+            source_path=source_path,
+            details=details,
+        )
         return block
 
     if "tool_call" in event_type:
+        source_path = entry.get("source_path")
         block = {
             "block_type": "tool",
             "emphasis": _block_emphasis("tool"),
             "timestamp": str(entry.get("timestamp", "")),
             "title": message,
             "body": event_type,
-            "source_path": entry.get("source_path"),
+            "source_path": source_path,
         }
         if details is not None:
             block["details"] = details
+        block["jump_targets"] = _jump_targets_for_block(
+            source_path=source_path,
+            details=details,
+        )
         return block
 
+    source_path = entry.get("source_path")
     block = {
         "block_type": "event",
         "emphasis": _block_emphasis("event", event_type, details),
         "timestamp": str(entry.get("timestamp", "")),
         "title": message,
         "body": event_type or kind,
-        "source_path": entry.get("source_path"),
+        "source_path": source_path,
     }
     if details is not None:
         block["details"] = details
+    block["jump_targets"] = _jump_targets_for_block(
+        source_path=source_path,
+        details=details,
+    )
     return block
 
 
@@ -281,6 +362,18 @@ def _group_transcript_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, Any
                         ],
                     },
                     "items": current_tool_burst,
+                    "jump_targets": _jump_targets_for_block(
+                        source_path=current_tool_burst[0].get("source_path"),
+                        details={
+                            "artifacts": {
+                                item.get("title", f"tool-{index}"): target.get("path")
+                                for index, item in enumerate(current_tool_burst, start=1)
+                                for target in item.get("jump_targets", [])
+                                if target.get("kind") == "artifact"
+                                and target.get("path")
+                            }
+                        },
+                    ),
                 }
             )
         current_tool_burst = []
@@ -336,6 +429,11 @@ def _gather_round_evidence_blocks(
                         "confidence": summary.decision.confidence,
                         "blocking_questions": summary.decision.blocking_questions,
                     },
+                    "jump_targets": _jump_targets_for_block(
+                        artifact_path=str(
+                            (round_dir / "supervisor_review.md").relative_to(repo_root)
+                        ),
+                    ),
                 }
             )
 
@@ -360,6 +458,10 @@ def _gather_round_evidence_blocks(
                         "findings": visual.findings,
                         "artifacts": visual.artifacts,
                     },
+                    "jump_targets": _jump_targets_for_block(
+                        artifact_path=str(visual_path.relative_to(repo_root)),
+                        details={"artifacts": visual.artifacts},
+                    ),
                 }
             )
 

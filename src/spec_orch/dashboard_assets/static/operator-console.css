@@ -334,6 +334,21 @@ button.transcript-entry.active {
   margin-top: 12px;
 }
 
+.visual-compare {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.visual-shot-primary .visual-shot-frame {
+  aspect-ratio: 16 / 9;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.visual-gallery-secondary {
+  margin-top: 0;
+}
+
 .visual-shot {
   display: flex;
   flex-direction: column;
@@ -561,6 +576,7 @@ button.transcript-entry.active {
   color: var(--text);
   text-decoration: none;
   border-bottom: 1px dashed rgba(225, 228, 235, 0.35);
+  overflow-wrap: anywhere;
 }
 
 .artifact-link:hover {

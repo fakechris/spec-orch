@@ -258,6 +258,29 @@
   - `tests/unit/test_dashboard_package.py`
   - `tests/unit/test_dashboard_api.py`
   - `task_plan.md`
+
+### Operator Console Depth Pass
+- **Status:** complete
+- Actions taken:
+  - Added transcript jump-target metadata so timeline blocks now expose direct evidence navigation for source logs, round artifacts, and visual assets.
+  - Promoted Visual QA into a diff-first surface whenever before/after/diff assets exist, while preserving gallery fallback for simpler runs.
+  - Added explicit budget incident guidance and escalation copy, and surfaced that guidance back into Inbox budget alerts.
+  - Extracted dashboard control/evolution/run-history helpers into `src/spec_orch/dashboard/control.py`, reducing the amount of non-UI logic still owned by the transitional `app.py`.
+  - Tightened the operator-console JS/CSS so transcript evidence links, diff-first visual comparison, and cost incidents read more like operator surfaces and less like payload dumps.
+- Files created/modified:
+  - `src/spec_orch/dashboard/control.py`
+  - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/dashboard/missions.py`
+  - `src/spec_orch/dashboard/surfaces.py`
+  - `src/spec_orch/dashboard/transcript.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `src/spec_orch/dashboard_assets/static/operator-console.css`
+  - `tests/unit/test_dashboard_api.py`
+  - `tests/unit/test_dashboard_package.py`
+  - `task_plan.md`
+  - `progress.md`
+  - `docs/guides/operator-console.md`
+  - `docs/plans/2026-03-26-operator-console-next-todos.md`
   - `progress.md`
   - `docs/plans/2026-03-26-operator-console-next-todos.md`
   - `docs/guides/operator-console.md`
