@@ -2402,6 +2402,23 @@ class TestDashboardAPI:
         assert dependant.websocket_param_name == "websocket"
         assert dependant.query_params == []
 
+    def test_websocket_streams_event_bus_updates(self, client):
+        bus = get_event_bus()
+
+        with client.websocket_connect("/ws") as websocket:
+            bus.publish(
+                Event(
+                    topic=EventTopic.ISSUE_STATE,
+                    payload={"issue_id": "SON-WS", "state": "building"},
+                    source="test",
+                )
+            )
+            payload = websocket.receive_json()
+
+        assert payload["topic"] == "issue.state"
+        assert payload["payload"] == {"issue_id": "SON-WS", "state": "building"}
+        assert payload["source"] == "test"
+
     def test_runs_endpoint(self, client):
         r = client.get("/api/runs")
         assert r.status_code == 200

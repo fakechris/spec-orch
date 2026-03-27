@@ -370,20 +370,20 @@ def register_routes(app: FastAPI, root: Path) -> None:
             await websocket.close()
             return
 
-        async def _push(event: Any) -> None:
-            payload = {
-                "topic": event.topic.value if hasattr(event.topic, "value") else str(event.topic),
-                "payload": event.payload,
-                "timestamp": event.timestamp,
-                "source": event.source,
-            }
-            await websocket.send_text(json.dumps(payload))
-
-        unsubscribe = bus.subscribe(_push)
+        queue = bus.create_async_queue()
         try:
             while True:
-                await websocket.receive_text()
+                event = await queue.get()
+                payload = {
+                    "topic": event.topic.value
+                    if hasattr(event.topic, "value")
+                    else str(event.topic),
+                    "payload": event.payload,
+                    "timestamp": event.timestamp,
+                    "source": event.source,
+                }
+                await websocket.send_text(json.dumps(payload))
         except WebSocketDisconnect:
             pass
         finally:
-            unsubscribe()
+            bus.remove_async_queue(queue)

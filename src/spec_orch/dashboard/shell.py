@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from .app import DASHBOARD_HTML
-
 
 def build_dashboard_html() -> str:
+    from .app import DASHBOARD_HTML
+
     return DASHBOARD_HTML
 
 
-__all__ = ["DASHBOARD_HTML", "build_dashboard_html"]
+__all__ = ["build_dashboard_html"]
