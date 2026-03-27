@@ -232,20 +232,28 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
                 summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
             except (OSError, ValueError, json.JSONDecodeError):
                 summary_payload = {}
+            if not isinstance(summary_payload, dict):
+                logger.warning("Ignoring malformed round summary for visual QA: %s", summary_path)
+                summary_payload = {}
             worker_results = summary_payload.get("worker_results", [])
             if isinstance(worker_results, list):
                 transcript_routes = [
                     f"/?mission={mission_id}&mode=missions&tab=transcript&packet={packet_id}"
                     for item in worker_results
+                    if isinstance(item, dict)
                     for packet_id in [item.get("packet_id")]
                     if isinstance(packet_id, str) and packet_id
                 ]
         try:
             payload = json.loads(visual_path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                logger.warning("Ignoring malformed visual evaluation payload: %s", visual_path)
+                continue
             visual = VisualEvaluationResult.from_dict(payload)
         except (OSError, ValueError, json.JSONDecodeError):
             continue
-        findings = visual.findings or []
+        findings = [finding for finding in (visual.findings or []) if isinstance(finding, dict)]
+        artifacts = visual.artifacts if isinstance(visual.artifacts, dict) else {}
         severities = {str(finding.get("severity", "")).lower() for finding in findings}
         if "blocking" in severities:
             status = "blocking"
@@ -253,7 +261,7 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
             status = "warning"
         else:
             status = "pass"
-        gallery = _extract_visual_gallery(visual.artifacts)
+        gallery = _extract_visual_gallery(artifacts)
         comparison = _visual_comparison_from_gallery(gallery)
         visual_rounds.append(
             {
@@ -263,7 +271,7 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
                 "status": status,
                 "artifact_path": str(visual_path.relative_to(repo_root)),
                 "findings": findings,
-                "artifacts": visual.artifacts,
+                "artifacts": artifacts,
                 "gallery": gallery,
                 "primary_artifact": (gallery[0]["path"] if gallery else None),
                 "comparison": comparison,
@@ -358,6 +366,9 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
         try:
             payload = json.loads(report_path.read_text(encoding="utf-8"))
         except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            logger.warning("Ignoring malformed builder report payload: %s", report_path)
             continue
         metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
         usage = metadata.get("usage", {}) if isinstance(metadata, dict) else {}

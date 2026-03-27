@@ -258,7 +258,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
           <h2>Mission Control</h2>
         </div>
         <div class="operator-nav-modes">
-          <button class="operator-mode active" id="operator-mode-inbox" type="button" onclick="setOperatorMode('inbox')">Inbox</button>
+          <button class="operator-mode active" id="operator-mode-inbox" type="button" onclick="setOperatorMode('inbox')"><span id="inbox-attention-chip">Inbox</span></button>
           <button class="operator-mode" id="operator-mode-missions" type="button" onclick="setOperatorMode('missions')">Missions</button>
           <button class="operator-mode" id="operator-mode-approvals" type="button" onclick="setOperatorMode('approvals')">Approvals</button>
           <button class="operator-mode" id="operator-mode-evidence" type="button" onclick="setOperatorMode('evidence')">Evidence</button>
@@ -563,12 +563,13 @@ function renderMissions() {
 function renderInboxSummary() {
   const chip = document.getElementById('inbox-attention-chip');
   const list = document.getElementById('inbox-list');
-  if (!chip) return;
   const attention = inboxSummary?.counts?.attention || 0;
-  chip.textContent = attention ? `Inbox ${attention}` : 'Inbox';
-  chip.title = attention
-    ? `${inboxSummary.counts.approvals || 0} approvals, ${inboxSummary.counts.budgets || 0} budget alerts, ${inboxSummary.counts.paused || 0} paused, ${inboxSummary.counts.failed || 0} failed`
-    : 'No operator attention items';
+  if (chip) {
+    chip.textContent = attention ? `Inbox ${attention}` : 'Inbox';
+    chip.title = attention
+      ? `${inboxSummary.counts.approvals || 0} approvals, ${inboxSummary.counts.budgets || 0} budget alerts, ${inboxSummary.counts.paused || 0} paused, ${inboxSummary.counts.failed || 0} failed`
+      : 'No operator attention items';
+  }
   if (!list) return;
   const items = inboxSummary?.items || [];
   if (!items.length) {
@@ -576,7 +577,7 @@ function renderInboxSummary() {
     return;
   }
   list.innerHTML = items.map(item => `
-    <button class="mission-list-item" type="button" onclick="selectMission('${item.mission_id}')">
+    <button class="mission-list-item" type="button" onclick="selectMission(${safeJsArg(item.mission_id)})">
       <div class="mission-list-title">${escHtml(item.title)}</div>
       <div class="mission-list-meta">
         <span class="badge ${escHtml(item.phase || item.kind || 'attention')}">${escHtml(item.kind)}</span>

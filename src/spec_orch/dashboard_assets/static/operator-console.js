@@ -10,6 +10,15 @@
     return typeof escHtml === 'function' ? escHtml(String(value ?? '')) : String(value ?? '');
   }
 
+  function escAttr(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
   function safeJsArg(value) {
     return JSON.stringify(String(value ?? ''));
   }
@@ -115,7 +124,7 @@
       .map(([key, value]) => `
         <div class="context-card">
           <div class="context-title">${safeEsc(escHtml, key)}</div>
-          <div class="context-meta"><a class="artifact-link" href="/artifacts/${safeEsc(escHtml, value)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, value)}</a></div>
+          <div class="context-meta"><a class="artifact-link" href="/artifacts/${escAttr(value)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, value)}</a></div>
         </div>
       `)
       .join('');
@@ -132,7 +141,7 @@
             <div class="context-title">${safeEsc(escHtml, target?.label || target?.kind || 'link')}</div>
             <div class="context-meta">
               <span class="detail-chip">${safeEsc(escHtml, target?.kind || 'artifact')}</span>
-              ${target?.href ? `<a class="artifact-link" href="${safeEsc(escHtml, target.href)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, target?.path || '')}</a>` : `<span class="artifact-link">${safeEsc(escHtml, target?.path || '')}</span>`}
+              ${target?.href ? `<a class="artifact-link" href="${escAttr(target.href)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, target?.path || '')}</a>` : `<span class="artifact-link">${safeEsc(escHtml, target?.path || '')}</span>`}
             </div>
           </div>
         `).join('')}
@@ -511,9 +520,9 @@
             </div>
             ${round.comparison ? `
               <div class="visual-compare detail-section">
-                <a class="visual-shot visual-shot-primary" href="/artifacts/${safeEsc(escHtml, round.comparison.primary?.path || '')}" target="_blank" rel="noreferrer">
+                <a class="visual-shot visual-shot-primary" href="/artifacts/${escAttr(round.comparison.primary?.path || '')}" target="_blank" rel="noreferrer">
                   <div class="visual-shot-frame">
-                    <img src="/artifacts/${safeEsc(escHtml, round.comparison.primary?.path || '')}" alt="${safeEsc(escHtml, round.comparison.primary?.label || 'diff')}" loading="lazy"/>
+                    <img src="/artifacts/${escAttr(round.comparison.primary?.path || '')}" alt="${escAttr(round.comparison.primary?.label || 'diff')}" loading="lazy"/>
                   </div>
                   <div class="visual-shot-meta">
                     <span class="detail-chip">${safeEsc(escHtml, round.comparison.mode || 'comparison')}</span>
@@ -523,9 +532,9 @@
                 ${round.comparison.related?.length ? `
                   <div class="visual-gallery visual-gallery-secondary">
                     ${round.comparison.related.map(item => `
-                      <a class="visual-shot" href="/artifacts/${safeEsc(escHtml, item.path)}" target="_blank" rel="noreferrer">
+                      <a class="visual-shot" href="/artifacts/${escAttr(item.path)}" target="_blank" rel="noreferrer">
                         <div class="visual-shot-frame">
-                          <img src="/artifacts/${safeEsc(escHtml, item.path)}" alt="${safeEsc(escHtml, item.label || 'artifact')}" loading="lazy"/>
+                          <img src="/artifacts/${escAttr(item.path)}" alt="${escAttr(item.label || 'artifact')}" loading="lazy"/>
                         </div>
                         <div class="visual-shot-meta">
                           <span class="detail-chip">${safeEsc(escHtml, item.kind || 'image')}</span>
@@ -540,9 +549,9 @@
             ${round.gallery?.length ? `
               <div class="visual-gallery">
                 ${round.gallery.map(item => `
-                  <a class="visual-shot" href="/artifacts/${safeEsc(escHtml, item.path)}" target="_blank" rel="noreferrer">
+                  <a class="visual-shot" href="/artifacts/${escAttr(item.path)}" target="_blank" rel="noreferrer">
                     <div class="visual-shot-frame">
-                      <img src="/artifacts/${safeEsc(escHtml, item.path)}" alt="${safeEsc(escHtml, item.label || 'artifact')}" loading="lazy"/>
+                      <img src="/artifacts/${escAttr(item.path)}" alt="${escAttr(item.label || 'artifact')}" loading="lazy"/>
                     </div>
                     <div class="visual-shot-meta">
                       <span class="detail-chip">${safeEsc(escHtml, item.kind || 'image')}</span>
@@ -563,7 +572,7 @@
             <div class="context-meta">
               ${round.review_route ? renderInternalRouteButton(round.review_route, 'Review round', escHtml) : ''}
               ${Array.isArray(round.transcript_routes) ? round.transcript_routes.map(route => renderInternalRouteButton(route, 'Open transcript', escHtml)).join('') : ''}
-              ${round.artifact_path ? `<a class="artifact-link" href="/artifacts/${safeEsc(escHtml, round.artifact_path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, round.artifact_path)}</a>` : ''}
+              ${round.artifact_path ? `<a class="artifact-link" href="/artifacts/${escAttr(round.artifact_path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, round.artifact_path)}</a>` : ''}
             </div>
           </div>
         `).join('')}
@@ -644,7 +653,7 @@
             </div>
             <div class="context-meta">
               ${worker.transcript_route ? renderInternalRouteButton(worker.transcript_route, 'Open transcript', escHtml) : ''}
-              ${worker.report_path ? `<a class="artifact-link" href="/artifacts/${safeEsc(escHtml, worker.report_path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, worker.report_path)}</a>` : ''}
+              ${worker.report_path ? `<a class="artifact-link" href="/artifacts/${escAttr(worker.report_path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, worker.report_path)}</a>` : ''}
             </div>
           </div>
         `).join('')}
@@ -818,6 +827,7 @@
 
   window.SpecOrchOperatorConsole = {
     buildMissionSubtitle,
+    escAttr,
     renderActionButtons,
     renderApprovalQueue,
     renderApprovalQueuePanel,

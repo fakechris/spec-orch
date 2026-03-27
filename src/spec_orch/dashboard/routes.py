@@ -148,9 +148,18 @@ def register_routes(app: FastAPI, root: Path) -> None:
     @app.get("/artifacts/{artifact_path:path}")
     async def artifact_file(artifact_path: str):
         candidate = (root / artifact_path).resolve()
+        allowed_roots = [
+            (root / "docs" / "specs").resolve(),
+            (root / ".spec_orch_runs").resolve(),
+        ]
         try:
             candidate.relative_to(root.resolve())
         except ValueError:
+            return PlainTextResponse("not found", status_code=404)
+        if not any(
+            candidate == allowed_root or allowed_root in candidate.parents
+            for allowed_root in allowed_roots
+        ):
             return PlainTextResponse("not found", status_code=404)
         if not candidate.exists() or not candidate.is_file():
             return PlainTextResponse("not found", status_code=404)

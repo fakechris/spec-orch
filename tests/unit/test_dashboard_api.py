@@ -1837,6 +1837,38 @@ class TestDashboardAPI:
         assert data["summary"]["remaining_budget_usd"] is None
         assert data["incidents"] == []
 
+    def test_costs_endpoint_skips_non_object_builder_reports(self, client, repo: Path):
+        mission_id = "mission-costs-non-object"
+        worker_one = repo / "docs" / "specs" / mission_id / "workers" / "pkt-1"
+        worker_two = repo / "docs" / "specs" / mission_id / "workers" / "pkt-2"
+        worker_one.mkdir(parents=True)
+        worker_two.mkdir(parents=True)
+
+        (worker_one / "builder_report.json").write_text('["unexpected"]', encoding="utf-8")
+        (worker_two / "builder_report.json").write_text(
+            json.dumps(
+                {
+                    "adapter": "codex_exec",
+                    "metadata": {
+                        "turn_status": "success",
+                        "usage": {"input_tokens": 50, "output_tokens": 10},
+                        "cost_usd": 0.02,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get(f"/api/missions/{mission_id}/costs")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["summary"]["workers"] == 1
+        assert payload["summary"]["input_tokens"] == 50
+        assert payload["summary"]["output_tokens"] == 10
+        assert payload["summary"]["cost_usd"] == 0.02
+        assert [worker["packet_id"] for worker in payload["workers"]] == ["pkt-2"]
+
     def test_packet_transcript_endpoint_groups_tool_events_into_bursts(self, client, repo: Path):
         mission_id = "mission-transcript-burst"
         packet_id = "pkt-2"
@@ -2554,6 +2586,33 @@ class TestDashboardAPI:
         assert payload["summary"]["total_rounds"] == 1
         assert payload["rounds"][0]["round_id"] == 1
 
+    def test_visual_qa_endpoint_tolerates_unexpected_json_shapes(self, client, repo: Path):
+        mission_id = "mission-visual-weird-shapes"
+        round_dir = repo / "docs" / "specs" / mission_id / "rounds" / "round-02"
+        round_dir.mkdir(parents=True)
+        (round_dir / "round_summary.json").write_text('["unexpected"]', encoding="utf-8")
+        (round_dir / "visual_evaluation.json").write_text(
+            json.dumps(
+                {
+                    "summary": "Malformed visual payload",
+                    "confidence": 0.3,
+                    "findings": ["not-a-dict"],
+                    "artifacts": ["not-a-mapping"],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get(f"/api/missions/{mission_id}/visual-qa")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["mission_id"] == mission_id
+        assert payload["summary"]["total_rounds"] == 1
+        assert payload["rounds"][0]["findings"] == []
+        assert payload["rounds"][0]["artifacts"] == {}
+        assert payload["rounds"][0]["gallery"] == []
+
     def test_mission_detail_endpoint_includes_approval_history(self, client, repo: Path):
         mission_id = "mission-approval-history"
         specs = repo / "docs" / "specs" / mission_id
@@ -2670,6 +2729,7 @@ class TestDashboardAPI:
         assert "/static/operator-console.css" in r.text
         assert "/static/operator-console.js" in r.text
         assert 'id="operator-shell"' in r.text
+        assert 'id="inbox-attention-chip"' in r.text
         assert 'id="mission-list"' in r.text
         assert 'id="inbox-list"' in r.text
         assert 'id="mission-detail-view"' in r.text
@@ -2699,12 +2759,15 @@ class TestDashboardAPI:
         assert "renderActionButtons" in js.text
         assert "renderVisualQaPanel" in js.text
         assert "renderCostsPanel" in js.text
+        assert "function escAttr" in js.text
         assert "function safeJsArg" in js.text
         assert "navigateOperatorRoute(${safeJsArg(route)})" in js.text
         assert "approveGo(${safeJsArg(missionId)})" in js.text
         assert "retryMission(${safeJsArg(missionId)})" in js.text
         assert "openDiscuss(${safeJsArg(missionId)})" in js.text
         assert "selectPacket(${safeJsArg(packet?.packet_id)})" in js.text
+        assert 'href="/artifacts/${escAttr(value)}"' in js.text
+        assert 'href="${escAttr(target.href)}"' in js.text
         assert (
             "triggerApprovalAction(${safeJsArg(missionId)}, ${safeJsArg(action?.key || '')})"
             in js.text
@@ -2720,6 +2783,22 @@ class TestDashboardAPI:
         response = client.get("/favicon.ico")
         assert response.status_code == 204
         assert response.content == b""
+
+    def test_artifacts_route_restricts_access_to_artifact_roots(self, client, repo: Path):
+        artifact_dir = repo / "docs" / "specs" / "mission-artifacts" / "rounds" / "round-01"
+        artifact_dir.mkdir(parents=True)
+        allowed_file = artifact_dir / "visual_evaluation.json"
+        allowed_file.write_text("{}", encoding="utf-8")
+        blocked_file = repo / "spec-orch.toml"
+        blocked_file.write_text("[builder]\nadapter = 'codex_exec'\n", encoding="utf-8")
+
+        allowed = client.get(
+            "/artifacts/docs/specs/mission-artifacts/rounds/round-01/visual_evaluation.json"
+        )
+        blocked = client.get("/artifacts/spec-orch.toml")
+
+        assert allowed.status_code == 200
+        assert blocked.status_code == 404
 
     def test_websocket_route_registers_websocket_param(self, repo: Path):
         from spec_orch.dashboard import create_app
