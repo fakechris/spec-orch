@@ -148,7 +148,37 @@ Success criteria:
 
 - `app.py` becomes a thin app-shell coordinator rather than a mixed shell plus page-render module
 
-### 6. Operator Documentation Refresh
+### 6. Display Density and Type Scale
+
+The dashboard currently adapts mostly through layout width, not through explicit display-density choices. Operators can feel a difference between wide and normal windows, but cannot control it.
+
+What remains:
+
+- add a user-facing `Comfortable / Compact` density setting
+- add a user-facing text-scale option for larger readability without browser zoom
+- separate "show me more evidence" from "make the whole UI feel smaller"
+- document which surfaces should stay readable-first versus information-dense
+
+Success criteria:
+
+- users can choose readability versus density intentionally instead of depending on window size alone
+
+### 7. Mission Discovery and Navigation
+
+The left rail is now closer to a real control surface, but large workspaces will still need stronger discovery.
+
+What remains:
+
+- add mission search in the left rail
+- add pagination or virtualized browsing once the workspace grows
+- make the current mission and actively running mission easier to pin and revisit
+- keep mode-specific list behavior obvious instead of relying only on center-pane changes
+
+Success criteria:
+
+- operators can always find the mission they just created or launched without scanning the whole list manually
+
+### 8. Operator Documentation Refresh
 
 The docs now have a dedicated operator-console guide, but the doc set still needs one more consolidation pass.
 

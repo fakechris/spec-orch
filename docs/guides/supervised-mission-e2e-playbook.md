@@ -108,9 +108,51 @@ MINIMAX_API_KEY=$MINIMAX_API_KEY ./tests/e2e/supervised_mission_minimax.sh --ful
 
 ---
 
-## 3. 创建一个可试跑的 Mission
+## 3. 首选流程：从 Dashboard 启动 Mission
 
-### 3.1 创建 mission
+现在推荐的入口已经不是“先改文件、再跑一串 CLI”，而是：
+
+```text
+Dashboard -> Mission Launcher -> Approve & Plan -> Create/Bind Linear -> Launch
+```
+
+打开 dashboard：
+
+```text
+http://127.0.0.1:8420
+```
+
+然后点击右上角：
+
+- `+ New Mission`
+
+这会打开 `Mission Launcher` 侧栏。按这个顺序做：
+
+1. `Refresh Readiness`
+   - 确认 `Config / Dashboard / Linear / Planner / Builder` 都 ready
+2. 填写：
+   - `Mission title`
+   - `Mission id` 可选
+   - `Intent`
+   - `Acceptance criteria`
+   - `Constraints`
+3. 点击 `Create Draft`
+   - 会自动创建 `docs/specs/<mission_id>/spec.md`
+4. 点击 `Approve & Plan`
+   - 会自动冻结 mission 并生成 `plan.json`
+5. 二选一：
+   - `Create Linear Issue`
+   - `Bind Existing Issue`
+6. 点击 `Launch Mission`
+   - dashboard 会调用 launcher API，把 mission 送进 lifecycle/daemon 流程
+
+这条路径是现在推荐的最小可视化 E2E。
+
+---
+
+## 4. CLI 回退流程：手动创建一个可试跑的 Mission
+
+### 4.1 创建 mission
 
 ```bash
 uv run --python 3.13 spec-orch mission create "Supervisor E2E Smoke" --id supervisor-e2e-smoke
@@ -122,7 +164,7 @@ uv run --python 3.13 spec-orch mission create "Supervisor E2E Smoke" --id superv
 docs/specs/supervisor-e2e-smoke/spec.md
 ```
 
-### 3.2 编辑 spec
+### 4.2 编辑 spec
 
 建议第一条真实试跑把范围压小：
 
@@ -130,7 +172,7 @@ docs/specs/supervisor-e2e-smoke/spec.md
 - 只包含 1-2 条 acceptance criteria
 - 不要跨多个子系统
 
-### 3.3 approve + plan
+### 4.3 approve + plan
 
 ```bash
 uv run --python 3.13 spec-orch mission approve supervisor-e2e-smoke
@@ -147,7 +189,7 @@ docs/specs/supervisor-e2e-smoke/plan.json
 
 ---
 
-## 4. 让 Daemon 识别这是一个 Mission
+## 5. 让 Daemon 识别这是一个 Mission
 
 daemon 识别 mission 的规则是：
 
@@ -164,7 +206,7 @@ mission: supervisor-e2e-smoke
 
 ---
 
-## 5. 启动 E2E 试跑
+## 6. 启动 E2E 试跑
 
 第一次一定前台跑，不要后台化：
 
@@ -190,7 +232,7 @@ daemon
 
 ---
 
-## 6. 一次试跑里到底该看什么
+## 7. 一次试跑里到底该看什么
 
 把观测分成三层，不要把所有文件混在一起看。
 

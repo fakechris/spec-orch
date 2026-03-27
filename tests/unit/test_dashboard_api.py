@@ -39,6 +39,110 @@ def client(repo: Path):
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="fastapi not installed")
 class TestDashboardAPI:
+    def test_launcher_readiness_endpoint(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "spec_orch.dashboard.routes.dashboard_app._gather_launcher_readiness",
+            lambda root: {
+                "config_present": True,
+                "dashboard": {"ready": True},
+                "linear": {"ready": False, "token_env": "SPEC_ORCH_LINEAR_TOKEN"},
+                "planner": {"ready": True, "model": "MiniMax-M2.5"},
+                "builder": {"ready": True, "adapter": "acpx_codex"},
+            },
+        )
+
+        response = client.get("/api/launcher/readiness")
+
+        assert response.status_code == 200
+        assert response.json()["linear"]["ready"] is False
+
+    def test_launcher_create_mission_endpoint(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "spec_orch.dashboard.routes.dashboard_app._create_mission_draft",
+            lambda root, payload: {
+                "mission_id": "launcher-created",
+                "title": payload["title"],
+                "status": "drafting",
+                "spec_path": "docs/specs/launcher-created/spec.md",
+            },
+        )
+
+        response = client.post(
+            "/api/launcher/missions",
+            json={"title": "Launcher Created", "intent": "Create from dashboard."},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["mission_id"] == "launcher-created"
+
+    def test_launcher_approve_plan_endpoint(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "spec_orch.dashboard.routes.dashboard_app._approve_and_plan_mission",
+            lambda root, mission_id: {
+                "mission_id": mission_id,
+                "approved_at": "2026-03-27T08:00:00+00:00",
+                "status": "approved",
+                "plan": {"plan_id": "plan-1", "waves": []},
+            },
+        )
+
+        response = client.post("/api/launcher/missions/launcher-smoke/approve-plan")
+
+        assert response.status_code == 200
+        assert response.json()["plan"]["plan_id"] == "plan-1"
+
+    def test_launcher_linear_create_endpoint(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "spec_orch.dashboard.routes.dashboard_app._create_linear_issue_for_mission",
+            lambda root, mission_id, title, description: {
+                "mission_id": mission_id,
+                "linear_issue": {
+                    "id": "issue-1",
+                    "identifier": "SON-999",
+                    "title": title,
+                },
+            },
+        )
+
+        response = client.post(
+            "/api/launcher/missions/launcher-smoke/linear-create",
+            json={"title": "Dogfood launcher run", "description": "Track this run."},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["linear_issue"]["identifier"] == "SON-999"
+
+    def test_launcher_linear_bind_endpoint(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "spec_orch.dashboard.routes.dashboard_app._bind_linear_issue_to_mission",
+            lambda root, mission_id, linear_issue_id: {
+                "mission_id": mission_id,
+                "linear_issue": {"identifier": linear_issue_id},
+            },
+        )
+
+        response = client.post(
+            "/api/launcher/missions/launcher-smoke/linear-bind",
+            json={"linear_issue_id": "SON-241"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["linear_issue"]["identifier"] == "SON-241"
+
+    def test_launcher_launch_endpoint(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "spec_orch.dashboard.routes.dashboard_app._launch_mission",
+            lambda root, mission_id: {
+                "mission_id": mission_id,
+                "state": {"mission_id": mission_id, "phase": "executing"},
+            },
+        )
+
+        response = client.post("/api/launcher/missions/launcher-smoke/launch")
+
+        assert response.status_code == 200
+        assert response.json()["state"]["phase"] == "executing"
+
     def test_health(self, client):
         r = client.get("/api/health")
         assert r.status_code == 200

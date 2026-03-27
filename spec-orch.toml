@@ -37,10 +37,17 @@ collection = "spec_orch_memory"
 embedding_model = "BAAI/bge-small-zh-v1.5"
 
 [planner]
-model = "MiniMax-M2.5"
+model = "MiniMax-M2.7-highspeed"
 api_type = "anthropic"
-api_key_env = "SPEC_ORCH_LLM_API_KEY"
-api_base_env = "SPEC_ORCH_LLM_API_BASE"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+
+[supervisor]
+adapter = "litellm"
+model = "MiniMax-M2.7-highspeed"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+max_rounds = 12
 
 [daemon]
 max_concurrent = 1

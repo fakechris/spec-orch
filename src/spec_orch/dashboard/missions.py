@@ -75,11 +75,74 @@ def _derive_approval_state(
     }
 
 
+def _mission_phase_rank(phase: str) -> int:
+    normalized = str(phase or "").lower()
+    if normalized == "executing":
+        return 0
+    if normalized in {"failed", "all_done", "retrospecting", "evolving"}:
+        return 1
+    if normalized in {"approved", "planning", "planned", "promoting"}:
+        return 2
+    if normalized == "completed":
+        return 3
+    return 4
+
+
+def _mission_evidence_counts(specs_dir: Path) -> dict[str, int]:
+    rounds_dir = specs_dir / "rounds"
+    operator_dir = specs_dir / "operator"
+    if not rounds_dir.exists() and not operator_dir.exists():
+        return {
+            "round_count": 0,
+            "visual_round_count": 0,
+            "approval_action_count": 0,
+        }
+
+    round_count = 0
+    visual_round_count = 0
+    if rounds_dir.exists():
+        for round_dir in rounds_dir.glob("round-*"):
+            if not round_dir.is_dir():
+                continue
+            if (round_dir / "round_summary.json").exists():
+                round_count += 1
+            if (round_dir / "visual_evaluation.json").exists():
+                visual_round_count += 1
+
+    approval_action_count = 0
+    approval_path = operator_dir / "approval_actions.jsonl"
+    if approval_path.exists():
+        try:
+            approval_action_count = sum(
+                1 for line in approval_path.read_text(encoding="utf-8").splitlines() if line.strip()
+            )
+        except OSError:
+            approval_action_count = 0
+
+    return {
+        "round_count": round_count,
+        "visual_round_count": visual_round_count,
+        "approval_action_count": approval_action_count,
+    }
+
+
+def _mission_sort_phase_rank(mission: dict[str, Any]) -> int:
+    value = mission.get("sort_phase_rank", 9)
+    return value if isinstance(value, int) else 9
+
+
+def _mission_sort_timestamp(mission: dict[str, Any]) -> str:
+    value = mission.get("sort_timestamp", "")
+    return value if isinstance(value, str) else ""
+
+
 def _gather_missions(repo_root: Path) -> list[dict[str, Any]]:
     svc = MissionService(repo_root=repo_root)
     missions = svc.list_missions()
+    lifecycle_states = _gather_lifecycle_states(repo_root)
     results = []
     for mission in missions:
+        specs_dir = repo_root / "docs/specs" / mission.mission_id
         plan_path = repo_root / "docs/specs" / mission.mission_id / "plan.json"
         plan_info: dict[str, Any] | None = None
         if plan_path.exists():
@@ -118,6 +181,15 @@ def _gather_missions(repo_root: Path) -> list[dict[str, Any]]:
             }
             for stage in stages
         ]
+        lifecycle = lifecycle_states.get(mission.mission_id, {})
+        phase = str(lifecycle.get("phase") or mission.status.value)
+        sort_timestamp = (
+            str(lifecycle.get("updated_at") or "")
+            or str(mission.completed_at or "")
+            or str(mission.approved_at or "")
+            or str(mission.created_at or "")
+        )
+        evidence = _mission_evidence_counts(specs_dir)
 
         results.append(
             {
@@ -131,8 +203,13 @@ def _gather_missions(repo_root: Path) -> list[dict[str, Any]]:
                 "pipeline": pipeline,
                 "pipeline_done": sum(1 for stage in stages if stage.status == "done"),
                 "pipeline_total": len(stages),
+                "evidence": evidence,
+                "sort_phase_rank": _mission_phase_rank(phase),
+                "sort_timestamp": sort_timestamp,
             }
         )
+    results.sort(key=_mission_sort_timestamp, reverse=True)
+    results.sort(key=_mission_sort_phase_rank)
     return results
 
 

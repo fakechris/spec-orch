@@ -16,6 +16,10 @@ from . import shell as dashboard_shell
 
 MISSION_IDS_BODY = Body(..., embed=True)
 ACTION_KEY_BODY = Body(..., embed=True)
+LAUNCHER_PAYLOAD_BODY = Body(...)
+LAUNCHER_TITLE_BODY = Body(...)
+LAUNCHER_DESCRIPTION_BODY = Body("")
+LAUNCHER_LINEAR_ISSUE_ID_BODY = Body(..., embed=True)
 
 
 def register_routes(app: FastAPI, root: Path) -> None:
@@ -112,6 +116,77 @@ def register_routes(app: FastAPI, root: Path) -> None:
     @app.get("/api/inbox")
     async def api_inbox() -> JSONResponse:
         return JSONResponse(dashboard_app._gather_inbox(root))
+
+    @app.get("/api/launcher/readiness")
+    async def api_launcher_readiness() -> JSONResponse:
+        return JSONResponse(dashboard_app._gather_launcher_readiness(root))
+
+    @app.post("/api/launcher/missions")
+    async def api_launcher_create_mission(
+        payload: dict[str, Any] = LAUNCHER_PAYLOAD_BODY,
+    ) -> JSONResponse:
+        try:
+            return JSONResponse(dashboard_app._create_mission_draft(root, payload))
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except Exception:
+            return JSONResponse({"error": "Mission draft creation failed"}, status_code=500)
+
+    @app.post("/api/launcher/missions/{mission_id}/approve-plan")
+    async def api_launcher_approve_plan(mission_id: str) -> JSONResponse:
+        try:
+            return JSONResponse(dashboard_app._approve_and_plan_mission(root, mission_id))
+        except FileNotFoundError:
+            return JSONResponse({"error": "Mission not found"}, status_code=404)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except Exception:
+            return JSONResponse({"error": "Mission approve/plan failed"}, status_code=500)
+
+    @app.post("/api/launcher/missions/{mission_id}/linear-create")
+    async def api_launcher_linear_create(
+        mission_id: str,
+        title: str = LAUNCHER_TITLE_BODY,
+        description: str = LAUNCHER_DESCRIPTION_BODY,
+    ) -> JSONResponse:
+        try:
+            return JSONResponse(
+                dashboard_app._create_linear_issue_for_mission(
+                    root,
+                    mission_id,
+                    title=title,
+                    description=description,
+                )
+            )
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except Exception:
+            return JSONResponse({"error": "Linear issue creation failed"}, status_code=500)
+
+    @app.post("/api/launcher/missions/{mission_id}/linear-bind")
+    async def api_launcher_linear_bind(
+        mission_id: str,
+        linear_issue_id: str = LAUNCHER_LINEAR_ISSUE_ID_BODY,
+    ) -> JSONResponse:
+        try:
+            return JSONResponse(
+                dashboard_app._bind_linear_issue_to_mission(root, mission_id, linear_issue_id)
+            )
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except Exception:
+            return JSONResponse({"error": "Linear issue binding failed"}, status_code=500)
+
+    @app.post("/api/launcher/missions/{mission_id}/launch")
+    async def api_launcher_launch(mission_id: str) -> JSONResponse:
+        try:
+            return JSONResponse(dashboard_app._launch_mission(root, mission_id))
+        except FileNotFoundError:
+            return JSONResponse({"error": "Mission not found"}, status_code=404)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except Exception:
+            return JSONResponse({"error": "Mission launch failed"}, status_code=500)
 
     @app.get("/api/approvals")
     async def api_approvals() -> JSONResponse:

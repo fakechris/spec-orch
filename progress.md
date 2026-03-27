@@ -219,6 +219,66 @@
 
 ## Session: 2026-03-25
 
+### Operator Console and Mission Launcher Consolidation
+- **Status:** complete
+- Actions taken:
+  - Promoted the dashboard into a real operator console with mission detail, transcript, approval queue, visual QA, and costs surfaces.
+  - Added a dashboard-first mission launcher so operators can create, approve, plan, bind, and launch a mission without editing files or manually touching Linear descriptions.
+  - Tightened left-rail work-mode semantics, mission ordering, and launcher feedback so newly launched missions are discoverable and startup UX is less confusing.
+- Files created/modified:
+  - `src/spec_orch/dashboard/launcher.py`
+  - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/dashboard/missions.py`
+  - `src/spec_orch/dashboard/routes.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.css`
+  - `docs/guides/operator-console.md`
+  - `docs/guides/supervised-mission-e2e-playbook.md`
+  - `spec-orch.toml`
+
+### Acceptance Evaluator Planning
+- **Status:** in_progress
+- Actions taken:
+  - Defined the next slice as an independent acceptance evaluator rather than further manual dashboard QA.
+  - Wrote a concrete implementation plan for Playwright evidence capture, separate evaluator LLM review, structured acceptance artifacts, and policy-gated Linear issue filing.
+- Files created/modified:
+  - `docs/plans/2026-03-27-acceptance-evaluator-playwright-linear.md`
+  - `task_plan.md`
+  - `progress.md`
+
+## Session: 2026-03-27
+
+### Dashboard Mission Launcher
+- **Status:** in progress
+- **Goal:** Replace the current file-edit + CLI + manual-Linear mission startup path with a dashboard-first launcher flow.
+- Actions taken:
+  - Created a new implementation plan for `Dashboard Mission Launcher`.
+  - Added a new launcher service module with readiness, draft, approve+plan, Linear create/bind, and launch helpers.
+  - Added launcher API routes under `/api/launcher/...`.
+  - Added a minimal launcher sidebar to the dashboard so users can create, plan, bind, and launch missions from the UI.
+  - Updated the operator-console guide and supervised-mission E2E playbook to make the dashboard-first flow the recommended path.
+  - Created a real dogfood mission skeleton at `docs/specs/operator-console-dogfood-smoke/spec.md`.
+  - Created the next-phase Linear epic/issues for operator-console depth and dogfood validation (`SON-234` through `SON-241`).
+- Files created/modified:
+  - `docs/plans/2026-03-27-dashboard-mission-launcher.md`
+  - `docs/guides/operator-console.md`
+  - `docs/guides/supervised-mission-e2e-playbook.md`
+  - `docs/specs/operator-console-dogfood-smoke/spec.md`
+  - `src/spec_orch/dashboard/launcher.py`
+  - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/dashboard/api.py`
+  - `src/spec_orch/dashboard/routes.py`
+  - `src/spec_orch/dashboard/__init__.py`
+  - `tests/unit/test_dashboard_launcher.py`
+  - `tests/unit/test_dashboard_api.py`
+  - `tests/unit/test_dashboard_package.py`
+  - `task_plan.md`
+  - `progress.md`
+- Verification:
+  - `pytest tests/unit/test_dashboard_launcher.py -q` passed
+  - `pytest tests/unit/test_dashboard_api.py -q -k launcher` passed
+  - `pytest tests/unit/test_dashboard_launcher.py tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py tests/unit/test_dashboard.py -q` passed
+  - `ruff check` for dashboard files/tests passed
+
 ### Operator Console Refactor Continuation
 - **Status:** in_progress
 - Actions taken:
