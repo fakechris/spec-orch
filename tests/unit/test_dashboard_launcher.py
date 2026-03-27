@@ -155,12 +155,13 @@ def test_create_linear_issue_for_mission_records_launch_metadata(
             if "issueCreate" in graphql:
                 return {
                     "issueCreate": {
+                        "success": True,
                         "issue": {
                             "id": "issue-1",
                             "identifier": "SON-999",
                             "title": variables["title"],
                             "url": "https://linear.app/songwork/issue/SON-999/example",
-                        }
+                        },
                     }
                 }
             raise AssertionError(graphql)
@@ -225,6 +226,75 @@ def test_create_linear_issue_for_mission_requires_resolved_team(
             title="Dogfood launcher run",
             description="Track this dogfood run.",
         )
+
+
+def test_create_linear_issue_for_mission_validates_mutation_success(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import (
+        _create_linear_issue_for_mission,
+        _create_mission_draft,
+    )
+
+    _create_mission_draft(
+        repo,
+        {
+            "title": "Linear Launch",
+            "mission_id": "linear-launch",
+            "intent": "Bind mission to Linear.",
+            "acceptance_criteria": [],
+            "constraints": [],
+        },
+    )
+
+    class FakeLinearClient:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        def query(self, graphql: str, variables: dict | None = None) -> dict:
+            if "teams(" in graphql:
+                return {"teams": {"nodes": [{"id": "team-1", "key": "SON", "name": "Songwork"}]}}
+            if "issueCreate" in graphql:
+                return {"issueCreate": {"success": False, "issue": None}}
+            raise AssertionError(graphql)
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("spec_orch.dashboard.launcher.LinearClient", FakeLinearClient)
+
+    with pytest.raises(ValueError, match="Linear issue creation failed"):
+        _create_linear_issue_for_mission(
+            repo,
+            "linear-launch",
+            title="Dogfood launcher run",
+            description="Track this dogfood run.",
+        )
+
+
+def test_write_launch_metadata_uses_dedicated_lock(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import _write_launch_metadata
+
+    events: list[str] = []
+
+    class RecordingLock:
+        def __enter__(self) -> None:
+            events.append("enter")
+            return None
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            events.append("exit")
+            return None
+
+    monkeypatch.setattr("spec_orch.dashboard.launcher._LAUNCH_META_LOCK", RecordingLock())
+
+    _write_launch_metadata(repo, "lock-me", {"runner": {"status": "running"}})
+
+    assert events == ["enter", "exit"]
 
 
 def test_launch_mission_uses_lifecycle_and_returns_state(

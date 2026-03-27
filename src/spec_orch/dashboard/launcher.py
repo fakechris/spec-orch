@@ -15,6 +15,7 @@ from spec_orch.services.promotion_service import load_plan
 
 _RUNNER_LOCK = threading.Lock()
 _ACTIVE_RUNNERS: dict[str, threading.Thread] = {}
+_LAUNCH_META_LOCK = threading.Lock()
 
 
 def _load_raw_config(repo_root: Path) -> dict[str, Any]:
@@ -65,13 +66,14 @@ def _write_launch_metadata(
     mission_id: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    current = _read_launch_metadata(repo_root, mission_id)
-    current.update(payload)
-    _launch_meta_path(repo_root, mission_id).write_text(
-        json.dumps(current, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return current
+    with _LAUNCH_META_LOCK:
+        current = _read_launch_metadata(repo_root, mission_id)
+        current.update(payload)
+        _launch_meta_path(repo_root, mission_id).write_text(
+            json.dumps(current, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return current
 
 
 def _build_spec_markdown(
@@ -245,7 +247,7 @@ def _create_linear_issue_for_mission(
         if not team_nodes:
             raise ValueError(f"Linear team not found for configured key: {team_key}")
         team = team_nodes[0]
-        payload = client.query(
+        response = client.query(
             """
             mutation($teamId: String!, $title: String!, $description: String!) {
               issueCreate(input: {
@@ -263,7 +265,16 @@ def _create_linear_issue_for_mission(
                 "title": title,
                 "description": _mission_binding_description(mission_id, description),
             },
-        )["issueCreate"]["issue"]
+        )
+        issue_create = response.get("issueCreate") if isinstance(response, dict) else None
+        issue_payload = issue_create if isinstance(issue_create, dict) else None
+        payload = issue_payload.get("issue") if issue_payload else None
+        if (
+            not issue_payload
+            or issue_payload.get("success") is not True
+            or not isinstance(payload, dict)
+        ):
+            raise ValueError(f"Linear issue creation failed: {response!r}")
         launch_meta = _write_launch_metadata(
             repo_root,
             mission_id,
