@@ -56,8 +56,8 @@ Keep using the impeccable workflow as a continuous loop, not a final polish pass
 
 The following items from the refreshed foundation backlog are now complete:
 
-- Transcript UX moved forward with clearer block types, command-burst grouping, linked evidence markers, and a stronger inspector
-- Approval Queue is now a dedicated dashboard surface with batch actions, urgency, wait-time surfacing, and audit-backed feedback
+- Transcript UX moved forward with clearer block types, command-burst grouping, emphasis states, linked evidence markers, and a stronger inspector
+- Approval Queue is now a dedicated dashboard surface with batch actions, urgency, wait-time surfacing, audit-backed feedback, and mission-focus navigation
 - Visual QA is now a dedicated mission surface with screenshot/gallery surfacing, blocking summaries, and artifact links
 - Costs & Budgets is now a dedicated mission surface with thresholds, incidents, and Inbox alerts
 - `app.py` has been reduced further by moving the heavy approval/transcript/surface rendering into shared helpers, removing duplicated transcript implementations, and dropping the obsolete inline helper fallback

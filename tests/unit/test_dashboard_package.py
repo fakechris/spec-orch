@@ -70,6 +70,7 @@ def test_dashboard_package_exposes_surface_helpers() -> None:
 
 
 def test_dashboard_package_exposes_shell_template() -> None:
-    from spec_orch.dashboard.shell import DASHBOARD_HTML
+    from spec_orch.dashboard.shell import DASHBOARD_HTML, build_dashboard_html
 
     assert "operator-shell" in DASHBOARD_HTML
+    assert callable(build_dashboard_html)

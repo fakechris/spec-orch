@@ -362,7 +362,33 @@
             <button class="btn btn-sm" type="button" ${disabled ? 'disabled' : ''} onclick="triggerApprovalBatchAction('ask_followup')">Ask follow-up</button>
           </div>
         </div>
-        ${batchState?.summary ? `<div class="context-card queue-summary"><div class="context-title">Batch status</div><div class="context-meta">${safeEsc(escHtml, batchState.summary)}</div></div>` : ''}
+        ${batchState?.summary ? `
+          <div class="context-card queue-summary">
+            <div class="context-title">Batch status</div>
+            <div class="context-meta">${safeEsc(escHtml, batchState.summary)}</div>
+            ${batchState?.focusMissionId ? `
+              <div class="context-meta">
+                <button class="btn btn-sm" type="button" onclick="focusMissionFromBatch('${safeEsc(escHtml, batchState.focusMissionId)}')">Open affected mission</button>
+              </div>
+            ` : ''}
+            ${Array.isArray(batchState?.results) && batchState.results.length ? `
+              <div class="context-list detail-section">
+                ${batchState.results.map(item => `
+                  <div class="context-card">
+                    <div class="context-title">${safeEsc(escHtml, item?.action?.label || item?.mission_id || 'Mission')}</div>
+                    <div class="context-meta">
+                      <span class="detail-chip">${safeEsc(escHtml, item?.action?.status || 'unknown')}</span>
+                      <span>${safeEsc(escHtml, item?.mission_id || '')}</span>
+                    </div>
+                    <div class="context-meta">
+                      <button class="btn btn-sm" type="button" onclick="focusMissionFromBatch('${safeEsc(escHtml, item?.mission_id || '')}')">Open mission</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
         <div class="context-list">
           ${items.map(item => `
             <div class="context-card queue-card ${selected.has(item?.mission_id) ? 'active' : ''}">
@@ -587,6 +613,7 @@
                   <div class="transcript-entry-header">
                     <div class="context-title">${safeEsc(escHtml, block.title || 'event')}</div>
                     <span class="run-class">${safeEsc(escHtml, block.block_type || 'event')}</span>
+                    ${block.emphasis ? `<span class="detail-chip detail-chip-${safeEsc(escHtml, block.emphasis)}">${safeEsc(escHtml, block.emphasis)}</span>` : ''}
                   </div>
                   <div class="transcript-entry-meta">
                     <span>${safeEsc(escHtml, block.timestamp || '—')}</span>
@@ -641,12 +668,13 @@
     const links = [block.artifact_path, block.source_path].filter(Boolean)
     const burstItems = Array.isArray(block.items) ? block.items : []
     return `
-      <div class="context-card">
-        <div class="context-title">${safeEsc(escHtml, block.title || 'Transcript evidence')}</div>
-        <div class="context-meta">
-          <span>${safeEsc(escHtml, block.block_type || 'event')}</span>
-          <span>${safeEsc(escHtml, block.timestamp || '—')}</span>
-        </div>
+        <div class="context-card">
+          <div class="context-title">${safeEsc(escHtml, block.title || 'Transcript evidence')}</div>
+          <div class="context-meta">
+            <span>${safeEsc(escHtml, block.block_type || 'event')}</span>
+            ${block.emphasis ? `<span class="detail-chip detail-chip-${safeEsc(escHtml, block.emphasis)}">${safeEsc(escHtml, block.emphasis)}</span>` : ''}
+            <span>${safeEsc(escHtml, block.timestamp || '—')}</span>
+          </div>
         ${block.body ? `<div class="transcript-entry-body">${safeEsc(escHtml, block.body)}</div>` : ''}
       </div>
       ${renderTranscriptDetails(block.details, escHtml)}

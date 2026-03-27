@@ -597,9 +597,16 @@ class TestDashboardAPI:
             "not_applied": 1,
             "failed": 0,
         }
+        assert payload["focus_mission_id"] == "mission-batch-b"
         assert [item["mission_id"] for item in payload["results"]] == mission_ids
         assert payload["results"][0]["action"]["status"] == "applied"
         assert payload["results"][1]["action"]["status"] == "not_applied"
+        assert payload["results"][0]["redirect_to"].endswith(
+            "mission=mission-batch-a&mode=missions&tab=approvals"
+        )
+        assert payload["results"][1]["redirect_to"].endswith(
+            "mission=mission-batch-b&mode=missions&tab=approvals"
+        )
         assert calls == [
             ("mission-batch-a", "@approve Approve rollout after QA?", "web-dashboard"),
             ("mission-batch-b", "@approve Approve rollout after QA?", "web-dashboard"),
@@ -920,6 +927,7 @@ class TestDashboardAPI:
         assert data["blocks"] == [
             {
                 "block_type": "activity",
+                "emphasis": "log",
                 "timestamp": "2026-03-25T00:11:00Z",
                 "title": "BUILDER packet started",
                 "body": "2026-03-25T00:11:00Z BUILDER packet started",
@@ -927,6 +935,7 @@ class TestDashboardAPI:
             },
             {
                 "block_type": "milestone",
+                "emphasis": "milestone",
                 "timestamp": "2026-03-25T00:11:30Z",
                 "title": "packet started",
                 "body": "mission_packet_started",
@@ -939,6 +948,7 @@ class TestDashboardAPI:
             },
             {
                 "block_type": "message",
+                "emphasis": "narrative",
                 "timestamp": "2026-03-25T00:11:40Z",
                 "title": "Implementing mission detail now.",
                 "body": "assistant_message",
@@ -951,6 +961,7 @@ class TestDashboardAPI:
             },
             {
                 "block_type": "tool",
+                "emphasis": "tool",
                 "timestamp": "2026-03-25T00:11:45Z",
                 "title": "applied patch",
                 "body": "tool_call_completed",
@@ -963,6 +974,7 @@ class TestDashboardAPI:
             },
             {
                 "block_type": "activity",
+                "emphasis": "log",
                 "timestamp": "2026-03-25T00:12:00Z",
                 "title": "BUILDER packet completed",
                 "body": "2026-03-25T00:12:00Z BUILDER packet completed",
@@ -1058,6 +1070,7 @@ class TestDashboardAPI:
         assert data["blocks"][-2:] == [
             {
                 "block_type": "supervisor",
+                "emphasis": "decision",
                 "timestamp": "2026-03-25T00:12:30Z",
                 "title": "Need human approval before rollout.",
                 "body": "ask_human",
@@ -1070,6 +1083,7 @@ class TestDashboardAPI:
             },
             {
                 "block_type": "visual_finding",
+                "emphasis": "alert",
                 "timestamp": "2026-03-25T00:12:30Z",
                 "title": "Visual QA found a spacing regression.",
                 "body": "playwright",
@@ -1355,6 +1369,7 @@ class TestDashboardAPI:
         assert data["blocks"] == [
             {
                 "block_type": "command_burst",
+                "emphasis": "burst",
                 "timestamp": "2026-03-25T00:11:45Z",
                 "title": "3 tool events",
                 "body": "running ruff • ruff clean • pytest passed",
@@ -1370,6 +1385,7 @@ class TestDashboardAPI:
                 "items": [
                     {
                         "block_type": "tool",
+                        "emphasis": "tool",
                         "timestamp": "2026-03-25T00:11:45Z",
                         "title": "running ruff",
                         "body": "tool_call_started",
@@ -1382,6 +1398,7 @@ class TestDashboardAPI:
                     },
                     {
                         "block_type": "tool",
+                        "emphasis": "tool",
                         "timestamp": "2026-03-25T00:11:46Z",
                         "title": "ruff clean",
                         "body": "tool_call_completed",
@@ -1394,6 +1411,7 @@ class TestDashboardAPI:
                     },
                     {
                         "block_type": "tool",
+                        "emphasis": "tool",
                         "timestamp": "2026-03-25T00:11:47Z",
                         "title": "pytest passed",
                         "body": "tool_call_completed",
@@ -1480,11 +1498,13 @@ class TestDashboardAPI:
             "excerpt": "Implementing transcript payload details.",
             "message": "Implementing transcript payload details.",
         }
+        assert data["blocks"][0]["emphasis"] == "narrative"
         assert data["blocks"][-2]["details"] == {
             "reason_code": "needs_review",
             "confidence": 0.74,
             "blocking_questions": ["Approve transcript changes?"],
         }
+        assert data["blocks"][-2]["emphasis"] == "decision"
         assert data["blocks"][-1]["details"] == {
             "confidence": 0.81,
             "findings": [{"severity": "blocking", "message": "Header overlaps metrics."}],
@@ -1492,6 +1512,7 @@ class TestDashboardAPI:
                 "dashboard": f"docs/specs/{mission_id}/rounds/round-03/visual/dashboard.png"
             },
         }
+        assert data["blocks"][-1]["emphasis"] == "alert"
 
     def test_lifecycle_endpoint(self, client):
         r = client.get("/api/lifecycle")

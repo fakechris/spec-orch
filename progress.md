@@ -240,9 +240,11 @@
   - Removed duplicated transcript implementation from `app.py`, leaving the package-backed transcript module as the single owner.
   - Added a dedicated `docs/guides/operator-console.md` guide and updated service/run docs to point to the operator-console workflow first.
   - Deepened Approval Queue with urgency, wait-time surfacing, batch actions, and persisted batch feedback.
+  - Added post-batch mission focus/navigation so approval processing can jump directly into the affected mission.
   - Deepened Visual QA with gallery extraction, blocking-round summaries, and artifact-backed screenshot surfacing.
   - Deepened Costs/Budgets with thresholds from `spec-orch.toml`, incident detection, and Inbox budget alerts.
   - Removed the obsolete inline operator-console helper fallback from `app.py`, leaving the static helper bundle as the single owner for heavy rendering logic.
+  - Added transcript emphasis semantics so milestones, decisions, alerts, and bursts surface with clearer reading hierarchy.
 - Files created/modified:
   - `src/spec_orch/dashboard/missions.py`
   - `src/spec_orch/dashboard/api.py`

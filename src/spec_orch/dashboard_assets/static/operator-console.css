@@ -497,6 +497,39 @@ button.transcript-entry.active {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.detail-chip-milestone {
+  border-color: color-mix(in srgb, var(--blue) 35%, var(--border));
+  color: color-mix(in srgb, var(--blue) 72%, white);
+}
+
+.detail-chip-decision {
+  border-color: color-mix(in srgb, var(--purple) 35%, var(--border));
+  color: color-mix(in srgb, var(--purple) 72%, white);
+}
+
+.detail-chip-alert,
+.detail-chip-critical {
+  border-color: color-mix(in srgb, var(--red) 40%, var(--border));
+  color: color-mix(in srgb, var(--red) 76%, white);
+}
+
+.detail-chip-narrative {
+  border-color: color-mix(in srgb, var(--amber) 35%, var(--border));
+  color: color-mix(in srgb, var(--amber) 82%, white);
+}
+
+.detail-chip-burst,
+.detail-chip-tool {
+  border-color: color-mix(in srgb, var(--green) 35%, var(--border));
+  color: color-mix(in srgb, var(--green) 76%, white);
+}
+
+.detail-chip-log,
+.detail-chip-event,
+.detail-chip-neutral {
+  color: var(--dim);
+}
+
 .detail-empty,
 .detail-json {
   color: var(--dim);

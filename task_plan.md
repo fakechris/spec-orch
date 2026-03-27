@@ -13,7 +13,7 @@
 | 3. Comparative analysis | complete | Compared product model, observability surfaces, UX patterns, and architecture choices |
 | 4. SpecOrch implications | complete | Converted research into operator-console design principles, workbench IA, and implementation slices |
 | 5. Operator console foundation | complete | Mission detail shell, transcript timeline blocks, websocket hardening, inbox scaffolding, approval-aware inbox semantics, approval history-linked inbox items, transcript filter-bar depth, transcript inspector scaffolding, approval workspace surfacing, explicit approval state feedback, richer evidence rendering, static helper extraction, and dashboard package refactor foundation are all in place |
-| 6. Operator console next-slice planning | complete | Rebased the Todo list around what is actually left, then shipped batchable Approval Queue, screenshot/gallery-first Visual QA surfacing, threshold-aware Costs/Budgets incidents, continued shell cleanup, and a dedicated operator-console guide. Remaining work is now depth and polish, not missing surfaces |
+| 6. Operator console next-slice planning | complete | Rebased the Todo list around what is actually left, then shipped batchable Approval Queue with mission-focus navigation, screenshot/gallery-first Visual QA surfacing, threshold-aware Costs/Budgets incidents, transcript emphasis layering, continued shell cleanup, and a dedicated operator-console guide. Remaining work is now depth and polish, not missing surfaces |
 
 ## Comparison Dimensions
 - User entry points and onboarding flow

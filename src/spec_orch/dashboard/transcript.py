@@ -8,6 +8,33 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _block_emphasis(
+    block_type: str,
+    event_type: str = "",
+    details: dict[str, Any] | None = None,
+) -> str:
+    if block_type == "activity":
+        return "log"
+    if block_type == "message":
+        return "narrative"
+    if block_type == "tool":
+        return "tool"
+    if block_type == "command_burst":
+        return "burst"
+    if block_type == "supervisor":
+        return "decision"
+    if block_type == "visual_finding":
+        return "alert"
+    if block_type == "milestone":
+        lowered = event_type.lower()
+        if any(token in lowered for token in ("failed", "blocked", "paused", "cancel")):
+            return "critical"
+        return "milestone"
+    if block_type == "event":
+        return "event"
+    return "neutral"
+
+
 def _gather_packet_transcript(
     repo_root: Path,
     mission_id: str,
@@ -165,6 +192,7 @@ def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
         body = raw if isinstance(raw, str) else message
         return {
             "block_type": "activity",
+            "emphasis": _block_emphasis("activity"),
             "timestamp": str(entry.get("timestamp", "")),
             "title": message,
             "body": body,
@@ -174,6 +202,7 @@ def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
     if kind == "incoming":
         block = {
             "block_type": "message",
+            "emphasis": _block_emphasis("message"),
             "timestamp": str(entry.get("timestamp", "")),
             "title": message,
             "body": event_type or kind,
@@ -186,6 +215,7 @@ def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
     if event_type.startswith("mission_packet_"):
         block = {
             "block_type": "milestone",
+            "emphasis": _block_emphasis("milestone", event_type, details),
             "timestamp": str(entry.get("timestamp", "")),
             "title": message,
             "body": event_type,
@@ -198,6 +228,7 @@ def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
     if "tool_call" in event_type:
         block = {
             "block_type": "tool",
+            "emphasis": _block_emphasis("tool"),
             "timestamp": str(entry.get("timestamp", "")),
             "title": message,
             "body": event_type,
@@ -209,6 +240,7 @@ def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
 
     block = {
         "block_type": "event",
+        "emphasis": _block_emphasis("event", event_type, details),
         "timestamp": str(entry.get("timestamp", "")),
         "title": message,
         "body": event_type or kind,
@@ -233,6 +265,7 @@ def _group_transcript_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, Any
             grouped.append(
                 {
                     "block_type": "command_burst",
+                    "emphasis": _block_emphasis("command_burst"),
                     "timestamp": current_tool_burst[0].get("timestamp", ""),
                     "title": f"{len(current_tool_burst)} tool events",
                     "body": " • ".join(
@@ -291,6 +324,7 @@ def _gather_round_evidence_blocks(
             blocks.append(
                 {
                     "block_type": "supervisor",
+                    "emphasis": _block_emphasis("supervisor"),
                     "timestamp": timestamp,
                     "title": summary.decision.summary or "Supervisor decision",
                     "body": summary.decision.action.value,
@@ -316,6 +350,7 @@ def _gather_round_evidence_blocks(
             blocks.append(
                 {
                     "block_type": "visual_finding",
+                    "emphasis": _block_emphasis("visual_finding"),
                     "timestamp": timestamp,
                     "title": visual.summary or "Visual evaluation result",
                     "body": visual.evaluator,

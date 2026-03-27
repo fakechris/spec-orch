@@ -102,6 +102,7 @@ Current transcript UX includes:
 
 - block-type filtering
 - command-burst grouping
+- emphasis states for milestones / decisions / alerts
 - linked evidence markers
 - transcript inspector in the right rail
 
@@ -118,6 +119,7 @@ Current approval flow includes:
 - queue-level batch actions
 - queue urgency and wait-time surfacing
 - per-action audit persistence and post-action summaries
+- focus links back into the affected mission after batch actions
 
 Dashboard actions currently write back through the mission `/btw` injection path.
 

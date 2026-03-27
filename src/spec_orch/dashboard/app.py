@@ -1225,6 +1225,8 @@ async function triggerApprovalBatchAction(actionKey) {
     approvalBatchState = {
       pending: false,
       summary: `${data.summary.applied} applied, ${data.summary.not_applied} recorded, ${data.summary.failed} failed`,
+      results: data.results || [],
+      focusMissionId: data.focus_mission_id || null,
     };
     selectedApprovalMissionIds = [];
     await load();
@@ -1235,6 +1237,15 @@ async function triggerApprovalBatchAction(actionKey) {
     };
     renderMissionDetail(selectedMissionDetail);
   }
+}
+
+async function focusMissionFromBatch(missionId) {
+  if (!missionId) return;
+  selectedOperatorMode = 'missions';
+  selectedMissionTab = 'approvals';
+  selectedApprovalMissionIds = [];
+  renderOperatorModes();
+  await selectMission(missionId, {force:true});
 }
 
 async function selectPacket(packetId) {

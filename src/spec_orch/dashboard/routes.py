@@ -9,6 +9,7 @@ from fastapi import Body, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 
 from . import app as dashboard_app
+from . import shell as dashboard_shell
 
 MISSION_IDS_BODY = Body(..., embed=True)
 ACTION_KEY_BODY = Body(..., embed=True)
@@ -61,9 +62,12 @@ def register_routes(app: FastAPI, root: Path) -> None:
                 "action": action_record,
             }
 
+    def _approval_redirect_for(mission_id: str) -> str:
+        return f"/?mission={mission_id}&mode=missions&tab=approvals"
+
     @app.get("/", response_class=HTMLResponse)
     async def index() -> str:
-        return dashboard_app.DASHBOARD_HTML
+        return dashboard_shell.build_dashboard_html()
 
     @app.get("/favicon.ico")
     async def favicon() -> PlainTextResponse:
@@ -277,11 +281,16 @@ def register_routes(app: FastAPI, root: Path) -> None:
         action_key: str = ACTION_KEY_BODY,
     ) -> JSONResponse:
         results: list[dict[str, Any]] = []
+        focus_mission_id: str | None = None
         for mission_id in mission_ids:
             status_code, payload = _apply_approval_action(mission_id, action_key)
+            action_status = payload.get("action", {}).get("status")
+            if focus_mission_id is None and action_status in {"failed", "not_applied"}:
+                focus_mission_id = mission_id
             results.append(
                 {
                     "mission_id": mission_id,
+                    "redirect_to": _approval_redirect_for(mission_id),
                     "status_code": status_code,
                     **payload,
                 }
@@ -301,7 +310,15 @@ def register_routes(app: FastAPI, root: Path) -> None:
                 1 for item in results if item.get("action", {}).get("status") == "failed"
             ),
         }
-        return JSONResponse({"summary": summary, "results": results})
+        if focus_mission_id is None and results:
+            focus_mission_id = results[0]["mission_id"]
+        return JSONResponse(
+            {
+                "summary": summary,
+                "results": results,
+                "focus_mission_id": focus_mission_id,
+            }
+        )
 
     @app.post("/api/btw")
     async def api_btw(
