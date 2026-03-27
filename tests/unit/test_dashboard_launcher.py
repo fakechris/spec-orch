@@ -178,11 +178,56 @@ def test_create_linear_issue_for_mission_records_launch_metadata(
     assert launch_meta["linear_issue"]["identifier"] == "SON-999"
 
 
+def test_create_linear_issue_for_mission_requires_resolved_team(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import (
+        _create_linear_issue_for_mission,
+        _create_mission_draft,
+    )
+
+    _create_mission_draft(
+        repo,
+        {
+            "title": "Linear Launch",
+            "mission_id": "linear-launch",
+            "intent": "Bind mission to Linear.",
+            "acceptance_criteria": [],
+            "constraints": [],
+        },
+    )
+
+    class FakeLinearClient:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        def query(self, graphql: str, variables: dict | None = None) -> dict:
+            if "teams(" in graphql:
+                return {"teams": {"nodes": []}}
+            raise AssertionError(graphql)
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("spec_orch.dashboard.launcher.LinearClient", FakeLinearClient)
+
+    with pytest.raises(ValueError, match="Linear team not found"):
+        _create_linear_issue_for_mission(
+            repo,
+            "linear-launch",
+            title="Dogfood launcher run",
+            description="Track this dogfood run.",
+        )
+
+
 def test_launch_mission_uses_lifecycle_and_returns_state(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from spec_orch.dashboard.launcher import _launch_mission
+
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-test")
 
     class FakeState:
         def __init__(self, phase: str) -> None:

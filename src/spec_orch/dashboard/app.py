@@ -1549,6 +1549,7 @@ async function loadLauncherReadiness() {
   try {
     const res = await fetch('/api/launcher/readiness');
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Launcher readiness failed');
     launcherState.readiness = data;
     renderLauncherReadiness(data);
     setLauncherActionState('refresh-readiness', 'success', 'Ready<span class="btn-meta">Readiness updated</span>');
@@ -1559,6 +1560,12 @@ async function loadLauncherReadiness() {
 }
 
 function openNewMission() {
+  launcherState.missionId = '';
+  launcherState.linearIssue = null;
+  const missionIdInput = document.getElementById('launcher-mission-id');
+  if (missionIdInput) missionIdInput.value = '';
+  const linearIssueInput = document.getElementById('launcher-linear-existing');
+  if (linearIssueInput) linearIssueInput.value = '';
   setSidebarMode('launcher');
   document.getElementById('chat-title').textContent = 'New Mission';
   setLauncherStatus('Fill the mission setup fields, then create the draft.', 'neutral');

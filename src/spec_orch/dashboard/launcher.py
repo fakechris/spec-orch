@@ -214,14 +214,21 @@ def _create_linear_issue_for_mission(
     token_env, team_key = _get_linear_settings(repo_root)
     client = LinearClient(token_env=token_env)
     try:
-        team = client.query(
-            """
+        team_nodes = (
+            client.query(
+                """
             query($key: String!) {
               teams(filter: { key: { eq: $key } }) { nodes { id key name } }
             }
             """,
-            {"key": team_key},
-        )["teams"]["nodes"][0]
+                {"key": team_key},
+            )
+            .get("teams", {})
+            .get("nodes", [])
+        )
+        if not team_nodes:
+            raise ValueError(f"Linear team not found for configured key: {team_key}")
+        team = team_nodes[0]
         payload = client.query(
             """
             mutation($teamId: String!, $title: String!, $description: String!) {

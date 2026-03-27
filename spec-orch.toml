@@ -24,8 +24,8 @@ adapter = "local"
 # --- To use LLM-driven review with MiniMax (OpenAI-compat mode): ---
 # adapter = "llm"
 # model = "openai/MiniMax-M2.5"
-# api_key_env = "SPEC_ORCH_LLM_API_KEY"
-# api_base_env = "SPEC_ORCH_LLM_API_BASE_OPENAI"
+# api_key_env = "MINIMAX_API_KEY"
+# api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
 
 [memory]
 provider = "filesystem_qdrant"
