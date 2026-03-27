@@ -366,13 +366,17 @@ def _launch_mission(repo_root: Path, mission_id: str) -> dict[str, Any]:
     )
     started_background = False
     if state.to_dict().get("phase") == "executing":
-        started_background = _start_background_mission_runner(repo_root, mission_id)
+        if _daemon_is_active(repo_root):
+            runner_status = "daemon_running"
+        else:
+            started_background = _start_background_mission_runner(repo_root, mission_id)
+            runner_status = "running" if started_background else "already_running"
         launch_meta = _write_launch_metadata(
             repo_root,
             mission_id,
             {
                 "runner": {
-                    "status": "running" if started_background else "already_running",
+                    "status": runner_status,
                 }
             },
         )
@@ -390,6 +394,14 @@ def _build_execution_lifecycle_manager(repo_root: Path) -> MissionLifecycleManag
     config = DaemonConfig.from_toml(repo_root / "spec-orch.toml")
     daemon = SpecOrchDaemon(config=config, repo_root=repo_root)
     return daemon._lifecycle_manager
+
+
+def _daemon_is_active(repo_root: Path) -> bool:
+    from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
+
+    config = DaemonConfig.from_toml(repo_root / "spec-orch.toml")
+    heartbeat = SpecOrchDaemon.read_heartbeat(repo_root, lockfile_dir=config.lockfile_dir)
+    return str(heartbeat.get("status") or "") in {"starting", "healthy", "degraded"}
 
 
 def _run_mission_in_background(repo_root: Path, mission_id: str) -> None:

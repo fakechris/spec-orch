@@ -300,9 +300,94 @@ max_rounds = 12
         "spec_orch.dashboard.launcher._start_background_mission_runner",
         lambda root, mission_id: launched.append(mission_id) or True,
     )
+    monkeypatch.setattr("spec_orch.dashboard.launcher._daemon_is_active", lambda root: False)
 
     result = _launch_mission(repo, "launch-me")
 
     assert result["state"]["phase"] == "executing"
     assert calls == [("plan_complete", "launch-me"), ("auto_advance", "launch-me")]
     assert launched == ["launch-me"]
+
+
+def test_launch_mission_skips_background_runner_when_daemon_is_active(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import _launch_mission
+
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-test")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+
+    class FakeState:
+        def __init__(self, phase: str) -> None:
+            self.phase = phase
+
+        def to_dict(self) -> dict[str, str]:
+            return {"mission_id": "launch-me", "phase": self.phase}
+
+    calls: list[tuple[str, str]] = []
+
+    class FakeLifecycleManager:
+        def __init__(self, _root: Path) -> None:
+            return None
+
+        def plan_complete(self, mission_id: str, issue_ids: list[str]) -> FakeState:
+            calls.append(("plan_complete", mission_id))
+            assert issue_ids == ["LOCAL-1"]
+            return FakeState("planned")
+
+        def auto_advance(self, mission_id: str) -> FakeState:
+            calls.append(("auto_advance", mission_id))
+            return FakeState("executing")
+
+    plan_path = repo / "docs" / "specs" / "launch-me"
+    plan_path.mkdir(parents=True)
+    (repo / "spec-orch.toml").write_text(
+        """
+[supervisor]
+adapter = "litellm"
+model = "MiniMax-M2.7-highspeed"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+max_rounds = 12
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    (plan_path / "plan.json").write_text(
+        json.dumps(
+            {
+                "plan_id": "plan-1",
+                "mission_id": "launch-me",
+                "status": "draft",
+                "waves": [
+                    {
+                        "wave_number": 1,
+                        "description": "Wave",
+                        "work_packets": [{"packet_id": "pkt-1", "title": "LOCAL-1"}],
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "spec_orch.dashboard.launcher.MissionLifecycleManager",
+        FakeLifecycleManager,
+    )
+    launched: list[str] = []
+    monkeypatch.setattr(
+        "spec_orch.dashboard.launcher._start_background_mission_runner",
+        lambda root, mission_id: launched.append(mission_id) or True,
+    )
+    monkeypatch.setattr("spec_orch.dashboard.launcher._daemon_is_active", lambda root: True)
+
+    result = _launch_mission(repo, "launch-me")
+
+    assert result["state"]["phase"] == "executing"
+    assert result["background_runner_started"] is False
+    assert result["launch"]["runner"]["status"] == "daemon_running"
+    assert calls == [("plan_complete", "launch-me"), ("auto_advance", "launch-me")]
+    assert launched == []
