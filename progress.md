@@ -229,6 +229,8 @@
   - Linked approval action history back into inbox items so triage surfaces the latest operator decision without opening mission detail first.
   - Added explicit `applied` vs `not_applied` approval-action persistence so operator decisions are no longer flattened into a generic `sent` status.
   - Promoted transcript evidence-rendering helpers into `static/operator-console.js`, reducing inline dashboard script weight and creating a stable helper namespace for future UI extraction.
+  - Extended approval-action auditability to exception paths with persisted `failed` state.
+  - Moved `buildMissionSubtitle`, `renderArtifactLinks`, and `renderRoundContext` into the shared operator-console helper namespace to keep shrinking inline dashboard script ownership.
 - Files created/modified:
   - `src/spec_orch/dashboard/missions.py`
   - `src/spec_orch/dashboard/api.py`

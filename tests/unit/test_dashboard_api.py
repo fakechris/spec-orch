@@ -1181,6 +1181,87 @@ class TestDashboardAPI:
         assert payload["action"]["status"] == "not_applied"
         assert payload["action"]["effect"] == "approval_granted"
 
+    def test_approval_action_endpoint_records_failed_status_when_injection_raises(
+        self,
+        client,
+        repo: Path,
+        monkeypatch,
+    ):
+        mission_id = "mission-approval-hard-fail"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-01"
+        specs.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Approval Hard Fail",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Approval Hard Fail\n", encoding="utf-8")
+        (round_dir / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 1,
+                    "wave_id": 0,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:10:00+00:00",
+                    "completed_at": "2026-03-25T00:11:00+00:00",
+                    "worker_results": [],
+                    "decision": {
+                        "action": "ask_human",
+                        "reason_code": "needs_approval",
+                        "summary": "Approve rollout after QA.",
+                        "confidence": 0.8,
+                        "affected_workers": [],
+                        "artifacts": {},
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": ["Approve rollout after QA?"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        class FakeLifecycleManager:
+            def inject_btw(self, issue_id: str, message: str, channel: str) -> bool:
+                raise RuntimeError("injection exploded")
+
+        monkeypatch.setattr(
+            "spec_orch.dashboard.routes.dashboard_app._get_lifecycle_manager",
+            lambda _root: FakeLifecycleManager(),
+        )
+
+        response = client.post(
+            f"/api/missions/{mission_id}/approval-action",
+            content='{"action_key": "approve"}',
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 500
+        payload = response.json()
+        assert payload["error"] == "Approval action failed"
+        assert payload["action"]["status"] == "failed"
+        history_path = repo / "docs" / "specs" / mission_id / "operator" / "approval_actions.jsonl"
+        history = [
+            json.loads(line)
+            for line in history_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert history[0]["status"] == "failed"
+
     def test_mission_detail_endpoint_includes_approval_history(self, client, repo: Path):
         mission_id = "mission-approval-history"
         specs = repo / "docs" / "specs" / mission_id
@@ -1312,6 +1393,9 @@ class TestDashboardAPI:
         assert "window.SpecOrchOperatorConsole" in js.text
         assert "renderTranscriptDetails" in js.text
         assert "renderDetailValue" in js.text
+        assert "renderArtifactLinks" in js.text
+        assert "renderRoundContext" in js.text
+        assert "buildMissionSubtitle" in js.text
 
     def test_favicon_route_returns_no_content(self, client):
         response = client.get("/favicon.ico")

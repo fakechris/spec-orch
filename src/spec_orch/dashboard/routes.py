@@ -224,7 +224,19 @@ def register_routes(app: FastAPI, root: Path) -> None:
                 }
             )
         except Exception:
-            return JSONResponse({"error": "Approval action failed"}, status_code=500)
+            action_record = dashboard_app._record_approval_action(
+                root,
+                mission_id,
+                action_key=action_key,
+                label=action["label"],
+                message=action["message"],
+                channel="web-dashboard",
+                status="failed",
+            )
+            return JSONResponse(
+                {"error": "Approval action failed", "action": action_record},
+                status_code=500,
+            )
 
     @app.post("/api/btw")
     async def api_btw(

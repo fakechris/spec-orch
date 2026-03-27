@@ -97,8 +97,59 @@
     return effect;
   }
 
+  function renderArtifactLinks(artifacts, escHtml) {
+    const entries = Object.entries(artifacts || {}).filter(([, value]) => Boolean(value));
+    if (!entries.length) {
+      return '<div class="empty-panel">No artifact paths available.</div>';
+    }
+    return entries
+      .map(([key, value]) => `
+        <div class="context-card">
+          <div class="context-title">${safeEsc(escHtml, key)}</div>
+          <div class="context-meta"><span class="artifact-link">${safeEsc(escHtml, value)}</span></div>
+        </div>
+      `)
+      .join('');
+  }
+
+  function renderRoundContext(round, escHtml) {
+    const paths = round?.paths || {};
+    const decision = round?.decision || {};
+    return `
+      <div class="context-card">
+        <div class="context-title">${safeEsc(escHtml, decision.reason_code || 'round decision')}</div>
+        <div class="context-meta">
+          <span>Round ${safeEsc(escHtml, String(round?.round_id || '—'))}</span>
+          <span>${safeEsc(escHtml, round?.status || 'unknown')}</span>
+        </div>
+      </div>
+      ${Object.entries(paths)
+        .filter(([, value]) => Boolean(value))
+        .map(([key, value]) => `
+          <div class="context-card">
+            <div class="context-title">${safeEsc(escHtml, key)}</div>
+            <div class="context-meta">${safeEsc(escHtml, value)}</div>
+          </div>
+        `)
+        .join('')}
+    `;
+  }
+
+  function buildMissionSubtitle(detail) {
+    const mission = detail?.mission || {};
+    const rounds = detail?.rounds || [];
+    const lifecycle = detail?.lifecycle || {};
+    const paused = lifecycle.round_orchestrator_state?.paused;
+    const stateText = paused ? 'Paused for human input.' : 'Supervisor loop active.';
+    const criterionCount = (mission.acceptance_criteria || []).length;
+    return `${stateText} ${criterionCount} acceptance criteria, ${rounds.length} recorded rounds, and ${(detail?.packets || []).length} scoped packets.`;
+  }
+
   window.SpecOrchOperatorConsole = {
+    buildMissionSubtitle,
+    renderArtifactLinks,
     renderDetailValue,
+    renderRoundContext,
     renderTranscriptDetails,
     formatApprovalActionState,
   }

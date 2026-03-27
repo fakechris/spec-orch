@@ -1407,46 +1407,15 @@ function renderSimpleList(items, emptyText) {
 }
 
 function renderArtifactLinks(artifacts) {
-  const entries = Object.entries(artifacts).filter(([, value]) => Boolean(value));
-  if (!entries.length) {
-    return '<div class="empty-panel">No artifact paths available.</div>';
-  }
-  return entries.map(([key, value]) => `
-    <div class="context-card">
-      <div class="context-title">${escHtml(key)}</div>
-      <div class="context-meta"><span class="artifact-link">${escHtml(String(value))}</span></div>
-    </div>
-  `).join('');
+  return getOperatorConsoleHelpers().renderArtifactLinks(artifacts, escHtml);
 }
 
 function renderRoundContext(round) {
-  const paths = round.paths || {};
-  const decision = round.decision || {};
-  return `
-    <div class="context-card">
-      <div class="context-title">${escHtml(decision.reason_code || 'round decision')}</div>
-      <div class="context-meta">
-        <span>Round ${escHtml(String(round.round_id || '—'))}</span>
-        <span>${escHtml(round.status || 'unknown')}</span>
-      </div>
-    </div>
-    ${Object.entries(paths).filter(([, value]) => Boolean(value)).map(([key, value]) => `
-      <div class="context-card">
-        <div class="context-title">${escHtml(key)}</div>
-        <div class="context-meta">${escHtml(String(value))}</div>
-      </div>
-    `).join('')}
-  `;
+  return getOperatorConsoleHelpers().renderRoundContext(round, escHtml);
 }
 
 function buildMissionSubtitle(detail) {
-  const mission = detail.mission || {};
-  const rounds = detail.rounds || [];
-  const lifecycle = detail.lifecycle || {};
-  const paused = lifecycle.round_orchestrator_state?.paused;
-  const stateText = paused ? 'Paused for human input.' : 'Supervisor loop active.';
-  const criterionCount = (mission.acceptance_criteria || []).length;
-  return `${stateText} ${criterionCount} acceptance criteria, ${rounds.length} recorded rounds, and ${(detail.packets || []).length} scoped packets.`;
+  return getOperatorConsoleHelpers().buildMissionSubtitle(detail);
 }
 
 async function selectPacket(packetId) {
@@ -1655,6 +1624,27 @@ function getOperatorConsoleHelpers() {
     return window.SpecOrchOperatorConsole;
   }
   return {
+    buildMissionSubtitle(detail) {
+      const mission = detail?.mission || {};
+      const rounds = detail?.rounds || [];
+      const lifecycle = detail?.lifecycle || {};
+      const paused = lifecycle.round_orchestrator_state?.paused;
+      const stateText = paused ? 'Paused for human input.' : 'Supervisor loop active.';
+      const criterionCount = (mission.acceptance_criteria || []).length;
+      return `${stateText} ${criterionCount} acceptance criteria, ${rounds.length} recorded rounds, and ${(detail?.packets || []).length} scoped packets.`;
+    },
+    renderArtifactLinks(artifacts, esc) {
+      const entries = Object.entries(artifacts || {}).filter(([, value]) => Boolean(value));
+      if (!entries.length) {
+        return '<div class="empty-panel">No artifact paths available.</div>';
+      }
+      return entries.map(([key, value]) => `
+        <div class="context-card">
+          <div class="context-title">${esc(key)}</div>
+          <div class="context-meta"><span class="artifact-link">${esc(String(value))}</span></div>
+        </div>
+      `).join('');
+    },
     renderDetailValue(value, esc) {
       if (Array.isArray(value)) {
         if (!value.length) return '<span class="detail-empty">—</span>';
@@ -1682,6 +1672,25 @@ function getOperatorConsoleHelpers() {
             `).join('')}
           </div>
         </div>
+      `;
+    },
+    renderRoundContext(round, esc) {
+      const paths = round?.paths || {};
+      const decision = round?.decision || {};
+      return `
+        <div class="context-card">
+          <div class="context-title">${esc(decision.reason_code || 'round decision')}</div>
+          <div class="context-meta">
+            <span>Round ${esc(String(round?.round_id || '—'))}</span>
+            <span>${esc(round?.status || 'unknown')}</span>
+          </div>
+        </div>
+        ${Object.entries(paths).filter(([, value]) => Boolean(value)).map(([key, value]) => `
+          <div class="context-card">
+            <div class="context-title">${esc(key)}</div>
+            <div class="context-meta">${esc(String(value))}</div>
+          </div>
+        `).join('')}
       `;
     },
     formatApprovalActionState(action) {
