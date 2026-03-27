@@ -232,6 +232,7 @@ class TestDashboardAPI:
                     "summary": "Approve the rollout after visual QA review.",
                     "blocking_question": "Approve the rollout after visual QA review?",
                     "decision_action": "ask_human",
+                    "review_route": f"/?mission={mission_id}&mode=missions&tab=approvals&round=3",
                     "actions": [
                         {
                             "key": "approve",
@@ -492,6 +493,7 @@ class TestDashboardAPI:
                     "summary": "Approve rollout after transcript review.",
                     "blocking_question": "Approve rollout after transcript review?",
                     "decision_action": "ask_human",
+                    "review_route": f"/?mission={mission_id}&mode=missions&tab=approvals&round=4",
                     "actions": [
                         {
                             "key": "approve",
@@ -811,6 +813,7 @@ class TestDashboardAPI:
             "summary": "Approve the rollout after checking the visual diff.",
             "blocking_question": "Approve rollout after visual diff review?",
             "decision_action": "ask_human",
+            "review_route": f"/?mission={mission_id}&mode=missions&tab=approvals&round=2",
             "actions": [
                 {
                     "key": "approve",
@@ -859,6 +862,9 @@ class TestDashboardAPI:
                 "budget_status": "unconfigured",
                 "thresholds": None,
             },
+            "review_route": f"/?mission={mission_id}&mode=missions&tab=costs",
+            "focus_packet_id": None,
+            "highest_cost_worker": None,
             "incidents": [],
             "workers": [],
         }
@@ -1124,6 +1130,7 @@ class TestDashboardAPI:
                 "title": "Need human approval before rollout.",
                 "body": "ask_human",
                 "artifact_path": f"docs/specs/{mission_id}/rounds/round-02/supervisor_review.md",
+                "review_route": f"/?mission={mission_id}&mode=missions&tab=approvals&round=2",
                 "details": {
                     "reason_code": "needs_review",
                     "confidence": 0.74,
@@ -1145,6 +1152,7 @@ class TestDashboardAPI:
                 "title": "Visual QA found a spacing regression.",
                 "body": "playwright",
                 "artifact_path": f"docs/specs/{mission_id}/rounds/round-02/visual_evaluation.json",
+                "review_route": f"/?mission={mission_id}&mode=missions&tab=visual&round=2",
                 "details": {
                     "confidence": 0.81,
                     "findings": [{"severity": "blocking", "message": "Header overlaps metrics."}],
@@ -1252,6 +1260,7 @@ class TestDashboardAPI:
                     "primary_artifact": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png",
                     "comparison": None,
                     "review_route": f"/?mission={mission_id}&mode=missions&tab=visual&round=2",
+                    "transcript_routes": [],
                 }
             ],
         }
@@ -1329,6 +1338,7 @@ class TestDashboardAPI:
         assert data["rounds"][0]["review_route"] == (
             f"/?mission={mission_id}&mode=missions&tab=visual&round=4"
         )
+        assert data["rounds"][0]["transcript_routes"] == []
 
     def test_costs_endpoint_aggregates_worker_reports(self, client, repo: Path):
         mission_id = "mission-costs"
@@ -1380,6 +1390,14 @@ class TestDashboardAPI:
                 "budget_status": "critical",
                 "thresholds": {"warning_usd": 0.1, "critical_usd": 0.11},
             },
+            "review_route": f"/?mission={mission_id}&mode=missions&tab=costs",
+            "focus_packet_id": "pkt-2",
+            "highest_cost_worker": {
+                "packet_id": "pkt-2",
+                "cost_usd": 0.12,
+                "report_path": f"docs/specs/{mission_id}/workers/pkt-2/builder_report.json",
+                "transcript_route": f"/?mission={mission_id}&mode=missions&tab=transcript&packet=pkt-2",
+            },
             "incidents": [
                 {
                     "severity": "critical",
@@ -1391,6 +1409,7 @@ class TestDashboardAPI:
                         "label": "Open mission costs",
                         "route": f"/?mission={mission_id}&mode=missions&tab=costs",
                     },
+                    "transcript_route": f"/?mission={mission_id}&mode=missions&tab=transcript&packet=pkt-2",
                     "actual_cost_usd": 0.12,
                     "threshold_usd": 0.11,
                 }
@@ -1404,6 +1423,7 @@ class TestDashboardAPI:
                     "input_tokens": 1000,
                     "output_tokens": 400,
                     "cost_usd": 0.0,
+                    "transcript_route": f"/?mission={mission_id}&mode=missions&tab=transcript&packet=pkt-1",
                 },
                 {
                     "packet_id": "pkt-2",
@@ -1413,6 +1433,7 @@ class TestDashboardAPI:
                     "input_tokens": 600,
                     "output_tokens": 300,
                     "cost_usd": 0.12,
+                    "transcript_route": f"/?mission={mission_id}&mode=missions&tab=transcript&packet=pkt-2",
                 },
             ],
         }

@@ -195,13 +195,27 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
         visual_path = round_dir / "visual_evaluation.json"
         if not visual_path.exists():
             continue
+        round_id = int(round_dir.name.split("-")[-1])
+        transcript_routes: list[str] = []
+        summary_path = round_dir / "round_summary.json"
+        if summary_path.exists():
+            try:
+                summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, json.JSONDecodeError):
+                summary_payload = {}
+            worker_results = summary_payload.get("worker_results", [])
+            if isinstance(worker_results, list):
+                transcript_routes = [
+                    f"/?mission={mission_id}&mode=missions&tab=transcript&packet={packet_id}"
+                    for item in worker_results
+                    for packet_id in [item.get("packet_id")]
+                    if isinstance(packet_id, str) and packet_id
+                ]
         try:
             payload = json.loads(visual_path.read_text(encoding="utf-8"))
             visual = VisualEvaluationResult.from_dict(payload)
         except (OSError, ValueError, json.JSONDecodeError):
             continue
-
-        round_id = int(round_dir.name.split("-")[-1])
         findings = visual.findings or []
         severities = {str(finding.get("severity", "")).lower() for finding in findings}
         if "blocking" in severities:
@@ -226,6 +240,7 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
                     gallery[0]["path"] if gallery else None
                 ),
                 "comparison": comparison,
+                "transcript_routes": transcript_routes,
                 "review_route": f"/?mission={mission_id}&mode=missions&tab=visual&round={round_id}",
             }
         )
@@ -288,6 +303,9 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
                 "budget_status": "unconfigured",
                 "thresholds": thresholds,
             },
+            "review_route": f"/?mission={mission_id}&mode=missions&tab=costs",
+            "focus_packet_id": None,
+            "highest_cost_worker": None,
             "incidents": [],
             "workers": [],
         }
@@ -321,8 +339,17 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
                 "cost_usd": cost_usd,
+                "transcript_route": (
+                    f"/?mission={mission_id}&mode=missions&tab=transcript&packet={worker_dir.name}"
+                ),
             }
         )
+
+    highest_cost_worker = None
+    focus_packet_id = None
+    if worker_rows:
+        highest_cost_worker = max(worker_rows, key=lambda item: float(item.get("cost_usd", 0.0)))
+        focus_packet_id = str(highest_cost_worker.get("packet_id") or "") or None
 
     budget_status = "unconfigured"
     incidents: list[dict[str, Any]] = []
@@ -346,6 +373,11 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
                         "label": "Open mission costs",
                         "route": f"/?mission={mission_id}&mode=missions&tab=costs",
                     },
+                    "transcript_route": (
+                        f"/?mission={mission_id}&mode=missions&tab=transcript&packet={focus_packet_id}"
+                        if focus_packet_id
+                        else None
+                    ),
                     "actual_cost_usd": round(total_cost, 4),
                     "threshold_usd": critical,
                 }
@@ -367,6 +399,11 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
                         "label": "Open mission costs",
                         "route": f"/?mission={mission_id}&mode=missions&tab=costs",
                     },
+                    "transcript_route": (
+                        f"/?mission={mission_id}&mode=missions&tab=transcript&packet={focus_packet_id}"
+                        if focus_packet_id
+                        else None
+                    ),
                     "actual_cost_usd": round(total_cost, 4),
                     "threshold_usd": warning,
                 }
@@ -384,6 +421,18 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
             "budget_status": budget_status,
             "thresholds": thresholds,
         },
+        "review_route": f"/?mission={mission_id}&mode=missions&tab=costs",
+        "focus_packet_id": focus_packet_id,
+        "highest_cost_worker": (
+            {
+                "packet_id": highest_cost_worker["packet_id"],
+                "cost_usd": highest_cost_worker["cost_usd"],
+                "report_path": highest_cost_worker["report_path"],
+                "transcript_route": highest_cost_worker["transcript_route"],
+            }
+            if highest_cost_worker
+            else None
+        ),
         "incidents": incidents,
         "workers": worker_rows,
     }

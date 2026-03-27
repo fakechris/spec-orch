@@ -39,6 +39,9 @@ def _gather_latest_approval_request(repo_root: Path, mission_id: str) -> dict[st
                 else None
             ),
             "decision_action": summary.decision.action.value,
+            "review_route": (
+                f"/?mission={mission_id}&mode=missions&tab=approvals&round={summary.round_id}"
+            ),
             "actions": [
                 {
                     "key": "approve",

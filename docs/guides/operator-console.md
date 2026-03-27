@@ -123,6 +123,7 @@ Current approval flow includes:
 - age-bucket surfacing and next-pending routing after batch actions
 - per-action audit persistence and post-action summaries
 - focus links back into the affected mission after batch actions
+- exact review routes for approval rounds, consumed directly by the dashboard shell
 
 Dashboard actions currently write back through the mission `/btw` injection path.
 
@@ -138,6 +139,7 @@ It shows:
 - latest confidence
 - diff-first comparison view when before / after / diff artifacts exist
 - review routes back into mission/round visual surfaces
+- transcript routes back into affected packet evidence when round summaries provide packet ownership
 - per-round findings
 - screenshot gallery cards when available
 - primary artifact links and gallery thumbnails
@@ -158,6 +160,7 @@ It shows:
 - budget incidents when warning/critical thresholds are crossed
 - operator guidance and escalation copy for warning/critical incidents
 - explicit suggested-action routes back into mission costs review
+- transcript routes into the highest-cost packet when cost ownership is known
 - per-worker builder report linkage
 - budget-aware Inbox surfacing for warning/critical missions
 
@@ -175,6 +178,7 @@ It currently includes:
 - transcript inspector
 - transcript jump targets
 - spec path
+- review-route buttons that switch the shell into the relevant mission/tab/packet state
 
 This rail should stay visible while switching mission tabs.
 

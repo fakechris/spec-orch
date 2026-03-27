@@ -10,6 +10,11 @@
     return typeof escHtml === 'function' ? escHtml(String(value ?? '')) : String(value ?? '');
   }
 
+  function renderInternalRouteButton(route, label, escHtml) {
+    if (!route) return '';
+    return `<button class="btn btn-sm" type="button" onclick="navigateOperatorRoute('${safeEsc(escHtml, route)}')">${safeEsc(escHtml, label)}</button>`;
+  }
+
   function renderDetailValue(value, escHtml) {
     if (Array.isArray(value)) {
       if (!value.length) return '<span class="detail-empty">—</span>';
@@ -437,7 +442,7 @@
               ${item?.blocking_question ? `<div class="transcript-entry-body">${safeEsc(escHtml, item.blocking_question)}</div>` : ''}
               ${item?.review_route ? `
                 <div class="context-meta">
-                  <a class="btn btn-sm" href="${safeEsc(escHtml, item.review_route)}">Review mission</a>
+                  ${renderInternalRouteButton(item.review_route, 'Review mission', escHtml)}
                 </div>
               ` : ''}
             </div>
@@ -483,7 +488,7 @@
           </div>
           ${visualQa?.review_route ? `
             <div class="context-meta">
-              <a class="btn btn-sm" href="${safeEsc(escHtml, visualQa.review_route)}">Open visual review</a>
+              ${renderInternalRouteButton(visualQa.review_route, 'Open visual review', escHtml)}
             </div>
           ` : ''}
         </div>
@@ -548,7 +553,8 @@
               `).join('')}
             </div>` : '<div class="empty-panel">No visual findings recorded.</div>'}
             <div class="context-meta">
-              ${round.review_route ? `<a class="btn btn-sm" href="${safeEsc(escHtml, round.review_route)}">Review round</a>` : ''}
+              ${round.review_route ? renderInternalRouteButton(round.review_route, 'Review round', escHtml) : ''}
+              ${Array.isArray(round.transcript_routes) ? round.transcript_routes.map(route => renderInternalRouteButton(route, 'Open transcript', escHtml)).join('') : ''}
               ${round.artifact_path ? `<a class="artifact-link" href="/artifacts/${safeEsc(escHtml, round.artifact_path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, round.artifact_path)}</a>` : ''}
             </div>
           </div>
@@ -602,7 +608,8 @@
             ${incident?.operator_guidance ? `<div class="context-meta">${safeEsc(escHtml, incident.operator_guidance)}</div>` : ''}
             ${incident?.suggested_action?.route ? `
               <div class="context-meta">
-                <a class="btn btn-sm" href="${safeEsc(escHtml, incident.suggested_action.route)}">${safeEsc(escHtml, incident.suggested_action.label || 'Open mission costs')}</a>
+                ${renderInternalRouteButton(incident.suggested_action.route, incident.suggested_action.label || 'Open mission costs', escHtml)}
+                ${incident?.transcript_route ? renderInternalRouteButton(incident.transcript_route, 'Open expensive packet', escHtml) : ''}
               </div>
             ` : ''}
           </div>
@@ -621,7 +628,10 @@
               <div class="detail-row"><div class="detail-key">Output</div><div class="detail-value">${safeEsc(escHtml, worker.output_tokens || 0)}</div></div>
               <div class="detail-row"><div class="detail-key">Cost</div><div class="detail-value">${safeEsc(escHtml, worker.cost_usd || 0)}</div></div>
             </div>
-            ${worker.report_path ? `<div class="context-meta"><a class="artifact-link" href="/artifacts/${safeEsc(escHtml, worker.report_path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, worker.report_path)}</a></div>` : ''}
+            <div class="context-meta">
+              ${worker.transcript_route ? renderInternalRouteButton(worker.transcript_route, 'Open transcript', escHtml) : ''}
+              ${worker.report_path ? `<a class="artifact-link" href="/artifacts/${safeEsc(escHtml, worker.report_path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, worker.report_path)}</a>` : ''}
+            </div>
           </div>
         `).join('')}
       </div>` : '<div class="empty-panel">No worker cost data recorded yet.</div>'}
@@ -760,6 +770,14 @@
         ${block.body ? `<div class="transcript-entry-body">${safeEsc(escHtml, block.body)}</div>` : ''}
       </div>
       ${renderTranscriptDetails(block.details, escHtml)}
+      ${block.review_route ? `
+        <div class="context-card">
+          <div class="context-title">Operator review</div>
+          <div class="context-meta">
+            ${renderInternalRouteButton(block.review_route, 'Open review surface', escHtml)}
+          </div>
+        </div>
+      ` : ''}
       ${burstItems.length ? `
         <div class="context-card">
           <div class="context-title">Burst items</div>

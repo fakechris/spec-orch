@@ -344,6 +344,7 @@ let selectedMissionTab = 'overview';
 let selectedMissionVisualQa = null;
 let selectedMissionCosts = null;
 let selectedPacketId = null;
+let pendingRoutePacketId = null;
 let selectedPacketTranscript = null;
 let selectedTranscriptFilter = 'all';
 let selectedTranscriptBlockIndex = null;
@@ -352,6 +353,65 @@ let approvalQueue = {counts:{pending:0, missions:0}, items:[]};
 let approvalActionStates = {};
 let selectedApprovalMissionIds = [];
 let approvalBatchState = null;
+
+function parseOperatorRoute(route) {
+  try {
+    const url = new URL(route, window.location.origin);
+    return {
+      missionId: url.searchParams.get('mission'),
+      mode: url.searchParams.get('mode'),
+      tab: url.searchParams.get('tab'),
+      packetId: url.searchParams.get('packet'),
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function syncOperatorRoute() {
+  const url = new URL(window.location.href);
+  if (selectedMissionId) {
+    url.searchParams.set('mission', selectedMissionId);
+  } else {
+    url.searchParams.delete('mission');
+  }
+  url.searchParams.set('mode', selectedOperatorMode);
+  const activeTab = selectedOperatorMode === 'evidence' ? 'transcript' : selectedMissionTab;
+  url.searchParams.set('tab', activeTab);
+  if (selectedPacketId && activeTab === 'transcript') {
+    url.searchParams.set('packet', selectedPacketId);
+  } else {
+    url.searchParams.delete('packet');
+  }
+  window.history.replaceState({}, '', `${url.pathname}?${url.searchParams.toString()}`);
+}
+
+async function navigateOperatorRoute(route) {
+  const parsed = parseOperatorRoute(route);
+  if (!parsed) return;
+  if (parsed.mode) {
+    selectedOperatorMode = parsed.mode;
+  }
+  if (parsed.tab) {
+    selectedMissionTab = parsed.tab === 'visual' ? 'visual-qa' : parsed.tab;
+  }
+  pendingRoutePacketId = parsed.packetId || null;
+  renderOperatorModes();
+  if (parsed.missionId) {
+    await selectMission(parsed.missionId, {force:true});
+  } else {
+    await load();
+  }
+}
+
+function hydrateInitialRoute() {
+  const parsed = parseOperatorRoute(window.location.href);
+  if (!parsed) return;
+  if (parsed.mode) selectedOperatorMode = parsed.mode;
+  if (parsed.tab) selectedMissionTab = parsed.tab === 'visual' ? 'visual-qa' : parsed.tab;
+  if (parsed.missionId) selectedMissionId = parsed.missionId;
+  pendingRoutePacketId = parsed.packetId || null;
+}
 
 /* ===== DATA LOADING ===== */
 async function load() {
@@ -456,6 +516,7 @@ function setOperatorMode(mode) {
   if (mode === 'evidence') {
     selectedMissionTab = 'transcript';
   }
+  syncOperatorRoute();
   renderOperatorModes();
   renderMissionDetail(selectedMissionDetail);
   renderContextRail(selectedMissionDetail);
@@ -572,10 +633,15 @@ async function selectMission(missionId, options = {}) {
     selectedMissionDetail = await detailResponse.json();
     selectedMissionVisualQa = visualResponse.ok ? await visualResponse.json() : null;
     selectedMissionCosts = costsResponse.ok ? await costsResponse.json() : null;
-    selectedPacketId = selectedMissionDetail.packets?.[0]?.packet_id || null;
+    const packetIds = (selectedMissionDetail.packets || []).map(packet => packet.packet_id);
+    selectedPacketId = packetIds.includes(pendingRoutePacketId)
+      ? pendingRoutePacketId
+      : (selectedMissionDetail.packets?.[0]?.packet_id || null);
+    pendingRoutePacketId = null;
     selectedPacketTranscript = null;
     selectedTranscriptFilter = 'all';
     selectedTranscriptBlockIndex = null;
+    syncOperatorRoute();
     renderMissionDetail(selectedMissionDetail);
     renderContextRail(selectedMissionDetail);
     await loadSelectedPacketTranscript();
@@ -799,6 +865,7 @@ function renderContextRail(detail) {
             <span>${escHtml(`${visualQa?.summary?.blocking_findings || 0} blocking`)}</span>
             <span>${escHtml(`${visualQa?.summary?.gallery_items || 0} gallery`)}</span>
           </div>
+          ${visualQa?.review_route ? `<div class="context-meta"><button class="btn btn-sm" type="button" onclick="navigateOperatorRoute('${escHtml(visualQa.review_route)}')">Open visual review</button></div>` : ''}
         </div>
         <div class="context-card">
           <div class="context-title">Costs</div>
@@ -806,6 +873,7 @@ function renderContextRail(detail) {
             <span class="detail-chip">${escHtml(costs?.summary?.budget_status || 'unconfigured')}</span>
             <span>${escHtml(String(costs?.summary?.cost_usd || 0))} USD</span>
           </div>
+          ${costs?.review_route ? `<div class="context-meta"><button class="btn btn-sm" type="button" onclick="navigateOperatorRoute('${escHtml(costs.review_route)}')">Open cost review</button>${costs?.highest_cost_worker?.transcript_route ? `<button class="btn btn-sm" type="button" onclick="navigateOperatorRoute('${escHtml(costs.highest_cost_worker.transcript_route)}')">Open top packet</button>` : ''}</div>` : ''}
         </div>
       </div>
     </div>
@@ -888,6 +956,7 @@ function buildMissionSubtitle(detail) {
 
 function setMissionTab(tab) {
   selectedMissionTab = tab;
+  syncOperatorRoute();
   renderMissionDetail(selectedMissionDetail);
   renderContextRail(selectedMissionDetail);
 }
@@ -962,6 +1031,7 @@ async function selectPacket(packetId) {
   selectedPacketId = packetId;
   selectedPacketTranscript = null;
   selectedTranscriptBlockIndex = null;
+  syncOperatorRoute();
   renderMissionDetail(selectedMissionDetail);
   renderContextRail(selectedMissionDetail);
   await loadSelectedPacketTranscript();
@@ -1283,6 +1353,7 @@ async function loadSingleMission(mid) {
 }
 
 /* ===== INIT ===== */
+hydrateInitialRoute();
 load();
 loadEvolution();
 connectWs();

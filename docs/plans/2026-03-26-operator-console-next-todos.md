@@ -64,6 +64,7 @@ The following items from the refreshed foundation backlog are now complete:
 - Approval Queue now surfaces age buckets, result summaries, and next-pending mission routing after batch actions
 - Visual QA now exposes explicit mission/round review routes
 - Costs incidents now expose explicit suggested-action routes for operator follow-through
+- The dashboard shell now consumes operator routes directly, so review buttons switch the workbench into the intended mission/tab/packet state instead of falling back to default selection
 - `app.py` has been reduced further by moving the heavy approval/transcript/surface rendering into shared helpers, removing duplicated transcript implementations, and dropping the obsolete inline helper fallback
 - operator-console documentation now has a dedicated guide
 
@@ -93,6 +94,7 @@ What remains:
 
 - richer post-action confirmation inside the destination mission/round
 - queue-state transitions that do more than guidance injection + audit logging
+- stronger queue-state summaries once multiple operators/actions start overlapping
 
 Success criteria:
 

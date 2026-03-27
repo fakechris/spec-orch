@@ -12,6 +12,21 @@ def _artifact_href(path: str) -> str:
     return f"/artifacts/{path}"
 
 
+def _mission_route(
+    mission_id: str,
+    *,
+    tab: str,
+    round_id: int | None = None,
+    packet_id: str | None = None,
+) -> str:
+    route = f"/?mission={mission_id}&mode=missions&tab={tab}"
+    if round_id is not None:
+        route += f"&round={round_id}"
+    if packet_id:
+        route += f"&packet={packet_id}"
+    return route
+
+
 def _source_label(path: str) -> str:
     suffix = Path(path).name
     if suffix == "activity.log":
@@ -439,6 +454,11 @@ def _gather_round_evidence_blocks(
                     "artifact_path": str(
                         (round_dir / "supervisor_review.md").relative_to(repo_root)
                     ),
+                    "review_route": _mission_route(
+                        mission_id,
+                        tab="approvals",
+                        round_id=summary.round_id,
+                    ),
                     "details": {
                         "reason_code": summary.decision.reason_code,
                         "confidence": summary.decision.confidence,
@@ -468,6 +488,11 @@ def _gather_round_evidence_blocks(
                     "title": visual.summary or "Visual evaluation result",
                     "body": visual.evaluator,
                     "artifact_path": str(visual_path.relative_to(repo_root)),
+                    "review_route": _mission_route(
+                        mission_id,
+                        tab="visual",
+                        round_id=summary.round_id,
+                    ),
                     "details": {
                         "confidence": visual.confidence,
                         "findings": visual.findings,
