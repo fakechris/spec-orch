@@ -373,6 +373,9 @@
             <span>${safeEsc(escHtml, `${counts.pending || 0} pending`)}</span>
             <span>${safeEsc(escHtml, `${counts.missions || 0} missions`)}</span>
             <span>${safeEsc(escHtml, `${counts.requires_followup || 0} follow-up`)}</span>
+            <span>${safeEsc(escHtml, `${counts.stale || 0} stale`)}</span>
+            <span>${safeEsc(escHtml, `${counts.aged || 0} aged`)}</span>
+            <span>${safeEsc(escHtml, `${counts.failed_actions || 0} failed`)}</span>
           </div>
         </div>
         <div class="queue-toolbar">
@@ -489,6 +492,7 @@
           ${visualQa?.review_route ? `
             <div class="context-meta">
               ${renderInternalRouteButton(visualQa.review_route, 'Open visual review', escHtml)}
+              ${summary.focus_transcript_route ? renderInternalRouteButton(summary.focus_transcript_route, 'Open focus transcript', escHtml) : ''}
             </div>
           ` : ''}
         </div>
@@ -593,6 +597,12 @@
           <span class="detail-chip">${safeEsc(escHtml, summary.budget_status || 'unconfigured')}</span>
           ${thresholds.warning_usd != null ? `<span>Warn ${safeEsc(escHtml, String(thresholds.warning_usd))}</span>` : ''}
           ${thresholds.critical_usd != null ? `<span>Critical ${safeEsc(escHtml, String(thresholds.critical_usd))}</span>` : ''}
+          ${summary.remaining_budget_usd != null ? `<span>Remaining ${safeEsc(escHtml, String(summary.remaining_budget_usd))}</span>` : ''}
+          ${summary.incident_count != null ? `<span>${safeEsc(escHtml, String(summary.incident_count))} incidents</span>` : ''}
+        </div>
+        <div class="context-meta">
+          ${costs?.review_route ? renderInternalRouteButton(costs.review_route, 'Open mission costs', escHtml) : ''}
+          ${costs?.highest_cost_worker?.transcript_route ? renderInternalRouteButton(costs.highest_cost_worker.transcript_route, 'Open highest-cost packet', escHtml) : ''}
         </div>
       </div>
       ${incidents.length ? `<div class="context-list detail-section">
