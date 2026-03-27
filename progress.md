@@ -216,3 +216,230 @@
 - **ruff**: All checks passed
 - **mypy**: No issues found
 - **pytest**: 470+ tests passed (72 new tests for self-evolution)
+
+## Session: 2026-03-25
+
+### Operator Console Refactor Continuation
+- **Status:** in_progress
+- Actions taken:
+  - Extracted mission, inbox, mission-detail, and lifecycle-state aggregation into `src/spec_orch/dashboard/missions.py`.
+  - Kept dashboard route and package exports stable while shrinking the transitional `dashboard/app.py` surface.
+  - Preserved approval workspace, transcript inspector, and operator shell behavior while moving aggregation ownership out of the UI shell.
+  - Continued operator-console UX work with richer transcript evidence rendering and approval action state feedback.
+  - Linked approval action history back into inbox items so triage surfaces the latest operator decision without opening mission detail first.
+  - Added explicit `applied` vs `not_applied` approval-action persistence so operator decisions are no longer flattened into a generic `sent` status.
+  - Promoted transcript evidence-rendering helpers into `static/operator-console.js`, reducing inline dashboard script weight and creating a stable helper namespace for future UI extraction.
+  - Extended approval-action auditability to exception paths with persisted `failed` state.
+  - Moved `buildMissionSubtitle`, `renderArtifactLinks`, and `renderRoundContext` into the shared operator-console helper namespace to keep shrinking inline dashboard script ownership.
+  - Added backend-derived `approval_state` to mission detail and inbox so operator workflow is no longer inferred purely from raw history rows.
+  - Added explicit pending UI state for approval actions and migrated the heavy approval/transcript render functions into `static/operator-console.js`, leaving `app.py` with thin orchestration wrappers.
+  - Landed the first complete operator-console foundation pass: approval state semantics are explicit, transcript evidence is inspectable, Inbox promotes approval-needed missions, and dashboard rendering ownership is split across package modules plus shared static helpers.
+  - Reframed the remaining work around new first-class surfaces instead of old foundation Todos: Approval Queue productization, Paperclip-grade transcript readability, Visual QA, Costs/Budgets, and continued shell/package cleanup.
+  - Added `src/spec_orch/dashboard/surfaces.py` to own Approval Queue, Visual QA, and Costs/Budgets aggregation.
+  - Added dedicated dashboard surfaces for Approval Queue, Visual QA, and Costs/Budgets, and wired them into mission tabs plus operator mode switching.
+  - Removed duplicated transcript implementation from `app.py`, leaving the package-backed transcript module as the single owner.
+  - Deepened the operator feedback loop again: transcript summaries now emit operator-readout copy, Approval Queue exposes age buckets/result summaries/next-pending routing, Visual QA exposes explicit review routes, Costs incidents expose suggested-action routes, and the operator docs/Todo baseline were refreshed to match the current product surface.
+  - Added route-aware workbench navigation: approval requests now expose exact round review routes, transcript round-evidence blocks expose review routes, Visual QA and Costs expose transcript-aware follow-through routes, and the dashboard shell now consumes those routes directly instead of treating them as inert links.
+  - Added another layer of operator summary metrics: Approval Queue now reports stale/aged/failed-action counts, Visual QA now emits a focus transcript route when blocking rounds map back to packets, and Costs summary now exposes incident counts and remaining budget against the critical threshold.
+
+### Verification
+- `uv run --python 3.13 python -m pytest tests/unit/test_dashboard_api.py -q` → `41 passed`
+- `uv run --python 3.13 python -m pytest tests/unit/test_dashboard.py tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py -q` → `53 passed`
+- `uv run --python 3.13 python -m ruff check src/spec_orch/dashboard.py src/spec_orch/dashboard tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py pyproject.toml` → passed
+- Browser smoke on `http://127.0.0.1:8472` loaded cleanly, websocket status was `live`, and console errors were `0`
+- Browser smoke on `http://127.0.0.1:8473` confirmed route-aware buttons switch the shell into the expected mission/tab state and still keep websocket status `live` with console errors `0`
+- Browser smoke on `http://127.0.0.1:8474` still loaded cleanly after the summary-metrics pass; websocket status stayed `live` and console errors remained `0`
+  - Added a dedicated `docs/guides/operator-console.md` guide and updated service/run docs to point to the operator-console workflow first.
+  - Deepened Approval Queue with urgency, wait-time surfacing, batch actions, and persisted batch feedback.
+  - Added post-batch mission focus/navigation so approval processing can jump directly into the affected mission.
+  - Deepened Visual QA with gallery extraction, blocking-round summaries, and artifact-backed screenshot surfacing.
+  - Deepened Costs/Budgets with thresholds from `spec-orch.toml`, incident detection, and Inbox budget alerts.
+  - Removed the obsolete inline operator-console helper fallback from `app.py`, leaving the static helper bundle as the single owner for heavy rendering logic.
+  - Added transcript emphasis semantics so milestones, decisions, alerts, and bursts surface with clearer reading hierarchy.
+- Files created/modified:
+  - `src/spec_orch/dashboard/missions.py`
+  - `src/spec_orch/dashboard/api.py`
+  - `src/spec_orch/dashboard/__init__.py`
+  - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/dashboard/shell.py`
+  - `src/spec_orch/dashboard/surfaces.py`
+  - `src/spec_orch/dashboard/routes.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `src/spec_orch/dashboard_assets/static/operator-console.css`
+  - `tests/unit/test_dashboard_package.py`
+  - `tests/unit/test_dashboard_api.py`
+  - `task_plan.md`
+
+### Operator Console Depth Pass
+- **Status:** complete
+- Actions taken:
+  - Added transcript jump-target metadata so timeline blocks now expose direct evidence navigation for source logs, round artifacts, and visual assets.
+  - Promoted Visual QA into a diff-first surface whenever before/after/diff assets exist, while preserving gallery fallback for simpler runs.
+  - Added explicit budget incident guidance and escalation copy, and surfaced that guidance back into Inbox budget alerts.
+  - Extracted dashboard control/evolution/run-history helpers into `src/spec_orch/dashboard/control.py`, reducing the amount of non-UI logic still owned by the transitional `app.py`.
+  - Tightened the operator-console JS/CSS so transcript evidence links, diff-first visual comparison, and cost incidents read more like operator surfaces and less like payload dumps.
+- Files created/modified:
+  - `src/spec_orch/dashboard/control.py`
+  - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/dashboard/missions.py`
+  - `src/spec_orch/dashboard/surfaces.py`
+  - `src/spec_orch/dashboard/transcript.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `src/spec_orch/dashboard_assets/static/operator-console.css`
+  - `tests/unit/test_dashboard_api.py`
+  - `tests/unit/test_dashboard_package.py`
+  - `task_plan.md`
+  - `progress.md`
+  - `docs/guides/operator-console.md`
+  - `docs/plans/2026-03-26-operator-console-next-todos.md`
+  - `progress.md`
+  - `docs/plans/2026-03-26-operator-console-next-todos.md`
+  - `docs/guides/operator-console.md`
+  - `docs/agent-guides/services.md`
+  - `docs/agent-guides/run-pipeline.md`
+
+### Verification
+- **dashboard pytest**: 51/51 passed
+- **dashboard ruff**: All checks passed
+- **browser smoke**: local dashboard verified for live websocket, Approval Queue, Visual QA, Costs/Budgets, and zero browser-console errors
+- `uv run --python 3.13 python -m pytest tests/unit/test_dashboard.py tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py -q`
+- `uv run --python 3.13 python -m ruff check src/spec_orch/dashboard.py src/spec_orch/dashboard tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py pyproject.toml`
+
+### Phase 1: Research Setup
+- **Status:** in_progress
+- Actions taken:
+  - Fetched `origin/main` and created a fresh branch `paperclip-observability-research`.
+  - Initialized a new research-oriented `task_plan.md`.
+  - Updated `findings.md` with the scope and hypotheses for the Paperclip / agent observability comparison.
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+### Phase 2: Source Collection
+- **Status:** in_progress
+- Actions taken:
+  - Collected current repo metadata for `paperclipai/paperclip`, `ZacharyZhang-NY/AgentCompany`, and `msitarzewski/agency-agents`.
+  - Read the current READMEs and extracted architecture / UX claims.
+  - Queried repository trees to identify whether observability concepts are first-class objects in code.
+  - Read `agentcompanies.io` documentation to position it as a vendor-neutral packaging/spec layer rather than an operator UI reference.
+- Files created/modified:
+
+## Session: 2026-03-26
+
+### Operator Console Delivery
+- **Status:** in_progress
+- Actions taken:
+  - Added approval-aware inbox semantics so `ask_human` round decisions surface as first-class approval items.
+  - Added transcript timeline block filtering, transcript inspector, and linked evidence paths for round artifacts.
+  - Grouped consecutive tool events into `command_burst` timeline blocks to make packet execution easier to read.
+  - Surfaced `approval_request` in mission detail and added approval action presets that inject canned guidance back into paused missions.
+  - Persisted approval action history so operator interventions are visible in mission detail instead of disappearing into the `/btw` file alone.
+  - Exposed structured `details` payloads on transcript blocks so the inspector can show richer evidence than title/body alone.
+  - Refactored the dashboard into a package shape with `spec_orch/dashboard/`, a compatibility wrapper, extracted `routes.py`, plus dedicated `transcript.py` and `approvals.py` modules.
+  - Synced agent docs to describe the operator-console surfaces and supervised mission observability workflow.
+- Files created/modified:
+  - `src/spec_orch/dashboard.py`
+  - `src/spec_orch/dashboard/__init__.py`
+  - `src/spec_orch/dashboard/api.py`
+  - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/dashboard/routes.py`
+  - `src/spec_orch/dashboard/transcript.py`
+  - `src/spec_orch/dashboard/approvals.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.css`
+  - `docs/agent-guides/services.md`
+  - `docs/agent-guides/run-pipeline.md`
+  - `docs/guides/supervised-mission-e2e-playbook.md`
+  - `tests/unit/test_dashboard.py`
+  - `tests/unit/test_dashboard_api.py`
+  - `tests/unit/test_dashboard_package.py`
+
+### Verification
+- Dashboard API/unit verification: `uv run --python 3.13 python -m pytest tests/unit/test_dashboard.py tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py -q`
+- Dashboard lint verification: `uv run --python 3.13 python -m ruff check src/spec_orch/dashboard.py src/spec_orch/dashboard tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py docs/agent-guides/services.md docs/agent-guides/run-pipeline.md docs/guides/supervised-mission-e2e-playbook.md pyproject.toml`
+  - `findings.md`
+  - `progress.md`
+
+### Phase 3: Design Context and Console Draft
+- **Status:** in_progress
+- Actions taken:
+  - Wrote `.impeccable.md` with persistent design context for the operator console.
+  - Synced the same Design Context into `.github/copilot-instructions.md`.
+  - Drafted the first dedicated operator console design document focused on Mission Detail and Run Transcript.
+- Files created/modified:
+  - `.impeccable.md`
+  - `.github/copilot-instructions.md`
+  - `docs/plans/2026-03-25-operator-console-design.md`
+  - `task_plan.md`
+  - `progress.md`
+
+### Phase 4: Implementation Planning
+- **Status:** in_progress
+- Actions taken:
+  - Mapped current dashboard endpoints and mission/transcript data sources.
+  - Drafted the operator console implementation plan with Mission Detail and Run Transcript as the first two product surfaces.
+  - Chose an incremental FastAPI-backed migration instead of a React rewrite.
+- Files created/modified:
+  - `docs/plans/2026-03-25-operator-console-implementation-plan.md`
+  - `task_plan.md`
+  - `progress.md`
+
+### Phase 5: Operator Console Foundations
+- **Status:** in_progress
+- Actions taken:
+  - Added the operator workbench shell to the dashboard homepage with persistent mission, transcript, and context panes.
+  - Added mission-detail, packet-transcript, and inbox APIs to back the new console.
+  - Root-caused and fixed the dashboard WebSocket `403` issue caused by a deferred `WebSocket` annotation being misread as a query parameter.
+  - Added `/favicon.ico` handling so browser dogfooding no longer produces avoidable console noise.
+  - Hardened transcript handling so missing telemetry returns an empty payload instead of a `404`.
+  - Added transcript timeline blocks and round evidence blocks for supervisor decisions and visual findings.
+  - Added inbox scaffolding and then promoted `ask_human` rounds into first-class `approval` items instead of treating them as generic pauses.
+  - Added transcript block-count summaries and a filter bar so operators can narrow the timeline by evidence type.
+  - Re-ran local browser dogfood and confirmed the dashboard loads cleanly with a live WebSocket connection and zero console errors.
+  - Added transcript block source/artifact paths and a transcript inspector section in the context rail for selected evidence.
+  - Added `approval_request` to mission detail and surfaced an approval workspace in the context rail with the current blocking question and intervention entry points.
+  - Created a `spec_orch.dashboard` package with `app.py`, `api.py`, and package exports so the dashboard now has a modular import surface instead of only a top-level module.
+- Files created/modified:
+  - `src/spec_orch/dashboard.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.css`
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `tests/unit/test_dashboard.py`
+  - `tests/unit/test_dashboard_api.py`
+  - `task_plan.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| Dashboard API slice | `uv run --python 3.13 python -m pytest tests/unit/test_dashboard_api.py -q` | Inbox, transcript, and mission-detail API tests pass | `27 passed` | pass |
+| Dashboard shell slice | `uv run --python 3.13 python -m pytest tests/unit/test_dashboard.py tests/unit/test_dashboard_api.py -q` | Dashboard UI/API regression suite stays green | `29 passed` | pass |
+| Dashboard lint | `uv run --python 3.13 python -m ruff check src/spec_orch/dashboard.py tests/unit/test_dashboard_api.py pyproject.toml` | Dashboard files lint cleanly | `All checks passed` | pass |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Midway through the operator-console implementation slice on `paperclip-observability-research` |
+| Where am I going? | From basic shell + APIs toward richer inbox actions, deeper transcript UX, and eventual dashboard modularization |
+| What's the goal? | Turn the current dashboard into a Paperclip-like operator console without rewriting the whole frontend stack |
+| What have I learned? | The system already has enough artifacts for a strong control plane; the missing layer is productized object surfaces and intervention UX |
+| What have I done? | Landed the workbench shell, mission/transcript APIs, transcript evidence blocks, WebSocket hardening, and approval-aware inbox triage |
+  - Chose an incremental implementation strategy: keep FastAPI, split the dashboard into a package, and build a workbench-style operator console on top.
+  - Wrote a task-by-task implementation plan for Mission Detail and Run Transcript.
+- Files created/modified:
+  - `docs/plans/2026-03-25-operator-console-implementation-plan.md`
+  - `findings.md`
+  - `progress.md`
+
+### Phase 5: Dashboard Foundations
+- **Status:** in_progress
+- Actions taken:
+  - Added stable static asset entrypoints for the operator console shell and mounted them at `/static`.
+  - Added a new mission detail API projection at `/api/missions/{mission_id}/detail`.
+  - Added a new packet transcript API projection at `/api/missions/{mission_id}/packets/{packet_id}/transcript`.
+  - Verified dashboard-related tests and lint after the changes.
+- Files created/modified:
+  - `src/spec_orch/dashboard.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.css`
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `tests/unit/test_dashboard_api.py`
+  - `pyproject.toml`

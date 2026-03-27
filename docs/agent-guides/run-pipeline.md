@@ -13,6 +13,7 @@ Mission 级别执行由 `plan.json` 驱动。若 `docs/specs/<mission_id>/plan.j
 如果要跑带 supervisor 的 mission 端到端试跑，优先看：
 
 - `docs/guides/supervised-mission-e2e-playbook.md`
+- `docs/guides/operator-console.md`
 
 ## Pipeline 阶段
 
@@ -63,6 +64,35 @@ spec-orch mission logs <mission_id> <packet_id>
 spec-orch mission logs <mission_id> <packet_id> --raw
 spec-orch mission logs <mission_id> <packet_id> --events
 ```
+
+Dashboard 里的 operator console 现在会把这几层信息汇总成三个可直接消费的 surface：
+
+- `Inbox`：把 approval-needed、paused、failed mission 统一成 triage 入口
+- `Mission Detail`：展示当前 mission、packets、latest round 和 transcript timeline
+- `Context Rail`：展示 approval workspace、transcript inspector、artifact path
+
+当前还新增了独立 mission surface：
+
+- `Approvals`
+- `Visual QA`
+- `Costs & Budgets`
+
+其中 transcript 已支持：
+
+- timeline block 过滤
+- supervisor / visual evidence block
+- block 级别的 linked evidence path
+- command-burst 分组，把连续 tool 事件折叠成更可读的 operator timeline
+
+approval-needed 的 round 现在也能直接在 dashboard 里触发预设动作：
+
+- `Approve`
+- `Request revision`
+- `Ask follow-up`
+
+完整 operator-console 工作流请看：
+
+- `docs/guides/operator-console.md`
 
 ## Spec 管理
 
