@@ -137,6 +137,11 @@ def _gather_approval_queue(repo_root: Path) -> dict[str, Any]:
             urgency = "followup"
         elif wait_minutes >= 60:
             urgency = "stale"
+        age_bucket = "fresh"
+        if wait_minutes >= 180:
+            age_bucket = "aged"
+        elif wait_minutes >= 60:
+            age_bucket = "stale"
 
         approval_items.append(
             {
@@ -144,6 +149,8 @@ def _gather_approval_queue(repo_root: Path) -> dict[str, Any]:
                 "recommended_action": "Approve",
                 "wait_minutes": wait_minutes,
                 "urgency": urgency,
+                "age_bucket": age_bucket,
+                "review_route": f"/?mission={item['mission_id']}&mode=missions&tab=approvals",
                 "available_actions": [
                     str(action.get("key"))
                     for action in item.get("approval_request", {}).get("actions", [])
@@ -174,7 +181,12 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
                 "blocking_findings": 0,
                 "warning_findings": 0,
                 "latest_confidence": 0.0,
+                "blocking_rounds": [],
+                "gallery_items": 0,
+                "diff_items": 0,
+                "comparison_rounds": 0,
             },
+            "review_route": f"/?mission={mission_id}&mode=missions&tab=visual",
             "rounds": [],
         }
 
@@ -214,6 +226,7 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
                     gallery[0]["path"] if gallery else None
                 ),
                 "comparison": comparison,
+                "review_route": f"/?mission={mission_id}&mode=missions&tab=visual&round={round_id}",
             }
         )
 
@@ -256,6 +269,7 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
             "diff_items": diff_items,
             "comparison_rounds": comparison_rounds,
         },
+        "review_route": f"/?mission={mission_id}&mode=missions&tab=visual",
         "rounds": visual_rounds,
     }
 
@@ -328,6 +342,10 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
                         "Open the mission, inspect the most expensive packets, "
                         "and either reduce scope or explicitly continue at higher spend."
                     ),
+                    "suggested_action": {
+                        "label": "Open mission costs",
+                        "route": f"/?mission={mission_id}&mode=missions&tab=costs",
+                    },
                     "actual_cost_usd": round(total_cost, 4),
                     "threshold_usd": critical,
                 }
@@ -345,6 +363,10 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
                         "Open the mission, inspect the highest-cost packets, "
                         "and decide whether to keep spending at the current pace."
                     ),
+                    "suggested_action": {
+                        "label": "Open mission costs",
+                        "route": f"/?mission={mission_id}&mode=missions&tab=costs",
+                    },
                     "actual_cost_usd": round(total_cost, 4),
                     "threshold_usd": warning,
                 }

@@ -65,6 +65,15 @@ def register_routes(app: FastAPI, root: Path) -> None:
     def _approval_redirect_for(mission_id: str) -> str:
         return f"/?mission={mission_id}&mode=missions&tab=approvals"
 
+    def _approval_result_summary(mission_id: str, action_status: str) -> str:
+        if action_status == "applied":
+            return f"Applied guidance to {mission_id}"
+        if action_status == "not_applied":
+            return f"Recorded guidance only for {mission_id}"
+        if action_status == "failed":
+            return f"Approval action failed for {mission_id}"
+        return f"Processed approval action for {mission_id}"
+
     @app.get("/", response_class=HTMLResponse)
     async def index() -> str:
         return dashboard_shell.build_dashboard_html()
@@ -291,6 +300,10 @@ def register_routes(app: FastAPI, root: Path) -> None:
                 {
                     "mission_id": mission_id,
                     "redirect_to": _approval_redirect_for(mission_id),
+                    "result_summary": _approval_result_summary(
+                        mission_id,
+                        str(action_status or ""),
+                    ),
                     "status_code": status_code,
                     **payload,
                 }
@@ -312,11 +325,20 @@ def register_routes(app: FastAPI, root: Path) -> None:
         }
         if focus_mission_id is None and results:
             focus_mission_id = results[0]["mission_id"]
+        next_pending_mission_id = next(
+            (
+                item["mission_id"]
+                for item in results
+                if item.get("action", {}).get("status") in {"failed", "not_applied"}
+            ),
+            None,
+        )
         return JSONResponse(
             {
                 "summary": summary,
                 "results": results,
                 "focus_mission_id": focus_mission_id,
+                "next_pending_mission_id": next_pending_mission_id,
             }
         )
 

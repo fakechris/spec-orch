@@ -238,6 +238,13 @@
   - Added `src/spec_orch/dashboard/surfaces.py` to own Approval Queue, Visual QA, and Costs/Budgets aggregation.
   - Added dedicated dashboard surfaces for Approval Queue, Visual QA, and Costs/Budgets, and wired them into mission tabs plus operator mode switching.
   - Removed duplicated transcript implementation from `app.py`, leaving the package-backed transcript module as the single owner.
+  - Deepened the operator feedback loop again: transcript summaries now emit operator-readout copy, Approval Queue exposes age buckets/result summaries/next-pending routing, Visual QA exposes explicit review routes, Costs incidents expose suggested-action routes, and the operator docs/Todo baseline were refreshed to match the current product surface.
+
+### Verification
+- `uv run --python 3.13 python -m pytest tests/unit/test_dashboard_api.py -q` → `41 passed`
+- `uv run --python 3.13 python -m pytest tests/unit/test_dashboard.py tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py -q` → `53 passed`
+- `uv run --python 3.13 python -m ruff check src/spec_orch/dashboard.py src/spec_orch/dashboard tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py pyproject.toml` → passed
+- Browser smoke on `http://127.0.0.1:8472` loaded cleanly, websocket status was `live`, and console errors were `0`
   - Added a dedicated `docs/guides/operator-console.md` guide and updated service/run docs to point to the operator-console workflow first.
   - Deepened Approval Queue with urgency, wait-time surfacing, batch actions, and persisted batch feedback.
   - Added post-batch mission focus/navigation so approval processing can jump directly into the affected mission.

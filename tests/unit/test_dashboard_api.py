@@ -483,6 +483,8 @@ class TestDashboardAPI:
                 "recommended_action": "Approve",
                 "wait_minutes": 1,
                 "urgency": "followup",
+                "age_bucket": "fresh",
+                "review_route": f"/?mission={mission_id}&mode=missions&tab=approvals",
                 "available_actions": ["approve", "request_revision", "ask_followup"],
                 "approval_request": {
                     "round_id": 4,
@@ -598,9 +600,12 @@ class TestDashboardAPI:
             "failed": 0,
         }
         assert payload["focus_mission_id"] == "mission-batch-b"
+        assert payload["next_pending_mission_id"] == "mission-batch-b"
         assert [item["mission_id"] for item in payload["results"]] == mission_ids
         assert payload["results"][0]["action"]["status"] == "applied"
         assert payload["results"][1]["action"]["status"] == "not_applied"
+        assert payload["results"][0]["result_summary"] == "Applied guidance to mission-batch-a"
+        assert payload["results"][1]["result_summary"] == "Recorded guidance only for mission-batch-b"
         assert payload["results"][0]["redirect_to"].endswith(
             "mission=mission-batch-a&mode=missions&tab=approvals"
         )
@@ -841,6 +846,7 @@ class TestDashboardAPI:
                 "diff_items": 0,
                 "comparison_rounds": 0,
             },
+            "review_route": f"/?mission={mission_id}&mode=missions&tab=visual",
             "rounds": [],
         }
         assert data["costs"] == {
@@ -918,6 +924,7 @@ class TestDashboardAPI:
                 "tool": 1,
             },
             "latest_timestamp": "2026-03-25T00:12:00Z",
+            "operator_readout": "1 milestones, 1 tool blocks, 0 alerts, latest signal at 2026-03-25T00:12:00Z",
         }
         assert data["milestones"] == [
             {
@@ -1220,6 +1227,7 @@ class TestDashboardAPI:
                 "diff_items": 0,
                 "comparison_rounds": 0,
             },
+            "review_route": f"/?mission={mission_id}&mode=missions&tab=visual",
             "rounds": [
                 {
                     "round_id": 2,
@@ -1243,6 +1251,7 @@ class TestDashboardAPI:
                     ],
                     "primary_artifact": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png",
                     "comparison": None,
+                    "review_route": f"/?mission={mission_id}&mode=missions&tab=visual&round=2",
                 }
             ],
         }
@@ -1296,6 +1305,7 @@ class TestDashboardAPI:
         data = response.json()
         assert data["summary"]["diff_items"] == 1
         assert data["summary"]["comparison_rounds"] == 1
+        assert data["review_route"] == f"/?mission={mission_id}&mode=missions&tab=visual"
         assert data["rounds"][0]["comparison"] == {
             "mode": "diff-first",
             "primary": {
@@ -1316,6 +1326,9 @@ class TestDashboardAPI:
                 },
             ],
         }
+        assert data["rounds"][0]["review_route"] == (
+            f"/?mission={mission_id}&mode=missions&tab=visual&round=4"
+        )
 
     def test_costs_endpoint_aggregates_worker_reports(self, client, repo: Path):
         mission_id = "mission-costs"
@@ -1374,6 +1387,10 @@ class TestDashboardAPI:
                     "status_copy": "Critical budget threshold exceeded",
                     "recommended_action": "Pause new work, review packet cost hotspots, and decide whether to cut scope or raise the budget.",
                     "operator_guidance": "Open the mission, inspect the most expensive packets, and either reduce scope or explicitly continue at higher spend.",
+                    "suggested_action": {
+                        "label": "Open mission costs",
+                        "route": f"/?mission={mission_id}&mode=missions&tab=costs",
+                    },
                     "actual_cost_usd": 0.12,
                     "threshold_usd": 0.11,
                 }
@@ -1464,6 +1481,7 @@ class TestDashboardAPI:
                 "budget_status": "critical",
                 "cost_usd": 1.5,
                 "operator_guidance": "Open the mission, inspect the most expensive packets, and either reduce scope or explicitly continue at higher spend.",
+                "review_route": f"/?mission={mission_id}&mode=missions&tab=costs",
             }
         ]
 

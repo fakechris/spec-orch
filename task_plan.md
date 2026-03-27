@@ -15,6 +15,7 @@
 | 5. Operator console foundation | complete | Mission detail shell, transcript timeline blocks, websocket hardening, inbox scaffolding, approval-aware inbox semantics, approval history-linked inbox items, transcript filter-bar depth, transcript inspector scaffolding, approval workspace surfacing, explicit approval state feedback, richer evidence rendering, static helper extraction, and dashboard package refactor foundation are all in place |
 | 6. Operator console next-slice planning | complete | Rebased the Todo list around what is actually left, then shipped batchable Approval Queue with mission-focus navigation, screenshot/gallery-first Visual QA surfacing, threshold-aware Costs/Budgets incidents, transcript emphasis layering, continued shell cleanup, and a dedicated operator-console guide |
 | 7. Operator console depth pass | complete | Added transcript jump targets and stronger evidence reading, promoted Visual QA to diff-first when comparison artifacts exist, added operator guidance to budget incidents and Inbox alerts, and extracted control/evolution helpers out of the transitional app shell |
+| 8. Operator feedback loop refinement | complete | Added operator-readout transcript summaries, approval age buckets and result summaries, next-pending mission routing after batch actions, explicit mission/round review routes for Visual QA, suggested-action routes for budget incidents, and refreshed the operator-console roadmap/docs to match the current UX baseline |
 
 ## Comparison Dimensions
 - User entry points and onboarding flow
@@ -33,3 +34,4 @@
 - Approval workflow is now explicitly stateful, queue-backed, and batchable, but it still needs richer navigation and deeper action semantics than `/btw` injection alone.
 - Transcript evidence is functional and inspectable, but it is still short of the Paperclip bar for reading speed and evidence navigation.
 - Visual QA and Costs/Budgets now exist as first-class surfaces with diff/comparison and escalation guidance, but both can still go deeper on operator ergonomics.
+- The current remaining work is now mostly high-order UX depth: faster transcript reconstruction, deeper approval queue workflow, stronger visual comparison UX, and more opinionated budget intervention guidance.

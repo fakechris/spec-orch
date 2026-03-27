@@ -208,9 +208,23 @@ def _gather_packet_transcript(
     blocks.sort(key=lambda block: (block.get("timestamp", ""), block.get("block_type", "")))
 
     block_counts: dict[str, int] = {}
+    milestone_count = 0
+    tool_count = 0
+    alert_count = 0
     for block in blocks:
         block_type = str(block.get("block_type", "event"))
         block_counts[block_type] = block_counts.get(block_type, 0) + 1
+        if block_type == "milestone":
+            milestone_count += 1
+        if block_type in {"tool", "command_burst"}:
+            tool_count += 1
+        if block.get("emphasis") in {"alert", "critical"}:
+            alert_count += 1
+
+    operator_readout = (
+        f"{milestone_count} milestones, {tool_count} tool blocks, "
+        f"{alert_count} alerts, latest signal at {latest_timestamp or '—'}"
+    )
 
     return {
         "mission_id": mission_id,
@@ -221,6 +235,7 @@ def _gather_packet_transcript(
             "kind_counts": kind_counts,
             "block_counts": block_counts,
             "latest_timestamp": latest_timestamp,
+            "operator_readout": operator_readout,
         },
         "milestones": milestones,
         "blocks": blocks,

@@ -105,6 +105,7 @@ Current transcript UX includes:
 - emphasis states for milestones / decisions / alerts
 - linked evidence markers
 - direct jump targets for source logs, round artifacts, and visual evidence
+- operator readout summary for fast reconstruction
 - transcript inspector in the right rail
 
 ### Approvals
@@ -119,6 +120,7 @@ Current approval flow includes:
 - direct action buttons
 - queue-level batch actions
 - queue urgency and wait-time surfacing
+- age-bucket surfacing and next-pending routing after batch actions
 - per-action audit persistence and post-action summaries
 - focus links back into the affected mission after batch actions
 
@@ -135,6 +137,7 @@ It shows:
 - warnings
 - latest confidence
 - diff-first comparison view when before / after / diff artifacts exist
+- review routes back into mission/round visual surfaces
 - per-round findings
 - screenshot gallery cards when available
 - primary artifact links and gallery thumbnails
@@ -154,6 +157,7 @@ It shows:
 - configured thresholds when present in `spec-orch.toml`
 - budget incidents when warning/critical thresholds are crossed
 - operator guidance and escalation copy for warning/critical incidents
+- explicit suggested-action routes back into mission costs review
 - per-worker builder report linkage
 - budget-aware Inbox surfacing for warning/critical missions
 

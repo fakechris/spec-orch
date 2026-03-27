@@ -60,6 +60,10 @@ The following items from the refreshed foundation backlog are now complete:
 - Approval Queue is now a dedicated dashboard surface with batch actions, urgency, wait-time surfacing, audit-backed feedback, and mission-focus navigation
 - Visual QA is now a dedicated mission surface with screenshot/gallery surfacing, blocking summaries, and artifact links
 - Costs & Budgets is now a dedicated mission surface with thresholds, incidents, and Inbox alerts
+- Transcript now exposes operator readout summaries and stronger evidence/review routes
+- Approval Queue now surfaces age buckets, result summaries, and next-pending mission routing after batch actions
+- Visual QA now exposes explicit mission/round review routes
+- Costs incidents now expose explicit suggested-action routes for operator follow-through
 - `app.py` has been reduced further by moving the heavy approval/transcript/surface rendering into shared helpers, removing duplicated transcript implementations, and dropping the obsolete inline helper fallback
 - operator-console documentation now has a dedicated guide
 
@@ -73,7 +77,7 @@ What remains:
 
 - improve evidence reading beyond structured key-value details and link lists
 - make command bursts easier to scan and expand at a glance
-- add richer round / packet / artifact navigation, not just file jumps
+- add richer round / packet / artifact navigation beyond the current review routes
 - further reduce the remaining "payload browser" feel inside the inspector
 
 Success criteria:
@@ -87,10 +91,8 @@ Approval Queue now exists as a first-class, stateful surface with batch handling
 
 What remains:
 
-- stronger queue-level action feedback after batch processing
-- clearer urgency and age presentation over time
-- richer post-action confirmation and navigation into the affected mission/round
-- eventual support for queue-state transitions beyond guidance injection
+- richer post-action confirmation inside the destination mission/round
+- queue-state transitions that do more than guidance injection + audit logging
 
 Success criteria:
 

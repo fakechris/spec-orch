@@ -390,6 +390,11 @@
                 <button class="btn btn-sm" type="button" onclick="focusMissionFromBatch('${safeEsc(escHtml, batchState.focusMissionId)}')">Open affected mission</button>
               </div>
             ` : ''}
+            ${batchState?.nextPendingMissionId ? `
+              <div class="context-meta">
+                <button class="btn btn-sm" type="button" onclick="focusMissionFromBatch('${safeEsc(escHtml, batchState.nextPendingMissionId)}')">Open next pending mission</button>
+              </div>
+            ` : ''}
             ${Array.isArray(batchState?.results) && batchState.results.length ? `
               <div class="context-list detail-section">
                 ${batchState.results.map(item => `
@@ -399,6 +404,7 @@
                       <span class="detail-chip">${safeEsc(escHtml, item?.action?.status || 'unknown')}</span>
                       <span>${safeEsc(escHtml, item?.mission_id || '')}</span>
                     </div>
+                    ${item?.result_summary ? `<div class="transcript-entry-body">${safeEsc(escHtml, item.result_summary)}</div>` : ''}
                     <div class="context-meta">
                       <button class="btn btn-sm" type="button" onclick="focusMissionFromBatch('${safeEsc(escHtml, item?.mission_id || '')}')">Open mission</button>
                     </div>
@@ -425,9 +431,15 @@
               <div class="context-meta">
                 <span>Round ${safeEsc(escHtml, String(item?.current_round || item?.approval_request?.round_id || '—'))}</span>
                 <span>${safeEsc(escHtml, `${item?.wait_minutes || 0} min waiting`)}</span>
+                ${item?.age_bucket ? `<span class="detail-chip">${safeEsc(escHtml, item.age_bucket)}</span>` : ''}
                 ${item?.latest_operator_action ? `<span>${safeEsc(escHtml, item.latest_operator_action.label || item.latest_operator_action.action_key || 'Action')}</span>` : ''}
               </div>
               ${item?.blocking_question ? `<div class="transcript-entry-body">${safeEsc(escHtml, item.blocking_question)}</div>` : ''}
+              ${item?.review_route ? `
+                <div class="context-meta">
+                  <a class="btn btn-sm" href="${safeEsc(escHtml, item.review_route)}">Review mission</a>
+                </div>
+              ` : ''}
             </div>
           `).join('')}
         </div>
@@ -469,6 +481,11 @@
             <span>${safeEsc(escHtml, `${summary.gallery_items || 0} gallery items`)}</span>
             <span>${safeEsc(escHtml, `${summary.comparison_rounds || 0} comparison rounds`)}</span>
           </div>
+          ${visualQa?.review_route ? `
+            <div class="context-meta">
+              <a class="btn btn-sm" href="${safeEsc(escHtml, visualQa.review_route)}">Open visual review</a>
+            </div>
+          ` : ''}
         </div>
       ` : ''}
       ${rounds.length ? `<div class="context-list">
@@ -530,7 +547,10 @@
                 </div>
               `).join('')}
             </div>` : '<div class="empty-panel">No visual findings recorded.</div>'}
-            ${round.artifact_path ? `<div class="context-meta"><a class="artifact-link" href="/artifacts/${safeEsc(escHtml, round.artifact_path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, round.artifact_path)}</a></div>` : ''}
+            <div class="context-meta">
+              ${round.review_route ? `<a class="btn btn-sm" href="${safeEsc(escHtml, round.review_route)}">Review round</a>` : ''}
+              ${round.artifact_path ? `<a class="artifact-link" href="/artifacts/${safeEsc(escHtml, round.artifact_path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, round.artifact_path)}</a>` : ''}
+            </div>
           </div>
         `).join('')}
       </div>` : '<div class="empty-panel">No visual evaluation rounds recorded yet.</div>'}
@@ -580,6 +600,11 @@
             ${incident?.status_copy ? `<div class="context-meta"><span class="detail-chip">${safeEsc(escHtml, incident.status_copy)}</span></div>` : ''}
             ${incident?.recommended_action ? `<div class="transcript-entry-body">${safeEsc(escHtml, incident.recommended_action)}</div>` : ''}
             ${incident?.operator_guidance ? `<div class="context-meta">${safeEsc(escHtml, incident.operator_guidance)}</div>` : ''}
+            ${incident?.suggested_action?.route ? `
+              <div class="context-meta">
+                <a class="btn btn-sm" href="${safeEsc(escHtml, incident.suggested_action.route)}">${safeEsc(escHtml, incident.suggested_action.label || 'Open mission costs')}</a>
+              </div>
+            ` : ''}
           </div>
         `).join('')}
       </div>` : ''}
@@ -656,6 +681,7 @@
       <div class="context-card">
         <div class="context-title">Packet timeline</div>
         <div class="context-meta">${summaryMeta.map(item => `<span>${safeEsc(escHtml, String(item))}</span>`).join('')}</div>
+        ${summary.operator_readout ? `<div class="transcript-entry-body">${safeEsc(escHtml, summary.operator_readout)}</div>` : ''}
         ${milestones.length ? `<div class="context-meta">${milestones.map(item => `<span class="run-class">${safeEsc(escHtml, item.event_type || 'milestone')}</span>`).join('')}</div>` : ''}
       </div>
       ${
