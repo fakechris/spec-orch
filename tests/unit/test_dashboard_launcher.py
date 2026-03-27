@@ -86,6 +86,38 @@ def test_create_mission_draft_writes_meta_and_spec(repo: Path) -> None:
     assert meta["constraints"] == ["Keep scope tiny."]
 
 
+def test_create_mission_draft_rejects_null_title_and_treats_null_mission_id_as_absent(
+    repo: Path,
+) -> None:
+    from spec_orch.dashboard.launcher import _create_mission_draft
+
+    with pytest.raises(ValueError, match="Mission title is required"):
+        _create_mission_draft(
+            repo,
+            {
+                "title": None,
+                "mission_id": None,
+                "intent": "Validate null handling.",
+                "acceptance_criteria": [],
+                "constraints": [],
+            },
+        )
+
+    result = _create_mission_draft(
+        repo,
+        {
+            "title": "Null Mission Id",
+            "mission_id": None,
+            "intent": "Validate null handling.",
+            "acceptance_criteria": [],
+            "constraints": [],
+        },
+    )
+
+    assert result["mission_id"] != "None"
+    assert not (repo / "docs" / "specs" / "None").exists()
+
+
 def test_approve_and_plan_mission_writes_plan_json(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -226,6 +258,54 @@ def test_create_linear_issue_for_mission_requires_resolved_team(
             title="Dogfood launcher run",
             description="Track this dogfood run.",
         )
+
+
+def test_bind_linear_issue_to_mission_validates_update_success(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import (
+        _bind_linear_issue_to_mission,
+        _create_mission_draft,
+    )
+
+    _create_mission_draft(
+        repo,
+        {
+            "title": "Linear Bind",
+            "mission_id": "linear-bind",
+            "intent": "Bind mission to existing issue.",
+            "acceptance_criteria": [],
+            "constraints": [],
+        },
+    )
+
+    class FakeLinearClient:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        def query(self, graphql: str, variables: dict | None = None) -> dict:
+            if "query($id: String!)" in graphql:
+                return {
+                    "issue": {
+                        "id": "issue-1",
+                        "identifier": "SON-123",
+                        "title": "Existing issue",
+                        "description": "hello",
+                        "url": "https://linear.app/songwork/issue/SON-123/example",
+                    }
+                }
+            if "issueUpdate" in graphql:
+                return {"issueUpdate": {"success": False, "issue": None}}
+            raise AssertionError(graphql)
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("spec_orch.dashboard.launcher.LinearClient", FakeLinearClient)
+
+    with pytest.raises(ValueError, match="Linear issue description update failed"):
+        _bind_linear_issue_to_mission(repo, "linear-bind", "issue-1")
 
 
 def test_create_linear_issue_for_mission_validates_mutation_success(

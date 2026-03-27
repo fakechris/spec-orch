@@ -157,10 +157,13 @@ def _gather_launcher_readiness(repo_root: Path) -> dict[str, Any]:
 
 
 def _create_mission_draft(repo_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
-    title = str(payload.get("title", "")).strip()
+    raw_title = payload.get("title")
+    title = raw_title.strip() if isinstance(raw_title, str) else ""
     if not title:
         raise ValueError("Mission title is required")
-    mission_id = str(payload.get("mission_id", "")).strip() or None
+    raw_mission_id = payload.get("mission_id")
+    mission_id_text = raw_mission_id.strip() if isinstance(raw_mission_id, str) else ""
+    mission_id: str | None = mission_id_text or None
     acceptance_criteria = [
         str(item).strip() for item in payload.get("acceptance_criteria", []) if str(item).strip()
     ]
@@ -308,7 +311,7 @@ def _bind_linear_issue_to_mission(
             raise ValueError(f"Linear issue not found: {linear_issue_id}")
 
         next_description = _mission_binding_description(mission_id, issue.get("description") or "")
-        client.query(
+        update_response = client.query(
             """
             mutation($id: String!, $description: String!) {
               issueUpdate(id: $id, input: { description: $description }) {
@@ -319,6 +322,11 @@ def _bind_linear_issue_to_mission(
             """,
             {"id": issue["id"], "description": next_description},
         )
+        issue_update = (
+            update_response.get("issueUpdate") if isinstance(update_response, dict) else None
+        )
+        if not isinstance(issue_update, dict) or issue_update.get("success") is not True:
+            raise ValueError(f"Linear issue description update failed: {update_response!r}")
         launch_meta = _write_launch_metadata(
             repo_root,
             mission_id,
