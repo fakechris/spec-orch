@@ -285,7 +285,8 @@ def register_routes(app: FastAPI, root: Path) -> None:
         if mgr is None:
             return JSONResponse({"error": "Mission lifecycle unavailable"}, status_code=503)
         try:
-            state = mgr.retry(mission_id)
+            mgr.retry(mission_id)
+            state = mgr.auto_advance(mission_id)
             return JSONResponse({"ok": True, "state": state.to_dict()})
         except Exception:
             return JSONResponse({"error": "Mission retry failed"}, status_code=500)

@@ -545,7 +545,7 @@ function renderMissions() {
       ? `${(lc.completed_issues || []).length}/${(lc.issue_ids || []).length || 1} issues complete`
       : m.plan ? `${m.plan.packet_count} packets across ${m.plan.wave_count} waves` : 'Spec in progress';
     return `<button class="mission-list-item ${selectedMissionId === m.mission_id ? 'active' : ''}"
-      id="card-${m.mission_id}" data-mid="${m.mission_id}" onclick="selectMission('${m.mission_id}')">
+      id="card-${m.mission_id}" data-mid="${m.mission_id}" onclick="selectMission(${safeJsArg(m.mission_id)})">
       <div class="mission-list-title">${escHtml(m.title)}</div>
       <div class="mission-list-meta">
         <span class="badge ${phase}">${phase}</span>
