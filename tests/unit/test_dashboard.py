@@ -105,3 +105,97 @@ class TestGatherMissions:
         result = _gather_missions(tmp_path)
         assert len(result) == 1
         assert result[0]["plan"] is None
+
+    def test_sorts_running_and_recent_missions_first(self, tmp_path: Path) -> None:
+        mission_specs = [
+            (
+                "mission-completed",
+                "Completed Mission",
+                "completed",
+                "2026-03-25T00:00:00+00:00",
+            ),
+            (
+                "mission-running",
+                "Running Mission",
+                "approved",
+                "2026-03-26T00:00:00+00:00",
+            ),
+            (
+                "mission-approved",
+                "Approved Mission",
+                "approved",
+                "2026-03-24T00:00:00+00:00",
+            ),
+        ]
+        for mission_id, title, status, created_at in mission_specs:
+            specs = tmp_path / "docs" / "specs" / mission_id
+            specs.mkdir(parents=True)
+            (specs / "mission.json").write_text(
+                json.dumps(
+                    {
+                        "mission_id": mission_id,
+                        "title": title,
+                        "status": status,
+                        "spec_path": f"docs/specs/{mission_id}/spec.md",
+                        "acceptance_criteria": [],
+                        "constraints": [],
+                        "interface_contracts": [],
+                        "created_at": created_at,
+                        "approved_at": created_at,
+                        "completed_at": None,
+                    }
+                )
+            )
+            (specs / "spec.md").write_text(f"# {title}\n")
+
+        lifecycle_dir = tmp_path / ".spec_orch_runs"
+        lifecycle_dir.mkdir(parents=True, exist_ok=True)
+        (lifecycle_dir / "lifecycle_state.json").write_text(
+            json.dumps(
+                {
+                    "mission-running": {
+                        "mission_id": "mission-running",
+                        "phase": "executing",
+                        "issue_ids": ["SON-1"],
+                        "completed_issues": [],
+                        "error": None,
+                        "updated_at": "2026-03-26T12:00:00+00:00",
+                        "current_round": 1,
+                        "round_orchestrator_state": {},
+                    },
+                    "mission-completed": {
+                        "mission_id": "mission-completed",
+                        "phase": "completed",
+                        "issue_ids": ["SON-2"],
+                        "completed_issues": ["SON-2"],
+                        "error": None,
+                        "updated_at": "2026-03-26T08:00:00+00:00",
+                        "current_round": 2,
+                        "round_orchestrator_state": {},
+                    },
+                    "mission-approved": {
+                        "mission_id": "mission-approved",
+                        "phase": "approved",
+                        "issue_ids": [],
+                        "completed_issues": [],
+                        "error": None,
+                        "updated_at": "2026-03-26T10:00:00+00:00",
+                        "current_round": 0,
+                        "round_orchestrator_state": {},
+                    },
+                }
+            )
+        )
+
+        result = _gather_missions(tmp_path)
+
+        assert [mission["mission_id"] for mission in result] == [
+            "mission-running",
+            "mission-approved",
+            "mission-completed",
+        ]
+        assert result[0]["evidence"] == {
+            "round_count": 0,
+            "visual_round_count": 0,
+            "approval_action_count": 0,
+        }

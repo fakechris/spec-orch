@@ -48,6 +48,14 @@
   border-bottom: 1px solid var(--border);
 }
 
+.operator-nav-context {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--dim);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
 .operator-mode {
   appearance: none;
   border: 1px solid var(--border);
@@ -59,10 +67,29 @@
   cursor: pointer;
 }
 
+.operator-mode-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  margin-left: 0.35rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
 .operator-mode.active {
   color: var(--text);
   border-color: var(--accent);
   background: rgba(99, 102, 241, 0.1);
+}
+
+.operator-mode.active .operator-mode-count {
+  background: rgba(99, 102, 241, 0.22);
 }
 
 .mission-list {

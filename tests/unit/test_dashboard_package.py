@@ -9,10 +9,19 @@ def test_dashboard_package_exports_app_factory() -> None:
 
 
 def test_dashboard_package_exposes_api_helpers() -> None:
-    from spec_orch.dashboard.api import _gather_inbox, _gather_packet_transcript
+    from spec_orch.dashboard.api import (
+        _create_mission_draft,
+        _gather_inbox,
+        _gather_launcher_readiness,
+        _gather_packet_transcript,
+        _launch_mission,
+    )
 
     assert callable(_gather_inbox)
     assert callable(_gather_packet_transcript)
+    assert callable(_gather_launcher_readiness)
+    assert callable(_create_mission_draft)
+    assert callable(_launch_mission)
 
 
 def test_dashboard_package_exposes_route_registrar() -> None:
@@ -88,5 +97,36 @@ def test_dashboard_package_exposes_control_helpers() -> None:
 def test_dashboard_package_exposes_shell_template() -> None:
     from spec_orch.dashboard.shell import build_dashboard_html
 
+    html = build_dashboard_html()
+
     assert callable(build_dashboard_html)
-    assert "operator-shell" in build_dashboard_html()
+    assert "operator-shell" in html
+    assert "launcher-panel" in html
+    assert "launcher-readiness" in html
+    assert "Approve &amp; Plan" in html or "Approve & Plan" in html
+    assert "return value.split('\\n').map(line => line.trim()).filter(Boolean);" in html
+    assert 'data-launcher-action="create-draft"' in html
+    assert 'data-launcher-action="approve-plan"' in html
+    assert 'data-launcher-action="linear-create"' in html
+    assert 'data-launcher-action="linear-bind"' in html
+    assert 'data-launcher-action="launch"' in html
+    assert 'data-launcher-action="refresh-readiness"' in html
+    assert '.launcher-status[data-tone="success"]' in html
+    assert '.launcher-status[data-tone="failed"]' in html
+    assert ".launcher-actions .btn.is-pending" in html
+    assert "function setLauncherActionState(actionKey, state, label = null)" in html
+    assert "if (!res.ok) throw new Error(data.error || 'Launcher readiness failed');" in html
+    assert "launcherState.missionId = '';" in html
+    assert "launcherState.linearIssueId = '';" in html
+    assert "launcher-linear-issue-id" in html
+    assert "resetLauncherActionState();" in html
+    assert "Needs Attention" in html
+    assert "All Missions" in html
+    assert "Decision Queue" in html
+    assert "Deep Evidence" in html
+    assert "Supervisor" in html
+    assert 'id="operator-nav-context"' in html
+    assert "function phaseMeta(phase)" in html
+    assert "function setOperatorMode(mode)" in html
+    assert "syncOperatorRoute();" in html
+    assert "renderMissions();" in html

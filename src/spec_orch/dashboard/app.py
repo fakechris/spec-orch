@@ -26,6 +26,12 @@ from .control import _control_skills as _control_control_skills
 from .control import _gather_evolution_metrics as _control_gather_evolution_metrics
 from .control import _gather_run_history as _control_gather_run_history
 from .control import _get_spec_content as _control_get_spec_content
+from .launcher import _approve_and_plan_mission as _launcher_approve_and_plan_mission
+from .launcher import _bind_linear_issue_to_mission as _launcher_bind_linear_issue_to_mission
+from .launcher import _create_linear_issue_for_mission as _launcher_create_linear_issue_for_mission
+from .launcher import _create_mission_draft as _launcher_create_mission_draft
+from .launcher import _gather_launcher_readiness as _launcher_gather_launcher_readiness
+from .launcher import _launch_mission as _launcher_launch_mission
 from .missions import _gather_inbox as _missions_gather_inbox
 from .missions import _gather_lifecycle_states as _missions_gather_lifecycle_states
 from .missions import _gather_mission_detail as _missions_gather_mission_detail
@@ -78,6 +84,12 @@ _gather_missions = _missions_gather_missions
 _gather_inbox = _missions_gather_inbox
 _gather_mission_detail = _missions_gather_mission_detail
 _gather_lifecycle_states = _missions_gather_lifecycle_states
+_gather_launcher_readiness = _launcher_gather_launcher_readiness
+_create_mission_draft = _launcher_create_mission_draft
+_approve_and_plan_mission = _launcher_approve_and_plan_mission
+_create_linear_issue_for_mission = _launcher_create_linear_issue_for_mission
+_bind_linear_issue_to_mission = _launcher_bind_linear_issue_to_mission
+_launch_mission = _launcher_launch_mission
 _gather_approval_queue = _surfaces_gather_approval_queue
 _gather_mission_visual_qa = _surfaces_gather_mission_visual_qa
 _gather_mission_costs = _surfaces_gather_mission_costs
@@ -132,11 +144,11 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
   transition:all .15s}
 .btn:hover{border-color:var(--accent);background:var(--card-hover)}
 .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn-primary:hover{opacity:.9}
+.btn-primary:hover{background:#5458e8;border-color:#5458e8;transform:translateY(-1px);box-shadow:0 8px 20px rgba(99,102,241,.25)}
 .btn-green{background:var(--green);border-color:var(--green);color:#fff}
-.btn-green:hover{opacity:.9}
+.btn-green:hover{background:#1fb255;border-color:#1fb255;transform:translateY(-1px);box-shadow:0 8px 20px rgba(34,197,94,.25)}
 .btn-amber{background:var(--amber);border-color:var(--amber);color:#000}
-.btn-amber:hover{opacity:.9}
+.btn-amber:hover{opacity:.9;transform:translateY(-1px)}
 .btn-red{background:rgba(239,68,68,.15);border-color:var(--red);color:var(--red)}
 .btn-red:hover{background:rgba(239,68,68,.25)}
 .btn-sm{padding:.2rem .5rem;font-size:.7rem}
@@ -213,6 +225,32 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
   padding:.45rem .6rem;color:var(--text);font-size:.82rem;outline:none}
 .chat-input:focus{border-color:var(--accent)}
 .chat-input::placeholder{color:var(--dim)}
+.sidebar-panel{display:none;flex:1;min-height:0}
+.sidebar-panel.active{display:flex;flex-direction:column}
+.launcher-panel{padding:.75rem;gap:.75rem;overflow-y:auto}
+.launcher-section{display:flex;flex-direction:column;gap:.35rem}
+.launcher-section label{font-size:.72rem;color:var(--dim);font-weight:600}
+.launcher-input,.launcher-textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.5rem .6rem;color:var(--text);font-size:.8rem;outline:none}
+.launcher-input:focus,.launcher-textarea:focus{border-color:var(--accent)}
+.launcher-textarea{min-height:88px;resize:vertical;font-family:inherit}
+.launcher-readiness,.launcher-status{border:1px solid var(--border);border-radius:8px;padding:.6rem .7rem;background:rgba(255,255,255,.02)}
+.launcher-status{transition:border-color .16s ease,background .16s ease,color .16s ease,box-shadow .16s ease}
+.launcher-status[data-tone="working"]{border-color:rgba(99,102,241,.45);background:rgba(99,102,241,.10);color:var(--text)}
+.launcher-status[data-tone="success"]{border-color:rgba(34,197,94,.5);background:rgba(34,197,94,.12);color:#d8ffe6}
+.launcher-status[data-tone="failed"]{border-color:rgba(239,68,68,.5);background:rgba(239,68,68,.10);color:#ffd7d7}
+.launcher-readiness-item{display:flex;justify-content:space-between;gap:.5rem;font-size:.75rem;padding:.2rem 0}
+.launcher-readiness-state.ready{color:var(--green)}
+.launcher-readiness-state.missing{color:var(--amber)}
+.launcher-actions{display:grid;grid-template-columns:1fr 1fr;gap:.45rem}
+.launcher-actions .btn{width:100%;transition:transform .14s ease,background .14s ease,border-color .14s ease,box-shadow .14s ease,opacity .14s ease}
+.launcher-actions .btn:not(.btn-primary){background:transparent;border-color:var(--border);color:var(--text)}
+.launcher-actions .btn:not(.btn-primary):hover{border-color:var(--accent);background:rgba(99,102,241,.08);transform:translateY(-1px);box-shadow:0 8px 18px rgba(15,23,42,.16)}
+.launcher-actions .btn:hover{cursor:pointer}
+.launcher-actions .btn.is-pending{opacity:.72;cursor:progress;pointer-events:none;transform:none !important;box-shadow:none !important}
+.launcher-actions .btn.is-complete{border-color:rgba(34,197,94,.55);background:rgba(34,197,94,.14);color:#d8ffe6}
+.launcher-actions .btn.is-failed{border-color:rgba(239,68,68,.55);background:rgba(239,68,68,.12);color:#ffd7d7}
+.launcher-actions .btn .btn-meta{display:block;font-size:.66rem;color:var(--dim);margin-top:.12rem}
+.launcher-actions .btn.is-pending .btn-meta,.launcher-actions .btn.is-complete .btn-meta,.launcher-actions .btn.is-failed .btn-meta{color:inherit;opacity:.82}
 
 /* ---- bottom bar ---- */
 .bottom-bar{display:flex;align-items:center;gap:1.5rem;padding:.5rem 1.5rem;
@@ -258,11 +296,12 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
           <h2>Mission Control</h2>
         </div>
         <div class="operator-nav-modes">
-          <button class="operator-mode active" id="operator-mode-inbox" type="button" onclick="setOperatorMode('inbox')"><span id="inbox-attention-chip">Inbox</span></button>
-          <button class="operator-mode" id="operator-mode-missions" type="button" onclick="setOperatorMode('missions')">Missions</button>
-          <button class="operator-mode" id="operator-mode-approvals" type="button" onclick="setOperatorMode('approvals')">Approvals</button>
-          <button class="operator-mode" id="operator-mode-evidence" type="button" onclick="setOperatorMode('evidence')">Evidence</button>
+          <button class="operator-mode active" id="operator-mode-inbox" type="button" onclick="setOperatorMode('inbox')"><span id="inbox-attention-chip">Needs Attention</span></button>
+          <button class="operator-mode" id="operator-mode-missions" type="button" onclick="setOperatorMode('missions')">All Missions</button>
+          <button class="operator-mode" id="operator-mode-approvals" type="button" onclick="setOperatorMode('approvals')">Decision Queue</button>
+          <button class="operator-mode" id="operator-mode-evidence" type="button" onclick="setOperatorMode('evidence')">Deep Evidence</button>
         </div>
+        <div id="operator-nav-context" class="operator-nav-context"></div>
         <div id="inbox-list" class="mission-list"></div>
         <div id="mission-list" class="mission-list"></div>
       </aside>
@@ -293,11 +332,59 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
       <h3 id="chat-title">Discuss</h3>
       <button class="btn btn-sm" onclick="closeSidebar()">&times;</button>
     </div>
-    <div class="chat-messages" id="chat-messages"></div>
-    <div class="chat-input-wrap">
-      <input class="chat-input" id="chat-input" placeholder="Type a message… (@freeze, @approve)"
-             onkeydown="if(event.key==='Enter')sendChat()"/>
-      <button class="btn btn-primary btn-sm" onclick="sendChat()">Send</button>
+    <div id="launcher-panel" class="sidebar-panel launcher-panel">
+      <div id="launcher-readiness" class="launcher-readiness">Checking environment…</div>
+      <div id="launcher-status" class="launcher-status">Use this panel to create, plan, bind, and launch a mission.</div>
+      <div class="launcher-section">
+        <label for="launcher-title">Mission title</label>
+        <input id="launcher-title" class="launcher-input" placeholder="Operator Console Dogfood Smoke"/>
+      </div>
+      <div class="launcher-section">
+        <label for="launcher-mission-id">Mission id (optional)</label>
+        <input id="launcher-mission-id" class="launcher-input" placeholder="operator-console-dogfood-smoke"/>
+      </div>
+      <div class="launcher-section">
+        <label for="launcher-intent">Intent</label>
+        <textarea id="launcher-intent" class="launcher-textarea" placeholder="Validate one real supervised mission through the operator console."></textarea>
+      </div>
+      <div class="launcher-section">
+        <label for="launcher-acceptance">Acceptance criteria (one per line)</label>
+        <textarea id="launcher-acceptance" class="launcher-textarea" placeholder="daemon picks up this issue as a mission&#10;dashboard shows Mission Detail / Transcript / Approval / Visual QA / Costs"></textarea>
+      </div>
+      <div class="launcher-section">
+        <label for="launcher-constraints">Constraints (one per line)</label>
+        <textarea id="launcher-constraints" class="launcher-textarea" placeholder="Keep this run small&#10;Prefer 1 wave / 1-2 packets"></textarea>
+      </div>
+      <div class="launcher-section">
+        <label for="launcher-linear-title">Linear title</label>
+        <input id="launcher-linear-title" class="launcher-input" placeholder="Real supervised mission dogfood"/>
+      </div>
+      <div class="launcher-section">
+        <label for="launcher-linear-description">Linear description</label>
+        <textarea id="launcher-linear-description" class="launcher-textarea" placeholder="Validate one real supervised mission through the operator console."></textarea>
+      </div>
+      <div class="launcher-section">
+        <label for="launcher-linear-issue-id">Bind existing Linear issue (optional)</label>
+        <input id="launcher-linear-issue-id" class="launcher-input" placeholder="SON-241"/>
+      </div>
+      <div class="launcher-actions">
+        <button class="btn" type="button" data-launcher-action="create-draft" onclick="createMissionDraft()">Create Draft</button>
+        <button class="btn" type="button" data-launcher-action="approve-plan" onclick="approveAndPlanMission()">Approve &amp; Plan</button>
+        <button class="btn" type="button" data-launcher-action="linear-create" onclick="createLinearIssueForMission()">Create Linear Issue</button>
+        <button class="btn" type="button" data-launcher-action="linear-bind" onclick="bindLinearIssueForMission()">Bind Existing Issue</button>
+      </div>
+      <div class="launcher-actions">
+        <button class="btn btn-primary" type="button" data-launcher-action="launch" onclick="launchMissionFromLauncher()">Launch Mission</button>
+        <button class="btn" type="button" data-launcher-action="refresh-readiness" onclick="loadLauncherReadiness()">Refresh Readiness</button>
+      </div>
+    </div>
+    <div id="discuss-panel" class="sidebar-panel active">
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-wrap">
+        <input class="chat-input" id="chat-input" placeholder="Type a message… (@freeze, @approve)"
+               onkeydown="if(event.key==='Enter')sendChat()"/>
+        <button class="btn btn-primary btn-sm" onclick="sendChat()">Send</button>
+      </div>
     </div>
   </div>
 </div>
@@ -353,6 +440,13 @@ let approvalQueue = {counts:{pending:0, missions:0}, items:[]};
 let approvalActionStates = {};
 let selectedApprovalMissionIds = [];
 let approvalBatchState = null;
+let sidebarMode = 'discuss';
+let launcherState = {
+  missionId: '',
+  linearIssueId: '',
+  readiness: null,
+  activeAction: null,
+};
 
 function parseOperatorRoute(route) {
   try {
@@ -502,12 +596,95 @@ function phaseFor(m) {
   return lc ? lc.phase : m.status;
 }
 
+function phaseMeta(phase) {
+  const normalized = String(phase || 'unknown');
+  if (normalized === 'approved') {
+    return {label: 'Ready to plan', hint: 'The mission spec is frozen but no execution plan is running yet.'};
+  }
+  if (normalized === 'planning') {
+    return {label: 'Planning', hint: 'Spec-orch is generating or refreshing the execution plan.'};
+  }
+  if (normalized === 'planned') {
+    return {label: 'Ready to promote', hint: 'The execution plan exists and can now be turned into runnable work.'};
+  }
+  if (normalized === 'promoting') {
+    return {label: 'Preparing work', hint: 'Spec-orch is wiring plan packets into tracked execution units.'};
+  }
+  if (normalized === 'executing') {
+    return {label: 'Running now', hint: 'Workers should be executing or waiting for the next supervised round.'};
+  }
+  if (normalized === 'all_done') {
+    return {label: 'Execution finished', hint: 'All packets have finished and post-run wrap-up is next.'};
+  }
+  if (normalized === 'retrospecting') {
+    return {label: 'Retrospective', hint: 'Spec-orch is summarizing what happened and what changed.'};
+  }
+  if (normalized === 'evolving') {
+    return {label: 'Improving system', hint: 'Spec-orch is updating its own prompts, rules, or guidance.'};
+  }
+  if (normalized === 'completed') {
+    return {label: 'Completed', hint: 'The mission finished and all post-run work is done.'};
+  }
+  if (normalized === 'failed') {
+    return {label: 'Failed', hint: 'The mission stopped because planning, execution, or verification failed.'};
+  }
+  return {label: normalized, hint: 'Current lifecycle state.'};
+}
+
+function operatorModeMeta(mode) {
+  if (mode === 'inbox') {
+    return {
+      title: 'Needs Attention',
+      description: 'Only items that need operator action now: approvals, paused missions, failures, or budget alerts.',
+    };
+  }
+  if (mode === 'missions') {
+    return {
+      title: 'All Missions',
+      description: 'Every mission known to this workspace, with running and recently active missions floated to the top.',
+    };
+  }
+  if (mode === 'approvals') {
+    return {
+      title: 'Decision Queue',
+      description: 'Only missions that are actively waiting on operator decisions, sorted by urgency and wait time.',
+    };
+  }
+  if (mode === 'evidence') {
+    return {
+      title: 'Deep Evidence',
+      description: 'Browse missions through evidence density: recorded rounds, visual reviews, and operator actions.',
+    };
+  }
+  return {
+    title: 'Mission Control',
+    description: 'Operator surfaces for supervised software delivery.',
+  };
+}
+
 function renderOperatorModes() {
   const modes = ['inbox', 'missions', 'approvals', 'evidence'];
+  const evidenceMissionCount = missions.filter(m => {
+    const ev = m.evidence || {};
+    return (ev.round_count || 0) > 0 || (ev.visual_round_count || 0) > 0 || (ev.approval_action_count || 0) > 0;
+  }).length;
+  const modeLabels = {
+    inbox: ['Needs Attention', inboxSummary?.counts?.attention || 0],
+    missions: ['All Missions', missions.length],
+    approvals: ['Decision Queue', approvalQueue?.counts?.pending || 0],
+    evidence: ['Deep Evidence', evidenceMissionCount],
+  };
   for (const mode of modes) {
     const button = document.getElementById(`operator-mode-${mode}`);
     if (!button) continue;
     button.classList.toggle('active', selectedOperatorMode === mode);
+    const [label, count] = modeLabels[mode];
+    button.innerHTML = count ? `${escHtml(label)} <span class="operator-mode-count">${escHtml(String(count))}</span>` : escHtml(label);
+  }
+  const navContext = document.getElementById('operator-nav-context');
+  if (navContext) {
+    const meta = operatorModeMeta(selectedOperatorMode);
+    navContext.innerHTML = `<strong>${escHtml(meta.title)}</strong><br/>${escHtml(meta.description)}`;
   }
 }
 
@@ -517,6 +694,7 @@ function setOperatorMode(mode) {
     selectedMissionTab = 'transcript';
   }
   syncOperatorRoute();
+  renderMissions();
   renderOperatorModes();
   renderMissionDetail(selectedMissionDetail);
   renderContextRail(selectedMissionDetail);
@@ -524,12 +702,17 @@ function setOperatorMode(mode) {
 
 function renderMissions() {
   const root = document.getElementById('mission-list');
+  const inboxRoot = document.getElementById('inbox-list');
   renderOperatorModes();
   if (!missions.length) {
     selectedMissionId = null;
     selectedMissionDetail = null;
     selectedPacketId = null;
     root.innerHTML = '<div class="empty-panel">No missions found yet.</div>';
+    if (inboxRoot) {
+      inboxRoot.style.display = selectedOperatorMode === 'inbox' ? 'flex' : 'none';
+    }
+    root.style.display = selectedOperatorMode === 'inbox' ? 'none' : 'flex';
     renderMissionDetail(null);
     renderContextRail(null);
     return;
@@ -537,27 +720,57 @@ function renderMissions() {
   if (!selectedMissionId || !missions.some(m => m.mission_id === selectedMissionId)) {
     selectedMissionId = missions[0].mission_id;
   }
+  if (selectedOperatorMode === 'approvals') {
+    const items = approvalQueue?.items || [];
+    root.innerHTML = items.length ? items.map(item => `
+      <button class="mission-list-item ${selectedMissionId === item.mission_id ? 'active' : ''}"
+        type="button" onclick="selectMission(${safeJsArg(item.mission_id)})">
+        <div class="mission-list-title">${escHtml(item.title)}</div>
+        <div class="mission-list-meta">
+          <span class="badge ${escHtml(item.phase || 'approval')}">${escHtml(item.approval_state?.status || 'awaiting_human')}</span>
+          <span>${escHtml(item.age_bucket || 'fresh')}</span>
+          <span>${escHtml(String(item.wait_minutes || 0))} min waiting</span>
+        </div>
+        <div class="mission-list-meta">
+          <span>${escHtml(item.summary || '')}</span>
+        </div>
+      </button>
+    `).join('') : '<div class="empty-panel">No approval decisions are waiting right now.</div>';
+    if (inboxRoot) inboxRoot.style.display = 'none';
+    root.style.display = 'flex';
+    return;
+  }
   root.innerHTML = missions.map(m => {
     const phase = phaseFor(m);
+    const phaseInfo = phaseMeta(phase);
     const lc = lifecycleStates[m.mission_id];
     const pipelineText = `${m.pipeline_done}/${m.pipeline_total} stages complete`;
-    const issueSummary = lc && phase === 'executing'
+    const issueSummary = selectedOperatorMode === 'evidence'
+      ? `${m.evidence?.round_count || 0} rounds · ${m.evidence?.visual_round_count || 0} visual reviews · ${m.evidence?.approval_action_count || 0} operator actions`
+      : lc && phase === 'executing'
       ? `${(lc.completed_issues || []).length}/${(lc.issue_ids || []).length || 1} issues complete`
       : m.plan ? `${m.plan.packet_count} packets across ${m.plan.wave_count} waves` : 'Spec in progress';
     return `<button class="mission-list-item ${selectedMissionId === m.mission_id ? 'active' : ''}"
       id="card-${escAttr(m.mission_id)}" data-mid="${escAttr(m.mission_id)}" onclick="selectMission(${safeJsArg(m.mission_id)})">
       <div class="mission-list-title">${escHtml(m.title)}</div>
       <div class="mission-list-meta">
-        <span class="badge ${phase}">${phase}</span>
+        <span class="badge ${phase}">${escHtml(phaseInfo.label)}</span>
         <span>${pipelineText}</span>
       </div>
       <div class="mission-list-meta">
         <span>${escHtml(m.mission_id)}</span>
         <span>${escHtml(issueSummary)}</span>
       </div>
+      <div class="mission-list-meta">
+        <span>${escHtml(phaseInfo.hint)}</span>
+      </div>
     </button>`;
   }).join('');
   renderInboxSummary();
+  if (inboxRoot) {
+    inboxRoot.style.display = selectedOperatorMode === 'inbox' ? 'flex' : 'none';
+  }
+  root.style.display = selectedOperatorMode === 'inbox' ? 'none' : 'flex';
 }
 
 function renderInboxSummary() {
@@ -565,7 +778,7 @@ function renderInboxSummary() {
   const list = document.getElementById('inbox-list');
   const attention = inboxSummary?.counts?.attention || 0;
   if (chip) {
-    chip.textContent = attention ? `Inbox ${attention}` : 'Inbox';
+    chip.textContent = attention ? `Needs Attention ${attention}` : 'Needs Attention';
     chip.title = attention
       ? `${inboxSummary.counts.approvals || 0} approvals, ${inboxSummary.counts.budgets || 0} budget alerts, ${inboxSummary.counts.paused || 0} paused, ${inboxSummary.counts.failed || 0} failed`
       : 'No operator attention items';
@@ -826,6 +1039,15 @@ function renderContextRail(detail) {
   const visualQa = selectedMissionVisualQa || detail.visual_qa || {};
   const costs = selectedMissionCosts || detail.costs || {};
   rail.innerHTML = `
+    <div class="mission-section">
+      <h3>Lifecycle</h3>
+      <div class="context-list">
+        <div class="context-card">
+          <div class="context-title">${escHtml(phaseMeta(detail.lifecycle?.phase || detail.mission?.status || '').label)}</div>
+          <div class="context-meta">${escHtml(phaseMeta(detail.lifecycle?.phase || detail.mission?.status || '').hint)}</div>
+        </div>
+      </div>
+    </div>
     <div class="mission-section">
       <h3>Interventions</h3>
       <div class="context-list">
@@ -1227,16 +1449,142 @@ function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
 }
 
+function setSidebarMode(mode) {
+  sidebarMode = mode;
+  const launcherPanel = document.getElementById('launcher-panel');
+  const discussPanel = document.getElementById('discuss-panel');
+  launcherPanel?.classList.toggle('active', mode === 'launcher');
+  discussPanel?.classList.toggle('active', mode !== 'launcher');
+}
+
+function parseLauncherLines(id) {
+  const value = document.getElementById(id)?.value || '';
+  return value.split('\\n').map(line => line.trim()).filter(Boolean);
+}
+
+function setLauncherStatus(message, tone = 'neutral') {
+  const el = document.getElementById('launcher-status');
+  if (!el) return;
+  el.textContent = message;
+  el.dataset.tone = tone;
+}
+
+function launcherActionButton(actionKey) {
+  return document.querySelector(`[data-launcher-action="${actionKey}"]`);
+}
+
+function resetLauncherActionState() {
+  document.querySelectorAll('[data-launcher-action]').forEach(btn => {
+    btn.classList.remove('is-pending', 'is-complete', 'is-failed');
+    btn.disabled = false;
+    if (btn.dataset.defaultLabel) {
+      btn.innerHTML = btn.dataset.defaultLabel;
+    }
+  });
+  launcherState.activeAction = null;
+}
+
+function setLauncherActionState(actionKey, state, label = null) {
+  const btn = launcherActionButton(actionKey);
+  if (!btn) return;
+  if (!btn.dataset.defaultLabel) {
+    btn.dataset.defaultLabel = btn.innerHTML;
+  }
+
+  if (state === 'pending') {
+    resetLauncherActionState();
+    btn.classList.add('is-pending');
+    btn.disabled = true;
+    btn.innerHTML = label || btn.dataset.defaultLabel;
+    launcherState.activeAction = actionKey;
+    return;
+  }
+
+  btn.classList.remove('is-pending', 'is-complete', 'is-failed');
+  btn.disabled = false;
+
+  if (state === 'idle') {
+    btn.innerHTML = btn.dataset.defaultLabel;
+    if (launcherState.activeAction === actionKey) {
+      launcherState.activeAction = null;
+    }
+    return;
+  }
+
+  btn.classList.add(state === 'success' ? 'is-complete' : 'is-failed');
+  btn.innerHTML = label || btn.dataset.defaultLabel;
+  launcherState.activeAction = null;
+  window.setTimeout(() => {
+    if (!btn.isConnected) return;
+    btn.classList.remove('is-complete', 'is-failed');
+    btn.innerHTML = btn.dataset.defaultLabel;
+  }, 1800);
+}
+
+function launcherMissionId() {
+  return launcherState.missionId || (document.getElementById('launcher-mission-id')?.value || '').trim();
+}
+
+function renderLauncherReadiness(data) {
+  const el = document.getElementById('launcher-readiness');
+  if (!el || !data) return;
+  const rows = [
+    ['Config', data.config_present ? 'ready' : 'missing', data.config_present ? 'spec-orch.toml found' : 'spec-orch.toml missing'],
+    ['Dashboard', data.dashboard?.ready ? 'ready' : 'missing', data.dashboard?.ready ? 'frontend deps available' : 'dashboard deps missing'],
+    ['Linear', data.linear?.ready ? 'ready' : 'missing', data.linear?.ready ? 'token available' : `set ${data.linear?.token_env || 'SPEC_ORCH_LINEAR_TOKEN'}`],
+    ['Planner', data.planner?.ready ? 'ready' : 'missing', data.planner?.ready ? String(data.planner?.model || 'configured') : 'planner not ready'],
+    ['Supervisor', data.supervisor?.ready ? 'ready' : 'missing', data.supervisor?.ready ? String(data.supervisor?.model || 'configured') : 'supervisor not ready'],
+    ['Builder', data.builder?.ready ? 'ready' : 'missing', data.builder?.ready ? String(data.builder?.adapter || 'configured') : 'builder not ready'],
+  ];
+  el.innerHTML = rows.map(([label, state, detail]) => `
+    <div class="launcher-readiness-item">
+      <span>${escHtml(label)}</span>
+      <span class="launcher-readiness-state ${escAttr(state)}">${escHtml(detail)}</span>
+    </div>
+  `).join('');
+}
+
+async function loadLauncherReadiness() {
+  setLauncherActionState('refresh-readiness', 'pending', 'Refreshing<span class="btn-meta">Checking config</span>');
+  try {
+    const res = await fetch('/api/launcher/readiness');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Launcher readiness failed');
+    launcherState.readiness = data;
+    renderLauncherReadiness(data);
+    setLauncherActionState('refresh-readiness', 'success', 'Ready<span class="btn-meta">Readiness updated</span>');
+  } catch (error) {
+    setLauncherStatus('Failed to load launcher readiness: ' + (error?.message || 'unknown error'), 'failed');
+    setLauncherActionState('refresh-readiness', 'failed', 'Retry<span class="btn-meta">Readiness failed</span>');
+  }
+}
+
 function openNewMission() {
-  chatThreadId = 'web-' + crypto.randomUUID().slice(0,8);
-  chatMessages = [];
-  renderChat();
+  launcherState.missionId = '';
+  launcherState.linearIssueId = '';
+  for (const id of [
+    'launcher-title',
+    'launcher-mission-id',
+    'launcher-intent',
+    'launcher-acceptance',
+    'launcher-constraints',
+    'launcher-linear-title',
+    'launcher-linear-description',
+    'launcher-linear-issue-id',
+  ]) {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  }
+  resetLauncherActionState();
+  setSidebarMode('launcher');
   document.getElementById('chat-title').textContent = 'New Mission';
+  setLauncherStatus('Fill the mission setup fields, then create the draft.', 'neutral');
   openSidebar();
-  addSystemMsg('Start describing your feature. Use @freeze to create a spec, @approve to approve.');
+  loadLauncherReadiness();
 }
 
 function openDiscuss(missionId) {
+  setSidebarMode('discuss');
   chatThreadId = 'discuss-' + missionId;
   chatMessages = [];
   renderChat();
@@ -1251,6 +1599,137 @@ function openDiscussPreset(missionId, presetMessage) {
   if (input) {
     input.value = presetMessage || '';
     input.focus();
+  }
+}
+
+async function createMissionDraft() {
+  const payload = {
+    title: (document.getElementById('launcher-title')?.value || '').trim(),
+    mission_id: (document.getElementById('launcher-mission-id')?.value || '').trim(),
+    intent: (document.getElementById('launcher-intent')?.value || '').trim(),
+    acceptance_criteria: parseLauncherLines('launcher-acceptance'),
+    constraints: parseLauncherLines('launcher-constraints'),
+  };
+  setLauncherActionState('create-draft', 'pending', 'Creating<span class="btn-meta">Writing mission files</span>');
+  setLauncherStatus('Creating mission draft…', 'working');
+  try {
+    const res = await fetch('/api/launcher/missions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Mission draft creation failed');
+    launcherState.missionId = data.mission_id;
+    document.getElementById('launcher-mission-id').value = data.mission_id;
+    setLauncherStatus(`Draft created: ${data.mission_id}`, 'success');
+    setLauncherActionState('create-draft', 'success', 'Draft ready<span class="btn-meta">Mission files created</span>');
+    await load();
+    await selectMission(data.mission_id, {force:true});
+  } catch (error) {
+    setLauncherStatus(error?.message || 'Mission draft creation failed', 'failed');
+    setLauncherActionState('create-draft', 'failed', 'Try again<span class="btn-meta">Draft creation failed</span>');
+  }
+}
+
+async function approveAndPlanMission() {
+  const missionId = launcherMissionId();
+  if (!missionId) {
+    setLauncherStatus('Create a mission draft first.', 'failed');
+    return;
+  }
+  setLauncherActionState('approve-plan', 'pending', 'Planning<span class="btn-meta">Freezing and scoping</span>');
+  setLauncherStatus(`Approving and planning ${missionId}…`, 'working');
+  try {
+    const res = await fetch(`/api/launcher/missions/${encodeURIComponent(missionId)}/approve-plan`, {method: 'POST'});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Approve & Plan failed');
+    setLauncherStatus(`Approved and planned ${missionId}`, 'success');
+    setLauncherActionState('approve-plan', 'success', 'Planned<span class="btn-meta">plan.json ready</span>');
+    await load();
+    await selectMission(missionId, {force:true});
+  } catch (error) {
+    setLauncherStatus(error?.message || 'Approve & Plan failed', 'failed');
+    setLauncherActionState('approve-plan', 'failed', 'Retry plan<span class="btn-meta">Planner failed</span>');
+  }
+}
+
+async function createLinearIssueForMission() {
+  const missionId = launcherMissionId();
+  if (!missionId) {
+    setLauncherStatus('Create a mission draft first.', 'failed');
+    return;
+  }
+  setLauncherActionState('linear-create', 'pending', 'Creating issue<span class="btn-meta">Writing to Linear</span>');
+  setLauncherStatus(`Creating a new Linear issue for ${missionId}…`, 'working');
+  try {
+    const res = await fetch(`/api/launcher/missions/${encodeURIComponent(missionId)}/linear-create`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        title: (document.getElementById('launcher-linear-title')?.value || '').trim() || missionId,
+        description: (document.getElementById('launcher-linear-description')?.value || '').trim(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Linear issue creation failed');
+    launcherState.linearIssueId = data.linear_issue?.identifier || '';
+    document.getElementById('launcher-linear-issue-id').value = launcherState.linearIssueId;
+    setLauncherStatus(`Created Linear issue ${launcherState.linearIssueId}`, 'success');
+    setLauncherActionState('linear-create', 'success', 'Issue ready<span class="btn-meta">Linear issue created</span>');
+  } catch (error) {
+    setLauncherStatus(error?.message || 'Linear issue creation failed', 'failed');
+    setLauncherActionState('linear-create', 'failed', 'Try again<span class="btn-meta">Issue creation failed</span>');
+  }
+}
+
+async function bindLinearIssueForMission() {
+  const missionId = launcherMissionId();
+  const linearIssueId = (document.getElementById('launcher-linear-issue-id')?.value || '').trim();
+  if (!missionId || !linearIssueId) {
+    setLauncherStatus('Mission id and Linear issue id are required.', 'failed');
+    return;
+  }
+  setLauncherActionState('linear-bind', 'pending', 'Binding issue<span class="btn-meta">Updating Linear description</span>');
+  setLauncherStatus(`Binding ${missionId} to ${linearIssueId}…`, 'working');
+  try {
+    const res = await fetch(`/api/launcher/missions/${encodeURIComponent(missionId)}/linear-bind`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({linear_issue_id: linearIssueId}),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Linear issue binding failed');
+    launcherState.linearIssueId = data.linear_issue?.identifier || linearIssueId;
+    setLauncherStatus(`Bound ${missionId} to ${launcherState.linearIssueId}`, 'success');
+    setLauncherActionState('linear-bind', 'success', 'Bound<span class="btn-meta">Mission linked</span>');
+  } catch (error) {
+    setLauncherStatus(error?.message || 'Linear issue binding failed', 'failed');
+    setLauncherActionState('linear-bind', 'failed', 'Try again<span class="btn-meta">Bind failed</span>');
+  }
+}
+
+async function launchMissionFromLauncher() {
+  const missionId = launcherMissionId();
+  if (!missionId) {
+    setLauncherStatus('Create or select a mission first.', 'failed');
+    return;
+  }
+  setLauncherActionState('launch', 'pending', 'Launching<span class="btn-meta">Handing off to lifecycle</span>');
+  setLauncherStatus(`Launching ${missionId}…`, 'working');
+  try {
+    const res = await fetch(`/api/launcher/missions/${encodeURIComponent(missionId)}/launch`, {method: 'POST'});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Mission launch failed');
+    setLauncherStatus(`Mission launched: ${missionId}`, 'success');
+    setLauncherActionState('launch', 'success', 'Live<span class="btn-meta">Mission executing</span>');
+    selectedOperatorMode = 'missions';
+    await load();
+    await selectMission(missionId, {force:true});
+    closeSidebar();
+  } catch (error) {
+    setLauncherStatus(error?.message || 'Mission launch failed', 'failed');
+    setLauncherActionState('launch', 'failed', 'Retry launch<span class="btn-meta">Launch failed</span>');
   }
 }
 

@@ -33,9 +33,40 @@ The dashboard uses a three-zone workbench:
   - artifact paths
   - round evidence
 
+## Mission Launcher
+
+Mission setup is now dashboard-first.
+
+Use the `+ New Mission` button in the header to open the `Mission Launcher` sidebar.
+
+The launcher is designed to collapse the old multi-tool flow:
+
+```text
+edit spec.md -> mission approve -> plan -> edit Linear issue -> start daemon
+```
+
+into a single workbench flow:
+
+```text
+Create Draft -> Approve & Plan -> Create/Bind Linear -> Launch Mission
+```
+
+Current launcher capabilities:
+
+- environment readiness checks
+- mission draft creation
+- approve + plan in-place
+- Linear issue creation
+- binding an existing Linear issue
+- mission launch from the dashboard
+
+The CLI/file-edit flow still exists as a fallback, but it is no longer the recommended primary path for dogfooding.
+
 ## Top-Level Modes
 
-### Inbox
+The left rail modes are work modes, not lifecycle states.
+
+### Needs Attention
 
 Use this to triage operator attention:
 
@@ -52,11 +83,11 @@ Each item surfaces:
 - latest operator action when available
 - budget alerts when thresholds are crossed
 
-### Missions
+### All Missions
 
 Use this as the main workbench view for a selected mission.
 
-### Approvals
+### Decision Queue
 
 Use this as the queue surface for approval-needed missions.
 
@@ -68,9 +99,36 @@ Queue summaries now also surface:
 - aged approvals
 - approval items whose latest operator action failed
 
-### Evidence
+### Deep Evidence
 
 This forces the selected mission into transcript-first inspection mode.
+
+## Lifecycle Language
+
+Mission lifecycle labels are intentionally translated into operator-facing language:
+
+- `approved`
+  - shown as `Ready to plan`
+- `planning`
+  - shown as `Planning`
+- `planned`
+  - shown as `Ready to promote`
+- `promoting`
+  - shown as `Preparing work`
+- `executing`
+  - shown as `Running now`
+- `all_done`
+  - shown as `Execution finished`
+- `retrospecting`
+  - shown as `Retrospective`
+- `evolving`
+  - shown as `Improving system`
+- `completed`
+  - shown as `Completed`
+- `failed`
+  - shown as `Failed`
+
+The dashboard should prefer these human-facing labels over raw internal phase names.
 
 ## Mission Detail Tabs
 
