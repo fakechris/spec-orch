@@ -311,6 +311,139 @@
     `
   }
 
+  function renderApprovalQueue(items, escHtml) {
+    if (!items || !items.length) {
+      return '<div class="empty-panel">No approval-required missions right now.</div>'
+    }
+    return `
+      <div class="context-list">
+        ${items.map(item => `
+          <div class="context-card queue-card">
+            <div class="context-title">${safeEsc(escHtml, item?.mission?.title || item?.title || 'Approval')}</div>
+            <div class="context-meta">
+              <span class="detail-chip">${safeEsc(escHtml, item?.approval_state?.status || 'approval')}</span>
+              <span>${safeEsc(escHtml, item?.summary || item?.approval_request?.summary || '')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Round ${safeEsc(escHtml, String(item?.current_round || item?.approval_request?.round_id || '—'))}</span>
+              ${item?.latest_operator_action ? `<span>${safeEsc(escHtml, item.latest_operator_action.label || item.latest_operator_action.action_key || 'Action')}</span>` : ''}
+              ${item?.recommended_action ? `<span>${safeEsc(escHtml, item.recommended_action)}</span>` : ''}
+            </div>
+            ${item?.blocking_question ? `<div class="transcript-entry-body">${safeEsc(escHtml, item.blocking_question)}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `
+  }
+
+  function renderApprovalQueuePanel(queue, escHtml) {
+    const items = queue?.items || []
+    const counts = queue?.counts || {}
+    return `
+      <section class="mission-section">
+        <div class="section-heading">
+          <h3>Approval Queue</h3>
+          <div class="context-meta">
+            <span>${safeEsc(escHtml, `${counts.pending || 0} pending`)}</span>
+            <span>${safeEsc(escHtml, `${counts.missions || 0} missions`)}</span>
+          </div>
+        </div>
+        ${renderApprovalQueue(items, escHtml)}
+      </section>
+    `
+  }
+
+  function renderVisualQaPanel(visualQa, escHtml) {
+    const summary = visualQa?.summary || {}
+    const rounds = visualQa?.rounds || []
+    return `
+      <div class="mission-metrics surface-metrics">
+        <div class="mission-metric">
+          <div class="mission-metric-label">Visual rounds</div>
+          <div class="mission-metric-value">${safeEsc(escHtml, String(summary.total_rounds || 0))}</div>
+        </div>
+        <div class="mission-metric">
+          <div class="mission-metric-label">Blocking findings</div>
+          <div class="mission-metric-value">${safeEsc(escHtml, String(summary.blocking_findings || 0))}</div>
+        </div>
+        <div class="mission-metric">
+          <div class="mission-metric-label">Warnings</div>
+          <div class="mission-metric-value">${safeEsc(escHtml, String(summary.warning_findings || 0))}</div>
+        </div>
+        <div class="mission-metric">
+          <div class="mission-metric-label">Confidence</div>
+          <div class="mission-metric-value">${safeEsc(escHtml, String(summary.latest_confidence ?? 0))}</div>
+        </div>
+      </div>
+      ${rounds.length ? `<div class="context-list">
+        ${rounds.map(round => `
+          <div class="context-card">
+            <div class="context-title">Round ${safeEsc(escHtml, round.round_id)}</div>
+            <div class="context-meta">
+              <span class="detail-chip">${safeEsc(escHtml, round.status || 'pass')}</span>
+              <span>${safeEsc(escHtml, round.summary || '')}</span>
+            </div>
+            ${round.findings?.length ? `<div class="context-list detail-section">
+              ${round.findings.map(finding => `
+                <div class="context-card detail-finding">
+                  <div class="context-title">${safeEsc(escHtml, finding?.severity || 'finding')}</div>
+                  <div class="transcript-entry-body">${safeEsc(escHtml, finding?.message || '')}</div>
+                </div>
+              `).join('')}
+            </div>` : '<div class="empty-panel">No visual findings recorded.</div>'}
+            ${round.artifact_path ? `<div class="context-meta"><span class="artifact-link">${safeEsc(escHtml, round.artifact_path)}</span></div>` : ''}
+          </div>
+        `).join('')}
+      </div>` : '<div class="empty-panel">No visual evaluation rounds recorded yet.</div>'}
+    `
+  }
+
+  function renderCostsPanel(costs, escHtml) {
+    const summary = costs?.summary || {}
+    const workers = costs?.workers || []
+    return `
+      <div class="mission-metrics surface-metrics">
+        <div class="mission-metric">
+          <div class="mission-metric-label">Workers</div>
+          <div class="mission-metric-value">${safeEsc(escHtml, String(summary.workers || 0))}</div>
+        </div>
+        <div class="mission-metric">
+          <div class="mission-metric-label">Input tokens</div>
+          <div class="mission-metric-value">${safeEsc(escHtml, String(summary.input_tokens || 0))}</div>
+        </div>
+        <div class="mission-metric">
+          <div class="mission-metric-label">Output tokens</div>
+          <div class="mission-metric-value">${safeEsc(escHtml, String(summary.output_tokens || 0))}</div>
+        </div>
+        <div class="mission-metric">
+          <div class="mission-metric-label">Cost USD</div>
+          <div class="mission-metric-value">${safeEsc(escHtml, String(summary.cost_usd || 0))}</div>
+        </div>
+      </div>
+      <div class="context-card">
+        <div class="context-title">Budget status</div>
+        <div class="context-meta"><span class="detail-chip">${safeEsc(escHtml, summary.budget_status || 'unconfigured')}</span></div>
+      </div>
+      ${workers.length ? `<div class="context-list">
+        ${workers.map(worker => `
+          <div class="context-card">
+            <div class="context-title">${safeEsc(escHtml, worker.packet_id || 'worker')}</div>
+            <div class="context-meta">
+              <span>${safeEsc(escHtml, worker.adapter || 'adapter')}</span>
+              <span>${safeEsc(escHtml, worker.turn_status || 'unknown')}</span>
+            </div>
+            <div class="detail-grid detail-section">
+              <div class="detail-row"><div class="detail-key">Input</div><div class="detail-value">${safeEsc(escHtml, worker.input_tokens || 0)}</div></div>
+              <div class="detail-row"><div class="detail-key">Output</div><div class="detail-value">${safeEsc(escHtml, worker.output_tokens || 0)}</div></div>
+              <div class="detail-row"><div class="detail-key">Cost</div><div class="detail-value">${safeEsc(escHtml, worker.cost_usd || 0)}</div></div>
+            </div>
+            ${worker.report_path ? `<div class="context-meta"><span class="artifact-link">${safeEsc(escHtml, worker.report_path)}</span></div>` : ''}
+          </div>
+        `).join('')}
+      </div>` : '<div class="empty-panel">No worker cost data recorded yet.</div>'}
+    `
+  }
+
   function renderTranscriptFilters(selectedPacketTranscript, selectedTranscriptFilter, escHtml) {
     const counts = selectedPacketTranscript?.summary?.block_counts || {}
     const filters = [{key: 'all', label: 'All'}].concat(
@@ -380,6 +513,8 @@
                   <div class="transcript-entry-meta">
                     <span>${safeEsc(escHtml, block.timestamp || '—')}</span>
                     ${block.body ? `<span>${safeEsc(escHtml, block.body)}</span>` : ''}
+                    ${block.artifact_path ? `<span class="detail-chip">artifact</span>` : ''}
+                    ${block.source_path ? `<span class="detail-chip">source</span>` : ''}
                   </div>
                   ${block.body ? `<div class="transcript-entry-body">${safeEsc(escHtml, block.body)}</div>` : ''}
                 </button>
@@ -466,8 +601,11 @@
   window.SpecOrchOperatorConsole = {
     buildMissionSubtitle,
     renderActionButtons,
+    renderApprovalQueue,
+    renderApprovalQueuePanel,
     renderApprovalWorkspace,
     renderArtifactLinks,
+    renderCostsPanel,
     renderDetailValue,
     renderLatestRound,
     renderPacketRow,
@@ -477,6 +615,7 @@
     renderTranscriptInspector,
     renderTranscriptPreview,
     renderTranscriptDetails,
+    renderVisualQaPanel,
     formatApprovalActionState,
   }
   globalThis.__SPEC_ORCH_OPERATOR_CONSOLE__ = true;

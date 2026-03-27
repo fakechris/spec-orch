@@ -233,14 +233,29 @@
   - Moved `buildMissionSubtitle`, `renderArtifactLinks`, and `renderRoundContext` into the shared operator-console helper namespace to keep shrinking inline dashboard script ownership.
   - Added backend-derived `approval_state` to mission detail and inbox so operator workflow is no longer inferred purely from raw history rows.
   - Added explicit pending UI state for approval actions and migrated the heavy approval/transcript render functions into `static/operator-console.js`, leaving `app.py` with thin orchestration wrappers.
+  - Landed the first complete operator-console foundation pass: approval state semantics are explicit, transcript evidence is inspectable, Inbox promotes approval-needed missions, and dashboard rendering ownership is split across package modules plus shared static helpers.
+  - Reframed the remaining work around new first-class surfaces instead of old foundation Todos: Approval Queue productization, Paperclip-grade transcript readability, Visual QA, Costs/Budgets, and continued shell/package cleanup.
+  - Added `src/spec_orch/dashboard/surfaces.py` to own Approval Queue, Visual QA, and Costs/Budgets aggregation.
+  - Added dedicated dashboard surfaces for Approval Queue, Visual QA, and Costs/Budgets, and wired them into mission tabs plus operator mode switching.
+  - Removed duplicated transcript implementation from `app.py`, leaving the package-backed transcript module as the single owner.
+  - Added a dedicated `docs/guides/operator-console.md` guide and updated service/run docs to point to the operator-console workflow first.
 - Files created/modified:
   - `src/spec_orch/dashboard/missions.py`
   - `src/spec_orch/dashboard/api.py`
   - `src/spec_orch/dashboard/__init__.py`
   - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/dashboard/surfaces.py`
+  - `src/spec_orch/dashboard/routes.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `src/spec_orch/dashboard_assets/static/operator-console.css`
   - `tests/unit/test_dashboard_package.py`
+  - `tests/unit/test_dashboard_api.py`
   - `task_plan.md`
   - `progress.md`
+  - `docs/plans/2026-03-26-operator-console-next-todos.md`
+  - `docs/guides/operator-console.md`
+  - `docs/agent-guides/services.md`
+  - `docs/agent-guides/run-pipeline.md`
 
 ### Verification
 - `uv run --python 3.13 python -m pytest tests/unit/test_dashboard.py tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py -q`

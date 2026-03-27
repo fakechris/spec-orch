@@ -55,3 +55,15 @@ def test_dashboard_package_exposes_mission_helpers() -> None:
     assert callable(_gather_inbox)
     assert callable(_gather_mission_detail)
     assert callable(_gather_lifecycle_states)
+
+
+def test_dashboard_package_exposes_surface_helpers() -> None:
+    from spec_orch.dashboard.surfaces import (
+        _gather_approval_queue,
+        _gather_mission_costs,
+        _gather_mission_visual_qa,
+    )
+
+    assert callable(_gather_approval_queue)
+    assert callable(_gather_mission_visual_qa)
+    assert callable(_gather_mission_costs)

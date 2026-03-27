@@ -28,6 +28,10 @@ def register_routes(app: FastAPI, root: Path) -> None:
     async def api_inbox() -> JSONResponse:
         return JSONResponse(dashboard_app._gather_inbox(root))
 
+    @app.get("/api/approvals")
+    async def api_approvals() -> JSONResponse:
+        return JSONResponse(dashboard_app._gather_approval_queue(root))
+
     @app.get("/api/missions/{mission_id}")
     async def api_mission(mission_id: str) -> JSONResponse:
         missions = dashboard_app._gather_missions(root)
@@ -42,6 +46,14 @@ def register_routes(app: FastAPI, root: Path) -> None:
         if detail is None:
             return JSONResponse({"error": "not found"}, status_code=404)
         return JSONResponse(detail)
+
+    @app.get("/api/missions/{mission_id}/visual-qa")
+    async def api_mission_visual_qa(mission_id: str) -> JSONResponse:
+        return JSONResponse(dashboard_app._gather_mission_visual_qa(root, mission_id))
+
+    @app.get("/api/missions/{mission_id}/costs")
+    async def api_mission_costs(mission_id: str) -> JSONResponse:
+        return JSONResponse(dashboard_app._gather_mission_costs(root, mission_id))
 
     @app.get("/api/missions/{mission_id}/packets/{packet_id}/transcript")
     async def api_packet_transcript(mission_id: str, packet_id: str) -> JSONResponse:

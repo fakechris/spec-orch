@@ -324,6 +324,126 @@ class TestDashboardAPI:
             "summary": "Operator requested revision",
         }
 
+    def test_approvals_endpoint_returns_dedicated_queue(self, client, repo: Path):
+        mission_id = "mission-approval-queue"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-04"
+        operator_dir = specs / "operator"
+        specs.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+        operator_dir.mkdir(parents=True)
+
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Approval Queue Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Approval Queue Mission\n", encoding="utf-8")
+        (round_dir / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 4,
+                    "wave_id": 2,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:18:00+00:00",
+                    "completed_at": "2026-03-25T00:22:00+00:00",
+                    "worker_results": [],
+                    "decision": {
+                        "action": "ask_human",
+                        "reason_code": "needs_approval",
+                        "summary": "Approve rollout after transcript review.",
+                        "confidence": 0.77,
+                        "affected_workers": [],
+                        "artifacts": {},
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": ["Approve rollout after transcript review?"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (operator_dir / "approval_actions.jsonl").write_text(
+            json.dumps(
+                {
+                    "timestamp": "2026-03-25T00:22:30+00:00",
+                    "action_key": "ask_followup",
+                    "label": "Ask follow-up",
+                    "message": "@follow-up Need one more artifact before approval.",
+                    "channel": "web-dashboard",
+                    "status": "sent",
+                    "effect": "followup_requested",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (repo / ".spec_orch_runs" / "lifecycle_state.json").write_text(
+            json.dumps(
+                {
+                    mission_id: {
+                        "mission_id": mission_id,
+                        "phase": "executing",
+                        "issue_ids": ["SON-55"],
+                        "completed_issues": [],
+                        "error": None,
+                        "updated_at": "2026-03-25T00:23:00+00:00",
+                        "current_round": 4,
+                        "round_orchestrator_state": {
+                            "paused": True,
+                            "blocking_questions": [
+                                "Approve rollout after transcript review?"
+                            ],
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get("/api/approvals")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["counts"] == {"pending": 1, "missions": 1}
+        assert data["items"] == [
+            {
+                "mission_id": mission_id,
+                "title": "Approval Queue Mission",
+                "kind": "approval",
+                "phase": "executing",
+                "summary": "Approve rollout after transcript review.",
+                "updated_at": "2026-03-25T00:23:00+00:00",
+                "current_round": 4,
+                "blocking_question": "Approve rollout after transcript review?",
+                "decision_action": "ask_human",
+                "latest_operator_action": {
+                    "timestamp": "2026-03-25T00:22:30+00:00",
+                    "action_key": "ask_followup",
+                    "label": "Ask follow-up",
+                    "message": "@follow-up Need one more artifact before approval.",
+                    "channel": "web-dashboard",
+                    "status": "sent",
+                    "effect": "followup_requested",
+                },
+                "approval_state": {
+                    "status": "followup_requested",
+                    "summary": "Operator requested follow-up",
+                },
+                "recommended_action": "Approve",
+            }
+        ]
+
     def test_mission_detail_endpoint(self, client, repo: Path):
         mission_id = "mission-detail"
         specs = repo / "docs" / "specs" / mission_id
@@ -540,6 +660,27 @@ class TestDashboardAPI:
         assert data["approval_state"] == {
             "status": "awaiting_human",
             "summary": "Awaiting operator decision",
+        }
+        assert data["visual_qa"] == {
+            "mission_id": mission_id,
+            "summary": {
+                "total_rounds": 0,
+                "blocking_findings": 0,
+                "warning_findings": 0,
+                "latest_confidence": 0.0,
+            },
+            "rounds": [],
+        }
+        assert data["costs"] == {
+            "mission_id": mission_id,
+            "summary": {
+                "workers": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cost_usd": 0.0,
+                "budget_status": "unconfigured",
+            },
+            "workers": [],
         }
 
     def test_packet_transcript_endpoint(self, client, repo: Path):
@@ -777,6 +918,145 @@ class TestDashboardAPI:
                 },
             },
         ]
+
+    def test_visual_qa_endpoint_aggregates_round_findings(self, client, repo: Path):
+        mission_id = "mission-visual-qa"
+        round_dir = repo / "docs" / "specs" / mission_id / "rounds" / "round-02"
+        specs = repo / "docs" / "specs" / mission_id
+        specs.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Visual QA Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Visual QA Mission\n", encoding="utf-8")
+        (round_dir / "visual_evaluation.json").write_text(
+            json.dumps(
+                {
+                    "evaluator": "playwright",
+                    "summary": "Visual QA found a spacing regression.",
+                    "confidence": 0.81,
+                    "findings": [
+                        {"severity": "blocking", "message": "Header overlaps metrics."},
+                        {"severity": "warning", "message": "Sidebar spacing is tight."},
+                    ],
+                    "artifacts": {
+                        "dashboard": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png"
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get(f"/api/missions/{mission_id}/visual-qa")
+        assert response.status_code == 200
+        data = response.json()
+        assert data == {
+            "mission_id": mission_id,
+            "summary": {
+                "total_rounds": 1,
+                "blocking_findings": 1,
+                "warning_findings": 1,
+                "latest_confidence": 0.81,
+            },
+            "rounds": [
+                {
+                    "round_id": 2,
+                    "summary": "Visual QA found a spacing regression.",
+                    "confidence": 0.81,
+                    "status": "blocking",
+                    "artifact_path": f"docs/specs/{mission_id}/rounds/round-02/visual_evaluation.json",
+                    "findings": [
+                        {"severity": "blocking", "message": "Header overlaps metrics."},
+                        {"severity": "warning", "message": "Sidebar spacing is tight."},
+                    ],
+                    "artifacts": {
+                        "dashboard": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png"
+                    },
+                }
+            ],
+        }
+
+    def test_costs_endpoint_aggregates_worker_reports(self, client, repo: Path):
+        mission_id = "mission-costs"
+        worker_one = repo / "docs" / "specs" / mission_id / "workers" / "pkt-1"
+        worker_two = repo / "docs" / "specs" / mission_id / "workers" / "pkt-2"
+        worker_one.mkdir(parents=True)
+        worker_two.mkdir(parents=True)
+
+        (worker_one / "builder_report.json").write_text(
+            json.dumps(
+                {
+                    "adapter": "codex_exec",
+                    "metadata": {
+                        "turn_status": "success",
+                        "usage": {"input_tokens": 1000, "output_tokens": 400},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (worker_two / "builder_report.json").write_text(
+            json.dumps(
+                {
+                    "adapter": "claude_code",
+                    "metadata": {
+                        "turn_status": "success",
+                        "usage": {"input_tokens": 600, "output_tokens": 300},
+                        "cost_usd": 0.12,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get(f"/api/missions/{mission_id}/costs")
+        assert response.status_code == 200
+        data = response.json()
+        assert data == {
+            "mission_id": mission_id,
+            "summary": {
+                "workers": 2,
+                "input_tokens": 1600,
+                "output_tokens": 700,
+                "cost_usd": 0.12,
+                "budget_status": "unconfigured",
+            },
+            "workers": [
+                {
+                    "packet_id": "pkt-1",
+                    "report_path": f"docs/specs/{mission_id}/workers/pkt-1/builder_report.json",
+                    "adapter": "codex_exec",
+                    "turn_status": "success",
+                    "input_tokens": 1000,
+                    "output_tokens": 400,
+                    "cost_usd": 0.0,
+                },
+                {
+                    "packet_id": "pkt-2",
+                    "report_path": f"docs/specs/{mission_id}/workers/pkt-2/builder_report.json",
+                    "adapter": "claude_code",
+                    "turn_status": "success",
+                    "input_tokens": 600,
+                    "output_tokens": 300,
+                    "cost_usd": 0.12,
+                },
+            ],
+        }
 
     def test_packet_transcript_endpoint_groups_tool_events_into_bursts(self, client, repo: Path):
         mission_id = "mission-transcript-burst"
@@ -1413,9 +1693,12 @@ class TestDashboardAPI:
         assert "renderRoundContext" in js.text
         assert "buildMissionSubtitle" in js.text
         assert "renderApprovalWorkspace" in js.text
+        assert "renderApprovalQueue" in js.text
         assert "renderTranscriptPreview" in js.text
         assert "renderTranscriptInspector" in js.text
         assert "renderActionButtons" in js.text
+        assert "renderVisualQaPanel" in js.text
+        assert "renderCostsPanel" in js.text
 
     def test_favicon_route_returns_no_content(self, client):
         response = client.get("/favicon.ico")

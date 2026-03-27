@@ -49,11 +49,20 @@
 }
 
 .operator-mode {
+  appearance: none;
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 6px 10px;
   font-size: 0.72rem;
   color: var(--dim);
+  background: transparent;
+  cursor: pointer;
+}
+
+.operator-mode.active {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.1);
 }
 
 .mission-list {
@@ -163,6 +172,10 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+}
+
+.surface-metrics {
+  margin-bottom: 12px;
 }
 
 .mission-metric {
@@ -332,6 +345,20 @@ button.transcript-entry.active {
   border-left: 3px solid var(--blue);
 }
 
+.transcript-entry.tool,
+.transcript-entry.command_burst {
+  border-left: 3px solid var(--accent);
+}
+
+.transcript-entry.milestone,
+.transcript-entry.supervisor {
+  border-left: 3px solid #4ade80;
+}
+
+.transcript-entry.visual_finding {
+  border-left: 3px solid #f59e0b;
+}
+
 .transcript-entry.incoming {
   border-left: 3px solid var(--purple);
 }
@@ -407,6 +434,10 @@ button.transcript-entry.active {
 
 .detail-finding {
   border-left: 3px solid var(--amber);
+}
+
+.queue-card {
+  border-left: 3px solid var(--accent);
 }
 
 .operator-context {

@@ -24,6 +24,9 @@ from .missions import _gather_inbox as _missions_gather_inbox
 from .missions import _gather_lifecycle_states as _missions_gather_lifecycle_states
 from .missions import _gather_mission_detail as _missions_gather_mission_detail
 from .missions import _gather_missions as _missions_gather_missions
+from .surfaces import _gather_approval_queue as _surfaces_gather_approval_queue
+from .surfaces import _gather_mission_costs as _surfaces_gather_mission_costs
+from .surfaces import _gather_mission_visual_qa as _surfaces_gather_mission_visual_qa
 from .transcript import _gather_packet_transcript as _transcript_gather_packet_transcript
 from .transcript import (
     _gather_round_evidence_blocks as _transcript_gather_round_evidence_blocks,
@@ -61,284 +64,6 @@ def _get_conversation_service(repo_root: Path):
         return None
 
 
-def _gather_packet_transcript(
-    repo_root: Path,
-    mission_id: str,
-    packet_id: str,
-) -> dict[str, Any] | None:
-    telemetry_dir = (
-        repo_root / "docs" / "specs" / mission_id / "workers" / packet_id / "telemetry"
-    )
-    activity_path = telemetry_dir / "activity.log"
-    events_path = telemetry_dir / "events.jsonl"
-    incoming_path = telemetry_dir / "incoming_events.jsonl"
-    if not telemetry_dir.exists():
-        return {
-            "mission_id": mission_id,
-            "packet_id": packet_id,
-            "entries": [],
-            "summary": {
-                "entry_count": 0,
-                "kind_counts": {},
-                "block_counts": {},
-                "latest_timestamp": None,
-            },
-            "milestones": [],
-            "blocks": [],
-            "telemetry": {
-                "activity_log": None,
-                "events": None,
-                "incoming": None,
-            },
-        }
-
-    entries: list[dict[str, Any]] = []
-    milestones: list[dict[str, Any]] = []
-    if activity_path.exists():
-        for line in activity_path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            ts, _, message = line.partition(" ")
-            entries.append(
-                {
-                    "kind": "activity",
-                    "timestamp": ts if message else "",
-                    "message": message or line,
-                    "raw": line,
-                    "source_path": str(activity_path.relative_to(repo_root)),
-                }
-            )
-
-    if events_path.exists():
-        for line in events_path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            entries.append(
-                {
-                    "kind": "event",
-                    "timestamp": payload.get("timestamp", ""),
-                    "message": payload.get("message", payload.get("event_type", "event")),
-                    "event_type": payload.get("event_type", ""),
-                    "raw": payload,
-                    "source_path": str(events_path.relative_to(repo_root)),
-                }
-            )
-            event_type = payload.get("event_type", "")
-            if isinstance(event_type, str) and event_type.startswith("mission_packet_"):
-                milestones.append(
-                    {
-                        "timestamp": payload.get("timestamp", ""),
-                        "event_type": event_type,
-                        "message": payload.get("message", event_type),
-                    }
-                )
-
-    if incoming_path.exists():
-        for line in incoming_path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            entries.append(
-                {
-                    "kind": "incoming",
-                    "timestamp": payload.get("ts", payload.get("timestamp", "")),
-                    "message": payload.get("excerpt", payload.get("message", payload.get("kind", ""))),
-                    "event_type": payload.get("kind", ""),
-                    "raw": payload,
-                    "source_path": str(incoming_path.relative_to(repo_root)),
-                }
-            )
-
-    entries.sort(key=lambda entry: (entry.get("timestamp", ""), entry.get("kind", "")))
-    kind_counts: dict[str, int] = {}
-    latest_timestamp: str | None = None
-    for entry in entries:
-        kind = str(entry.get("kind", "event"))
-        kind_counts[kind] = kind_counts.get(kind, 0) + 1
-        timestamp = entry.get("timestamp")
-        if isinstance(timestamp, str) and timestamp:
-            latest_timestamp = timestamp
-    blocks = [_transcript_block_from_entry(entry) for entry in entries]
-    blocks = _group_transcript_blocks(blocks)
-    blocks.extend(_gather_round_evidence_blocks(repo_root, mission_id, packet_id))
-    blocks.sort(key=lambda block: (block.get("timestamp", ""), block.get("block_type", "")))
-    block_counts: dict[str, int] = {}
-    for block in blocks:
-        block_type = str(block.get("block_type", "event"))
-        block_counts[block_type] = block_counts.get(block_type, 0) + 1
-
-    return {
-        "mission_id": mission_id,
-        "packet_id": packet_id,
-        "entries": entries,
-        "summary": {
-            "entry_count": len(entries),
-            "kind_counts": kind_counts,
-            "block_counts": block_counts,
-            "latest_timestamp": latest_timestamp,
-        },
-        "milestones": milestones,
-        "blocks": blocks,
-        "telemetry": {
-            "activity_log": str(activity_path.relative_to(repo_root)) if activity_path.exists() else None,
-            "events": str(events_path.relative_to(repo_root)) if events_path.exists() else None,
-            "incoming": str(incoming_path.relative_to(repo_root)) if incoming_path.exists() else None,
-        },
-    }
-
-
-def _transcript_block_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
-    kind = str(entry.get("kind", "event"))
-    event_type = str(entry.get("event_type", ""))
-    message = str(entry.get("message", event_type or kind))
-    raw = entry.get("raw")
-
-    if kind == "activity":
-        body = raw if isinstance(raw, str) else message
-        return {
-            "block_type": "activity",
-            "timestamp": str(entry.get("timestamp", "")),
-            "title": message,
-            "body": body,
-            "source_path": entry.get("source_path"),
-        }
-
-    if kind == "incoming":
-        return {
-            "block_type": "message",
-            "timestamp": str(entry.get("timestamp", "")),
-            "title": message,
-            "body": event_type or kind,
-            "source_path": entry.get("source_path"),
-        }
-
-    if event_type.startswith("mission_packet_"):
-        return {
-            "block_type": "milestone",
-            "timestamp": str(entry.get("timestamp", "")),
-            "title": message,
-            "body": event_type,
-            "source_path": entry.get("source_path"),
-        }
-
-    if "tool_call" in event_type:
-        return {
-            "block_type": "tool",
-            "timestamp": str(entry.get("timestamp", "")),
-            "title": message,
-            "body": event_type,
-            "source_path": entry.get("source_path"),
-        }
-
-    return {
-        "block_type": "event",
-        "timestamp": str(entry.get("timestamp", "")),
-        "title": message,
-        "body": event_type or kind,
-        "source_path": entry.get("source_path"),
-    }
-
-
-def _group_transcript_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    grouped: list[dict[str, Any]] = []
-    current_tool_burst: list[dict[str, Any]] = []
-
-    def flush_tool_burst() -> None:
-        nonlocal current_tool_burst
-        if not current_tool_burst:
-            return
-        if len(current_tool_burst) == 1:
-            grouped.extend(current_tool_burst)
-        else:
-            grouped.append(
-                {
-                    "block_type": "command_burst",
-                    "timestamp": current_tool_burst[0].get("timestamp", ""),
-                    "title": f"{len(current_tool_burst)} tool events",
-                    "body": " • ".join(
-                        str(item.get("title", item.get("body", "tool event")))
-                        for item in current_tool_burst
-                    ),
-                    "source_path": current_tool_burst[0].get("source_path"),
-                    "items": current_tool_burst,
-                }
-            )
-        current_tool_burst = []
-
-    for block in blocks:
-        if block.get("block_type") == "tool":
-            current_tool_burst.append(block)
-            continue
-        flush_tool_burst()
-        grouped.append(block)
-
-    flush_tool_burst()
-    return grouped
-
-
-def _gather_round_evidence_blocks(
-    repo_root: Path,
-    mission_id: str,
-    packet_id: str,
-) -> list[dict[str, Any]]:
-    rounds_dir = repo_root / "docs" / "specs" / mission_id / "rounds"
-    if not rounds_dir.exists():
-        return []
-
-    from spec_orch.domain.models import RoundSummary, VisualEvaluationResult
-
-    blocks: list[dict[str, Any]] = []
-    for round_dir in sorted(rounds_dir.glob("round-*")):
-        summary_path = round_dir / "round_summary.json"
-        if not summary_path.exists():
-            continue
-        try:
-            summary = RoundSummary.from_dict(json.loads(summary_path.read_text(encoding="utf-8")))
-        except (OSError, ValueError, json.JSONDecodeError):
-            continue
-        if not any(result.get("packet_id") == packet_id for result in summary.worker_results):
-            continue
-
-        timestamp = summary.completed_at or summary.started_at or ""
-        if summary.decision is not None:
-            blocks.append(
-                {
-                    "block_type": "supervisor",
-                    "timestamp": timestamp,
-                    "title": summary.decision.summary or "Supervisor decision",
-                    "body": summary.decision.action.value,
-                    "artifact_path": str((round_dir / "supervisor_review.md").relative_to(repo_root)),
-                }
-            )
-
-        visual_path = round_dir / "visual_evaluation.json"
-        if visual_path.exists():
-            try:
-                visual = VisualEvaluationResult.from_dict(
-                    json.loads(visual_path.read_text(encoding="utf-8"))
-                )
-            except (OSError, ValueError, json.JSONDecodeError):
-                continue
-            blocks.append(
-                {
-                    "block_type": "visual_finding",
-                    "timestamp": timestamp,
-                    "title": visual.summary or "Visual evaluation result",
-                    "body": visual.evaluator,
-                    "artifact_path": str(visual_path.relative_to(repo_root)),
-                }
-            )
-
-    return blocks
-
-
 _gather_packet_transcript = _transcript_gather_packet_transcript
 _transcript_block_from_entry = _transcript_block_from_entry_impl
 _group_transcript_blocks = _transcript_group_transcript_blocks
@@ -347,6 +72,9 @@ _gather_missions = _missions_gather_missions
 _gather_inbox = _missions_gather_inbox
 _gather_mission_detail = _missions_gather_mission_detail
 _gather_lifecycle_states = _missions_gather_lifecycle_states
+_gather_approval_queue = _surfaces_gather_approval_queue
+_gather_mission_visual_qa = _surfaces_gather_mission_visual_qa
+_gather_mission_costs = _surfaces_gather_mission_costs
 _record_approval_action = _approval_record_approval_action
 _resolve_approval_action = _approval_resolve_approval_action
 
@@ -822,10 +550,10 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
           <h2>Mission Control</h2>
         </div>
         <div class="operator-nav-modes">
-          <span class="operator-mode" id="inbox-attention-chip">Inbox</span>
-          <span class="operator-mode">Missions</span>
-          <span class="operator-mode">Approvals</span>
-          <span class="operator-mode">Evidence</span>
+          <button class="operator-mode active" id="operator-mode-inbox" type="button" onclick="setOperatorMode('inbox')">Inbox</button>
+          <button class="operator-mode" id="operator-mode-missions" type="button" onclick="setOperatorMode('missions')">Missions</button>
+          <button class="operator-mode" id="operator-mode-approvals" type="button" onclick="setOperatorMode('approvals')">Approvals</button>
+          <button class="operator-mode" id="operator-mode-evidence" type="button" onclick="setOperatorMode('evidence')">Evidence</button>
         </div>
         <div id="inbox-list" class="mission-list"></div>
         <div id="mission-list" class="mission-list"></div>
@@ -900,22 +628,28 @@ let ws = null;
 let wsRetryMs = 1000;
 let chatThreadId = null;
 let chatMessages = [];
+let selectedOperatorMode = 'inbox';
 let selectedMissionId = null;
 let selectedMissionDetail = null;
+let selectedMissionTab = 'overview';
+let selectedMissionVisualQa = null;
+let selectedMissionCosts = null;
 let selectedPacketId = null;
 let selectedPacketTranscript = null;
 let selectedTranscriptFilter = 'all';
 let selectedTranscriptBlockIndex = null;
 let inboxSummary = {counts:{approvals:0, paused:0, failed:0, attention:0}, items:[]};
+let approvalQueue = {counts:{pending:0, missions:0}, items:[]};
 let approvalActionStates = {};
 
 /* ===== DATA LOADING ===== */
 async function load() {
   try {
-    const [mRes, lcRes, inboxRes] = await Promise.all([
+    const [mRes, lcRes, inboxRes, approvalsRes] = await Promise.all([
       fetch('/api/missions'),
       fetch('/api/lifecycle').catch(() => ({ok:false})),
-      fetch('/api/inbox').catch(() => ({ok:false}))
+      fetch('/api/inbox').catch(() => ({ok:false})),
+      fetch('/api/approvals').catch(() => ({ok:false}))
     ]);
     missions = await mRes.json();
     if (lcRes.ok) {
@@ -923,6 +657,9 @@ async function load() {
     }
     if (inboxRes.ok) {
       inboxSummary = await inboxRes.json();
+    }
+    if (approvalsRes.ok) {
+      approvalQueue = await approvalsRes.json();
     }
     renderMissions();
     await ensureMissionSelection();
@@ -991,8 +728,28 @@ function phaseFor(m) {
   return lc ? lc.phase : m.status;
 }
 
+function renderOperatorModes() {
+  const modes = ['inbox', 'missions', 'approvals', 'evidence'];
+  for (const mode of modes) {
+    const button = document.getElementById(`operator-mode-${mode}`);
+    if (!button) continue;
+    button.classList.toggle('active', selectedOperatorMode === mode);
+  }
+}
+
+function setOperatorMode(mode) {
+  selectedOperatorMode = mode;
+  if (mode === 'evidence') {
+    selectedMissionTab = 'transcript';
+  }
+  renderOperatorModes();
+  renderMissionDetail(selectedMissionDetail);
+  renderContextRail(selectedMissionDetail);
+}
+
 function renderMissions() {
   const root = document.getElementById('mission-list');
+  renderOperatorModes();
   if (!missions.length) {
     selectedMissionId = null;
     selectedMissionDetail = null;
@@ -1086,9 +843,15 @@ async function selectMission(missionId, options = {}) {
   renderMissionDetailLoading();
   renderContextRailLoading();
   try {
-    const response = await fetch(`/api/missions/${missionId}/detail`);
-    if (!response.ok) throw new Error(`Failed to load mission detail (${response.status})`);
-    selectedMissionDetail = await response.json();
+    const [detailResponse, visualResponse, costsResponse] = await Promise.all([
+      fetch(`/api/missions/${missionId}/detail`),
+      fetch(`/api/missions/${missionId}/visual-qa`).catch(() => ({ok:false})),
+      fetch(`/api/missions/${missionId}/costs`).catch(() => ({ok:false})),
+    ]);
+    if (!detailResponse.ok) throw new Error(`Failed to load mission detail (${detailResponse.status})`);
+    selectedMissionDetail = await detailResponse.json();
+    selectedMissionVisualQa = visualResponse.ok ? await visualResponse.json() : null;
+    selectedMissionCosts = costsResponse.ok ? await costsResponse.json() : null;
     selectedPacketId = selectedMissionDetail.packets?.[0]?.packet_id || null;
     selectedPacketTranscript = null;
     selectedTranscriptFilter = 'all';
@@ -1147,6 +910,86 @@ function renderMissionDetail(detail) {
     { label: 'Issues', value: issueIds.length ? `${completedIssues.length}/${issueIds.length}` : '—' },
   ];
 
+  if (selectedOperatorMode === 'approvals') {
+    view.innerHTML = renderApprovalQueuePanel();
+    return;
+  }
+
+  const activeTab = selectedOperatorMode === 'evidence' ? 'transcript' : selectedMissionTab;
+  const tabButtons = [
+    ['overview', 'Overview'],
+    ['transcript', 'Transcript'],
+    ['approvals', 'Approvals'],
+    ['visual-qa', 'Visual QA'],
+    ['costs', 'Costs'],
+  ];
+
+  let primarySurface = '';
+  if (activeTab === 'transcript') {
+    primarySurface = `
+      <section class="mission-section">
+        <div class="section-heading">
+          <h3>Transcript</h3>
+          <div id="transcript-filter-bar" class="transcript-filter-bar"></div>
+        </div>
+        <div id="packet-transcript-view" class="transcript-list">${renderTranscriptPreview()}</div>
+      </section>
+    `;
+  } else if (activeTab === 'approvals') {
+    primarySurface = `
+      <section class="mission-section">
+        <h3>Approval Queue</h3>
+        ${renderApprovalQueue([detail])}
+      </section>
+    `;
+  } else if (activeTab === 'visual-qa') {
+    primarySurface = `
+      <section class="mission-section">
+        <h3>Visual QA</h3>
+        ${renderVisualQaPanel(selectedMissionVisualQa || detail.visual_qa)}
+      </section>
+    `;
+  } else if (activeTab === 'costs') {
+    primarySurface = `
+      <section class="mission-section">
+        <h3>Costs & Budgets</h3>
+        ${renderCostsPanel(selectedMissionCosts || detail.costs)}
+      </section>
+    `;
+  } else {
+    primarySurface = `
+      <section class="mission-workbench">
+        <div class="mission-section">
+          <h3>Packets</h3>
+          <div class="packet-list">
+            ${packets.length ? packets.map(packet => renderPacketRow(packet)).join('') : '<div class="empty-panel">No packets scoped yet.</div>'}
+          </div>
+        </div>
+        <div class="mission-section">
+          <h3>Latest Round</h3>
+          ${latestRound ? renderLatestRound(latestRound) : '<div class="empty-panel">No round evidence yet.</div>'}
+        </div>
+      </section>
+      <section class="mission-section">
+        <div class="section-heading">
+          <h3>Transcript</h3>
+          <div id="transcript-filter-bar" class="transcript-filter-bar"></div>
+        </div>
+        <div id="packet-transcript-view" class="transcript-list">${renderTranscriptPreview()}</div>
+      </section>
+      <section class="mission-workbench">
+        <div class="mission-section">
+          <h3>Acceptance Criteria</h3>
+          ${renderSimpleList(mission.acceptance_criteria, 'No acceptance criteria recorded yet.')}
+        </div>
+        <div class="mission-section">
+          <h3>Constraints</h3>
+          ${renderSimpleList(mission.constraints, 'No constraints recorded yet.')}
+        </div>
+      </section>
+    `;
+  }
+
   view.innerHTML = `
     <section class="mission-hero">
       <div class="mission-hero-copy">
@@ -1167,39 +1010,13 @@ function renderMissionDetail(detail) {
       `).join('')}
     </section>
     <section class="mission-tabs">
-      <button class="mission-tab active" type="button">Overview</button>
+      ${tabButtons.map(([key, label]) => `
+        <button class="mission-tab ${activeTab === key ? 'active' : ''}" type="button" onclick="setMissionTab('${key}')">${escHtml(label)}</button>
+      `).join('')}
       <button class="mission-tab" type="button" onclick="openDiscuss('${escHtml(mission.mission_id || '')}')">Discuss</button>
       <button class="mission-tab" type="button" onclick="load()">Refresh</button>
     </section>
-    <section class="mission-workbench">
-      <div class="mission-section">
-        <h3>Packets</h3>
-        <div class="packet-list">
-          ${packets.length ? packets.map(packet => renderPacketRow(packet)).join('') : '<div class="empty-panel">No packets scoped yet.</div>'}
-        </div>
-      </div>
-      <div class="mission-section">
-        <h3>Latest Round</h3>
-        ${latestRound ? renderLatestRound(latestRound) : '<div class="empty-panel">No round evidence yet.</div>'}
-      </div>
-    </section>
-    <section class="mission-section">
-      <div class="section-heading">
-        <h3>Transcript</h3>
-        <div id="transcript-filter-bar" class="transcript-filter-bar"></div>
-      </div>
-      <div id="packet-transcript-view" class="transcript-list">${renderTranscriptPreview()}</div>
-    </section>
-    <section class="mission-workbench">
-      <div class="mission-section">
-        <h3>Acceptance Criteria</h3>
-        ${renderSimpleList(mission.acceptance_criteria, 'No acceptance criteria recorded yet.')}
-      </div>
-      <div class="mission-section">
-        <h3>Constraints</h3>
-        ${renderSimpleList(mission.constraints, 'No constraints recorded yet.')}
-      </div>
-    </section>
+    ${primarySurface}
   `;
 }
 
@@ -1276,6 +1093,22 @@ function renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState
   );
 }
 
+function renderApprovalQueue(items) {
+  return getOperatorConsoleHelpers().renderApprovalQueue(items, escHtml);
+}
+
+function renderApprovalQueuePanel() {
+  return getOperatorConsoleHelpers().renderApprovalQueuePanel(approvalQueue, escHtml);
+}
+
+function renderVisualQaPanel(visualQa) {
+  return getOperatorConsoleHelpers().renderVisualQaPanel(visualQa, escHtml);
+}
+
+function renderCostsPanel(costs) {
+  return getOperatorConsoleHelpers().renderCostsPanel(costs, escHtml);
+}
+
 function renderActionButtons(actions, missionId) {
   return getOperatorConsoleHelpers().renderActionButtons(actions, missionId, escHtml);
 }
@@ -1302,6 +1135,12 @@ function renderRoundContext(round) {
 
 function buildMissionSubtitle(detail) {
   return getOperatorConsoleHelpers().buildMissionSubtitle(detail);
+}
+
+function setMissionTab(tab) {
+  selectedMissionTab = tab;
+  renderMissionDetail(selectedMissionDetail);
+  renderContextRail(selectedMissionDetail);
 }
 
 async function selectPacket(packetId) {
@@ -1492,6 +1331,34 @@ function getOperatorConsoleHelpers() {
         </div>
       `;
     },
+    renderApprovalQueue(items, esc) {
+      if (!items || !items.length) {
+        return '<div class="empty-panel">No approval-required missions right now.</div>';
+      }
+      return `<div class="context-list">${items.map(item => `
+        <div class="context-card queue-card">
+          <div class="context-title">${esc(item?.mission?.title || item?.title || 'Approval')}</div>
+          <div class="context-meta">
+            <span class="detail-chip">${esc(item?.approval_state?.status || 'approval')}</span>
+            <span>${esc(item?.summary || item?.approval_request?.summary || '')}</span>
+          </div>
+        </div>
+      `).join('')}</div>`;
+    },
+    renderApprovalQueuePanel(queue, esc) {
+      return `
+        <section class="mission-section">
+          <div class="section-heading">
+            <h3>Approval Queue</h3>
+            <div class="context-meta">
+              <span>${esc(`${queue?.counts?.pending || 0} pending`)}</span>
+              <span>${esc(`${queue?.counts?.missions || 0} missions`)}</span>
+            </div>
+          </div>
+          ${this.renderApprovalQueue(queue?.items || [], esc)}
+        </section>
+      `;
+    },
     renderArtifactLinks(artifacts, esc) {
       const entries = Object.entries(artifacts || {}).filter(([, value]) => Boolean(value));
       if (!entries.length) {
@@ -1608,6 +1475,33 @@ function getOperatorConsoleHelpers() {
           <div class="context-title">${esc(item)}</div>
         </div>
       `).join('')}</div>`;
+    },
+    renderVisualQaPanel(visualQa, esc) {
+      const summary = visualQa?.summary || {};
+      const rounds = visualQa?.rounds || [];
+      return `
+        <div class="mission-metrics surface-metrics">
+          <div class="mission-metric"><div class="mission-metric-label">Visual rounds</div><div class="mission-metric-value">${esc(String(summary.total_rounds || 0))}</div></div>
+          <div class="mission-metric"><div class="mission-metric-label">Blocking findings</div><div class="mission-metric-value">${esc(String(summary.blocking_findings || 0))}</div></div>
+          <div class="mission-metric"><div class="mission-metric-label">Warnings</div><div class="mission-metric-value">${esc(String(summary.warning_findings || 0))}</div></div>
+          <div class="mission-metric"><div class="mission-metric-label">Confidence</div><div class="mission-metric-value">${esc(String(summary.latest_confidence ?? 0))}</div></div>
+        </div>
+        ${rounds.length ? `<div class="context-list">${rounds.map(round => `<div class="context-card"><div class="context-title">Round ${esc(round.round_id)}</div><div class="context-meta"><span class="detail-chip">${esc(round.status || 'pass')}</span><span>${esc(round.summary || '')}</span></div></div>`).join('')}</div>` : '<div class="empty-panel">No visual evaluation rounds recorded yet.</div>'}
+      `;
+    },
+    renderCostsPanel(costs, esc) {
+      const summary = costs?.summary || {};
+      const workers = costs?.workers || [];
+      return `
+        <div class="mission-metrics surface-metrics">
+          <div class="mission-metric"><div class="mission-metric-label">Workers</div><div class="mission-metric-value">${esc(String(summary.workers || 0))}</div></div>
+          <div class="mission-metric"><div class="mission-metric-label">Input tokens</div><div class="mission-metric-value">${esc(String(summary.input_tokens || 0))}</div></div>
+          <div class="mission-metric"><div class="mission-metric-label">Output tokens</div><div class="mission-metric-value">${esc(String(summary.output_tokens || 0))}</div></div>
+          <div class="mission-metric"><div class="mission-metric-label">Cost USD</div><div class="mission-metric-value">${esc(String(summary.cost_usd || 0))}</div></div>
+        </div>
+        <div class="context-card"><div class="context-title">Budget status</div><div class="context-meta"><span class="detail-chip">${esc(summary.budget_status || 'unconfigured')}</span></div></div>
+        ${workers.length ? `<div class="context-list">${workers.map(worker => `<div class="context-card"><div class="context-title">${esc(worker.packet_id || 'worker')}</div><div class="context-meta"><span>${esc(worker.adapter || 'adapter')}</span><span>${esc(worker.turn_status || 'unknown')}</span></div></div>`).join('')}</div>` : '<div class="empty-panel">No worker cost data recorded yet.</div>'}
+      `;
     },
     renderTranscriptFilters(selectedPacketTranscript, selectedTranscriptFilter, esc) {
       const counts = selectedPacketTranscript?.summary?.block_counts || {};
