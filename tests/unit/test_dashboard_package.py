@@ -117,7 +117,9 @@ def test_dashboard_package_exposes_shell_template() -> None:
     assert "function setLauncherActionState(actionKey, state, label = null)" in html
     assert "if (!res.ok) throw new Error(data.error || 'Launcher readiness failed');" in html
     assert "launcherState.missionId = '';" in html
-    assert "launcherState.linearIssue = null;" in html
+    assert "launcherState.linearIssueId = '';" in html
+    assert "launcher-linear-issue-id" in html
+    assert "resetLauncherActionState();" in html
     assert "Needs Attention" in html
     assert "All Missions" in html
     assert "Decision Queue" in html

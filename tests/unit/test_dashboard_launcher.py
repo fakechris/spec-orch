@@ -26,10 +26,14 @@ token_env = "SPEC_ORCH_LINEAR_TOKEN"
 [planner]
 model = "MiniMax-M2.5"
 api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
 
 [supervisor]
+adapter = "litellm"
 model = "MiniMax-M2.5"
 api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+max_rounds = 12
 
 [builder]
 adapter = "acpx_codex"
@@ -40,6 +44,7 @@ adapter = "acpx_codex"
 
     monkeypatch.delenv("SPEC_ORCH_LINEAR_TOKEN", raising=False)
     monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
+    monkeypatch.delenv("MINIMAX_ANTHROPIC_BASE_URL", raising=False)
     missing = _gather_launcher_readiness(repo)
     assert missing["linear"]["ready"] is False
     assert missing["planner"]["ready"] is False
@@ -48,6 +53,7 @@ adapter = "acpx_codex"
 
     monkeypatch.setenv("SPEC_ORCH_LINEAR_TOKEN", "lin_api_test")
     monkeypatch.setenv("MINIMAX_API_KEY", "sk-test")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
     ready = _gather_launcher_readiness(repo)
     assert ready["linear"]["ready"] is True
     assert ready["planner"]["ready"] is True
@@ -256,12 +262,16 @@ def test_launch_mission_uses_lifecycle_and_returns_state(
     (repo / "spec-orch.toml").write_text(
         """
 [supervisor]
+adapter = "litellm"
 model = "MiniMax-M2.7-highspeed"
 api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+max_rounds = 12
 """.strip()
         + "\n",
         encoding="utf-8",
     )
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
     (plan_path / "plan.json").write_text(
         json.dumps(
             {

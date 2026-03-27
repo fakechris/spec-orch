@@ -106,10 +106,20 @@ def _gather_launcher_readiness(repo_root: Path) -> dict[str, Any]:
     planner_key = ""
     if planner_cfg.get("api_key_env"):
         planner_key = os.environ.get(str(planner_cfg["api_key_env"]), "")
+    planner_base = ""
+    if planner_cfg.get("api_base_env"):
+        planner_base = os.environ.get(str(planner_cfg["api_base_env"]), "")
 
     supervisor_key = ""
     if supervisor_cfg.get("api_key_env"):
         supervisor_key = os.environ.get(str(supervisor_cfg["api_key_env"]), "")
+    supervisor_base = ""
+    if supervisor_cfg.get("api_base_env"):
+        supervisor_base = os.environ.get(str(supervisor_cfg["api_base_env"]), "")
+    try:
+        supervisor_max_rounds = int(supervisor_cfg.get("max_rounds", 0))
+    except (TypeError, ValueError):
+        supervisor_max_rounds = 0
 
     dashboard_deps = all(
         importlib.util.find_spec(module) is not None
@@ -124,11 +134,17 @@ def _gather_launcher_readiness(repo_root: Path) -> dict[str, Any]:
             "token_env": token_env,
         },
         "planner": {
-            "ready": bool(planner_cfg.get("model")) and bool(planner_key),
+            "ready": bool(planner_cfg.get("model")) and bool(planner_key) and bool(planner_base),
             "model": planner_cfg.get("model"),
         },
         "supervisor": {
-            "ready": bool(supervisor_cfg.get("model")) and bool(supervisor_key),
+            "ready": (
+                bool(supervisor_cfg.get("adapter"))
+                and bool(supervisor_cfg.get("model"))
+                and bool(supervisor_key)
+                and bool(supervisor_base)
+                and 0 < supervisor_max_rounds <= 1000
+            ),
             "model": supervisor_cfg.get("model"),
         },
         "builder": {

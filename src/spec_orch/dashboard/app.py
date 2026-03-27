@@ -1561,11 +1561,21 @@ async function loadLauncherReadiness() {
 
 function openNewMission() {
   launcherState.missionId = '';
-  launcherState.linearIssue = null;
-  const missionIdInput = document.getElementById('launcher-mission-id');
-  if (missionIdInput) missionIdInput.value = '';
-  const linearIssueInput = document.getElementById('launcher-linear-existing');
-  if (linearIssueInput) linearIssueInput.value = '';
+  launcherState.linearIssueId = '';
+  for (const id of [
+    'launcher-title',
+    'launcher-mission-id',
+    'launcher-intent',
+    'launcher-acceptance',
+    'launcher-constraints',
+    'launcher-linear-title',
+    'launcher-linear-description',
+    'launcher-linear-issue-id',
+  ]) {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  }
+  resetLauncherActionState();
   setSidebarMode('launcher');
   document.getElementById('chat-title').textContent = 'New Mission';
   setLauncherStatus('Fill the mission setup fields, then create the draft.', 'neutral');

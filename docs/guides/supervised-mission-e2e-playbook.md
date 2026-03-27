@@ -252,7 +252,7 @@ daemon
 - dashboard 更适合 operator 视角的持续监督
 - 当 round 进入 `ask_human` 时，优先从 dashboard 的 approval workspace 介入；它会把预设 guidance 直接写回 mission 的 `/btw` 注入链路
 
-### 6.1 Layer 1: 原始 worker 输出
+### 7.1 Layer 1: 原始 worker 输出
 
 路径：
 
@@ -279,7 +279,7 @@ uv run --python 3.13 spec-orch mission logs <mission_id> <packet_id> --raw
 tail -f docs/specs/<mission_id>/workers/<packet_id>/telemetry/incoming_events.jsonl
 ```
 
-### 6.2 Layer 2: orchestrator / normalized events
+### 7.2 Layer 2: orchestrator / normalized events
 
 路径：
 
@@ -306,7 +306,7 @@ uv run --python 3.13 spec-orch mission logs <mission_id> <packet_id> --events
 uv run --python 3.13 spec-orch mission logs <mission_id> <packet_id> --events --filter mission_packet_completed
 ```
 
-### 6.3 Layer 3: 面向人类的活动流
+### 7.3 Layer 3: 面向人类的活动流
 
 路径：
 
@@ -328,7 +328,7 @@ uv run --python 3.13 spec-orch mission logs <mission_id> <packet_id>
 tail -f docs/specs/<mission_id>/workers/<packet_id>/telemetry/activity.log
 ```
 
-### 6.4 Layer 4: round 决策层
+### 7.4 Layer 4: round 决策层
 
 路径：
 
@@ -356,7 +356,7 @@ docs/specs/<mission_id>/rounds/round-XX/
 
 ---
 
-## 7. 推荐的一次完整观测姿势
+## 8. 推荐的一次完整观测姿势
 
 第一次真实试跑，推荐开 3 个终端。
 
@@ -399,7 +399,7 @@ cat docs/specs/<mission_id>/rounds/round-01/supervisor_review.md
 
 ---
 
-## 8. 如何判断这次 E2E 是成功的
+## 9. 如何判断这次 E2E 是成功的
 
 最小成功标准不是“功能做完了”，而是下面这条链路成立：
 
@@ -416,11 +416,11 @@ cat docs/specs/<mission_id>/rounds/round-01/supervisor_review.md
 
 ---
 
-## 9. 怎么把可观测性保持好
+## 10. 怎么把可观测性保持好
 
 真正的问题通常不是“没有日志”，而是日志结构散、现场丢失、或者第一时间没保住。建议固定这几条纪律。
 
-### 9.1 第一轮永远前台跑
+### 10.1 第一轮永远前台跑
 
 不要一上来后台化 daemon。前台跑有两个价值：
 
@@ -433,7 +433,7 @@ cat docs/specs/<mission_id>/rounds/round-01/supervisor_review.md
 uv run --python 3.13 spec-orch daemon start --live-mission-workers
 ```
 
-### 9.2 永远保留 packet workspace
+### 10.2 永远保留 packet workspace
 
 观测的核心现场在：
 
@@ -448,7 +448,7 @@ docs/specs/<mission_id>/workers/<packet_id>/
 - `telemetry/events.jsonl`
 - `telemetry/activity.log`
 
-### 9.3 出问题先分层，不要直接看富文本总结
+### 10.3 出问题先分层，不要直接看富文本总结
 
 排查顺序建议固定：
 
@@ -460,7 +460,7 @@ docs/specs/<mission_id>/workers/<packet_id>/
 
 也就是先看机器执行事实，再看 supervisor 的解释。
 
-### 9.4 每个 mission 先跑小 plan
+### 10.4 每个 mission 先跑小 plan
 
 一次上来就给 10 个 packet，会把观测面直接放大。第一次试跑建议：
 
@@ -470,7 +470,7 @@ docs/specs/<mission_id>/workers/<packet_id>/
 
 这样你更容易看清 round loop 是不是健康。
 
-### 9.5 把 “暂停点” 当成一等信号
+### 10.5 把 “暂停点” 当成一等信号
 
 如果 `round_decision.json` 出现：
 
@@ -486,7 +486,7 @@ docs/specs/<mission_id>/workers/<packet_id>/
 
 因为这里正是调 prompt、调 plan、调 routing 的高价值点。
 
-### 9.6 观测文件优先级
+### 10.6 观测文件优先级
 
 实际调试时，优先级可以固定成：
 
@@ -501,7 +501,7 @@ activity.log > events.jsonl > incoming_events.jsonl > supervisor_review.md
 - `incoming_events.jsonl` 最接近原始 agent 输出
 - `supervisor_review.md` 最适合复盘，不适合先判 root cause
 
-### 9.7 每轮结束都做一次人工抽样
+### 10.7 每轮结束都做一次人工抽样
 
 建议每轮至少人工抽查 1 个 packet：
 
