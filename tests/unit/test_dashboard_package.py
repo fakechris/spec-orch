@@ -43,12 +43,14 @@ def test_dashboard_package_exposes_approval_helpers() -> None:
 
 def test_dashboard_package_exposes_mission_helpers() -> None:
     from spec_orch.dashboard.missions import (
+        _derive_approval_state,
         _gather_inbox,
         _gather_lifecycle_states,
         _gather_mission_detail,
         _gather_missions,
     )
 
+    assert callable(_derive_approval_state)
     assert callable(_gather_missions)
     assert callable(_gather_inbox)
     assert callable(_gather_mission_detail)

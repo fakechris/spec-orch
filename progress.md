@@ -231,6 +231,8 @@
   - Promoted transcript evidence-rendering helpers into `static/operator-console.js`, reducing inline dashboard script weight and creating a stable helper namespace for future UI extraction.
   - Extended approval-action auditability to exception paths with persisted `failed` state.
   - Moved `buildMissionSubtitle`, `renderArtifactLinks`, and `renderRoundContext` into the shared operator-console helper namespace to keep shrinking inline dashboard script ownership.
+  - Added backend-derived `approval_state` to mission detail and inbox so operator workflow is no longer inferred purely from raw history rows.
+  - Added explicit pending UI state for approval actions and migrated the heavy approval/transcript render functions into `static/operator-console.js`, leaving `app.py` with thin orchestration wrappers.
 - Files created/modified:
   - `src/spec_orch/dashboard/missions.py`
   - `src/spec_orch/dashboard/api.py`

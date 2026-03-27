@@ -13,7 +13,7 @@
 | 3. Comparative analysis | complete | Compared product model, observability surfaces, UX patterns, and architecture choices |
 | 4. SpecOrch implications | complete | Converted research into operator-console design principles, workbench IA, and implementation slices |
 | 5. Operator console implementation | in_progress | Mission detail shell, transcript timeline blocks, websocket hardening, inbox scaffolding, approval-aware inbox semantics, approval history-linked inbox items, transcript filter-bar depth, transcript inspector scaffolding, approval workspace surfacing, approval action presets, explicit applied/not_applied/failed approval status feedback, approval history, transcript command-burst grouping, transcript details payloads, richer evidence rendering, static helper extraction, and dashboard package refactor are in place |
-| 6. Deliver research memo and shipable plan | in_progress | Remaining work is stronger approval workflows with explicit success/failure states, deeper transcript readability, and continuing to split the transitional dashboard app module into missions/views/render helpers |
+| 6. Deliver research memo and shipable plan | in_progress | Approval workflow now has explicit pending/applied/not_applied/failed states, transcript readability helpers are externalized, and `app.py` no longer owns the heaviest approval/transcript render segments. Remaining work is broader operator-console expansion beyond this slice |
 
 ## Comparison Dimensions
 - User entry points and onboarding flow

@@ -907,6 +907,7 @@ let selectedPacketTranscript = null;
 let selectedTranscriptFilter = 'all';
 let selectedTranscriptBlockIndex = null;
 let inboxSummary = {counts:{approvals:0, paused:0, failed:0, attention:0}, items:[]};
+let approvalActionStates = {};
 
 /* ===== DATA LOADING ===== */
 async function load() {
@@ -1052,6 +1053,12 @@ function renderInboxSummary() {
       <div class="mission-list-meta">
         <span>${escHtml(item.summary || '')}</span>
       </div>
+      ${item.approval_state?.summary ? `
+        <div class="mission-list-meta">
+          <span class="detail-chip">${escHtml(item.approval_state.status || 'approval')}</span>
+          <span>${escHtml(item.approval_state.summary)}</span>
+        </div>
+      ` : ''}
       ${item.latest_operator_action ? `
         <div class="mission-list-meta">
           <span class="detail-chip">${escHtml(item.latest_operator_action.label || item.latest_operator_action.action_key || 'Action')}</span>
@@ -1207,6 +1214,7 @@ function renderContextRail(detail) {
   const latestRound = rounds.length ? rounds[rounds.length - 1] : null;
   const approvalRequest = detail.approval_request || null;
   const approvalHistory = detail.approval_history || [];
+  const approvalState = approvalActionStates[mission.mission_id] || detail.approval_state || null;
   const packet = (detail.packets || []).find(item => item.packet_id === selectedPacketId) || detail.packets?.[0];
   rail.innerHTML = `
     <div class="mission-section">
@@ -1225,7 +1233,7 @@ function renderContextRail(detail) {
     <div class="mission-section">
       <h3>Approval workspace</h3>
       <div class="context-list">
-        ${approvalRequest ? renderApprovalWorkspace(approvalRequest, approvalHistory, mission.mission_id || '') : '<div class="empty-panel">No active approval request.</div>'}
+        ${approvalRequest ? renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, mission.mission_id || '') : '<div class="empty-panel">No active approval request.</div>'}
       </div>
     </div>
     <div class="mission-section">
@@ -1258,152 +1266,30 @@ function renderContextRail(detail) {
   `;
 }
 
-function renderApprovalWorkspace(approvalRequest, approvalHistory, missionId) {
-  const latestAction = approvalHistory && approvalHistory.length ? approvalHistory[0] : null;
-  const latestActionSummary = formatApprovalActionState(latestAction);
-  return `
-    <div class="context-card">
-      <div class="context-title">${escHtml(approvalRequest.summary || 'Approval required')}</div>
-      <div class="context-meta">
-        <span>Round ${escHtml(String(approvalRequest.round_id || '—'))}</span>
-        <span>${escHtml(approvalRequest.decision_action || 'ask_human')}</span>
-        <span>${escHtml(approvalRequest.timestamp || '—')}</span>
-      </div>
-    </div>
-    ${latestAction ? `
-      <div class="context-card">
-        <div class="context-title">Latest operator decision</div>
-        <div class="context-meta">
-          <span class="detail-chip">${escHtml(latestAction.label || latestAction.action_key || 'Action')}</span>
-          <span class="detail-chip">${escHtml(latestAction.effect || 'guidance_sent')}</span>
-          <span>${escHtml(latestAction.timestamp || '—')}</span>
-        </div>
-        ${latestActionSummary ? `<div class="context-meta"><span>${escHtml(latestActionSummary)}</span></div>` : ''}
-        <div class="transcript-entry-body">${escHtml(latestAction.message || '')}</div>
-      </div>
-    ` : ''}
-    <div class="context-card">
-      <div class="context-title">Blocking question</div>
-      <div class="transcript-entry-body">${escHtml(approvalRequest.blocking_question || 'No blocking question recorded.')}</div>
-    </div>
-    <div class="context-card">
-      <div class="context-title">Operator actions</div>
-      <div class="context-meta">
-        ${(approvalRequest.actions || []).map(action => `
-          <button
-            class="btn ${action.key === 'approve' ? 'btn-primary' : ''} btn-sm"
-            type="button"
-            onclick="triggerApprovalAction('${missionId}', '${escHtml(action.key || '')}')"
-          >${escHtml(action.label || action.key || 'Action')}</button>
-        `).join('')}
-        <button
-          class="btn btn-sm"
-          type="button"
-          onclick="openDiscussPreset('${missionId}', '${escHtml((approvalRequest.actions || [])[0]?.message || '')}')"
-        >Open discuss</button>
-        <button class="btn btn-sm" type="button" onclick="load()">Refresh state</button>
-      </div>
-    </div>
-    <div class="context-card">
-      <div class="context-title">Recent operator actions</div>
-      ${
-        approvalHistory && approvalHistory.length
-          ? `<div class="context-list">
-              ${approvalHistory.slice(0, 3).map(item => `
-                <div class="context-card">
-                  <div class="context-title">${escHtml(item.label || item.action_key || 'Action')}</div>
-                  <div class="context-meta">
-                    <span>${escHtml(item.timestamp || '—')}</span>
-                    <span>${escHtml(item.channel || 'web-dashboard')}</span>
-                    <span class="detail-chip">${escHtml(item.status || 'sent')}</span>
-                    <span class="detail-chip">${escHtml(item.effect || 'guidance_sent')}</span>
-                  </div>
-                  <div class="transcript-entry-body">${escHtml(item.message || '')}</div>
-                </div>
-              `).join('')}
-            </div>`
-          : '<div class="empty-panel">No operator actions recorded yet.</div>'
-      }
-    </div>
-  `;
+function renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, missionId) {
+  return getOperatorConsoleHelpers().renderApprovalWorkspace(
+    approvalRequest,
+    approvalHistory,
+    approvalState,
+    missionId,
+    escHtml,
+  );
 }
 
 function renderActionButtons(actions, missionId) {
-  return actions.map(action => {
-    if (action === 'approve') {
-      return `<button class="btn btn-green btn-sm" onclick="approveGo('${missionId}')">Approve</button>`;
-    }
-    if (action === 'retry' || action === 'rerun') {
-      return `<button class="btn btn-red btn-sm" onclick="retryMission('${missionId}')">${action}</button>`;
-    }
-    if (action === 'resume') {
-      return `<button class="btn btn-sm" onclick="openDiscuss('${missionId}')">Resume</button>`;
-    }
-    if (action === 'inject_guidance') {
-      return `<button class="btn btn-primary btn-sm" onclick="openDiscuss('${missionId}')">Inject guidance</button>`;
-    }
-    return `<button class="btn btn-sm" type="button">${escHtml(action)}</button>`;
-  }).join('');
+  return getOperatorConsoleHelpers().renderActionButtons(actions, missionId, escHtml);
 }
 
 function renderPacketRow(packet) {
-  const inScope = (packet.files_in_scope || []).slice(0, 2).join(', ');
-  const isSelected = packet.packet_id === selectedPacketId;
-  return `
-    <button class="packet-row ${isSelected ? 'active' : ''}" type="button" onclick="selectPacket('${packet.packet_id}')">
-      <div class="packet-row-header">
-        <div class="packet-row-title">${escHtml(packet.title)}</div>
-        <span class="run-class">${escHtml(packet.run_class || 'packet')}</span>
-      </div>
-      <div class="packet-row-meta">
-        <span>${escHtml(packet.packet_id)}</span>
-        <span>Wave ${escHtml(String(packet.wave_id ?? '—'))}</span>
-        ${packet.linear_issue_id ? `<span>${escHtml(packet.linear_issue_id)}</span>` : ''}
-      </div>
-      <div class="packet-row-meta">
-        <span>${escHtml(inScope || 'No scoped files')}</span>
-      </div>
-    </button>
-  `;
+  return getOperatorConsoleHelpers().renderPacketRow(packet, selectedPacketId, escHtml);
 }
 
 function renderLatestRound(round) {
-  const decision = round.decision || {};
-  const succeeded = (round.worker_results || []).filter(result => result.succeeded).length;
-  const total = (round.worker_results || []).length;
-  return `
-    <div class="context-card">
-      <div class="context-title">${escHtml(decision.summary || 'No supervisor decision summary')}</div>
-      <div class="context-meta">
-        <span>Action ${escHtml(decision.action || '—')}</span>
-        <span>Confidence ${decision.confidence != null ? escHtml(String(decision.confidence)) : '—'}</span>
-        <span>Workers ${succeeded}/${total}</span>
-      </div>
-    </div>
-    <div class="context-list">
-      ${(round.worker_results || []).map(result => `
-        <div class="context-card">
-          <div class="context-title">${escHtml(result.title || result.packet_id || 'worker')}</div>
-          <div class="context-meta">
-            <span>${escHtml(result.packet_id || '—')}</span>
-            <span>${result.succeeded ? 'succeeded' : 'failed'}</span>
-            ${result.report_path ? `<span>${escHtml(result.report_path)}</span>` : ''}
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `;
+  return getOperatorConsoleHelpers().renderLatestRound(round, escHtml);
 }
 
 function renderSimpleList(items, emptyText) {
-  if (!items || !items.length) {
-    return `<div class="empty-panel">${escHtml(emptyText)}</div>`;
-  }
-  return `<div class="context-list">${items.map(item => `
-    <div class="context-card">
-      <div class="context-title">${escHtml(item)}</div>
-    </div>
-  `).join('')}</div>`;
+  return getOperatorConsoleHelpers().renderSimpleList(items, emptyText, escHtml);
 }
 
 function renderArtifactLinks(artifacts) {
@@ -1469,19 +1355,11 @@ function selectTranscriptBlock(index) {
 function renderTranscriptFilters() {
   const root = document.getElementById('transcript-filter-bar');
   if (!root) return;
-  const counts = selectedPacketTranscript?.summary?.block_counts || {};
-  const filters = [{key: 'all', label: 'All'}].concat(
-    Object.entries(counts)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([key, value]) => ({key, label: `${key} (${value})`}))
+  root.innerHTML = getOperatorConsoleHelpers().renderTranscriptFilters(
+    selectedPacketTranscript,
+    selectedTranscriptFilter,
+    escHtml,
   );
-  root.innerHTML = filters.map(filter => `
-    <button
-      class="mission-tab ${selectedTranscriptFilter === filter.key ? 'active' : ''}"
-      type="button"
-      onclick="selectTranscriptFilter('${escHtml(filter.key)}')"
-    >${escHtml(filter.label)}</button>
-  `).join('');
 }
 
 function selectTranscriptFilter(filterKey) {
@@ -1490,121 +1368,24 @@ function selectTranscriptFilter(filterKey) {
 }
 
 function renderTranscriptPreview() {
-  if (!selectedPacketId) {
-    return '<div class="empty-panel">Select a packet to inspect its transcript.</div>';
-  }
-  if (!selectedPacketTranscript || selectedPacketTranscript.loading) {
-    return '<div class="empty-panel">Loading transcript…</div>';
-  }
-  if (selectedPacketTranscript.error) {
-    return `<div class="empty-panel">${escHtml(selectedPacketTranscript.error)}</div>`;
-  }
-  const entries = selectedPacketTranscript.entries || [];
-  const blocks = selectedPacketTranscript.blocks || [];
-  if (!entries.length && !blocks.length) {
-    return '<div class="empty-panel">No transcript events have been recorded yet.</div>';
-  }
-  const summary = selectedPacketTranscript.summary || {};
-  const milestones = selectedPacketTranscript.milestones || [];
-  const visibleBlocks = selectedTranscriptFilter === 'all'
-    ? blocks
-    : blocks.filter(block => (block.block_type || 'event') === selectedTranscriptFilter);
-  const summaryMeta = [
-    `${summary.entry_count || 0} events`,
-    ...(summary.latest_timestamp ? [summary.latest_timestamp] : []),
-    ...Object.entries(summary.kind_counts || {}).map(([kind, count]) => `${kind} ${count}`),
-  ];
-  return `
-    <div class="context-card">
-      <div class="context-title">Packet timeline</div>
-      <div class="context-meta">${summaryMeta.map(item => `<span>${escHtml(String(item))}</span>`).join('')}</div>
-      ${milestones.length ? `<div class="context-meta">${milestones.map(item => `<span class="run-class">${escHtml(item.event_type || 'milestone')}</span>`).join('')}</div>` : ''}
-    </div>
-    ${(visibleBlocks.length ? visibleBlocks.slice(-8).map(block => {
-      const blockIndex = blocks.indexOf(block);
-      const active = blockIndex === selectedTranscriptBlockIndex;
-      return `
-    <button type="button" class="transcript-entry ${escHtml(block.block_type || 'event')} ${active ? 'active' : ''}" onclick="selectTranscriptBlock(${blockIndex})">
-      <div class="transcript-entry-header">
-        <div class="context-title">${escHtml(block.title || 'event')}</div>
-        <span class="run-class">${escHtml(block.block_type || 'event')}</span>
-      </div>
-      <div class="transcript-entry-meta">
-        <span>${escHtml(block.timestamp || '—')}</span>
-        ${block.body ? `<span>${escHtml(block.body)}</span>` : ''}
-      </div>
-      ${block.body ? `<div class="transcript-entry-body">${escHtml(block.body)}</div>` : ''}
-    </button>
-  `;
-    }).join('') : (blocks.length
-    ? '<div class="empty-panel">No transcript blocks match the current filter.</div>'
-    : entries.slice(-8).map(entry => `
-    <div class="transcript-entry ${escHtml(entry.kind || '')}">
-      <div class="transcript-entry-header">
-        <div class="context-title">${escHtml(entry.message || entry.event_type || entry.kind || 'event')}</div>
-        <span class="run-class">${escHtml(entry.kind || 'event')}</span>
-      </div>
-      <div class="transcript-entry-meta">
-        <span>${escHtml(entry.timestamp || '—')}</span>
-        ${entry.event_type ? `<span>${escHtml(entry.event_type)}</span>` : ''}
-      </div>
-      ${renderTranscriptBody(entry)}
-    </div>
-  `).join('')))}
-  `;
+  return getOperatorConsoleHelpers().renderTranscriptPreview(
+    selectedPacketId,
+    selectedPacketTranscript,
+    selectedTranscriptFilter,
+    selectedTranscriptBlockIndex,
+    escHtml,
+    renderTranscriptBody,
+  );
 }
 
 function renderTranscriptInspector() {
-  if (!selectedPacketId) {
-    return '<div class="empty-panel">Select a packet to inspect transcript evidence.</div>';
-  }
-  if (!selectedPacketTranscript || selectedPacketTranscript.loading) {
-    return '<div class="empty-panel">Loading transcript evidence…</div>';
-  }
-  if (selectedPacketTranscript.error) {
-    return `<div class="empty-panel">${escHtml(selectedPacketTranscript.error)}</div>`;
-  }
-  const blocks = selectedPacketTranscript.blocks || [];
-  if (!blocks.length || selectedTranscriptBlockIndex == null || !blocks[selectedTranscriptBlockIndex]) {
-    return '<div class="empty-panel">Select a transcript block to inspect its evidence.</div>';
-  }
-  const block = blocks[selectedTranscriptBlockIndex];
-  const links = [block.artifact_path, block.source_path].filter(Boolean);
-  const burstItems = Array.isArray(block.items) ? block.items : [];
-  return `
-    <div class="context-card">
-      <div class="context-title">${escHtml(block.title || 'Transcript evidence')}</div>
-      <div class="context-meta">
-        <span>${escHtml(block.block_type || 'event')}</span>
-        <span>${escHtml(block.timestamp || '—')}</span>
-      </div>
-      ${block.body ? `<div class="transcript-entry-body">${escHtml(block.body)}</div>` : ''}
-    </div>
-    ${renderTranscriptDetails(block.details)}
-    ${burstItems.length ? `
-      <div class="context-card">
-        <div class="context-title">Burst items</div>
-        <div class="context-list">
-          ${burstItems.map(item => `
-            <div class="context-card">
-              <div class="context-title">${escHtml(item.title || item.block_type || 'tool')}</div>
-              <div class="context-meta">
-                <span>${escHtml(item.block_type || 'tool')}</span>
-                <span>${escHtml(item.timestamp || '—')}</span>
-              </div>
-              ${item.body ? `<div class="transcript-entry-body">${escHtml(item.body)}</div>` : ''}
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    ` : ''}
-    ${links.length ? links.map(path => `
-      <div class="context-card">
-        <div class="context-title">Linked evidence</div>
-        <div class="context-meta"><span class="artifact-link">${escHtml(String(path))}</span></div>
-      </div>
-    `).join('') : '<div class="empty-panel">No linked evidence path for this block.</div>'}
-  `;
+  return getOperatorConsoleHelpers().renderTranscriptInspector(
+    selectedPacketId,
+    selectedPacketTranscript,
+    selectedTranscriptBlockIndex,
+    escHtml,
+    renderTranscriptDetails,
+  );
 }
 
 function renderTranscriptDetails(details) {
@@ -1633,6 +1414,84 @@ function getOperatorConsoleHelpers() {
       const criterionCount = (mission.acceptance_criteria || []).length;
       return `${stateText} ${criterionCount} acceptance criteria, ${rounds.length} recorded rounds, and ${(detail?.packets || []).length} scoped packets.`;
     },
+    renderActionButtons(actions, missionId, esc) {
+      return (actions || []).map(action => {
+        if (action === 'approve') {
+          return `<button class="btn btn-green btn-sm" onclick="approveGo('${missionId}')">Approve</button>`;
+        }
+        if (action === 'retry' || action === 'rerun') {
+          return `<button class="btn btn-red btn-sm" onclick="retryMission('${missionId}')">${action}</button>`;
+        }
+        if (action === 'resume') {
+          return `<button class="btn btn-sm" onclick="openDiscuss('${missionId}')">Resume</button>`;
+        }
+        if (action === 'inject_guidance') {
+          return `<button class="btn btn-primary btn-sm" onclick="openDiscuss('${missionId}')">Inject guidance</button>`;
+        }
+        return `<button class="btn btn-sm" type="button">${esc(action)}</button>`;
+      }).join('');
+    },
+    renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, missionId, esc) {
+      const latestAction = approvalHistory && approvalHistory.length ? approvalHistory[0] : null;
+      const latestActionSummary = this.formatApprovalActionState(latestAction);
+      const stateStatus = approvalState?.status || '';
+      const stateSummary = approvalState?.summary || '';
+      const pending = stateStatus === 'pending';
+      return `
+        <div class="context-card">
+          <div class="context-title">${esc(approvalRequest?.summary || 'Approval required')}</div>
+          <div class="context-meta">
+            <span>Round ${esc(String(approvalRequest?.round_id || '—'))}</span>
+            <span>${esc(approvalRequest?.decision_action || 'ask_human')}</span>
+            <span>${esc(approvalRequest?.timestamp || '—')}</span>
+          </div>
+          ${stateStatus ? `<div class="context-meta"><span class="detail-chip">${esc(stateStatus)}</span><span>${esc(stateSummary || '')}</span></div>` : ''}
+        </div>
+        ${latestAction ? `
+          <div class="context-card">
+            <div class="context-title">Latest operator decision</div>
+            <div class="context-meta">
+              <span class="detail-chip">${esc(latestAction.label || latestAction.action_key || 'Action')}</span>
+              <span class="detail-chip">${esc(latestAction.effect || 'guidance_sent')}</span>
+              <span>${esc(latestAction.timestamp || '—')}</span>
+            </div>
+            ${latestActionSummary ? `<div class="context-meta"><span>${esc(latestActionSummary)}</span></div>` : ''}
+            <div class="transcript-entry-body">${esc(latestAction.message || '')}</div>
+          </div>
+        ` : ''}
+        <div class="context-card">
+          <div class="context-title">Blocking question</div>
+          <div class="transcript-entry-body">${esc(approvalRequest?.blocking_question || 'No blocking question recorded.')}</div>
+        </div>
+        <div class="context-card">
+          <div class="context-title">Operator actions</div>
+          <div class="context-meta">
+            ${(approvalRequest?.actions || []).map(action => `
+              <button class="btn ${action.key === 'approve' ? 'btn-primary' : ''} btn-sm" type="button" ${pending ? 'disabled' : ''} onclick="triggerApprovalAction('${missionId}', '${esc(action.key || '')}')">${esc(action.label || action.key || 'Action')}</button>
+            `).join('')}
+            <button class="btn btn-sm" type="button" ${pending ? 'disabled' : ''} onclick="openDiscussPreset('${missionId}', '${esc((approvalRequest?.actions || [])[0]?.message || '')}')">Open discuss</button>
+            <button class="btn btn-sm" type="button" onclick="load()">Refresh state</button>
+          </div>
+        </div>
+        <div class="context-card">
+          <div class="context-title">Recent operator actions</div>
+          ${approvalHistory && approvalHistory.length ? `<div class="context-list">
+            ${approvalHistory.slice(0, 3).map(item => `
+              <div class="context-card">
+                <div class="context-title">${esc(item.label || item.action_key || 'Action')}</div>
+                <div class="context-meta">
+                  <span>${esc(item.timestamp || '—')}</span>
+                  <span>${esc(item.channel || 'web-dashboard')}</span>
+                  <span class="detail-chip">${esc(item.status || 'sent')}</span>
+                  <span class="detail-chip">${esc(item.effect || 'guidance_sent')}</span>
+                </div>
+                <div class="transcript-entry-body">${esc(item.message || '')}</div>
+              </div>
+            `).join('')}
+          </div>` : '<div class="empty-panel">No operator actions recorded yet.</div>'}
+        </div>
+      `;
+    },
     renderArtifactLinks(artifacts, esc) {
       const entries = Object.entries(artifacts || {}).filter(([, value]) => Boolean(value));
       if (!entries.length) {
@@ -1644,6 +1503,53 @@ function getOperatorConsoleHelpers() {
           <div class="context-meta"><span class="artifact-link">${esc(String(value))}</span></div>
         </div>
       `).join('');
+    },
+    renderLatestRound(round, esc) {
+      const decision = round?.decision || {};
+      const succeeded = (round?.worker_results || []).filter(result => result.succeeded).length;
+      const total = (round?.worker_results || []).length;
+      return `
+        <div class="context-card">
+          <div class="context-title">${esc(decision.summary || 'No supervisor decision summary')}</div>
+          <div class="context-meta">
+            <span>Action ${esc(decision.action || '—')}</span>
+            <span>Confidence ${decision.confidence != null ? esc(String(decision.confidence)) : '—'}</span>
+            <span>Workers ${succeeded}/${total}</span>
+          </div>
+        </div>
+        <div class="context-list">
+          ${(round?.worker_results || []).map(result => `
+            <div class="context-card">
+              <div class="context-title">${esc(result.title || result.packet_id || 'worker')}</div>
+              <div class="context-meta">
+                <span>${esc(result.packet_id || '—')}</span>
+                <span>${result.succeeded ? 'succeeded' : 'failed'}</span>
+                ${result.report_path ? `<span>${esc(result.report_path)}</span>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    },
+    renderPacketRow(packet, selectedId, esc) {
+      const inScope = (packet?.files_in_scope || []).slice(0, 2).join(', ');
+      const isSelected = packet?.packet_id === selectedId;
+      return `
+        <button class="packet-row ${isSelected ? 'active' : ''}" type="button" onclick="selectPacket('${packet?.packet_id}')">
+          <div class="packet-row-header">
+            <div class="packet-row-title">${esc(packet?.title)}</div>
+            <span class="run-class">${esc(packet?.run_class || 'packet')}</span>
+          </div>
+          <div class="packet-row-meta">
+            <span>${esc(packet?.packet_id)}</span>
+            <span>Wave ${esc(String(packet?.wave_id ?? '—'))}</span>
+            ${packet?.linear_issue_id ? `<span>${esc(packet.linear_issue_id)}</span>` : ''}
+          </div>
+          <div class="packet-row-meta">
+            <span>${esc(inScope || 'No scoped files')}</span>
+          </div>
+        </button>
+      `;
     },
     renderDetailValue(value, esc) {
       if (Array.isArray(value)) {
@@ -1693,6 +1599,88 @@ function getOperatorConsoleHelpers() {
         `).join('')}
       `;
     },
+    renderSimpleList(items, emptyText, esc) {
+      if (!items || !items.length) {
+        return `<div class="empty-panel">${esc(emptyText)}</div>`;
+      }
+      return `<div class="context-list">${items.map(item => `
+        <div class="context-card">
+          <div class="context-title">${esc(item)}</div>
+        </div>
+      `).join('')}</div>`;
+    },
+    renderTranscriptFilters(selectedPacketTranscript, selectedTranscriptFilter, esc) {
+      const counts = selectedPacketTranscript?.summary?.block_counts || {};
+      const filters = [{key: 'all', label: 'All'}].concat(
+        Object.entries(counts)
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([key, value]) => ({key, label: `${key} (${value})`}))
+      );
+      return filters.map(filter => `
+        <button
+          class="mission-tab ${selectedTranscriptFilter === filter.key ? 'active' : ''}"
+          type="button"
+          onclick="selectTranscriptFilter('${esc(filter.key)}')"
+        >${esc(filter.label)}</button>
+      `).join('');
+    },
+    renderTranscriptInspector(selectedPacketId, selectedPacketTranscript, selectedTranscriptBlockIndex, esc, renderDetails) {
+      if (!selectedPacketId) return '<div class="empty-panel">Select a packet to inspect transcript evidence.</div>';
+      if (!selectedPacketTranscript || selectedPacketTranscript.loading) return '<div class="empty-panel">Loading transcript evidence…</div>';
+      if (selectedPacketTranscript.error) return `<div class="empty-panel">${esc(selectedPacketTranscript.error)}</div>`;
+      const blocks = selectedPacketTranscript.blocks || [];
+      if (!blocks.length || selectedTranscriptBlockIndex == null || !blocks[selectedTranscriptBlockIndex]) {
+        return '<div class="empty-panel">Select a transcript block to inspect its evidence.</div>';
+      }
+      const block = blocks[selectedTranscriptBlockIndex];
+      const links = [block.artifact_path, block.source_path].filter(Boolean);
+      const burstItems = Array.isArray(block.items) ? block.items : [];
+      return `
+        <div class="context-card">
+          <div class="context-title">${esc(block.title || 'Transcript evidence')}</div>
+          <div class="context-meta">
+            <span>${esc(block.block_type || 'event')}</span>
+            <span>${esc(block.timestamp || '—')}</span>
+          </div>
+          ${block.body ? `<div class="transcript-entry-body">${esc(block.body)}</div>` : ''}
+        </div>
+        ${renderDetails(block.details, esc)}
+        ${burstItems.length ? `<div class="context-card"><div class="context-title">Burst items</div><div class="context-list">
+          ${burstItems.map(item => `<div class="context-card"><div class="context-title">${esc(item.title || item.block_type || 'tool')}</div><div class="context-meta"><span>${esc(item.block_type || 'tool')}</span><span>${esc(item.timestamp || '—')}</span></div>${item.body ? `<div class="transcript-entry-body">${esc(item.body)}</div>` : ''}</div>`).join('')}
+        </div></div>` : ''}
+        ${links.length ? links.map(path => `<div class="context-card"><div class="context-title">Linked evidence</div><div class="context-meta"><span class="artifact-link">${esc(String(path))}</span></div></div>`).join('') : '<div class="empty-panel">No linked evidence path for this block.</div>'}
+      `;
+    },
+    renderTranscriptPreview(selectedPacketId, selectedPacketTranscript, selectedTranscriptFilter, selectedTranscriptBlockIndex, esc, renderBody) {
+      if (!selectedPacketId) return '<div class="empty-panel">Select a packet to inspect its transcript.</div>';
+      if (!selectedPacketTranscript || selectedPacketTranscript.loading) return '<div class="empty-panel">Loading transcript…</div>';
+      if (selectedPacketTranscript.error) return `<div class="empty-panel">${esc(selectedPacketTranscript.error)}</div>`;
+      const entries = selectedPacketTranscript.entries || [];
+      const blocks = selectedPacketTranscript.blocks || [];
+      if (!entries.length && !blocks.length) return '<div class="empty-panel">No transcript events have been recorded yet.</div>';
+      const summary = selectedPacketTranscript.summary || {};
+      const milestones = selectedPacketTranscript.milestones || [];
+      const visibleBlocks = selectedTranscriptFilter === 'all'
+        ? blocks
+        : blocks.filter(block => (block.block_type || 'event') === selectedTranscriptFilter);
+      const summaryMeta = [
+        `${summary.entry_count || 0} events`,
+        ...(summary.latest_timestamp ? [summary.latest_timestamp] : []),
+        ...Object.entries(summary.kind_counts || {}).map(([kind, count]) => `${kind} ${count}`),
+      ];
+      return `
+        <div class="context-card">
+          <div class="context-title">Packet timeline</div>
+          <div class="context-meta">${summaryMeta.map(item => `<span>${esc(String(item))}</span>`).join('')}</div>
+          ${milestones.length ? `<div class="context-meta">${milestones.map(item => `<span class="run-class">${esc(item.event_type || 'milestone')}</span>`).join('')}</div>` : ''}
+        </div>
+        ${(visibleBlocks.length ? visibleBlocks.slice(-8).map(block => {
+          const blockIndex = blocks.indexOf(block);
+          const active = blockIndex === selectedTranscriptBlockIndex;
+          return `<button type="button" class="transcript-entry ${esc(block.block_type || 'event')} ${active ? 'active' : ''}" onclick="selectTranscriptBlock(${blockIndex})"><div class="transcript-entry-header"><div class="context-title">${esc(block.title || 'event')}</div><span class="run-class">${esc(block.block_type || 'event')}</span></div><div class="transcript-entry-meta"><span>${esc(block.timestamp || '—')}</span>${block.body ? `<span>${esc(block.body)}</span>` : ''}</div>${block.body ? `<div class="transcript-entry-body">${esc(block.body)}</div>` : ''}</button>`;
+        }).join('') : (blocks.length ? '<div class="empty-panel">No transcript blocks match the current filter.</div>' : entries.slice(-8).map(entry => `<div class="transcript-entry ${esc(entry.kind || '')}"><div class="transcript-entry-header"><div class="context-title">${esc(entry.message || entry.event_type || entry.kind || 'event')}</div><span class="run-class">${esc(entry.kind || 'event')}</span></div><div class="transcript-entry-meta"><span>${esc(entry.timestamp || '—')}</span>${entry.event_type ? `<span>${esc(entry.event_type)}</span>` : ''}</div>${renderBody(entry)}</div>`).join('')))}
+      `;
+    },
     formatApprovalActionState(action) {
       return action?.status || '';
     },
@@ -1737,6 +1725,13 @@ async function retryMission(mid) {
 }
 
 async function triggerApprovalAction(missionId, actionKey) {
+  approvalActionStates[missionId] = {
+    status: 'pending',
+    summary: 'Applying operator action…',
+  };
+  if (selectedMissionDetail?.mission?.mission_id === missionId) {
+    renderContextRail(selectedMissionDetail);
+  }
   try {
     const response = await fetch(`/api/missions/${missionId}/approval-action`, {
       method: 'POST',
@@ -1744,16 +1739,28 @@ async function triggerApprovalAction(missionId, actionKey) {
       body: JSON.stringify({action_key: actionKey}),
     });
     const data = await response.json();
-    if (!response.ok) {
+    if (!response.ok && !data.action) {
       throw new Error(data.error || 'Approval action failed');
     }
     const actionState = formatApprovalActionState(data.action || {});
+    approvalActionStates[missionId] = {
+      status: data.action?.status || (data.ok ? 'applied' : 'failed'),
+      summary: actionState || (data.ok ? 'Operator action applied' : 'Operator action failed'),
+    };
     addSystemMsg(`${data.ok ? 'Applied' : 'Recorded'} ${actionKey} for ${missionId}${actionState ? ` (${actionState})` : ''}`);
     if (!data.ok) {
       openDiscussPreset(missionId, data.message || '');
     }
     await load();
+    delete approvalActionStates[missionId];
   } catch (error) {
+    approvalActionStates[missionId] = {
+      status: 'failed',
+      summary: error?.message || 'Approval action failed',
+    };
+    if (selectedMissionDetail?.mission?.mission_id === missionId) {
+      renderContextRail(selectedMissionDetail);
+    }
     alert('Error: ' + (error?.message || 'Approval action failed'));
   }
 }

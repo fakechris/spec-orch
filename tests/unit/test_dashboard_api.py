@@ -210,6 +210,10 @@ class TestDashboardAPI:
                 "blocking_question": "Approve the rollout after visual QA review?",
                 "decision_action": "ask_human",
                 "latest_operator_action": None,
+                "approval_state": {
+                    "status": "awaiting_human",
+                    "summary": "Awaiting operator decision",
+                },
             }
         ]
 
@@ -314,6 +318,10 @@ class TestDashboardAPI:
             "channel": "web-dashboard",
             "status": "sent",
             "effect": "revision_requested",
+        }
+        assert data["items"][0]["approval_state"] == {
+            "status": "revision_requested",
+            "summary": "Operator requested revision",
         }
 
     def test_mission_detail_endpoint(self, client, repo: Path):
@@ -529,6 +537,10 @@ class TestDashboardAPI:
             ],
         }
         assert data["approval_history"] == []
+        assert data["approval_state"] == {
+            "status": "awaiting_human",
+            "summary": "Awaiting operator decision",
+        }
 
     def test_packet_transcript_endpoint(self, client, repo: Path):
         mission_id = "mission-transcript"
@@ -1366,6 +1378,10 @@ class TestDashboardAPI:
                 "effect": "followup_requested",
             },
         ]
+        assert data["approval_state"] == {
+            "status": "approval_granted",
+            "summary": "Operator approved this round",
+        }
 
     def test_homepage(self, client):
         r = client.get("/")
@@ -1396,6 +1412,10 @@ class TestDashboardAPI:
         assert "renderArtifactLinks" in js.text
         assert "renderRoundContext" in js.text
         assert "buildMissionSubtitle" in js.text
+        assert "renderApprovalWorkspace" in js.text
+        assert "renderTranscriptPreview" in js.text
+        assert "renderTranscriptInspector" in js.text
+        assert "renderActionButtons" in js.text
 
     def test_favicon_route_returns_no_content(self, client):
         response = client.get("/favicon.ico")

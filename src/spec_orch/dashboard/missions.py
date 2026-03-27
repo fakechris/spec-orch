@@ -23,6 +23,58 @@ def _get_lifecycle_manager(repo_root: Path):
         return None
 
 
+def _derive_approval_state(
+    approval_request: dict[str, Any] | None,
+    approval_history: list[dict[str, Any]],
+) -> dict[str, str] | None:
+    if approval_request is None:
+        return None
+
+    latest_action = approval_history[0] if approval_history else None
+    if latest_action is None:
+        return {
+            "status": "awaiting_human",
+            "summary": "Awaiting operator decision",
+        }
+
+    status = str(latest_action.get("status") or "")
+    effect = str(latest_action.get("effect") or "")
+    if status == "failed":
+        return {
+            "status": "failed",
+            "summary": "Latest operator action failed",
+        }
+    if effect == "approval_granted":
+        return {
+            "status": "approval_granted",
+            "summary": "Operator approved this round",
+        }
+    if effect == "revision_requested":
+        return {
+            "status": "revision_requested",
+            "summary": "Operator requested revision",
+        }
+    if effect == "followup_requested":
+        return {
+            "status": "followup_requested",
+            "summary": "Operator requested follow-up",
+        }
+    if status == "not_applied":
+        return {
+            "status": "not_applied",
+            "summary": "Latest operator action was recorded only",
+        }
+    if status == "applied":
+        return {
+            "status": "applied",
+            "summary": "Latest operator action was applied",
+        }
+    return {
+        "status": status or "awaiting_human",
+        "summary": "Awaiting operator decision",
+    }
+
+
 def _gather_missions(repo_root: Path) -> list[dict[str, Any]]:
     svc = MissionService(repo_root=repo_root)
     missions = svc.list_missions()
@@ -114,6 +166,10 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
                     "latest_operator_action": (
                         approval_history[0] if approval_history else None
                     ),
+                    "approval_state": _derive_approval_state(
+                        approval_request,
+                        approval_history,
+                    ),
                 }
             )
             continue
@@ -180,6 +236,7 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
     lifecycle = _gather_lifecycle_states(repo_root).get(mission_id)
     approval_request = _gather_latest_approval_request(repo_root, mission_id)
     approval_history = _load_approval_history(repo_root, mission_id)
+    approval_state = _derive_approval_state(approval_request, approval_history)
 
     rounds_dir = repo_root / "docs/specs" / mission_id / "rounds"
     round_summaries: list[dict[str, Any]] = []
@@ -264,6 +321,7 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
         "actions": sorted(set(actions)),
         "approval_request": approval_request,
         "approval_history": approval_history,
+        "approval_state": approval_state,
         "artifacts": {
             "spec": str((repo_root / mission.spec_path).relative_to(repo_root)),
             "plan": str(plan_path.relative_to(repo_root)) if plan_path.exists() else None,
@@ -280,6 +338,7 @@ def _gather_lifecycle_states(repo_root: Path) -> dict[str, Any]:
 
 
 __all__ = [
+    "_derive_approval_state",
     "_gather_inbox",
     "_gather_lifecycle_states",
     "_gather_mission_detail",
