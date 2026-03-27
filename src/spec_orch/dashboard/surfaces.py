@@ -54,6 +54,22 @@ def _load_cost_thresholds(repo_root: Path) -> dict[str, float] | None:
     return thresholds or None
 
 
+def _safe_int(value: Any, *, context: str) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        logger.warning("Ignoring invalid integer value for %s: %r", context, value)
+        return 0
+
+
+def _safe_float(value: Any, *, context: str) -> float:
+    try:
+        return float(value or 0.0)
+    except (TypeError, ValueError):
+        logger.warning("Ignoring invalid float value for %s: %r", context, value)
+        return 0.0
+
+
 def _extract_visual_gallery(artifacts: dict[str, Any]) -> list[dict[str, str]]:
     image_suffixes = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg")
     gallery: list[dict[str, str]] = []
@@ -193,6 +209,7 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
                 "gallery_items": 0,
                 "diff_items": 0,
                 "comparison_rounds": 0,
+                "focus_transcript_route": None,
             },
             "review_route": f"/?mission={mission_id}&mode=missions&tab=visual",
             "rounds": [],
@@ -203,7 +220,11 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
         visual_path = round_dir / "visual_evaluation.json"
         if not visual_path.exists():
             continue
-        round_id = int(round_dir.name.split("-")[-1])
+        try:
+            round_id = int(round_dir.name.split("-")[-1])
+        except (TypeError, ValueError, IndexError):
+            logger.warning("Skipping visual QA directory with invalid round suffix: %s", round_dir)
+            continue
         transcript_routes: list[str] = []
         summary_path = round_dir / "round_summary.json"
         if summary_path.exists():
@@ -340,9 +361,18 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
             continue
         metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
         usage = metadata.get("usage", {}) if isinstance(metadata, dict) else {}
-        input_tokens = int(usage.get("input_tokens", 0) or 0)
-        output_tokens = int(usage.get("output_tokens", 0) or 0)
-        cost_usd = float(metadata.get("cost_usd", 0.0) or 0.0)
+        input_tokens = _safe_int(
+            usage.get("input_tokens", 0),
+            context=f"{worker_dir.name}.input_tokens",
+        )
+        output_tokens = _safe_int(
+            usage.get("output_tokens", 0),
+            context=f"{worker_dir.name}.output_tokens",
+        )
+        cost_usd = _safe_float(
+            metadata.get("cost_usd", 0.0),
+            context=f"{worker_dir.name}.cost_usd",
+        )
         total_input += input_tokens
         total_output += output_tokens
         total_cost += cost_usd

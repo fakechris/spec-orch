@@ -519,6 +519,10 @@ class TestDashboardAPI:
         monkeypatch,
     ):
         mission_ids = ["mission-batch-a", "mission-batch-b"]
+        issue_ids = {
+            "mission-batch-a": "SON-BATCH-A",
+            "mission-batch-b": "SON-BATCH-B",
+        }
         for mission_id in mission_ids:
             specs = repo / "docs" / "specs" / mission_id
             round_dir = specs / "rounds" / "round-01"
@@ -569,9 +573,19 @@ class TestDashboardAPI:
         calls: list[tuple[str, str, str]] = []
 
         class FakeLifecycleManager:
+            def get_state(self, tracked_mission_id: str):
+                return type(
+                    "State",
+                    (),
+                    {
+                        "issue_ids": [issue_ids[tracked_mission_id]],
+                        "completed_issues": [],
+                    },
+                )()
+
             def inject_btw(self, issue_id: str, message: str, channel: str) -> bool:
                 calls.append((issue_id, message, channel))
-                return issue_id != "mission-batch-b"
+                return issue_id != issue_ids["mission-batch-b"]
 
         monkeypatch.setattr(
             "spec_orch.dashboard.routes.dashboard_app._get_lifecycle_manager",
@@ -614,9 +628,93 @@ class TestDashboardAPI:
             "mission=mission-batch-b&mode=missions&tab=approvals"
         )
         assert calls == [
-            ("mission-batch-a", "@approve Approve rollout after QA?", "web-dashboard"),
-            ("mission-batch-b", "@approve Approve rollout after QA?", "web-dashboard"),
+            ("SON-BATCH-A", "@approve Approve rollout after QA?", "web-dashboard"),
+            ("SON-BATCH-B", "@approve Approve rollout after QA?", "web-dashboard"),
         ]
+
+    def test_approvals_batch_action_counts_bare_errors_as_failed(
+        self,
+        client,
+        repo: Path,
+        monkeypatch,
+    ):
+        mission_ids = ["mission-batch-error-a", "mission-batch-error-b"]
+        for mission_id in mission_ids:
+            specs = repo / "docs" / "specs" / mission_id
+            round_dir = specs / "rounds" / "round-01"
+            specs.mkdir(parents=True)
+            round_dir.mkdir(parents=True)
+            (specs / "mission.json").write_text(
+                json.dumps(
+                    {
+                        "mission_id": mission_id,
+                        "title": mission_id,
+                        "status": "approved",
+                        "spec_path": f"docs/specs/{mission_id}/spec.md",
+                        "acceptance_criteria": [],
+                        "constraints": [],
+                        "interface_contracts": [],
+                        "created_at": "2026-03-25T00:00:00+00:00",
+                        "approved_at": "2026-03-25T00:05:00+00:00",
+                        "completed_at": None,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (specs / "spec.md").write_text("# Approval Batch Error Mission\n", encoding="utf-8")
+            (round_dir / "round_summary.json").write_text(
+                json.dumps(
+                    {
+                        "round_id": 1,
+                        "wave_id": 0,
+                        "status": "decided",
+                        "started_at": "2026-03-25T00:10:00+00:00",
+                        "completed_at": "2026-03-25T00:11:00+00:00",
+                        "worker_results": [],
+                        "decision": {
+                            "action": "ask_human",
+                            "reason_code": "needs_approval",
+                            "summary": "Approve rollout after QA.",
+                            "confidence": 0.8,
+                            "affected_workers": [],
+                            "artifacts": {},
+                            "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                            "blocking_questions": ["Approve rollout after QA?"],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+        monkeypatch.setattr(
+            "spec_orch.dashboard.routes.dashboard_app._get_lifecycle_manager",
+            lambda _root: None,
+        )
+
+        response = client.post(
+            "/api/approvals/batch-action",
+            content=json.dumps(
+                {
+                    "mission_ids": mission_ids,
+                    "action_key": "approve",
+                }
+            ),
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["summary"] == {
+            "requested": 2,
+            "processed": 2,
+            "applied": 0,
+            "not_applied": 0,
+            "failed": 2,
+        }
+        assert payload["focus_mission_id"] == "mission-batch-error-a"
+        assert payload["next_pending_mission_id"] == "mission-batch-error-a"
+        assert payload["results"][0]["action"]["status"] == "failed"
+        assert payload["results"][1]["action"]["status"] == "failed"
 
     def test_approvals_endpoint_surfaces_stale_and_failed_counts(self, client, repo: Path):
         fresh_id = "mission-approval-fresh"
@@ -2002,6 +2100,65 @@ class TestDashboardAPI:
         data = r.json()
         assert "ok" in data or "error" in data
 
+    def test_approve_existing_mission_starts_tracking_and_auto_advances(
+        self,
+        client,
+        repo: Path,
+        monkeypatch,
+    ):
+        mission_id = "mission-approve-existing"
+        specs = repo / "docs" / "specs" / mission_id
+        specs.mkdir(parents=True)
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Approve Existing Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Approve Existing Mission\n", encoding="utf-8")
+
+        calls: list[tuple[str, str]] = []
+
+        class FakeState:
+            def to_dict(self) -> dict[str, str]:
+                return {"mission_id": mission_id, "phase": "planning"}
+
+        class FakeLifecycleManager:
+            def begin_tracking(self, tracked_mission_id: str) -> None:
+                calls.append(("begin_tracking", tracked_mission_id))
+
+            def auto_advance(self, tracked_mission_id: str) -> FakeState:
+                calls.append(("auto_advance", tracked_mission_id))
+                return FakeState()
+
+        monkeypatch.setattr(
+            "spec_orch.dashboard.routes.dashboard_app._get_lifecycle_manager",
+            lambda _root: FakeLifecycleManager(),
+        )
+
+        response = client.post(f"/api/missions/{mission_id}/approve")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "ok": True,
+            "state": {"mission_id": mission_id, "phase": "planning"},
+        }
+        assert calls == [
+            ("begin_tracking", mission_id),
+            ("auto_advance", mission_id),
+        ]
+
     def test_discuss_endpoint(self, client):
         r = client.post(
             "/api/discuss",
@@ -2020,6 +2177,7 @@ class TestDashboardAPI:
 
     def test_approval_action_endpoint_injects_guidance(self, client, repo: Path, monkeypatch):
         mission_id = "mission-approval-action"
+        issue_id = "SON-9001"
         specs = repo / "docs" / "specs" / mission_id
         round_dir = specs / "rounds" / "round-01"
         specs.mkdir(parents=True)
@@ -2066,10 +2224,38 @@ class TestDashboardAPI:
             ),
             encoding="utf-8",
         )
+        (repo / ".spec_orch_runs" / "lifecycle_state.json").write_text(
+            json.dumps(
+                {
+                    mission_id: {
+                        "mission_id": mission_id,
+                        "phase": "executing",
+                        "issue_ids": [issue_id],
+                        "completed_issues": [],
+                        "error": None,
+                        "updated_at": "2026-03-25T00:11:30+00:00",
+                        "current_round": 1,
+                        "round_orchestrator_state": {
+                            "paused": True,
+                            "blocking_questions": ["Approve rollout after QA?"],
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
 
         calls: list[tuple[str, str, str]] = []
 
         class FakeLifecycleManager:
+            def get_state(self, tracked_mission_id: str):
+                assert tracked_mission_id == mission_id
+                return type(
+                    "State",
+                    (),
+                    {"issue_ids": [issue_id], "completed_issues": []},
+                )()
+
             def inject_btw(self, issue_id: str, message: str, channel: str) -> bool:
                 calls.append((issue_id, message, channel))
                 return True
@@ -2101,7 +2287,7 @@ class TestDashboardAPI:
                 "effect": "approval_granted",
             },
         }
-        assert calls == [(mission_id, "@approve Approve rollout after QA?", "web-dashboard")]
+        assert calls == [(issue_id, "@approve Approve rollout after QA?", "web-dashboard")]
         history_path = repo / "docs" / "specs" / mission_id / "operator" / "approval_actions.jsonl"
         history = [
             json.loads(line)
@@ -2122,6 +2308,7 @@ class TestDashboardAPI:
         monkeypatch,
     ):
         mission_id = "mission-approval-soft-fail"
+        issue_id = "SON-9002"
         specs = repo / "docs" / "specs" / mission_id
         round_dir = specs / "rounds" / "round-01"
         specs.mkdir(parents=True)
@@ -2168,10 +2355,38 @@ class TestDashboardAPI:
             ),
             encoding="utf-8",
         )
+        (repo / ".spec_orch_runs" / "lifecycle_state.json").write_text(
+            json.dumps(
+                {
+                    mission_id: {
+                        "mission_id": mission_id,
+                        "phase": "executing",
+                        "issue_ids": [issue_id],
+                        "completed_issues": [],
+                        "error": None,
+                        "updated_at": "2026-03-25T00:11:30+00:00",
+                        "current_round": 1,
+                        "round_orchestrator_state": {
+                            "paused": True,
+                            "blocking_questions": ["Approve rollout after QA?"],
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
 
         class FakeLifecycleManager:
-            def inject_btw(self, issue_id: str, message: str, channel: str) -> bool:
-                assert issue_id == mission_id
+            def get_state(self, tracked_mission_id: str):
+                assert tracked_mission_id == mission_id
+                return type(
+                    "State",
+                    (),
+                    {"issue_ids": [issue_id], "completed_issues": []},
+                )()
+
+            def inject_btw(self, injected_issue_id: str, message: str, channel: str) -> bool:
+                assert injected_issue_id == issue_id
                 assert message == "@approve Approve rollout after QA?"
                 assert channel == "web-dashboard"
                 return False
@@ -2200,6 +2415,7 @@ class TestDashboardAPI:
         monkeypatch,
     ):
         mission_id = "mission-approval-hard-fail"
+        issue_id = "SON-9003"
         specs = repo / "docs" / "specs" / mission_id
         round_dir = specs / "rounds" / "round-01"
         specs.mkdir(parents=True)
@@ -2246,8 +2462,36 @@ class TestDashboardAPI:
             ),
             encoding="utf-8",
         )
+        (repo / ".spec_orch_runs" / "lifecycle_state.json").write_text(
+            json.dumps(
+                {
+                    mission_id: {
+                        "mission_id": mission_id,
+                        "phase": "executing",
+                        "issue_ids": [issue_id],
+                        "completed_issues": [],
+                        "error": None,
+                        "updated_at": "2026-03-25T00:11:30+00:00",
+                        "current_round": 1,
+                        "round_orchestrator_state": {
+                            "paused": True,
+                            "blocking_questions": ["Approve rollout after QA?"],
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
 
         class FakeLifecycleManager:
+            def get_state(self, tracked_mission_id: str):
+                assert tracked_mission_id == mission_id
+                return type(
+                    "State",
+                    (),
+                    {"issue_ids": [issue_id], "completed_issues": []},
+                )()
+
             def inject_btw(self, issue_id: str, message: str, channel: str) -> bool:
                 raise RuntimeError("injection exploded")
 
@@ -2273,6 +2517,42 @@ class TestDashboardAPI:
             if line.strip()
         ]
         assert history[0]["status"] == "failed"
+
+    def test_visual_qa_endpoint_ignores_non_numeric_round_directories(self, client, repo: Path):
+        mission_id = "mission-visual-invalid-round"
+        specs = repo / "docs" / "specs" / mission_id
+        valid_round_dir = specs / "rounds" / "round-01"
+        invalid_round_dir = specs / "rounds" / "round-latest"
+        valid_round_dir.mkdir(parents=True)
+        invalid_round_dir.mkdir(parents=True)
+        (valid_round_dir / "visual_evaluation.json").write_text(
+            json.dumps(
+                {
+                    "summary": "Looks good",
+                    "confidence": 0.9,
+                    "findings": [],
+                    "artifacts": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+        (invalid_round_dir / "visual_evaluation.json").write_text(
+            json.dumps(
+                {
+                    "summary": "Should be ignored",
+                    "confidence": 0.1,
+                    "findings": [{"severity": "blocking", "message": "bad dir"}],
+                    "artifacts": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get(f"/api/missions/{mission_id}/visual-qa")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["summary"]["total_rounds"] == 1
+        assert payload["rounds"][0]["round_id"] == 1
 
     def test_mission_detail_endpoint_includes_approval_history(self, client, repo: Path):
         mission_id = "mission-approval-history"

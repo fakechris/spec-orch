@@ -1006,6 +1006,7 @@ async function triggerApprovalBatchAction(actionKey) {
       summary: `${data.summary.applied} applied, ${data.summary.not_applied} recorded, ${data.summary.failed} failed`,
       results: data.results || [],
       focusMissionId: data.focus_mission_id || null,
+      nextPendingMissionId: data.next_pending_mission_id || null,
     };
     selectedApprovalMissionIds = [];
     await load();

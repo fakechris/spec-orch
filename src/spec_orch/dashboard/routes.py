@@ -19,6 +19,23 @@ ACTION_KEY_BODY = Body(..., embed=True)
 
 
 def register_routes(app: FastAPI, root: Path) -> None:
+    def _get_active_issue_id(mission_id: str) -> str | None:
+        mgr = dashboard_app._get_lifecycle_manager(root)
+        if mgr is None:
+            return None
+        get_state = getattr(mgr, "get_state", None)
+        if not callable(get_state):
+            return None
+        state = get_state(mission_id)
+        if state is None:
+            return None
+        issue_ids = list(getattr(state, "issue_ids", []) or [])
+        completed_issues = set(getattr(state, "completed_issues", []) or [])
+        for issue_id in issue_ids:
+            if issue_id not in completed_issues:
+                return str(issue_id)
+        return None
+
     def _apply_approval_action(
         mission_id: str,
         action_key: str,
@@ -32,9 +49,12 @@ def register_routes(app: FastAPI, root: Path) -> None:
         action = dashboard_app._resolve_approval_action(root, mission_id, action_key)
         if action is None:
             return 404, {"error": "Approval action unavailable"}
+        issue_id = _get_active_issue_id(mission_id)
+        if issue_id is None:
+            return 409, {"error": "No active issue available for approval action"}
 
         try:
-            ok = mgr.inject_btw(mission_id, action["message"], channel=channel)
+            ok = mgr.inject_btw(issue_id, action["message"], channel=channel)
             action_record = dashboard_app._record_approval_action(
                 root,
                 mission_id,
@@ -235,7 +255,15 @@ def register_routes(app: FastAPI, root: Path) -> None:
         if dashboard_app._gather_mission_detail(root, mission_id) is None:
             return JSONResponse({"error": "Mission not found"}, status_code=200)
         try:
-            state = mgr.approve_and_start(mission_id)
+            get_state = getattr(mgr, "get_state", None)
+            current_state = get_state(mission_id) if callable(get_state) else None
+            if current_state is None:
+                mgr.begin_tracking(mission_id)
+            state = mgr.auto_advance(mission_id)
+            if state is None and callable(get_state):
+                state = get_state(mission_id)
+            if state is None:
+                raise RuntimeError("Mission did not return lifecycle state")
             return JSONResponse({"ok": True, "state": state.to_dict()})
         except FileNotFoundError:
             return JSONResponse({"error": "Mission not found"}, status_code=200)
@@ -295,6 +323,12 @@ def register_routes(app: FastAPI, root: Path) -> None:
         for mission_id in mission_ids:
             status_code, payload = _apply_approval_action(mission_id, action_key)
             action_status = payload.get("action", {}).get("status")
+            if action_status is None and not 200 <= status_code < 300:
+                action_status = "failed"
+                payload = {
+                    **payload,
+                    "action": {"status": action_status},
+                }
             if focus_mission_id is None and action_status in {"failed", "not_applied"}:
                 focus_mission_id = mission_id
             results.append(
