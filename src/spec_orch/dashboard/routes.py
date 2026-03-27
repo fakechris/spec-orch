@@ -253,7 +253,7 @@ def register_routes(app: FastAPI, root: Path) -> None:
         if mgr is None:
             return JSONResponse({"error": "Mission lifecycle unavailable"}, status_code=503)
         if dashboard_app._gather_mission_detail(root, mission_id) is None:
-            return JSONResponse({"error": "Mission not found"}, status_code=200)
+            return JSONResponse({"error": "Mission not found"}, status_code=404)
         try:
             get_state = getattr(mgr, "get_state", None)
             current_state = get_state(mission_id) if callable(get_state) else None
@@ -266,7 +266,7 @@ def register_routes(app: FastAPI, root: Path) -> None:
                 raise RuntimeError("Mission did not return lifecycle state")
             return JSONResponse({"ok": True, "state": state.to_dict()})
         except FileNotFoundError:
-            return JSONResponse({"error": "Mission not found"}, status_code=200)
+            return JSONResponse({"error": "Mission not found"}, status_code=404)
         except Exception:
             return JSONResponse({"error": "Mission approval failed"}, status_code=500)
 

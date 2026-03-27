@@ -2096,9 +2096,9 @@ class TestDashboardAPI:
 
     def test_approve_unknown_mission(self, client):
         r = client.post("/api/missions/nonexistent/approve")
-        assert r.status_code == 200
+        assert r.status_code == 404
         data = r.json()
-        assert "ok" in data or "error" in data
+        assert data == {"error": "Mission not found"}
 
     def test_approve_existing_mission_starts_tracking_and_auto_advances(
         self,
@@ -2699,6 +2699,22 @@ class TestDashboardAPI:
         assert "renderActionButtons" in js.text
         assert "renderVisualQaPanel" in js.text
         assert "renderCostsPanel" in js.text
+        assert "function safeJsArg" in js.text
+        assert "navigateOperatorRoute(${safeJsArg(route)})" in js.text
+        assert "approveGo(${safeJsArg(missionId)})" in js.text
+        assert "retryMission(${safeJsArg(missionId)})" in js.text
+        assert "openDiscuss(${safeJsArg(missionId)})" in js.text
+        assert "selectPacket(${safeJsArg(packet?.packet_id)})" in js.text
+        assert (
+            "triggerApprovalAction(${safeJsArg(missionId)}, ${safeJsArg(action?.key || '')})"
+            in js.text
+        )
+        assert (
+            "openDiscussPreset(${safeJsArg(missionId)}, ${safeJsArg((approvalRequest?.actions || [])[0]?.message || '')})"
+            in js.text
+        )
+        assert "focusMissionFromBatch(${safeJsArg(batchState.focusMissionId)})" in js.text
+        assert "focusMissionFromBatch(${safeJsArg(batchState.nextPendingMissionId)})" in js.text
 
     def test_favicon_route_returns_no_content(self, client):
         response = client.get("/favicon.ico")
