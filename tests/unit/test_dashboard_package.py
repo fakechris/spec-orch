@@ -39,3 +39,17 @@ def test_dashboard_package_exposes_approval_helpers() -> None:
     assert callable(_load_approval_history)
     assert callable(_record_approval_action)
     assert callable(_resolve_approval_action)
+
+
+def test_dashboard_package_exposes_mission_helpers() -> None:
+    from spec_orch.dashboard.missions import (
+        _gather_inbox,
+        _gather_lifecycle_states,
+        _gather_mission_detail,
+        _gather_missions,
+    )
+
+    assert callable(_gather_missions)
+    assert callable(_gather_inbox)
+    assert callable(_gather_mission_detail)
+    assert callable(_gather_lifecycle_states)

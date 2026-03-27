@@ -219,6 +219,26 @@
 
 ## Session: 2026-03-25
 
+### Operator Console Refactor Continuation
+- **Status:** in_progress
+- Actions taken:
+  - Extracted mission, inbox, mission-detail, and lifecycle-state aggregation into `src/spec_orch/dashboard/missions.py`.
+  - Kept dashboard route and package exports stable while shrinking the transitional `dashboard/app.py` surface.
+  - Preserved approval workspace, transcript inspector, and operator shell behavior while moving aggregation ownership out of the UI shell.
+  - Continued operator-console UX work with richer transcript evidence rendering and approval action state feedback.
+- Files created/modified:
+  - `src/spec_orch/dashboard/missions.py`
+  - `src/spec_orch/dashboard/api.py`
+  - `src/spec_orch/dashboard/__init__.py`
+  - `src/spec_orch/dashboard/app.py`
+  - `tests/unit/test_dashboard_package.py`
+  - `task_plan.md`
+  - `progress.md`
+
+### Verification
+- `uv run --python 3.13 python -m pytest tests/unit/test_dashboard.py tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py -q`
+- `uv run --python 3.13 python -m ruff check src/spec_orch/dashboard.py src/spec_orch/dashboard tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py pyproject.toml`
+
 ### Phase 1: Research Setup
 - **Status:** in_progress
 - Actions taken:

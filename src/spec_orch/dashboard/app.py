@@ -14,20 +14,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from spec_orch.services.mission_service import MissionService
-from spec_orch.services.pipeline_checker import check_pipeline
-from spec_orch.services.promotion_service import load_plan
-
-from .approvals import (
-    _gather_latest_approval_request,
-    _load_approval_history,
-)
 from .approvals import (
     _record_approval_action as _approval_record_approval_action,
 )
 from .approvals import (
     _resolve_approval_action as _approval_resolve_approval_action,
 )
+from .missions import _gather_inbox as _missions_gather_inbox
+from .missions import _gather_lifecycle_states as _missions_gather_lifecycle_states
+from .missions import _gather_mission_detail as _missions_gather_mission_detail
+from .missions import _gather_missions as _missions_gather_missions
 from .transcript import _gather_packet_transcript as _transcript_gather_packet_transcript
 from .transcript import (
     _gather_round_evidence_blocks as _transcript_gather_round_evidence_blocks,
@@ -63,230 +59,6 @@ def _get_conversation_service(repo_root: Path):
         return ConversationService(repo_root=repo_root)
     except Exception:
         return None
-
-
-def _gather_missions(repo_root: Path) -> list[dict[str, Any]]:
-    svc = MissionService(repo_root=repo_root)
-    missions = svc.list_missions()
-    results = []
-    for m in missions:
-        plan_path = repo_root / "docs/specs" / m.mission_id / "plan.json"
-        plan_info: dict[str, Any] | None = None
-        if plan_path.exists():
-            plan = load_plan(plan_path)
-            plan_info = {
-                "plan_id": plan.plan_id,
-                "status": plan.status.value,
-                "wave_count": len(plan.waves),
-                "packet_count": sum(len(w.work_packets) for w in plan.waves),
-                "waves": [
-                    {
-                        "wave_number": w.wave_number,
-                        "description": w.description,
-                        "packets": [
-                            {
-                                "packet_id": p.packet_id,
-                                "title": p.title,
-                                "run_class": p.run_class,
-                                "linear_issue_id": p.linear_issue_id,
-                                "depends_on": p.depends_on,
-                            }
-                            for p in w.work_packets
-                        ],
-                    }
-                    for w in plan.waves
-                ],
-            }
-
-        stages = check_pipeline(m.mission_id, repo_root)
-        pipeline = [
-            {"key": s.key, "label": s.label, "status": s.status, "hint": s.command_hint}
-            for s in stages
-        ]
-
-        results.append(
-            {
-                "mission_id": m.mission_id,
-                "title": m.title,
-                "status": m.status.value,
-                "created_at": m.created_at,
-                "approved_at": m.approved_at,
-                "completed_at": m.completed_at,
-                "plan": plan_info,
-                "pipeline": pipeline,
-                "pipeline_done": sum(1 for s in stages if s.status == "done"),
-                "pipeline_total": len(stages),
-            }
-        )
-    return results
-
-
-def _gather_inbox(repo_root: Path) -> dict[str, Any]:
-    missions = _gather_missions(repo_root)
-    lifecycle_states = _gather_lifecycle_states(repo_root)
-    items: list[dict[str, Any]] = []
-
-    for mission in missions:
-        mission_id = mission["mission_id"]
-        lifecycle = lifecycle_states.get(mission_id, {})
-        round_state = lifecycle.get("round_orchestrator_state", {})
-        approval_request = _gather_latest_approval_request(repo_root, mission_id)
-
-        if approval_request is not None:
-            items.append(
-                {
-                    "mission_id": mission_id,
-                    "title": mission["title"],
-                    "kind": "approval",
-                    "phase": lifecycle.get("phase", mission["status"]),
-                    "summary": approval_request["summary"],
-                    "updated_at": lifecycle.get("updated_at") or approval_request["timestamp"],
-                    "current_round": lifecycle.get("current_round", approval_request["round_id"]),
-                    "blocking_question": approval_request["blocking_question"],
-                    "decision_action": approval_request["decision_action"],
-                }
-            )
-            continue
-
-        if round_state.get("paused"):
-            blocking_questions = round_state.get("blocking_questions", [])
-            items.append(
-                {
-                    "mission_id": mission_id,
-                    "title": mission["title"],
-                    "kind": "paused",
-                    "phase": lifecycle.get("phase", mission["status"]),
-                    "summary": blocking_questions[0] if blocking_questions else "Paused for human input.",
-                    "updated_at": lifecycle.get("updated_at"),
-                    "current_round": lifecycle.get("current_round", 0),
-                }
-            )
-            continue
-
-        if lifecycle.get("phase") == "failed":
-            items.append(
-                {
-                    "mission_id": mission_id,
-                    "title": mission["title"],
-                    "kind": "failed",
-                    "phase": lifecycle.get("phase", mission["status"]),
-                    "summary": lifecycle.get("error") or "Mission execution failed.",
-                    "updated_at": lifecycle.get("updated_at"),
-                    "current_round": lifecycle.get("current_round", 0),
-                }
-            )
-
-    items.sort(
-        key=lambda item: (
-            {"approval": 0, "paused": 1, "failed": 2}.get(item["kind"], 9),
-            item.get("updated_at") or "",
-        )
-    )
-
-    return {
-        "counts": {
-            "approvals": sum(1 for item in items if item["kind"] == "approval"),
-            "paused": sum(1 for item in items if item["kind"] == "paused"),
-            "failed": sum(1 for item in items if item["kind"] == "failed"),
-            "attention": len(items),
-        },
-        "items": items,
-    }
-
-
-def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] | None:
-    svc = MissionService(repo_root=repo_root)
-    try:
-        mission = svc.get_mission(mission_id)
-    except FileNotFoundError:
-        return None
-
-    plan_path = repo_root / "docs/specs" / mission_id / "plan.json"
-    plan = load_plan(plan_path) if plan_path.exists() else None
-    lifecycle = _gather_lifecycle_states(repo_root).get(mission_id)
-    approval_request = _gather_latest_approval_request(repo_root, mission_id)
-    approval_history = _load_approval_history(repo_root, mission_id)
-
-    rounds_dir = repo_root / "docs/specs" / mission_id / "rounds"
-    round_summaries: list[dict[str, Any]] = []
-    current_round = 0
-    if rounds_dir.exists():
-        from spec_orch.domain.models import RoundSummary
-
-        for round_dir in sorted(rounds_dir.glob("round-*")):
-            summary_path = round_dir / "round_summary.json"
-            if not summary_path.exists():
-                continue
-            try:
-                summary = RoundSummary.from_dict(json.loads(summary_path.read_text(encoding="utf-8")))
-            except (OSError, ValueError, json.JSONDecodeError):
-                logger.warning("Skipping malformed round summary: %s", summary_path)
-                continue
-            current_round = max(current_round, summary.round_id)
-            review_path = round_dir / "supervisor_review.md"
-            visual_path = round_dir / "visual_evaluation.json"
-            payload = summary.to_dict()
-            payload["paths"] = {
-                "round_dir": str(round_dir.relative_to(repo_root)),
-                "review_memo": str(review_path.relative_to(repo_root)) if review_path.exists() else None,
-                "visual_evaluation": str(visual_path.relative_to(repo_root)) if visual_path.exists() else None,
-            }
-            round_summaries.append(payload)
-
-    packets: list[dict[str, Any]] = []
-    if plan is not None:
-        for wave in plan.waves:
-            for packet in wave.work_packets:
-                packets.append(
-                    {
-                        "packet_id": packet.packet_id,
-                        "title": packet.title,
-                        "wave_id": wave.wave_number,
-                        "run_class": packet.run_class,
-                        "linear_issue_id": packet.linear_issue_id,
-                        "depends_on": packet.depends_on,
-                        "files_in_scope": packet.files_in_scope,
-                    }
-                )
-
-    actions = ["inject_guidance"]
-    status_value = mission.status.value
-    if status_value in {"approved", "drafting"}:
-        actions.append("approve")
-    if status_value in {"failed"}:
-        actions.extend(["retry", "rerun"])
-    if status_value in {"executing", "planned", "promoting"}:
-        actions.extend(["resume", "stop", "rerun"])
-
-    if lifecycle and lifecycle.get("round_orchestrator_state", {}).get("paused"):
-        actions.append("resume")
-
-    detail = {
-        "mission": {
-            "mission_id": mission.mission_id,
-            "title": mission.title,
-            "status": mission.status.value,
-            "created_at": mission.created_at,
-            "approved_at": mission.approved_at,
-            "completed_at": mission.completed_at,
-            "acceptance_criteria": mission.acceptance_criteria,
-            "constraints": mission.constraints,
-            "spec_path": mission.spec_path,
-        },
-        "lifecycle": lifecycle,
-        "current_round": current_round,
-        "rounds": round_summaries,
-        "packets": packets,
-        "actions": sorted(set(actions)),
-        "approval_request": approval_request,
-        "approval_history": approval_history,
-        "artifacts": {
-            "spec": str((repo_root / mission.spec_path).relative_to(repo_root)),
-            "plan": str(plan_path.relative_to(repo_root)) if plan_path.exists() else None,
-            "rounds_dir": str(rounds_dir.relative_to(repo_root)) if rounds_dir.exists() else None,
-        },
-    }
-    return detail
 
 
 def _gather_packet_transcript(
@@ -571,15 +343,12 @@ _gather_packet_transcript = _transcript_gather_packet_transcript
 _transcript_block_from_entry = _transcript_block_from_entry_impl
 _group_transcript_blocks = _transcript_group_transcript_blocks
 _gather_round_evidence_blocks = _transcript_gather_round_evidence_blocks
+_gather_missions = _missions_gather_missions
+_gather_inbox = _missions_gather_inbox
+_gather_mission_detail = _missions_gather_mission_detail
+_gather_lifecycle_states = _missions_gather_lifecycle_states
 _record_approval_action = _approval_record_approval_action
 _resolve_approval_action = _approval_resolve_approval_action
-
-
-def _gather_lifecycle_states(repo_root: Path) -> dict[str, Any]:
-    mgr = _get_lifecycle_manager(repo_root)
-    if mgr is None:
-        return {}
-    return {mid: ms.to_dict() for mid, ms in mgr.all_states().items()}
 
 
 def _gather_evolution_metrics(repo_root: Path) -> dict[str, Any]:
