@@ -18,6 +18,19 @@ from spec_orch.services.mission_service import MissionService
 from spec_orch.services.pipeline_checker import check_pipeline
 from spec_orch.services.promotion_service import load_plan
 
+from .transcript import (
+    _gather_packet_transcript as _transcript_gather_packet_transcript,
+)
+from .transcript import (
+    _gather_round_evidence_blocks as _transcript_gather_round_evidence_blocks,
+)
+from .transcript import (
+    _group_transcript_blocks as _transcript_group_transcript_blocks,
+)
+from .transcript import (
+    _transcript_block_from_entry as _transcript_block_from_entry_impl,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -619,6 +632,12 @@ def _gather_round_evidence_blocks(
             )
 
     return blocks
+
+
+_gather_packet_transcript = _transcript_gather_packet_transcript
+_transcript_block_from_entry = _transcript_block_from_entry_impl
+_group_transcript_blocks = _transcript_group_transcript_blocks
+_gather_round_evidence_blocks = _transcript_gather_round_evidence_blocks
 
 
 def _gather_lifecycle_states(repo_root: Path) -> dict[str, Any]:
@@ -1846,6 +1865,7 @@ function renderTranscriptInspector() {
       </div>
       ${block.body ? `<div class="transcript-entry-body">${escHtml(block.body)}</div>` : ''}
     </div>
+    ${renderTranscriptDetails(block.details)}
     ${burstItems.length ? `
       <div class="context-card">
         <div class="context-title">Burst items</div>
@@ -1869,6 +1889,18 @@ function renderTranscriptInspector() {
         <div class="context-meta"><span class="artifact-link">${escHtml(String(path))}</span></div>
       </div>
     `).join('') : '<div class="empty-panel">No linked evidence path for this block.</div>'}
+  `;
+}
+
+function renderTranscriptDetails(details) {
+  if (!details || typeof details !== 'object') {
+    return '';
+  }
+  return `
+    <div class="context-card">
+      <div class="context-title">Structured details</div>
+      <div class="transcript-entry-body">${escHtml(JSON.stringify(details, null, 2))}</div>
+    </div>
   `;
 }
 

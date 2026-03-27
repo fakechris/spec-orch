@@ -19,3 +19,9 @@ def test_dashboard_package_exposes_route_registrar() -> None:
     from spec_orch.dashboard.routes import register_routes
 
     assert callable(register_routes)
+
+
+def test_dashboard_package_exposes_transcript_helpers() -> None:
+    from spec_orch.dashboard.transcript import _gather_packet_transcript
+
+    assert callable(_gather_packet_transcript)

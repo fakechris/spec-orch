@@ -508,6 +508,11 @@ class TestDashboardAPI:
                 "title": "packet started",
                 "body": "mission_packet_started",
                 "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                "details": {
+                    "timestamp": "2026-03-25T00:11:30Z",
+                    "event_type": "mission_packet_started",
+                    "message": "packet started",
+                },
             },
             {
                 "block_type": "message",
@@ -515,6 +520,11 @@ class TestDashboardAPI:
                 "title": "Implementing mission detail now.",
                 "body": "assistant_message",
                 "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/incoming_events.jsonl",
+                "details": {
+                    "ts": "2026-03-25T00:11:40Z",
+                    "kind": "assistant_message",
+                    "excerpt": "Implementing mission detail now.",
+                },
             },
             {
                 "block_type": "tool",
@@ -522,6 +532,11 @@ class TestDashboardAPI:
                 "title": "applied patch",
                 "body": "tool_call_completed",
                 "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                "details": {
+                    "timestamp": "2026-03-25T00:11:45Z",
+                    "event_type": "tool_call_completed",
+                    "message": "applied patch",
+                },
             },
             {
                 "block_type": "activity",
@@ -624,6 +639,11 @@ class TestDashboardAPI:
                 "title": "Need human approval before rollout.",
                 "body": "ask_human",
                 "artifact_path": f"docs/specs/{mission_id}/rounds/round-02/supervisor_review.md",
+                "details": {
+                    "reason_code": "needs_review",
+                    "confidence": 0.74,
+                    "blocking_questions": ["Approve rollout?"],
+                },
             },
             {
                 "block_type": "visual_finding",
@@ -631,6 +651,13 @@ class TestDashboardAPI:
                 "title": "Visual QA found a spacing regression.",
                 "body": "playwright",
                 "artifact_path": f"docs/specs/{mission_id}/rounds/round-02/visual_evaluation.json",
+                "details": {
+                    "confidence": 0.81,
+                    "findings": [{"severity": "blocking", "message": "Header overlaps metrics."}],
+                    "artifacts": {
+                        "dashboard": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png"
+                    },
+                },
             },
         ]
 
@@ -681,6 +708,14 @@ class TestDashboardAPI:
                 "title": "3 tool events",
                 "body": "running ruff • ruff clean • pytest passed",
                 "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                "details": {
+                    "item_count": 3,
+                    "event_types": [
+                        "tool_call_started",
+                        "tool_call_completed",
+                        "tool_call_completed",
+                    ],
+                },
                 "items": [
                     {
                         "block_type": "tool",
@@ -688,6 +723,11 @@ class TestDashboardAPI:
                         "title": "running ruff",
                         "body": "tool_call_started",
                         "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                        "details": {
+                            "timestamp": "2026-03-25T00:11:45Z",
+                            "event_type": "tool_call_started",
+                            "message": "running ruff",
+                        },
                     },
                     {
                         "block_type": "tool",
@@ -695,6 +735,11 @@ class TestDashboardAPI:
                         "title": "ruff clean",
                         "body": "tool_call_completed",
                         "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                        "details": {
+                            "timestamp": "2026-03-25T00:11:46Z",
+                            "event_type": "tool_call_completed",
+                            "message": "ruff clean",
+                        },
                     },
                     {
                         "block_type": "tool",
@@ -702,10 +747,100 @@ class TestDashboardAPI:
                         "title": "pytest passed",
                         "body": "tool_call_completed",
                         "source_path": f"docs/specs/{mission_id}/workers/{packet_id}/telemetry/events.jsonl",
+                        "details": {
+                            "timestamp": "2026-03-25T00:11:47Z",
+                            "event_type": "tool_call_completed",
+                            "message": "pytest passed",
+                        },
                     },
                 ],
             }
         ]
+
+    def test_packet_transcript_endpoint_exposes_evidence_details(self, client, repo: Path):
+        mission_id = "mission-transcript-evidence-details"
+        packet_id = "pkt-9"
+        telemetry = repo / "docs" / "specs" / mission_id / "workers" / packet_id / "telemetry"
+        round_dir = repo / "docs" / "specs" / mission_id / "rounds" / "round-03"
+        telemetry.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+
+        (telemetry / "incoming_events.jsonl").write_text(
+            json.dumps(
+                {
+                    "ts": "2026-03-25T00:11:40Z",
+                    "kind": "assistant_message",
+                    "excerpt": "Implementing transcript payload details.",
+                    "message": "Implementing transcript payload details.",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (round_dir / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 3,
+                    "wave_id": 1,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:12:10Z",
+                    "completed_at": "2026-03-25T00:12:30Z",
+                    "worker_results": [
+                        {
+                            "packet_id": packet_id,
+                            "title": "Build transcript payload depth",
+                            "report_path": f"docs/specs/{mission_id}/workers/{packet_id}/builder_report.json",
+                            "succeeded": True,
+                        }
+                    ],
+                    "decision": {
+                        "action": "ask_human",
+                        "reason_code": "needs_review",
+                        "summary": "Need approval before shipping transcript changes.",
+                        "confidence": 0.74,
+                        "affected_workers": [packet_id],
+                        "artifacts": {},
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": ["Approve transcript changes?"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (round_dir / "visual_evaluation.json").write_text(
+            json.dumps(
+                {
+                    "evaluator": "playwright",
+                    "summary": "Visual QA found a spacing regression.",
+                    "confidence": 0.81,
+                    "findings": [{"severity": "blocking", "message": "Header overlaps metrics."}],
+                    "artifacts": {"dashboard": f"docs/specs/{mission_id}/rounds/round-03/visual/dashboard.png"},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get(f"/api/missions/{mission_id}/packets/{packet_id}/transcript")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["blocks"][0]["details"] == {
+            "ts": "2026-03-25T00:11:40Z",
+            "kind": "assistant_message",
+            "excerpt": "Implementing transcript payload details.",
+            "message": "Implementing transcript payload details.",
+        }
+        assert data["blocks"][-2]["details"] == {
+            "reason_code": "needs_review",
+            "confidence": 0.74,
+            "blocking_questions": ["Approve transcript changes?"],
+        }
+        assert data["blocks"][-1]["details"] == {
+            "confidence": 0.81,
+            "findings": [{"severity": "blocking", "message": "Header overlaps metrics."}],
+            "artifacts": {
+                "dashboard": f"docs/specs/{mission_id}/rounds/round-03/visual/dashboard.png"
+            },
+        }
 
     def test_lifecycle_endpoint(self, client):
         r = client.get("/api/lifecycle")
