@@ -57,25 +57,25 @@ Keep using the impeccable workflow as a continuous loop, not a final polish pass
 The following items from the refreshed foundation backlog are now complete:
 
 - Transcript UX moved forward with clearer block types, command-burst grouping, linked evidence markers, and a stronger inspector
-- Approval Queue is now a dedicated dashboard surface
-- Visual QA is now a dedicated mission surface
-- Costs & Budgets is now a dedicated mission surface
-- `app.py` has been reduced further by moving the heavy approval/transcript/surface rendering into shared helpers and removing duplicated transcript implementations
+- Approval Queue is now a dedicated dashboard surface with batch actions, urgency, wait-time surfacing, and audit-backed feedback
+- Visual QA is now a dedicated mission surface with screenshot/gallery surfacing, blocking summaries, and artifact links
+- Costs & Budgets is now a dedicated mission surface with thresholds, incidents, and Inbox alerts
+- `app.py` has been reduced further by moving the heavy approval/transcript/surface rendering into shared helpers, removing duplicated transcript implementations, and dropping the obsolete inline helper fallback
 - operator-console documentation now has a dedicated guide
 
 ## Remaining Todo Buckets
 
 ### 1. Transcript UX Push
 
-The transcript is functional, but it is still short of the Paperclip bar.
+The transcript is functional and inspectable, but it is still short of the Paperclip bar.
 
 What remains:
 
-- improve evidence reading beyond generic structured details
-- make command bursts easier to scan and expand
+- improve evidence reading beyond structured key-value details
+- make command bursts easier to scan and expand at a glance
 - add clearer linked jumps across artifact, round, and packet context
 - improve milestone prominence so pauses, approvals, failures, and supervisor decisions stand out immediately
-- reduce the remaining "JSON dump" feel inside the inspector
+- reduce the remaining "payload browser" feel inside the inspector
 
 Success criteria:
 
@@ -84,13 +84,14 @@ Success criteria:
 
 ### 2. Approval Workflow Depth
 
-Approval Queue now exists as a first-class surface, but the workflow can still go deeper.
+Approval Queue now exists as a first-class surface with batch handling, but the workflow can still go deeper.
 
 What remains:
 
-- stronger queue-level action feedback
-- clearer urgency and age presentation
-- richer post-action confirmation and navigation
+- stronger queue-level action feedback after batch processing
+- clearer urgency and age presentation over time
+- richer post-action confirmation and navigation into the affected mission/round
+- eventual support for queue-state transitions beyond guidance injection
 
 Success criteria:
 
@@ -98,13 +99,14 @@ Success criteria:
 
 ### 3. Visual QA Depth
 
-Visual QA now exists as a surface, but it is still artifact-first rather than screenshot-first.
+Visual QA now exists as a surface and now shows gallery artifacts, but it is still artifact-linked rather than comparison-driven.
 
 What remains:
 
 - richer screenshot/gallery presentation
 - sharper linkage back to transcript and round context
 - stronger changed-area and regression emphasis
+- true diff-first workflows when before/after assets exist
 
 Success criteria:
 
@@ -112,13 +114,13 @@ Success criteria:
 
 ### 4. Costs and Budgets Depth
 
-Costs surface now exists, but budget policy and incident handling are still minimal.
+Costs surface now exists with thresholds and incidents, but budget policy and escalation are still minimal.
 
 What remains:
 
-- threshold markers
-- incident presentation
-- budget-aware Inbox or mission warnings
+- stronger threshold markers across mission detail and rails
+- richer incident presentation and escalation copy
+- clearer operator guidance when a mission enters warning/critical spend
 
 Success criteria:
 
@@ -134,6 +136,7 @@ What remains:
 - separate shell rendering from page-specific orchestration
 - isolate Mission Detail page composition further
 - isolate Inbox rendering further
+- decide whether `DASHBOARD_HTML` should move fully out of `app.py`
 
 Success criteria:
 
@@ -141,13 +144,13 @@ Success criteria:
 
 ### 6. Operator Documentation Refresh
 
-The docs have been updated incrementally, but not yet consolidated into a single operator-console guide.
+The docs now have a dedicated operator-console guide, but the doc set still needs one more consolidation pass.
 
 What remains:
 
-- one dedicated operator-console guide
 - one observability guide explaining Inbox, Mission Detail, transcript inspector, approval history, and linked evidence
 - update service/run guides to point to the operator-console workflow first
+- add screenshots or operator walkthroughs once the surfaces stabilize
 
 Success criteria:
 
@@ -163,7 +166,7 @@ Success criteria:
 
 ### Slice B: Visual QA + Costs Depth
 
-- wire these into Inbox and Mission Detail
+- deepen comparison workflows and budget escalation
 
 ### Slice C: Package Cleanup + Docs
 

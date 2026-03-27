@@ -109,7 +109,13 @@ class TestDashboardAPI:
         r = client.get("/api/inbox")
         assert r.status_code == 200
         data = r.json()
-        assert data["counts"] == {"paused": 1, "failed": 1, "approvals": 0, "attention": 2}
+        assert data["counts"] == {
+            "paused": 1,
+            "failed": 1,
+            "approvals": 0,
+            "budgets": 0,
+            "attention": 2,
+        }
         assert data["items"][0]["mission_id"] == paused_id
         assert data["items"][0]["kind"] == "paused"
         assert data["items"][0]["summary"] == "Approve the revised rollout?"
@@ -197,7 +203,13 @@ class TestDashboardAPI:
         r = client.get("/api/inbox")
         assert r.status_code == 200
         data = r.json()
-        assert data["counts"] == {"paused": 0, "failed": 0, "approvals": 1, "attention": 1}
+        assert data["counts"] == {
+            "paused": 0,
+            "failed": 0,
+            "approvals": 1,
+            "budgets": 0,
+            "attention": 1,
+        }
         assert data["items"] == [
             {
                 "mission_id": mission_id,
@@ -213,6 +225,30 @@ class TestDashboardAPI:
                 "approval_state": {
                     "status": "awaiting_human",
                     "summary": "Awaiting operator decision",
+                },
+                "approval_request": {
+                    "round_id": 3,
+                    "timestamp": "2026-03-25T00:18:00+00:00",
+                    "summary": "Approve the rollout after visual QA review.",
+                    "blocking_question": "Approve the rollout after visual QA review?",
+                    "decision_action": "ask_human",
+                    "actions": [
+                        {
+                            "key": "approve",
+                            "label": "Approve",
+                            "message": "@approve Approve the rollout after visual QA review?",
+                        },
+                        {
+                            "key": "request_revision",
+                            "label": "Request revision",
+                            "message": "@request-revision Please revise this round before rollout.",
+                        },
+                        {
+                            "key": "ask_followup",
+                            "label": "Ask follow-up",
+                            "message": "@follow-up I need more detail before approving this round.",
+                        },
+                    ],
                 },
             }
         ]
@@ -415,7 +451,11 @@ class TestDashboardAPI:
         response = client.get("/api/approvals")
         assert response.status_code == 200
         data = response.json()
-        assert data["counts"] == {"pending": 1, "missions": 1}
+        assert data["counts"] == {
+            "pending": 1,
+            "missions": 1,
+            "requires_followup": 1,
+        }
         assert data["items"] == [
             {
                 "mission_id": mission_id,
@@ -441,7 +481,128 @@ class TestDashboardAPI:
                     "summary": "Operator requested follow-up",
                 },
                 "recommended_action": "Approve",
+                "wait_minutes": 1,
+                "urgency": "followup",
+                "available_actions": ["approve", "request_revision", "ask_followup"],
+                "approval_request": {
+                    "round_id": 4,
+                    "timestamp": "2026-03-25T00:22:00+00:00",
+                    "summary": "Approve rollout after transcript review.",
+                    "blocking_question": "Approve rollout after transcript review?",
+                    "decision_action": "ask_human",
+                    "actions": [
+                        {
+                            "key": "approve",
+                            "label": "Approve",
+                            "message": "@approve Approve rollout after transcript review?",
+                        },
+                        {
+                            "key": "request_revision",
+                            "label": "Request revision",
+                            "message": "@request-revision Please revise this round before rollout.",
+                        },
+                        {
+                            "key": "ask_followup",
+                            "label": "Ask follow-up",
+                            "message": "@follow-up I need more detail before approving this round.",
+                        },
+                    ],
+                },
             }
+        ]
+
+    def test_approvals_batch_action_endpoint_processes_multiple_items(
+        self,
+        client,
+        repo: Path,
+        monkeypatch,
+    ):
+        mission_ids = ["mission-batch-a", "mission-batch-b"]
+        for mission_id in mission_ids:
+            specs = repo / "docs" / "specs" / mission_id
+            round_dir = specs / "rounds" / "round-01"
+            specs.mkdir(parents=True)
+            round_dir.mkdir(parents=True)
+            (specs / "mission.json").write_text(
+                json.dumps(
+                    {
+                        "mission_id": mission_id,
+                        "title": mission_id,
+                        "status": "approved",
+                        "spec_path": f"docs/specs/{mission_id}/spec.md",
+                        "acceptance_criteria": [],
+                        "constraints": [],
+                        "interface_contracts": [],
+                        "created_at": "2026-03-25T00:00:00+00:00",
+                        "approved_at": "2026-03-25T00:05:00+00:00",
+                        "completed_at": None,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (specs / "spec.md").write_text("# Approval Batch Mission\n", encoding="utf-8")
+            (round_dir / "round_summary.json").write_text(
+                json.dumps(
+                    {
+                        "round_id": 1,
+                        "wave_id": 0,
+                        "status": "decided",
+                        "started_at": "2026-03-25T00:10:00+00:00",
+                        "completed_at": "2026-03-25T00:11:00+00:00",
+                        "worker_results": [],
+                        "decision": {
+                            "action": "ask_human",
+                            "reason_code": "needs_approval",
+                            "summary": "Approve rollout after QA.",
+                            "confidence": 0.8,
+                            "affected_workers": [],
+                            "artifacts": {},
+                            "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                            "blocking_questions": ["Approve rollout after QA?"],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+        calls: list[tuple[str, str, str]] = []
+
+        class FakeLifecycleManager:
+            def inject_btw(self, issue_id: str, message: str, channel: str) -> bool:
+                calls.append((issue_id, message, channel))
+                return issue_id != "mission-batch-b"
+
+        monkeypatch.setattr(
+            "spec_orch.dashboard.routes.dashboard_app._get_lifecycle_manager",
+            lambda _root: FakeLifecycleManager(),
+        )
+
+        response = client.post(
+            "/api/approvals/batch-action",
+            content=json.dumps(
+                {
+                    "mission_ids": mission_ids,
+                    "action_key": "approve",
+                }
+            ),
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["summary"] == {
+            "requested": 2,
+            "processed": 2,
+            "applied": 1,
+            "not_applied": 1,
+            "failed": 0,
+        }
+        assert [item["mission_id"] for item in payload["results"]] == mission_ids
+        assert payload["results"][0]["action"]["status"] == "applied"
+        assert payload["results"][1]["action"]["status"] == "not_applied"
+        assert calls == [
+            ("mission-batch-a", "@approve Approve rollout after QA?", "web-dashboard"),
+            ("mission-batch-b", "@approve Approve rollout after QA?", "web-dashboard"),
         ]
 
     def test_mission_detail_endpoint(self, client, repo: Path):
@@ -668,6 +829,8 @@ class TestDashboardAPI:
                 "blocking_findings": 0,
                 "warning_findings": 0,
                 "latest_confidence": 0.0,
+                "blocking_rounds": [],
+                "gallery_items": 0,
             },
             "rounds": [],
         }
@@ -679,7 +842,9 @@ class TestDashboardAPI:
                 "output_tokens": 0,
                 "cost_usd": 0.0,
                 "budget_status": "unconfigured",
+                "thresholds": None,
             },
+            "incidents": [],
             "workers": [],
         }
 
@@ -972,6 +1137,8 @@ class TestDashboardAPI:
                 "blocking_findings": 1,
                 "warning_findings": 1,
                 "latest_confidence": 0.81,
+                "blocking_rounds": [2],
+                "gallery_items": 1,
             },
             "rounds": [
                 {
@@ -987,6 +1154,14 @@ class TestDashboardAPI:
                     "artifacts": {
                         "dashboard": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png"
                     },
+                    "gallery": [
+                        {
+                            "label": "dashboard",
+                            "path": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png",
+                            "kind": "image",
+                        }
+                    ],
+                    "primary_artifact": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png",
                 }
             ],
         }
@@ -1023,6 +1198,10 @@ class TestDashboardAPI:
             ),
             encoding="utf-8",
         )
+        (repo / "spec-orch.toml").write_text(
+            "[dashboard.costs]\nwarning_usd = 0.1\ncritical_usd = 0.11\n",
+            encoding="utf-8",
+        )
 
         response = client.get(f"/api/missions/{mission_id}/costs")
         assert response.status_code == 200
@@ -1034,8 +1213,17 @@ class TestDashboardAPI:
                 "input_tokens": 1600,
                 "output_tokens": 700,
                 "cost_usd": 0.12,
-                "budget_status": "unconfigured",
+                "budget_status": "critical",
+                "thresholds": {"warning_usd": 0.1, "critical_usd": 0.11},
             },
+            "incidents": [
+                {
+                    "severity": "critical",
+                    "message": "Mission cost exceeded critical budget threshold.",
+                    "actual_cost_usd": 0.12,
+                    "threshold_usd": 0.11,
+                }
+            ],
             "workers": [
                 {
                     "packet_id": "pkt-1",
@@ -1057,6 +1245,72 @@ class TestDashboardAPI:
                 },
             ],
         }
+
+    def test_inbox_endpoint_surfaces_budget_alerts(self, client, repo: Path):
+        mission_id = "mission-budget-alert"
+        specs = repo / "docs" / "specs" / mission_id
+        worker = specs / "workers" / "pkt-1"
+        specs.mkdir(parents=True)
+        worker.mkdir(parents=True)
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Budget Alert Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Budget Alert Mission\n", encoding="utf-8")
+        (worker / "builder_report.json").write_text(
+            json.dumps(
+                {
+                    "adapter": "claude_code",
+                    "metadata": {
+                        "turn_status": "success",
+                        "usage": {"input_tokens": 100, "output_tokens": 50},
+                        "cost_usd": 1.5,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (repo / "spec-orch.toml").write_text(
+            "[dashboard.costs]\nwarning_usd = 1.0\ncritical_usd = 1.2\n",
+            encoding="utf-8",
+        )
+
+        response = client.get("/api/inbox")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["counts"] == {
+            "paused": 0,
+            "failed": 0,
+            "approvals": 0,
+            "budgets": 1,
+            "attention": 1,
+        }
+        assert data["items"] == [
+            {
+                "mission_id": mission_id,
+                "title": "Budget Alert Mission",
+                "kind": "budget",
+                "phase": "approved",
+                "summary": "Mission cost exceeded critical budget threshold.",
+                "updated_at": None,
+                "current_round": 0,
+                "budget_status": "critical",
+                "cost_usd": 1.5,
+            }
+        ]
 
     def test_packet_transcript_endpoint_groups_tool_events_into_bursts(self, client, repo: Path):
         mission_id = "mission-transcript-burst"

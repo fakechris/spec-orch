@@ -16,6 +16,7 @@ from .approvals import (
     _record_approval_action,
     _resolve_approval_action,
 )
+from .shell import DASHBOARD_HTML
 from .transcript import _gather_packet_transcript
 
 __all__ = [
@@ -32,4 +33,5 @@ __all__ = [
     "_load_approval_history",
     "_record_approval_action",
     "_resolve_approval_action",
+    "DASHBOARD_HTML",
 ]

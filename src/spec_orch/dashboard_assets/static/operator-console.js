@@ -106,7 +106,7 @@
       .map(([key, value]) => `
         <div class="context-card">
           <div class="context-title">${safeEsc(escHtml, key)}</div>
-          <div class="context-meta"><span class="artifact-link">${safeEsc(escHtml, value)}</span></div>
+          <div class="context-meta"><a class="artifact-link" href="/artifacts/${safeEsc(escHtml, value)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, value)}</a></div>
         </div>
       `)
       .join('');
@@ -336,9 +336,11 @@
     `
   }
 
-  function renderApprovalQueuePanel(queue, escHtml) {
+  function renderApprovalQueuePanel(queue, selectedMissionIds, batchState, escHtml) {
     const items = queue?.items || []
     const counts = queue?.counts || {}
+    const selected = new Set(selectedMissionIds || [])
+    const disabled = !items.length || !selected.size || batchState?.pending
     return `
       <section class="mission-section">
         <div class="section-heading">
@@ -346,9 +348,44 @@
           <div class="context-meta">
             <span>${safeEsc(escHtml, `${counts.pending || 0} pending`)}</span>
             <span>${safeEsc(escHtml, `${counts.missions || 0} missions`)}</span>
+            <span>${safeEsc(escHtml, `${counts.requires_followup || 0} follow-up`)}</span>
           </div>
         </div>
-        ${renderApprovalQueue(items, escHtml)}
+        <div class="queue-toolbar">
+          <label class="queue-toggle">
+            <input type="checkbox" ${items.length && selected.size === items.length ? 'checked' : ''} onchange="toggleAllApprovalSelections(this.checked)"/>
+            <span>Select all</span>
+          </label>
+          <div class="queue-actions">
+            <button class="btn btn-primary btn-sm" type="button" ${disabled ? 'disabled' : ''} onclick="triggerApprovalBatchAction('approve')">Approve selected</button>
+            <button class="btn btn-sm" type="button" ${disabled ? 'disabled' : ''} onclick="triggerApprovalBatchAction('request_revision')">Request revision</button>
+            <button class="btn btn-sm" type="button" ${disabled ? 'disabled' : ''} onclick="triggerApprovalBatchAction('ask_followup')">Ask follow-up</button>
+          </div>
+        </div>
+        ${batchState?.summary ? `<div class="context-card queue-summary"><div class="context-title">Batch status</div><div class="context-meta">${safeEsc(escHtml, batchState.summary)}</div></div>` : ''}
+        <div class="context-list">
+          ${items.map(item => `
+            <div class="context-card queue-card ${selected.has(item?.mission_id) ? 'active' : ''}">
+              <div class="queue-card-header">
+                <label class="queue-toggle">
+                  <input type="checkbox" ${selected.has(item?.mission_id) ? 'checked' : ''} onchange="toggleApprovalSelection('${safeEsc(escHtml, item?.mission_id || '')}', this.checked)"/>
+                  <span class="context-title">${safeEsc(escHtml, item?.mission?.title || item?.title || 'Approval')}</span>
+                </label>
+                <span class="detail-chip">${safeEsc(escHtml, item?.urgency || item?.approval_state?.status || 'approval')}</span>
+              </div>
+              <div class="context-meta">
+                <span class="detail-chip">${safeEsc(escHtml, item?.approval_state?.status || 'approval')}</span>
+                <span>${safeEsc(escHtml, item?.summary || item?.approval_request?.summary || '')}</span>
+              </div>
+              <div class="context-meta">
+                <span>Round ${safeEsc(escHtml, String(item?.current_round || item?.approval_request?.round_id || '—'))}</span>
+                <span>${safeEsc(escHtml, `${item?.wait_minutes || 0} min waiting`)}</span>
+                ${item?.latest_operator_action ? `<span>${safeEsc(escHtml, item.latest_operator_action.label || item.latest_operator_action.action_key || 'Action')}</span>` : ''}
+              </div>
+              ${item?.blocking_question ? `<div class="transcript-entry-body">${safeEsc(escHtml, item.blocking_question)}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
       </section>
     `
   }
@@ -375,6 +412,15 @@
           <div class="mission-metric-value">${safeEsc(escHtml, String(summary.latest_confidence ?? 0))}</div>
         </div>
       </div>
+      ${summary.blocking_rounds?.length ? `
+        <div class="context-card budget-incident critical">
+          <div class="context-title">Blocking visual regressions</div>
+          <div class="context-meta">
+            <span>${safeEsc(escHtml, `Rounds ${summary.blocking_rounds.join(', ')}`)}</span>
+            <span>${safeEsc(escHtml, `${summary.gallery_items || 0} gallery items`)}</span>
+          </div>
+        </div>
+      ` : ''}
       ${rounds.length ? `<div class="context-list">
         ${rounds.map(round => `
           <div class="context-card">
@@ -383,6 +429,21 @@
               <span class="detail-chip">${safeEsc(escHtml, round.status || 'pass')}</span>
               <span>${safeEsc(escHtml, round.summary || '')}</span>
             </div>
+            ${round.gallery?.length ? `
+              <div class="visual-gallery">
+                ${round.gallery.map(item => `
+                  <a class="visual-shot" href="/artifacts/${safeEsc(escHtml, item.path)}" target="_blank" rel="noreferrer">
+                    <div class="visual-shot-frame">
+                      <img src="/artifacts/${safeEsc(escHtml, item.path)}" alt="${safeEsc(escHtml, item.label || 'artifact')}" loading="lazy"/>
+                    </div>
+                    <div class="visual-shot-meta">
+                      <span class="detail-chip">${safeEsc(escHtml, item.kind || 'image')}</span>
+                      <span>${safeEsc(escHtml, item.label || item.path)}</span>
+                    </div>
+                  </a>
+                `).join('')}
+              </div>
+            ` : ''}
             ${round.findings?.length ? `<div class="context-list detail-section">
               ${round.findings.map(finding => `
                 <div class="context-card detail-finding">
@@ -391,7 +452,7 @@
                 </div>
               `).join('')}
             </div>` : '<div class="empty-panel">No visual findings recorded.</div>'}
-            ${round.artifact_path ? `<div class="context-meta"><span class="artifact-link">${safeEsc(escHtml, round.artifact_path)}</span></div>` : ''}
+            ${round.artifact_path ? `<div class="context-meta"><a class="artifact-link" href="/artifacts/${safeEsc(escHtml, round.artifact_path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, round.artifact_path)}</a></div>` : ''}
           </div>
         `).join('')}
       </div>` : '<div class="empty-panel">No visual evaluation rounds recorded yet.</div>'}
@@ -401,6 +462,8 @@
   function renderCostsPanel(costs, escHtml) {
     const summary = costs?.summary || {}
     const workers = costs?.workers || []
+    const incidents = costs?.incidents || []
+    const thresholds = summary?.thresholds || {}
     return `
       <div class="mission-metrics surface-metrics">
         <div class="mission-metric">
@@ -422,8 +485,23 @@
       </div>
       <div class="context-card">
         <div class="context-title">Budget status</div>
-        <div class="context-meta"><span class="detail-chip">${safeEsc(escHtml, summary.budget_status || 'unconfigured')}</span></div>
+        <div class="context-meta">
+          <span class="detail-chip">${safeEsc(escHtml, summary.budget_status || 'unconfigured')}</span>
+          ${thresholds.warning_usd != null ? `<span>Warn ${safeEsc(escHtml, String(thresholds.warning_usd))}</span>` : ''}
+          ${thresholds.critical_usd != null ? `<span>Critical ${safeEsc(escHtml, String(thresholds.critical_usd))}</span>` : ''}
+        </div>
       </div>
+      ${incidents.length ? `<div class="context-list detail-section">
+        ${incidents.map(incident => `
+          <div class="context-card budget-incident ${safeEsc(escHtml, incident?.severity || 'warning')}">
+            <div class="context-title">${safeEsc(escHtml, incident?.message || 'Budget incident')}</div>
+            <div class="context-meta">
+              <span>${safeEsc(escHtml, `Actual ${incident?.actual_cost_usd ?? 0}`)}</span>
+              <span>${safeEsc(escHtml, `Threshold ${incident?.threshold_usd ?? 0}`)}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>` : ''}
       ${workers.length ? `<div class="context-list">
         ${workers.map(worker => `
           <div class="context-card">
@@ -437,7 +515,7 @@
               <div class="detail-row"><div class="detail-key">Output</div><div class="detail-value">${safeEsc(escHtml, worker.output_tokens || 0)}</div></div>
               <div class="detail-row"><div class="detail-key">Cost</div><div class="detail-value">${safeEsc(escHtml, worker.cost_usd || 0)}</div></div>
             </div>
-            ${worker.report_path ? `<div class="context-meta"><span class="artifact-link">${safeEsc(escHtml, worker.report_path)}</span></div>` : ''}
+            ${worker.report_path ? `<div class="context-meta"><a class="artifact-link" href="/artifacts/${safeEsc(escHtml, worker.report_path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, worker.report_path)}</a></div>` : ''}
           </div>
         `).join('')}
       </div>` : '<div class="empty-panel">No worker cost data recorded yet.</div>'}

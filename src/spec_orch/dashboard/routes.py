@@ -6,12 +6,61 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Body, FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 
 from . import app as dashboard_app
 
+MISSION_IDS_BODY = Body(..., embed=True)
+ACTION_KEY_BODY = Body(..., embed=True)
+
 
 def register_routes(app: FastAPI, root: Path) -> None:
+    def _apply_approval_action(
+        mission_id: str,
+        action_key: str,
+        *,
+        channel: str = "web-dashboard",
+    ) -> tuple[int, dict[str, Any]]:
+        mgr = dashboard_app._get_lifecycle_manager(root)
+        if mgr is None:
+            return 503, {"error": "Mission lifecycle unavailable"}
+
+        action = dashboard_app._resolve_approval_action(root, mission_id, action_key)
+        if action is None:
+            return 404, {"error": "Approval action unavailable"}
+
+        try:
+            ok = mgr.inject_btw(mission_id, action["message"], channel=channel)
+            action_record = dashboard_app._record_approval_action(
+                root,
+                mission_id,
+                action_key=action_key,
+                label=action["label"],
+                message=action["message"],
+                channel=channel,
+                status="applied" if ok else "not_applied",
+            )
+            return 200, {
+                "ok": ok,
+                "action_key": action_key,
+                "message": action["message"],
+                "action": action_record,
+            }
+        except Exception:
+            action_record = dashboard_app._record_approval_action(
+                root,
+                mission_id,
+                action_key=action_key,
+                label=action["label"],
+                message=action["message"],
+                channel=channel,
+                status="failed",
+            )
+            return 500, {
+                "error": "Approval action failed",
+                "action": action_record,
+            }
+
     @app.get("/", response_class=HTMLResponse)
     async def index() -> str:
         return dashboard_app.DASHBOARD_HTML
@@ -59,6 +108,17 @@ def register_routes(app: FastAPI, root: Path) -> None:
     async def api_packet_transcript(mission_id: str, packet_id: str) -> JSONResponse:
         transcript = dashboard_app._gather_packet_transcript(root, mission_id, packet_id)
         return JSONResponse(transcript)
+
+    @app.get("/artifacts/{artifact_path:path}")
+    async def artifact_file(artifact_path: str):
+        candidate = (root / artifact_path).resolve()
+        try:
+            candidate.relative_to(root.resolve())
+        except ValueError:
+            return PlainTextResponse("not found", status_code=404)
+        if not candidate.exists() or not candidate.is_file():
+            return PlainTextResponse("not found", status_code=404)
+        return FileResponse(candidate)
 
     @app.get("/api/missions/{mission_id}/spec")
     async def api_mission_spec(mission_id: str) -> PlainTextResponse:
@@ -201,54 +261,47 @@ def register_routes(app: FastAPI, root: Path) -> None:
             reply = svc.handle_message(msg)
             return JSONResponse({"reply": reply})
         except Exception:
-            return JSONResponse({"error": "Discussion failed"}, status_code=500)
+            return JSONResponse({"error": "Discussion failed"}, status_code=503)
 
     @app.post("/api/missions/{mission_id}/approval-action")
     async def api_approval_action(
         mission_id: str,
         action_key: str = Body(..., embed=True),
     ) -> JSONResponse:
-        mgr = dashboard_app._get_lifecycle_manager(root)
-        if mgr is None:
-            return JSONResponse({"error": "Mission lifecycle unavailable"}, status_code=503)
+        status_code, payload = _apply_approval_action(mission_id, action_key)
+        return JSONResponse(payload, status_code=status_code)
 
-        action = dashboard_app._resolve_approval_action(root, mission_id, action_key)
-        if action is None:
-            return JSONResponse({"error": "Approval action unavailable"}, status_code=404)
-
-        try:
-            ok = mgr.inject_btw(mission_id, action["message"], channel="web-dashboard")
-            action_record = dashboard_app._record_approval_action(
-                root,
-                mission_id,
-                action_key=action_key,
-                label=action["label"],
-                message=action["message"],
-                channel="web-dashboard",
-                status="applied" if ok else "not_applied",
-            )
-            return JSONResponse(
+    @app.post("/api/approvals/batch-action")
+    async def api_approval_batch_action(
+        mission_ids: list[str] = MISSION_IDS_BODY,
+        action_key: str = ACTION_KEY_BODY,
+    ) -> JSONResponse:
+        results: list[dict[str, Any]] = []
+        for mission_id in mission_ids:
+            status_code, payload = _apply_approval_action(mission_id, action_key)
+            results.append(
                 {
-                    "ok": ok,
-                    "action_key": action_key,
-                    "message": action["message"],
-                    "action": action_record,
+                    "mission_id": mission_id,
+                    "status_code": status_code,
+                    **payload,
                 }
             )
-        except Exception:
-            action_record = dashboard_app._record_approval_action(
-                root,
-                mission_id,
-                action_key=action_key,
-                label=action["label"],
-                message=action["message"],
-                channel="web-dashboard",
-                status="failed",
-            )
-            return JSONResponse(
-                {"error": "Approval action failed", "action": action_record},
-                status_code=500,
-            )
+        summary = {
+            "requested": len(mission_ids),
+            "processed": len(results),
+            "applied": sum(
+                1 for item in results if item.get("action", {}).get("status") == "applied"
+            ),
+            "not_applied": sum(
+                1
+                for item in results
+                if item.get("action", {}).get("status") == "not_applied"
+            ),
+            "failed": sum(
+                1 for item in results if item.get("action", {}).get("status") == "failed"
+            ),
+        }
+        return JSONResponse({"summary": summary, "results": results})
 
     @app.post("/api/btw")
     async def api_btw(

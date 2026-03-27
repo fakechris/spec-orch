@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import json
 import logging
-import uuid
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -620,6 +618,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
   </div>
 </div>
 
+<script src="/static/operator-console.js"></script>
 <script>
 /* ===== STATE ===== */
 let missions = [];
@@ -641,6 +640,8 @@ let selectedTranscriptBlockIndex = null;
 let inboxSummary = {counts:{approvals:0, paused:0, failed:0, attention:0}, items:[]};
 let approvalQueue = {counts:{pending:0, missions:0}, items:[]};
 let approvalActionStates = {};
+let selectedApprovalMissionIds = [];
+let approvalBatchState = null;
 
 /* ===== DATA LOADING ===== */
 async function load() {
@@ -660,6 +661,9 @@ async function load() {
     }
     if (approvalsRes.ok) {
       approvalQueue = await approvalsRes.json();
+      selectedApprovalMissionIds = selectedApprovalMissionIds.filter(mid =>
+        (approvalQueue.items || []).some(item => item.mission_id === mid)
+      );
     }
     renderMissions();
     await ensureMissionSelection();
@@ -792,7 +796,7 @@ function renderInboxSummary() {
   const attention = inboxSummary?.counts?.attention || 0;
   chip.textContent = attention ? `Inbox ${attention}` : 'Inbox';
   chip.title = attention
-    ? `${inboxSummary.counts.approvals || 0} approvals, ${inboxSummary.counts.paused || 0} paused, ${inboxSummary.counts.failed || 0} failed`
+    ? `${inboxSummary.counts.approvals || 0} approvals, ${inboxSummary.counts.budgets || 0} budget alerts, ${inboxSummary.counts.paused || 0} paused, ${inboxSummary.counts.failed || 0} failed`
     : 'No operator attention items';
   if (!list) return;
   const items = inboxSummary?.items || [];
@@ -814,6 +818,12 @@ function renderInboxSummary() {
         <div class="mission-list-meta">
           <span class="detail-chip">${escHtml(item.approval_state.status || 'approval')}</span>
           <span>${escHtml(item.approval_state.summary)}</span>
+        </div>
+      ` : ''}
+      ${item.budget_status ? `
+        <div class="mission-list-meta">
+          <span class="detail-chip">${escHtml(item.budget_status)}</span>
+          <span>${escHtml(String(item.cost_usd || 0))} USD</span>
         </div>
       ` : ''}
       ${item.latest_operator_action ? `
@@ -900,6 +910,9 @@ function renderMissionDetail(detail) {
   const packets = detail.packets || [];
   const rounds = detail.rounds || [];
   const latestRound = rounds.length ? rounds[rounds.length - 1] : null;
+  const approvalRequest = detail.approval_request || null;
+  const approvalHistory = detail.approval_history || [];
+  const approvalState = approvalActionStates[mission.mission_id] || detail.approval_state || null;
   const currentPhase = lifecycle.phase || mission.status || 'unknown';
   const completedIssues = lifecycle.completed_issues || [];
   const issueIds = lifecycle.issue_ids || [];
@@ -938,8 +951,8 @@ function renderMissionDetail(detail) {
   } else if (activeTab === 'approvals') {
     primarySurface = `
       <section class="mission-section">
-        <h3>Approval Queue</h3>
-        ${renderApprovalQueue([detail])}
+        <h3>Approval Workspace</h3>
+        ${approvalRequest ? renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, mission.mission_id || '') : '<div class="empty-panel">No active approval request.</div>'}
       </section>
     `;
   } else if (activeTab === 'visual-qa') {
@@ -1033,6 +1046,8 @@ function renderContextRail(detail) {
   const approvalHistory = detail.approval_history || [];
   const approvalState = approvalActionStates[mission.mission_id] || detail.approval_state || null;
   const packet = (detail.packets || []).find(item => item.packet_id === selectedPacketId) || detail.packets?.[0];
+  const visualQa = selectedMissionVisualQa || detail.visual_qa || {};
+  const costs = selectedMissionCosts || detail.costs || {};
   rail.innerHTML = `
     <div class="mission-section">
       <h3>Interventions</h3>
@@ -1063,6 +1078,25 @@ function renderContextRail(detail) {
       <h3>Round evidence</h3>
       <div class="context-list">
         ${latestRound ? renderRoundContext(latestRound) : '<div class="empty-panel">Waiting for first round evidence.</div>'}
+      </div>
+    </div>
+    <div class="mission-section">
+      <h3>Surface alerts</h3>
+      <div class="context-list">
+        <div class="context-card">
+          <div class="context-title">Visual QA</div>
+          <div class="context-meta">
+            <span>${escHtml(`${visualQa?.summary?.blocking_findings || 0} blocking`)}</span>
+            <span>${escHtml(`${visualQa?.summary?.gallery_items || 0} gallery`)}</span>
+          </div>
+        </div>
+        <div class="context-card">
+          <div class="context-title">Costs</div>
+          <div class="context-meta">
+            <span class="detail-chip">${escHtml(costs?.summary?.budget_status || 'unconfigured')}</span>
+            <span>${escHtml(String(costs?.summary?.cost_usd || 0))} USD</span>
+          </div>
+        </div>
       </div>
     </div>
     <div class="mission-section">
@@ -1098,7 +1132,12 @@ function renderApprovalQueue(items) {
 }
 
 function renderApprovalQueuePanel() {
-  return getOperatorConsoleHelpers().renderApprovalQueuePanel(approvalQueue, escHtml);
+  return getOperatorConsoleHelpers().renderApprovalQueuePanel(
+    approvalQueue,
+    selectedApprovalMissionIds,
+    approvalBatchState,
+    escHtml,
+  );
 }
 
 function renderVisualQaPanel(visualQa) {
@@ -1141,6 +1180,61 @@ function setMissionTab(tab) {
   selectedMissionTab = tab;
   renderMissionDetail(selectedMissionDetail);
   renderContextRail(selectedMissionDetail);
+}
+
+function toggleApprovalSelection(missionId, checked) {
+  const next = new Set(selectedApprovalMissionIds);
+  if (checked) {
+    next.add(missionId);
+  } else {
+    next.delete(missionId);
+  }
+  selectedApprovalMissionIds = Array.from(next);
+  renderMissionDetail(selectedMissionDetail);
+}
+
+function toggleAllApprovalSelections(checked) {
+  selectedApprovalMissionIds = checked
+    ? (approvalQueue.items || []).map(item => item.mission_id)
+    : [];
+  renderMissionDetail(selectedMissionDetail);
+}
+
+async function triggerApprovalBatchAction(actionKey) {
+  if (!selectedApprovalMissionIds.length) {
+    return;
+  }
+  approvalBatchState = {
+    pending: true,
+    summary: `Applying ${actionKey} to ${selectedApprovalMissionIds.length} missions…`,
+  };
+  renderMissionDetail(selectedMissionDetail);
+  try {
+    const response = await fetch('/api/approvals/batch-action', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        mission_ids: selectedApprovalMissionIds,
+        action_key: actionKey,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Batch approval action failed');
+    }
+    approvalBatchState = {
+      pending: false,
+      summary: `${data.summary.applied} applied, ${data.summary.not_applied} recorded, ${data.summary.failed} failed`,
+    };
+    selectedApprovalMissionIds = [];
+    await load();
+  } catch (error) {
+    approvalBatchState = {
+      pending: false,
+      summary: error?.message || 'Batch approval action failed',
+    };
+    renderMissionDetail(selectedMissionDetail);
+  }
 }
 
 async function selectPacket(packetId) {
@@ -1240,345 +1334,10 @@ function formatApprovalActionState(action) {
 }
 
 function getOperatorConsoleHelpers() {
-  if (window.SpecOrchOperatorConsole) {
-    return window.SpecOrchOperatorConsole;
+  if (!window.SpecOrchOperatorConsole) {
+    throw new Error('Operator console helpers failed to load');
   }
-  return {
-    buildMissionSubtitle(detail) {
-      const mission = detail?.mission || {};
-      const rounds = detail?.rounds || [];
-      const lifecycle = detail?.lifecycle || {};
-      const paused = lifecycle.round_orchestrator_state?.paused;
-      const stateText = paused ? 'Paused for human input.' : 'Supervisor loop active.';
-      const criterionCount = (mission.acceptance_criteria || []).length;
-      return `${stateText} ${criterionCount} acceptance criteria, ${rounds.length} recorded rounds, and ${(detail?.packets || []).length} scoped packets.`;
-    },
-    renderActionButtons(actions, missionId, esc) {
-      return (actions || []).map(action => {
-        if (action === 'approve') {
-          return `<button class="btn btn-green btn-sm" onclick="approveGo('${missionId}')">Approve</button>`;
-        }
-        if (action === 'retry' || action === 'rerun') {
-          return `<button class="btn btn-red btn-sm" onclick="retryMission('${missionId}')">${action}</button>`;
-        }
-        if (action === 'resume') {
-          return `<button class="btn btn-sm" onclick="openDiscuss('${missionId}')">Resume</button>`;
-        }
-        if (action === 'inject_guidance') {
-          return `<button class="btn btn-primary btn-sm" onclick="openDiscuss('${missionId}')">Inject guidance</button>`;
-        }
-        return `<button class="btn btn-sm" type="button">${esc(action)}</button>`;
-      }).join('');
-    },
-    renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, missionId, esc) {
-      const latestAction = approvalHistory && approvalHistory.length ? approvalHistory[0] : null;
-      const latestActionSummary = this.formatApprovalActionState(latestAction);
-      const stateStatus = approvalState?.status || '';
-      const stateSummary = approvalState?.summary || '';
-      const pending = stateStatus === 'pending';
-      return `
-        <div class="context-card">
-          <div class="context-title">${esc(approvalRequest?.summary || 'Approval required')}</div>
-          <div class="context-meta">
-            <span>Round ${esc(String(approvalRequest?.round_id || '—'))}</span>
-            <span>${esc(approvalRequest?.decision_action || 'ask_human')}</span>
-            <span>${esc(approvalRequest?.timestamp || '—')}</span>
-          </div>
-          ${stateStatus ? `<div class="context-meta"><span class="detail-chip">${esc(stateStatus)}</span><span>${esc(stateSummary || '')}</span></div>` : ''}
-        </div>
-        ${latestAction ? `
-          <div class="context-card">
-            <div class="context-title">Latest operator decision</div>
-            <div class="context-meta">
-              <span class="detail-chip">${esc(latestAction.label || latestAction.action_key || 'Action')}</span>
-              <span class="detail-chip">${esc(latestAction.effect || 'guidance_sent')}</span>
-              <span>${esc(latestAction.timestamp || '—')}</span>
-            </div>
-            ${latestActionSummary ? `<div class="context-meta"><span>${esc(latestActionSummary)}</span></div>` : ''}
-            <div class="transcript-entry-body">${esc(latestAction.message || '')}</div>
-          </div>
-        ` : ''}
-        <div class="context-card">
-          <div class="context-title">Blocking question</div>
-          <div class="transcript-entry-body">${esc(approvalRequest?.blocking_question || 'No blocking question recorded.')}</div>
-        </div>
-        <div class="context-card">
-          <div class="context-title">Operator actions</div>
-          <div class="context-meta">
-            ${(approvalRequest?.actions || []).map(action => `
-              <button class="btn ${action.key === 'approve' ? 'btn-primary' : ''} btn-sm" type="button" ${pending ? 'disabled' : ''} onclick="triggerApprovalAction('${missionId}', '${esc(action.key || '')}')">${esc(action.label || action.key || 'Action')}</button>
-            `).join('')}
-            <button class="btn btn-sm" type="button" ${pending ? 'disabled' : ''} onclick="openDiscussPreset('${missionId}', '${esc((approvalRequest?.actions || [])[0]?.message || '')}')">Open discuss</button>
-            <button class="btn btn-sm" type="button" onclick="load()">Refresh state</button>
-          </div>
-        </div>
-        <div class="context-card">
-          <div class="context-title">Recent operator actions</div>
-          ${approvalHistory && approvalHistory.length ? `<div class="context-list">
-            ${approvalHistory.slice(0, 3).map(item => `
-              <div class="context-card">
-                <div class="context-title">${esc(item.label || item.action_key || 'Action')}</div>
-                <div class="context-meta">
-                  <span>${esc(item.timestamp || '—')}</span>
-                  <span>${esc(item.channel || 'web-dashboard')}</span>
-                  <span class="detail-chip">${esc(item.status || 'sent')}</span>
-                  <span class="detail-chip">${esc(item.effect || 'guidance_sent')}</span>
-                </div>
-                <div class="transcript-entry-body">${esc(item.message || '')}</div>
-              </div>
-            `).join('')}
-          </div>` : '<div class="empty-panel">No operator actions recorded yet.</div>'}
-        </div>
-      `;
-    },
-    renderApprovalQueue(items, esc) {
-      if (!items || !items.length) {
-        return '<div class="empty-panel">No approval-required missions right now.</div>';
-      }
-      return `<div class="context-list">${items.map(item => `
-        <div class="context-card queue-card">
-          <div class="context-title">${esc(item?.mission?.title || item?.title || 'Approval')}</div>
-          <div class="context-meta">
-            <span class="detail-chip">${esc(item?.approval_state?.status || 'approval')}</span>
-            <span>${esc(item?.summary || item?.approval_request?.summary || '')}</span>
-          </div>
-        </div>
-      `).join('')}</div>`;
-    },
-    renderApprovalQueuePanel(queue, esc) {
-      return `
-        <section class="mission-section">
-          <div class="section-heading">
-            <h3>Approval Queue</h3>
-            <div class="context-meta">
-              <span>${esc(`${queue?.counts?.pending || 0} pending`)}</span>
-              <span>${esc(`${queue?.counts?.missions || 0} missions`)}</span>
-            </div>
-          </div>
-          ${this.renderApprovalQueue(queue?.items || [], esc)}
-        </section>
-      `;
-    },
-    renderArtifactLinks(artifacts, esc) {
-      const entries = Object.entries(artifacts || {}).filter(([, value]) => Boolean(value));
-      if (!entries.length) {
-        return '<div class="empty-panel">No artifact paths available.</div>';
-      }
-      return entries.map(([key, value]) => `
-        <div class="context-card">
-          <div class="context-title">${esc(key)}</div>
-          <div class="context-meta"><span class="artifact-link">${esc(String(value))}</span></div>
-        </div>
-      `).join('');
-    },
-    renderLatestRound(round, esc) {
-      const decision = round?.decision || {};
-      const succeeded = (round?.worker_results || []).filter(result => result.succeeded).length;
-      const total = (round?.worker_results || []).length;
-      return `
-        <div class="context-card">
-          <div class="context-title">${esc(decision.summary || 'No supervisor decision summary')}</div>
-          <div class="context-meta">
-            <span>Action ${esc(decision.action || '—')}</span>
-            <span>Confidence ${decision.confidence != null ? esc(String(decision.confidence)) : '—'}</span>
-            <span>Workers ${succeeded}/${total}</span>
-          </div>
-        </div>
-        <div class="context-list">
-          ${(round?.worker_results || []).map(result => `
-            <div class="context-card">
-              <div class="context-title">${esc(result.title || result.packet_id || 'worker')}</div>
-              <div class="context-meta">
-                <span>${esc(result.packet_id || '—')}</span>
-                <span>${result.succeeded ? 'succeeded' : 'failed'}</span>
-                ${result.report_path ? `<span>${esc(result.report_path)}</span>` : ''}
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    },
-    renderPacketRow(packet, selectedId, esc) {
-      const inScope = (packet?.files_in_scope || []).slice(0, 2).join(', ');
-      const isSelected = packet?.packet_id === selectedId;
-      return `
-        <button class="packet-row ${isSelected ? 'active' : ''}" type="button" onclick="selectPacket('${packet?.packet_id}')">
-          <div class="packet-row-header">
-            <div class="packet-row-title">${esc(packet?.title)}</div>
-            <span class="run-class">${esc(packet?.run_class || 'packet')}</span>
-          </div>
-          <div class="packet-row-meta">
-            <span>${esc(packet?.packet_id)}</span>
-            <span>Wave ${esc(String(packet?.wave_id ?? '—'))}</span>
-            ${packet?.linear_issue_id ? `<span>${esc(packet.linear_issue_id)}</span>` : ''}
-          </div>
-          <div class="packet-row-meta">
-            <span>${esc(inScope || 'No scoped files')}</span>
-          </div>
-        </button>
-      `;
-    },
-    renderDetailValue(value, esc) {
-      if (Array.isArray(value)) {
-        if (!value.length) return '<span class="detail-empty">—</span>';
-        return value.map(item => `<span class="detail-chip">${esc(String(item))}</span>`).join('');
-      }
-      if (value && typeof value === 'object') {
-        return `<span class="detail-json">${esc(JSON.stringify(value))}</span>`;
-      }
-      if (value === null || value === undefined || value === '') {
-        return '<span class="detail-empty">—</span>';
-      }
-      return esc(String(value));
-    },
-    renderTranscriptDetails(details, esc) {
-      if (!details || typeof details !== 'object') return '';
-      return `
-        <div class="context-card">
-          <div class="context-title">Structured details</div>
-          <div class="detail-grid">
-            ${Object.entries(details).map(([key, value]) => `
-              <div class="detail-row">
-                <div class="detail-key">${esc(key)}</div>
-                <div class="detail-value">${this.renderDetailValue(value, esc)}</div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    },
-    renderRoundContext(round, esc) {
-      const paths = round?.paths || {};
-      const decision = round?.decision || {};
-      return `
-        <div class="context-card">
-          <div class="context-title">${esc(decision.reason_code || 'round decision')}</div>
-          <div class="context-meta">
-            <span>Round ${esc(String(round?.round_id || '—'))}</span>
-            <span>${esc(round?.status || 'unknown')}</span>
-          </div>
-        </div>
-        ${Object.entries(paths).filter(([, value]) => Boolean(value)).map(([key, value]) => `
-          <div class="context-card">
-            <div class="context-title">${esc(key)}</div>
-            <div class="context-meta">${esc(String(value))}</div>
-          </div>
-        `).join('')}
-      `;
-    },
-    renderSimpleList(items, emptyText, esc) {
-      if (!items || !items.length) {
-        return `<div class="empty-panel">${esc(emptyText)}</div>`;
-      }
-      return `<div class="context-list">${items.map(item => `
-        <div class="context-card">
-          <div class="context-title">${esc(item)}</div>
-        </div>
-      `).join('')}</div>`;
-    },
-    renderVisualQaPanel(visualQa, esc) {
-      const summary = visualQa?.summary || {};
-      const rounds = visualQa?.rounds || [];
-      return `
-        <div class="mission-metrics surface-metrics">
-          <div class="mission-metric"><div class="mission-metric-label">Visual rounds</div><div class="mission-metric-value">${esc(String(summary.total_rounds || 0))}</div></div>
-          <div class="mission-metric"><div class="mission-metric-label">Blocking findings</div><div class="mission-metric-value">${esc(String(summary.blocking_findings || 0))}</div></div>
-          <div class="mission-metric"><div class="mission-metric-label">Warnings</div><div class="mission-metric-value">${esc(String(summary.warning_findings || 0))}</div></div>
-          <div class="mission-metric"><div class="mission-metric-label">Confidence</div><div class="mission-metric-value">${esc(String(summary.latest_confidence ?? 0))}</div></div>
-        </div>
-        ${rounds.length ? `<div class="context-list">${rounds.map(round => `<div class="context-card"><div class="context-title">Round ${esc(round.round_id)}</div><div class="context-meta"><span class="detail-chip">${esc(round.status || 'pass')}</span><span>${esc(round.summary || '')}</span></div></div>`).join('')}</div>` : '<div class="empty-panel">No visual evaluation rounds recorded yet.</div>'}
-      `;
-    },
-    renderCostsPanel(costs, esc) {
-      const summary = costs?.summary || {};
-      const workers = costs?.workers || [];
-      return `
-        <div class="mission-metrics surface-metrics">
-          <div class="mission-metric"><div class="mission-metric-label">Workers</div><div class="mission-metric-value">${esc(String(summary.workers || 0))}</div></div>
-          <div class="mission-metric"><div class="mission-metric-label">Input tokens</div><div class="mission-metric-value">${esc(String(summary.input_tokens || 0))}</div></div>
-          <div class="mission-metric"><div class="mission-metric-label">Output tokens</div><div class="mission-metric-value">${esc(String(summary.output_tokens || 0))}</div></div>
-          <div class="mission-metric"><div class="mission-metric-label">Cost USD</div><div class="mission-metric-value">${esc(String(summary.cost_usd || 0))}</div></div>
-        </div>
-        <div class="context-card"><div class="context-title">Budget status</div><div class="context-meta"><span class="detail-chip">${esc(summary.budget_status || 'unconfigured')}</span></div></div>
-        ${workers.length ? `<div class="context-list">${workers.map(worker => `<div class="context-card"><div class="context-title">${esc(worker.packet_id || 'worker')}</div><div class="context-meta"><span>${esc(worker.adapter || 'adapter')}</span><span>${esc(worker.turn_status || 'unknown')}</span></div></div>`).join('')}</div>` : '<div class="empty-panel">No worker cost data recorded yet.</div>'}
-      `;
-    },
-    renderTranscriptFilters(selectedPacketTranscript, selectedTranscriptFilter, esc) {
-      const counts = selectedPacketTranscript?.summary?.block_counts || {};
-      const filters = [{key: 'all', label: 'All'}].concat(
-        Object.entries(counts)
-          .sort((a, b) => a[0].localeCompare(b[0]))
-          .map(([key, value]) => ({key, label: `${key} (${value})`}))
-      );
-      return filters.map(filter => `
-        <button
-          class="mission-tab ${selectedTranscriptFilter === filter.key ? 'active' : ''}"
-          type="button"
-          onclick="selectTranscriptFilter('${esc(filter.key)}')"
-        >${esc(filter.label)}</button>
-      `).join('');
-    },
-    renderTranscriptInspector(selectedPacketId, selectedPacketTranscript, selectedTranscriptBlockIndex, esc, renderDetails) {
-      if (!selectedPacketId) return '<div class="empty-panel">Select a packet to inspect transcript evidence.</div>';
-      if (!selectedPacketTranscript || selectedPacketTranscript.loading) return '<div class="empty-panel">Loading transcript evidence…</div>';
-      if (selectedPacketTranscript.error) return `<div class="empty-panel">${esc(selectedPacketTranscript.error)}</div>`;
-      const blocks = selectedPacketTranscript.blocks || [];
-      if (!blocks.length || selectedTranscriptBlockIndex == null || !blocks[selectedTranscriptBlockIndex]) {
-        return '<div class="empty-panel">Select a transcript block to inspect its evidence.</div>';
-      }
-      const block = blocks[selectedTranscriptBlockIndex];
-      const links = [block.artifact_path, block.source_path].filter(Boolean);
-      const burstItems = Array.isArray(block.items) ? block.items : [];
-      return `
-        <div class="context-card">
-          <div class="context-title">${esc(block.title || 'Transcript evidence')}</div>
-          <div class="context-meta">
-            <span>${esc(block.block_type || 'event')}</span>
-            <span>${esc(block.timestamp || '—')}</span>
-          </div>
-          ${block.body ? `<div class="transcript-entry-body">${esc(block.body)}</div>` : ''}
-        </div>
-        ${renderDetails(block.details, esc)}
-        ${burstItems.length ? `<div class="context-card"><div class="context-title">Burst items</div><div class="context-list">
-          ${burstItems.map(item => `<div class="context-card"><div class="context-title">${esc(item.title || item.block_type || 'tool')}</div><div class="context-meta"><span>${esc(item.block_type || 'tool')}</span><span>${esc(item.timestamp || '—')}</span></div>${item.body ? `<div class="transcript-entry-body">${esc(item.body)}</div>` : ''}</div>`).join('')}
-        </div></div>` : ''}
-        ${links.length ? links.map(path => `<div class="context-card"><div class="context-title">Linked evidence</div><div class="context-meta"><span class="artifact-link">${esc(String(path))}</span></div></div>`).join('') : '<div class="empty-panel">No linked evidence path for this block.</div>'}
-      `;
-    },
-    renderTranscriptPreview(selectedPacketId, selectedPacketTranscript, selectedTranscriptFilter, selectedTranscriptBlockIndex, esc, renderBody) {
-      if (!selectedPacketId) return '<div class="empty-panel">Select a packet to inspect its transcript.</div>';
-      if (!selectedPacketTranscript || selectedPacketTranscript.loading) return '<div class="empty-panel">Loading transcript…</div>';
-      if (selectedPacketTranscript.error) return `<div class="empty-panel">${esc(selectedPacketTranscript.error)}</div>`;
-      const entries = selectedPacketTranscript.entries || [];
-      const blocks = selectedPacketTranscript.blocks || [];
-      if (!entries.length && !blocks.length) return '<div class="empty-panel">No transcript events have been recorded yet.</div>';
-      const summary = selectedPacketTranscript.summary || {};
-      const milestones = selectedPacketTranscript.milestones || [];
-      const visibleBlocks = selectedTranscriptFilter === 'all'
-        ? blocks
-        : blocks.filter(block => (block.block_type || 'event') === selectedTranscriptFilter);
-      const summaryMeta = [
-        `${summary.entry_count || 0} events`,
-        ...(summary.latest_timestamp ? [summary.latest_timestamp] : []),
-        ...Object.entries(summary.kind_counts || {}).map(([kind, count]) => `${kind} ${count}`),
-      ];
-      return `
-        <div class="context-card">
-          <div class="context-title">Packet timeline</div>
-          <div class="context-meta">${summaryMeta.map(item => `<span>${esc(String(item))}</span>`).join('')}</div>
-          ${milestones.length ? `<div class="context-meta">${milestones.map(item => `<span class="run-class">${esc(item.event_type || 'milestone')}</span>`).join('')}</div>` : ''}
-        </div>
-        ${(visibleBlocks.length ? visibleBlocks.slice(-8).map(block => {
-          const blockIndex = blocks.indexOf(block);
-          const active = blockIndex === selectedTranscriptBlockIndex;
-          return `<button type="button" class="transcript-entry ${esc(block.block_type || 'event')} ${active ? 'active' : ''}" onclick="selectTranscriptBlock(${blockIndex})"><div class="transcript-entry-header"><div class="context-title">${esc(block.title || 'event')}</div><span class="run-class">${esc(block.block_type || 'event')}</span></div><div class="transcript-entry-meta"><span>${esc(block.timestamp || '—')}</span>${block.body ? `<span>${esc(block.body)}</span>` : ''}</div>${block.body ? `<div class="transcript-entry-body">${esc(block.body)}</div>` : ''}</button>`;
-        }).join('') : (blocks.length ? '<div class="empty-panel">No transcript blocks match the current filter.</div>' : entries.slice(-8).map(entry => `<div class="transcript-entry ${esc(entry.kind || '')}"><div class="transcript-entry-header"><div class="context-title">${esc(entry.message || entry.event_type || entry.kind || 'event')}</div><span class="run-class">${esc(entry.kind || 'event')}</span></div><div class="transcript-entry-meta"><span>${esc(entry.timestamp || '—')}</span>${entry.event_type ? `<span>${esc(entry.event_type)}</span>` : ''}</div>${renderBody(entry)}</div>`).join('')))}
-      `;
-    },
-    formatApprovalActionState(action) {
-      return action?.status || '';
-    },
-  };
+  return window.SpecOrchOperatorConsole;
 }
 
 function renderTranscriptBody(entry) {
@@ -1809,279 +1568,9 @@ connectWs();
 setInterval(load, 15000);
 setInterval(loadEvolution, 30000);
 </script>
-<script src="/static/operator-console.js" defer></script>
 </body>
 </html>
 """
-
-
-# ---------------------------------------------------------------------------
-# FastAPI application factory
-# ---------------------------------------------------------------------------
-
-
-def _legacy_create_app(repo_root: Path | None = None) -> Any:
-    """Create the FastAPI app. Requires ``pip install fastapi uvicorn``."""
-    from fastapi import Body, FastAPI, WebSocket, WebSocketDisconnect
-    from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
-    from fastapi.staticfiles import StaticFiles
-
-    root = repo_root or Path(".")
-    app = FastAPI(title="spec-orch dashboard")
-    static_dir = Path(__file__).resolve().parent.parent / "dashboard_assets" / "static"
-    if static_dir.exists():
-        app.mount("/static", StaticFiles(directory=static_dir), name="dashboard-static")
-
-    # ---- pages ----
-
-    @app.get("/", response_class=HTMLResponse)
-    async def index() -> str:
-        return DASHBOARD_HTML
-
-    @app.get("/favicon.ico")
-    async def favicon() -> PlainTextResponse:
-        return PlainTextResponse("", status_code=204)
-
-    # ---- existing read endpoints ----
-
-    @app.get("/api/missions")
-    async def api_missions() -> JSONResponse:
-        return JSONResponse(_gather_missions(root))
-
-    @app.get("/api/inbox")
-    async def api_inbox() -> JSONResponse:
-        return JSONResponse(_gather_inbox(root))
-
-    @app.get("/api/missions/{mission_id}")
-    async def api_mission(mission_id: str) -> JSONResponse:
-        missions = _gather_missions(root)
-        for m in missions:
-            if m["mission_id"] == mission_id:
-                return JSONResponse(m)
-        return JSONResponse({"error": "not found"}, status_code=404)
-
-    @app.get("/api/missions/{mission_id}/detail")
-    async def api_mission_detail(mission_id: str) -> JSONResponse:
-        detail = _gather_mission_detail(root, mission_id)
-        if detail is None:
-            return JSONResponse({"error": "not found"}, status_code=404)
-        return JSONResponse(detail)
-
-    @app.get("/api/missions/{mission_id}/packets/{packet_id}/transcript")
-    async def api_packet_transcript(mission_id: str, packet_id: str) -> JSONResponse:
-        transcript = _gather_packet_transcript(root, mission_id, packet_id)
-        return JSONResponse(transcript)
-
-    @app.get("/api/missions/{mission_id}/spec")
-    async def api_mission_spec(mission_id: str) -> PlainTextResponse:
-        content = _get_spec_content(root, mission_id)
-        if content is None:
-            return PlainTextResponse("not found", status_code=404)
-        return PlainTextResponse(content)
-
-    @app.get("/api/runs")
-    async def api_runs() -> JSONResponse:
-        return JSONResponse(_gather_run_history(root))
-
-    @app.get("/api/health")
-    async def api_health() -> JSONResponse:
-        return JSONResponse(
-            {
-                "status": "ok",
-                "repo_root": str(root),
-                "missions": len(_gather_missions(root)),
-            }
-        )
-
-    @app.get("/api/events")
-    async def api_events(
-        issue_id: str | None = None,
-        run_id: str | None = None,
-        topic: str | None = None,
-        limit: int = 100,
-    ) -> JSONResponse:
-        bus = _get_event_bus()
-        if bus is None:
-            return JSONResponse([])
-        parsed_topic = None
-        if topic:
-            try:
-                from spec_orch.services.event_bus import EventTopic
-
-                parsed_topic = EventTopic(topic)
-            except ValueError:
-                parsed_topic = None
-        events = bus.query_history(
-            topic=parsed_topic,
-            issue_id=issue_id,
-            run_id=run_id,
-            limit=limit,
-        )
-        return JSONResponse(
-            [
-                {
-                    "topic": ev.topic.value if hasattr(ev.topic, "value") else str(ev.topic),
-                    "payload": ev.payload,
-                    "timestamp": ev.timestamp,
-                    "source": ev.source,
-                }
-                for ev in events
-            ]
-        )
-
-    # ---- lifecycle & evolution endpoints ----
-
-    @app.get("/api/lifecycle")
-    async def api_lifecycle() -> JSONResponse:
-        return JSONResponse(_gather_lifecycle_states(root))
-
-    @app.get("/api/evolution")
-    async def api_evolution() -> JSONResponse:
-        return JSONResponse(_gather_evolution_metrics(root))
-
-    # ---- control tower endpoints (P5) ----
-
-    @app.get("/api/control/overview")
-    async def api_control_overview() -> JSONResponse:
-        return JSONResponse(_control_overview(root))
-
-    @app.get("/api/control/skills")
-    async def api_control_skills() -> JSONResponse:
-        return JSONResponse(_control_skills(root))
-
-    @app.get("/api/control/eval")
-    async def api_control_eval() -> JSONResponse:
-        return JSONResponse(_control_eval(root))
-
-    @app.post("/api/control/eval/run")
-    async def api_control_eval_run() -> JSONResponse:
-        return JSONResponse(_control_eval_trigger(root))
-
-    @app.get("/api/control/reactions")
-    async def api_control_reactions() -> JSONResponse:
-        return JSONResponse(_control_reactions(root))
-
-    @app.get("/api/control/degradation")
-    async def api_control_degradation() -> JSONResponse:
-        return JSONResponse(_control_degradation(root))
-
-    # ---- action endpoints ----
-
-    @app.post("/api/missions/{mission_id}/approve")
-    async def api_approve(mission_id: str) -> JSONResponse:
-        mgr = _get_lifecycle_manager(root)
-        if mgr is None:
-            return JSONResponse({"error": "Lifecycle manager unavailable"}, status_code=503)
-        try:
-            mgr.begin_tracking(mission_id)
-            state = mgr.auto_advance(mission_id)
-            return JSONResponse({"ok": True, "phase": state.phase.value if state else "unknown"})
-        except Exception:
-            logger.exception("approve failed for %s", mission_id)
-            return JSONResponse({"error": "Mission approval failed"}, status_code=500)
-
-    @app.post("/api/missions/{mission_id}/retry")
-    async def api_retry(mission_id: str) -> JSONResponse:
-        mgr = _get_lifecycle_manager(root)
-        if mgr is None:
-            return JSONResponse({"error": "Lifecycle manager unavailable"}, status_code=503)
-        try:
-            mgr.retry(mission_id)
-            state = mgr.auto_advance(mission_id)
-            return JSONResponse({"ok": True, "phase": state.phase.value if state else "unknown"})
-        except Exception:
-            logger.exception("retry failed for %s", mission_id)
-            return JSONResponse({"error": "Mission retry failed"}, status_code=500)
-
-    @app.post("/api/discuss")
-    async def api_discuss(
-        thread_id: str = Body(...),
-        message: str = Body(...),
-    ) -> JSONResponse:
-        svc = _get_conversation_service(root)
-        if svc is None:
-            return JSONResponse({"error": "Conversation service unavailable"}, status_code=503)
-        try:
-            from spec_orch.domain.models import ConversationMessage
-
-            msg = ConversationMessage(
-                message_id=f"web-{uuid.uuid4().hex[:8]}",
-                thread_id=thread_id,
-                sender="user",
-                content=message,
-                timestamp=datetime.now(UTC).isoformat(),
-                channel="web-dashboard",
-            )
-            reply = svc.handle_message(msg)
-            return JSONResponse({"reply": reply or ""})
-        except Exception:
-            logger.exception("discuss failed")
-            return JSONResponse({"error": "Discussion request failed"}, status_code=500)
-
-    @app.post("/api/btw")
-    async def api_btw(
-        issue_id: str = Body(...),
-        message: str = Body(...),
-    ) -> JSONResponse:
-        mgr = _get_lifecycle_manager(root)
-        if mgr is None:
-            return JSONResponse({"error": "Lifecycle manager unavailable"}, status_code=503)
-        try:
-            ok = mgr.inject_btw(issue_id, message, channel="web-dashboard")
-            return JSONResponse({"ok": ok})
-        except Exception:
-            logger.exception("btw injection failed")
-            return JSONResponse({"error": "BTW injection failed"}, status_code=500)
-
-    # ---- websocket ----
-    # Registered via add_api_websocket_route for maximum compatibility
-    # with starlette/uvicorn version combinations (avoids 403 in some versions).
-
-    async def _ws_handler(websocket: WebSocket) -> None:
-        await websocket.accept()
-        bus = _get_event_bus()
-        if bus is None:
-            await websocket.send_json(
-                {
-                    "topic": "system",
-                    "payload": {"message": "EventBus unavailable"},
-                    "timestamp": 0,
-                    "source": "dashboard",
-                }
-            )
-            await websocket.close()
-            return
-
-        queue = bus.create_async_queue()
-        try:
-            while True:
-                event = await queue.get()
-                await websocket.send_json(
-                    {
-                        "topic": event.topic.value
-                        if hasattr(event.topic, "value")
-                        else str(event.topic),
-                        "payload": event.payload,
-                        "timestamp": event.timestamp,
-                        "source": event.source,
-                    }
-                )
-        except WebSocketDisconnect:
-            pass
-        except Exception:
-            logger.exception("Error in websocket endpoint")
-        finally:
-            bus.remove_async_queue(queue)
-
-    # `from __future__ import annotations` turns nested function annotations into
-    # strings. FastAPI can't resolve the local `WebSocket` symbol from the
-    # function's globals, so it misclassifies `websocket` as a query param and
-    # rejects the handshake with 403. Patch the concrete type back in before
-    # route registration.
-    _ws_handler.__annotations__["websocket"] = WebSocket
-    app.add_api_websocket_route("/ws", _ws_handler)
-
-    return app
 
 
 def create_app(repo_root: Path | None = None) -> Any:

@@ -137,6 +137,8 @@ def _gather_missions(repo_root: Path) -> list[dict[str, Any]]:
 
 
 def _gather_inbox(repo_root: Path) -> dict[str, Any]:
+    from .surfaces import _gather_mission_costs
+
     missions = _gather_missions(repo_root)
     lifecycle_states = _gather_lifecycle_states(repo_root)
     items: list[dict[str, Any]] = []
@@ -166,6 +168,7 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
                     "latest_operator_action": (
                         approval_history[0] if approval_history else None
                     ),
+                    "approval_request": approval_request,
                     "approval_state": _derive_approval_state(
                         approval_request,
                         approval_history,
@@ -205,10 +208,33 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
                     "current_round": lifecycle.get("current_round", 0),
                 }
             )
+            continue
+
+        costs = _gather_mission_costs(repo_root, mission_id)
+        budget_status = costs.get("summary", {}).get("budget_status")
+        incidents = costs.get("incidents", [])
+        if budget_status in {"warning", "critical"} and incidents:
+            items.append(
+                {
+                    "mission_id": mission_id,
+                    "title": mission["title"],
+                    "kind": "budget",
+                    "phase": lifecycle.get("phase", mission["status"]),
+                    "summary": incidents[0].get(
+                        "message", "Mission budget threshold reached."
+                    ),
+                    "updated_at": lifecycle.get("updated_at"),
+                    "current_round": lifecycle.get("current_round", 0),
+                    "budget_status": budget_status,
+                    "cost_usd": costs.get("summary", {}).get("cost_usd", 0.0),
+                }
+            )
 
     items.sort(
         key=lambda item: (
-            {"approval": 0, "paused": 1, "failed": 2}.get(item["kind"], 9),
+            {"approval": 0, "budget": 1, "paused": 2, "failed": 3}.get(
+                item["kind"], 9
+            ),
             item.get("updated_at") or "",
         )
     )
@@ -216,6 +242,7 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
     return {
         "counts": {
             "approvals": sum(1 for item in items if item["kind"] == "approval"),
+            "budgets": sum(1 for item in items if item["kind"] == "budget"),
             "paused": sum(1 for item in items if item["kind"] == "paused"),
             "failed": sum(1 for item in items if item["kind"] == "failed"),
             "attention": len(items),

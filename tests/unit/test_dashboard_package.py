@@ -67,3 +67,9 @@ def test_dashboard_package_exposes_surface_helpers() -> None:
     assert callable(_gather_approval_queue)
     assert callable(_gather_mission_visual_qa)
     assert callable(_gather_mission_costs)
+
+
+def test_dashboard_package_exposes_shell_template() -> None:
+    from spec_orch.dashboard.shell import DASHBOARD_HTML
+
+    assert "operator-shell" in DASHBOARD_HTML

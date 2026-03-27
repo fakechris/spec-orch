@@ -13,7 +13,7 @@
 | 3. Comparative analysis | complete | Compared product model, observability surfaces, UX patterns, and architecture choices |
 | 4. SpecOrch implications | complete | Converted research into operator-console design principles, workbench IA, and implementation slices |
 | 5. Operator console foundation | complete | Mission detail shell, transcript timeline blocks, websocket hardening, inbox scaffolding, approval-aware inbox semantics, approval history-linked inbox items, transcript filter-bar depth, transcript inspector scaffolding, approval workspace surfacing, explicit approval state feedback, richer evidence rendering, static helper extraction, and dashboard package refactor foundation are all in place |
-| 6. Operator console next-slice planning | complete | Rebased the Todo list around what is actually left, then shipped the first pass of Approval Queue, Visual QA, Costs/Budgets, continued shell cleanup, and a dedicated operator-console guide. Remaining work is now depth and polish, not missing surfaces |
+| 6. Operator console next-slice planning | complete | Rebased the Todo list around what is actually left, then shipped batchable Approval Queue, screenshot/gallery-first Visual QA surfacing, threshold-aware Costs/Budgets incidents, continued shell cleanup, and a dedicated operator-console guide. Remaining work is now depth and polish, not missing surfaces |
 
 ## Comparison Dimensions
 - User entry points and onboarding flow
@@ -29,6 +29,6 @@
 - Some referenced projects may be early-stage or lightly maintained, which affects how much to borrow directly.
 - Need to separate "good demo UX" from "operationally durable observability."
 - The dashboard now has `routes.py`, `transcript.py`, `approvals.py`, `missions.py`, and a package shell. `app.py` is no longer the owner of the heaviest approval/transcript rendering, but it is still a transitional shell that should keep shrinking.
-- Approval workflow is now explicitly stateful and has a dedicated queue surface, but the queue still needs stronger urgency, bulk handling, and richer post-action feedback.
+- Approval workflow is now explicitly stateful, queue-backed, and batchable, but it still needs richer navigation and deeper action semantics than `/btw` injection alone.
 - Transcript evidence is functional and inspectable, but it is still short of the Paperclip bar for reading speed and evidence navigation.
-- Visual QA and Costs/Budgets now exist as first-class surfaces, but both still need depth beyond their current first pass.
+- Visual QA and Costs/Budgets now exist as first-class surfaces with gallery/incident surfacing, but both still need deeper comparison and escalation UX.

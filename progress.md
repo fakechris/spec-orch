@@ -239,11 +239,16 @@
   - Added dedicated dashboard surfaces for Approval Queue, Visual QA, and Costs/Budgets, and wired them into mission tabs plus operator mode switching.
   - Removed duplicated transcript implementation from `app.py`, leaving the package-backed transcript module as the single owner.
   - Added a dedicated `docs/guides/operator-console.md` guide and updated service/run docs to point to the operator-console workflow first.
+  - Deepened Approval Queue with urgency, wait-time surfacing, batch actions, and persisted batch feedback.
+  - Deepened Visual QA with gallery extraction, blocking-round summaries, and artifact-backed screenshot surfacing.
+  - Deepened Costs/Budgets with thresholds from `spec-orch.toml`, incident detection, and Inbox budget alerts.
+  - Removed the obsolete inline operator-console helper fallback from `app.py`, leaving the static helper bundle as the single owner for heavy rendering logic.
 - Files created/modified:
   - `src/spec_orch/dashboard/missions.py`
   - `src/spec_orch/dashboard/api.py`
   - `src/spec_orch/dashboard/__init__.py`
   - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/dashboard/shell.py`
   - `src/spec_orch/dashboard/surfaces.py`
   - `src/spec_orch/dashboard/routes.py`
   - `src/spec_orch/dashboard_assets/static/operator-console.js`
@@ -258,6 +263,9 @@
   - `docs/agent-guides/run-pipeline.md`
 
 ### Verification
+- **dashboard pytest**: 51/51 passed
+- **dashboard ruff**: All checks passed
+- **browser smoke**: local dashboard verified for live websocket, Approval Queue, Visual QA, Costs/Budgets, and zero browser-console errors
 - `uv run --python 3.13 python -m pytest tests/unit/test_dashboard.py tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py -q`
 - `uv run --python 3.13 python -m ruff check src/spec_orch/dashboard.py src/spec_orch/dashboard tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py pyproject.toml`
 

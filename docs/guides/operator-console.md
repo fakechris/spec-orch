@@ -50,6 +50,7 @@ Each item surfaces:
 - short reason
 - latest approval state
 - latest operator action when available
+- budget alerts when thresholds are crossed
 
 ### Missions
 
@@ -114,6 +115,9 @@ Current approval flow includes:
 - latest operator action
 - recommended action
 - direct action buttons
+- queue-level batch actions
+- queue urgency and wait-time surfacing
+- per-action audit persistence and post-action summaries
 
 Dashboard actions currently write back through the mission `/btw` injection path.
 
@@ -128,7 +132,9 @@ It shows:
 - warnings
 - latest confidence
 - per-round findings
-- linked artifact path to `visual_evaluation.json`
+- screenshot gallery cards when available
+- primary artifact links and gallery thumbnails
+- blocking-round summary surfaced back into the operator rail
 
 ### Costs
 
@@ -141,9 +147,10 @@ It shows:
 - output tokens
 - cost in USD
 - budget status
+- configured thresholds when present in `spec-orch.toml`
+- budget incidents when warning/critical thresholds are crossed
 - per-worker builder report linkage
-
-Current budget status is read as `unconfigured` unless a stricter budget layer is added later.
+- budget-aware Inbox surfacing for warning/critical missions
 
 ## Context Rail
 
@@ -183,6 +190,14 @@ docs/specs/<mission_id>/operator/approval_actions.jsonl
 
 This keeps operator decisions auditable even when guidance injection fails.
 
+Batch approval actions are available from the `Approvals` surface:
+
+- `Approve selected`
+- `Request revision`
+- `Ask follow-up`
+
+Each action returns an applied / not-applied / failed summary so the queue can be processed in one pass.
+
 ## Observability Sources
 
 ### Mission-level round artifacts
@@ -220,6 +235,8 @@ Recommended order:
    - inspect blocking question, latest operator action, and artifact paths
 5. `Visual QA` or `Costs`
    - inspect specialized evidence when relevant
+6. `Approvals`
+   - batch-process pending human decisions when the queue is the main bottleneck
 
 ## CLI Complements
 
