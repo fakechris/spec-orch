@@ -256,15 +256,11 @@ def _gather_packet_transcript(
         "blocks": blocks,
         "telemetry": {
             "activity_log": (
-                str(activity_path.relative_to(repo_root))
-                if activity_path.exists()
-                else None
+                str(activity_path.relative_to(repo_root)) if activity_path.exists() else None
             ),
             "events": str(events_path.relative_to(repo_root)) if events_path.exists() else None,
             "incoming": (
-                str(incoming_path.relative_to(repo_root))
-                if incoming_path.exists()
-                else None
+                str(incoming_path.relative_to(repo_root)) if incoming_path.exists() else None
             ),
         },
     }
@@ -399,8 +395,7 @@ def _group_transcript_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, Any
                                 item.get("title", f"tool-{index}"): target.get("path")
                                 for index, item in enumerate(current_tool_burst, start=1)
                                 for target in item.get("jump_targets", [])
-                                if target.get("kind") == "artifact"
-                                and target.get("path")
+                                if target.get("kind") == "artifact" and target.get("path")
                             }
                         },
                     ),

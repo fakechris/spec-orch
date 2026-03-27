@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -182,9 +183,7 @@ def register_routes(app: FastAPI, root: Path) -> None:
             [
                 {
                     "topic": (
-                        event.topic.value
-                        if hasattr(event.topic, "value")
-                        else str(event.topic)
+                        event.topic.value if hasattr(event.topic, "value") else str(event.topic)
                     ),
                     "payload": event.payload,
                     "timestamp": event.timestamp,
@@ -268,7 +267,7 @@ def register_routes(app: FastAPI, root: Path) -> None:
                 thread_id=thread_id,
                 sender="user",
                 content=message,
-                timestamp=dashboard_app.datetime.now(dashboard_app.UTC).isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
                 channel="web-dashboard",
             )
             reply = svc.handle_message(msg)
@@ -315,9 +314,7 @@ def register_routes(app: FastAPI, root: Path) -> None:
                 1 for item in results if item.get("action", {}).get("status") == "applied"
             ),
             "not_applied": sum(
-                1
-                for item in results
-                if item.get("action", {}).get("status") == "not_applied"
+                1 for item in results if item.get("action", {}).get("status") == "not_applied"
             ),
             "failed": sum(
                 1 for item in results if item.get("action", {}).get("status") == "failed"
@@ -366,7 +363,7 @@ def register_routes(app: FastAPI, root: Path) -> None:
                     {
                         "topic": "system.error",
                         "payload": {"message": "EventBus unavailable"},
-                        "timestamp": dashboard_app.datetime.now(dashboard_app.UTC).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                     }
                 )
             )

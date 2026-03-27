@@ -169,9 +169,7 @@ class TestDashboardAPI:
                         "affected_workers": [],
                         "artifacts": {},
                         "session_ops": {"reuse": [], "spawn": [], "cancel": []},
-                        "blocking_questions": [
-                            "Approve the rollout after visual QA review?"
-                        ],
+                        "blocking_questions": ["Approve the rollout after visual QA review?"],
                     },
                 }
             ),
@@ -190,9 +188,7 @@ class TestDashboardAPI:
                         "current_round": 3,
                         "round_orchestrator_state": {
                             "paused": True,
-                            "blocking_questions": [
-                                "Approve the rollout after visual QA review?"
-                            ],
+                            "blocking_questions": ["Approve the rollout after visual QA review?"],
                         },
                     }
                 }
@@ -439,9 +435,7 @@ class TestDashboardAPI:
                         "current_round": 4,
                         "round_orchestrator_state": {
                             "paused": True,
-                            "blocking_questions": [
-                                "Approve rollout after transcript review?"
-                            ],
+                            "blocking_questions": ["Approve rollout after transcript review?"],
                         },
                     }
                 }
@@ -610,7 +604,9 @@ class TestDashboardAPI:
         assert payload["results"][0]["action"]["status"] == "applied"
         assert payload["results"][1]["action"]["status"] == "not_applied"
         assert payload["results"][0]["result_summary"] == "Applied guidance to mission-batch-a"
-        assert payload["results"][1]["result_summary"] == "Recorded guidance only for mission-batch-b"
+        assert (
+            payload["results"][1]["result_summary"] == "Recorded guidance only for mission-batch-b"
+        )
         assert payload["results"][0]["redirect_to"].endswith(
             "mission=mission-batch-a&mode=missions&tab=approvals"
         )
@@ -708,9 +704,13 @@ class TestDashboardAPI:
                     encoding="utf-8",
                 )
 
-            lifecycle_payload = json.loads(
-                (repo / ".spec_orch_runs" / "lifecycle_state.json").read_text(encoding="utf-8")
-            ) if (repo / ".spec_orch_runs" / "lifecycle_state.json").exists() else {}
+            lifecycle_payload = (
+                json.loads(
+                    (repo / ".spec_orch_runs" / "lifecycle_state.json").read_text(encoding="utf-8")
+                )
+                if (repo / ".spec_orch_runs" / "lifecycle_state.json").exists()
+                else {}
+            )
             lifecycle_payload[mission_id] = {
                 "mission_id": mission_id,
                 "phase": "executing",
@@ -1238,7 +1238,9 @@ class TestDashboardAPI:
                     "summary": "Visual QA found a spacing regression.",
                     "confidence": 0.81,
                     "findings": [{"severity": "blocking", "message": "Header overlaps metrics."}],
-                    "artifacts": {"dashboard": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png"},
+                    "artifacts": {
+                        "dashboard": f"docs/specs/{mission_id}/rounds/round-02/visual/dashboard.png"
+                    },
                 }
             ),
             encoding="utf-8",
@@ -1892,7 +1894,9 @@ class TestDashboardAPI:
                     "summary": "Visual QA found a spacing regression.",
                     "confidence": 0.81,
                     "findings": [{"severity": "blocking", "message": "Header overlaps metrics."}],
-                    "artifacts": {"dashboard": f"docs/specs/{mission_id}/rounds/round-03/visual/dashboard.png"},
+                    "artifacts": {
+                        "dashboard": f"docs/specs/{mission_id}/rounds/round-03/visual/dashboard.png"
+                    },
                 }
             ),
             encoding="utf-8",
@@ -2063,9 +2067,7 @@ class TestDashboardAPI:
                 "effect": "approval_granted",
             },
         }
-        assert calls == [
-            (mission_id, "@approve Approve rollout after QA?", "web-dashboard")
-        ]
+        assert calls == [(mission_id, "@approve Approve rollout after QA?", "web-dashboard")]
         history_path = repo / "docs" / "specs" / mission_id / "operator" / "approval_actions.jsonl"
         history = [
             json.loads(line)
@@ -2393,7 +2395,9 @@ class TestDashboardAPI:
         from spec_orch.dashboard import create_app
 
         app = create_app(repo)
-        ws_route = next(route for route in app.router.routes if getattr(route, "path", None) == "/ws")
+        ws_route = next(
+            route for route in app.router.routes if getattr(route, "path", None) == "/ws"
+        )
         dependant = ws_route.dependant
         assert dependant.websocket_param_name == "websocket"
         assert dependant.query_params == []

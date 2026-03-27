@@ -106,8 +106,7 @@ def _budget_guidance(severity: str) -> tuple[str, str]:
         )
     return (
         "Warning budget threshold reached",
-        "Review recent worker spend and decide whether "
-        "this mission should continue unchanged.",
+        "Review recent worker spend and decide whether this mission should continue unchanged.",
     )
 
 
@@ -121,11 +120,7 @@ def _gather_approval_queue(repo_root: Path) -> dict[str, Any]:
             continue
         updated_at = _parse_timestamp(str(item.get("updated_at") or ""))
         request_ts = _parse_timestamp(
-            str(
-                item.get("approval_request", {}).get("timestamp")
-                or item.get("updated_at")
-                or ""
-            )
+            str(item.get("approval_request", {}).get("timestamp") or item.get("updated_at") or "")
         )
         wait_minutes = 0
         if updated_at is not None and request_ts is not None:
@@ -243,9 +238,7 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
                 "findings": findings,
                 "artifacts": visual.artifacts,
                 "gallery": gallery,
-                "primary_artifact": (
-                    gallery[0]["path"] if gallery else None
-                ),
+                "primary_artifact": (gallery[0]["path"] if gallery else None),
                 "comparison": comparison,
                 "transcript_routes": transcript_routes,
                 "review_route": f"/?mission={mission_id}&mode=missions&tab=visual&round={round_id}",
@@ -276,9 +269,7 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
         for gallery_item in item.get("gallery", [])
         if gallery_item.get("kind") == "diff"
     )
-    comparison_rounds = sum(
-        1 for item in visual_rounds if item.get("comparison") is not None
-    )
+    comparison_rounds = sum(1 for item in visual_rounds if item.get("comparison") is not None)
     focus_transcript_route = next(
         (
             route

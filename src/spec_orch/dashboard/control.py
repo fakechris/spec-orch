@@ -291,9 +291,7 @@ def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
                         "mergeable": data.get("mergeable", False),
                         "failed_conditions": data.get("failed_conditions", []),
                         "builder_adapter": data.get("builder", {}).get("adapter", ""),
-                        "builder_succeeded": data.get("builder", {}).get(
-                            "succeeded", False
-                        ),
+                        "builder_succeeded": data.get("builder", {}).get("succeeded", False),
                     }
                 )
             except (json.JSONDecodeError, OSError):

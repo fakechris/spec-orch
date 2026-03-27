@@ -158,16 +158,11 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
                     "kind": "approval",
                     "phase": lifecycle.get("phase", mission["status"]),
                     "summary": approval_request["summary"],
-                    "updated_at": lifecycle.get("updated_at")
-                    or approval_request["timestamp"],
-                    "current_round": lifecycle.get(
-                        "current_round", approval_request["round_id"]
-                    ),
+                    "updated_at": lifecycle.get("updated_at") or approval_request["timestamp"],
+                    "current_round": lifecycle.get("current_round", approval_request["round_id"]),
                     "blocking_question": approval_request["blocking_question"],
                     "decision_action": approval_request["decision_action"],
-                    "latest_operator_action": (
-                        approval_history[0] if approval_history else None
-                    ),
+                    "latest_operator_action": (approval_history[0] if approval_history else None),
                     "approval_request": approval_request,
                     "approval_state": _derive_approval_state(
                         approval_request,
@@ -186,9 +181,7 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
                     "kind": "paused",
                     "phase": lifecycle.get("phase", mission["status"]),
                     "summary": (
-                        blocking_questions[0]
-                        if blocking_questions
-                        else "Paused for human input."
+                        blocking_questions[0] if blocking_questions else "Paused for human input."
                     ),
                     "updated_at": lifecycle.get("updated_at"),
                     "current_round": lifecycle.get("current_round", 0),
@@ -220,9 +213,7 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
                     "title": mission["title"],
                     "kind": "budget",
                     "phase": lifecycle.get("phase", mission["status"]),
-                    "summary": incidents[0].get(
-                        "message", "Mission budget threshold reached."
-                    ),
+                    "summary": incidents[0].get("message", "Mission budget threshold reached."),
                     "updated_at": lifecycle.get("updated_at"),
                     "current_round": lifecycle.get("current_round", 0),
                     "budget_status": budget_status,
@@ -234,9 +225,7 @@ def _gather_inbox(repo_root: Path) -> dict[str, Any]:
 
     items.sort(
         key=lambda item: (
-            {"approval": 0, "budget": 1, "paused": 2, "failed": 3}.get(
-                item["kind"], 9
-            ),
+            {"approval": 0, "budget": 1, "paused": 2, "failed": 3}.get(item["kind"], 9),
             item.get("updated_at") or "",
         )
     )
@@ -295,14 +284,10 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
             payload["paths"] = {
                 "round_dir": str(round_dir.relative_to(repo_root)),
                 "review_memo": (
-                    str(review_path.relative_to(repo_root))
-                    if review_path.exists()
-                    else None
+                    str(review_path.relative_to(repo_root)) if review_path.exists() else None
                 ),
                 "visual_evaluation": (
-                    str(visual_path.relative_to(repo_root))
-                    if visual_path.exists()
-                    else None
+                    str(visual_path.relative_to(repo_root)) if visual_path.exists() else None
                 ),
             }
             round_summaries.append(payload)
