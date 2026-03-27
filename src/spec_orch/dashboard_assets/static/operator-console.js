@@ -502,7 +502,7 @@
             <span>${safeEsc(escHtml, `${summary.gallery_items || 0} gallery items`)}</span>
             <span>${safeEsc(escHtml, `${summary.comparison_rounds || 0} comparison rounds`)}</span>
           </div>
-          ${visualQa?.review_route ? `
+          ${visualQa?.review_route || summary.focus_transcript_route ? `
             <div class="context-meta">
               ${renderInternalRouteButton(visualQa.review_route, 'Open visual review', escHtml)}
               ${summary.focus_transcript_route ? renderInternalRouteButton(summary.focus_transcript_route, 'Open focus transcript', escHtml) : ''}
@@ -629,9 +629,9 @@
             ${incident?.status_copy ? `<div class="context-meta"><span class="detail-chip">${safeEsc(escHtml, incident.status_copy)}</span></div>` : ''}
             ${incident?.recommended_action ? `<div class="transcript-entry-body">${safeEsc(escHtml, incident.recommended_action)}</div>` : ''}
             ${incident?.operator_guidance ? `<div class="context-meta">${safeEsc(escHtml, incident.operator_guidance)}</div>` : ''}
-            ${incident?.suggested_action?.route ? `
+            ${incident?.suggested_action?.route || incident?.transcript_route ? `
               <div class="context-meta">
-                ${renderInternalRouteButton(incident.suggested_action.route, incident.suggested_action.label || 'Open mission costs', escHtml)}
+                ${incident?.suggested_action?.route ? renderInternalRouteButton(incident.suggested_action.route, incident.suggested_action.label || 'Open mission costs', escHtml) : ''}
                 ${incident?.transcript_route ? renderInternalRouteButton(incident.transcript_route, 'Open expensive packet', escHtml) : ''}
               </div>
             ` : ''}
@@ -828,6 +828,7 @@
   window.SpecOrchOperatorConsole = {
     buildMissionSubtitle,
     escAttr,
+    safeJsArg,
     renderActionButtons,
     renderApprovalQueue,
     renderApprovalQueuePanel,

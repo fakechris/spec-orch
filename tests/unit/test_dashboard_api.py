@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC
+from datetime import datetime as real_datetime
 from pathlib import Path
 
 import pytest
@@ -357,7 +359,7 @@ class TestDashboardAPI:
             "summary": "Operator requested revision",
         }
 
-    def test_approvals_endpoint_returns_dedicated_queue(self, client, repo: Path):
+    def test_approvals_endpoint_returns_dedicated_queue(self, client, repo: Path, monkeypatch):
         mission_id = "mission-approval-queue"
         specs = repo / "docs" / "specs" / mission_id
         round_dir = specs / "rounds" / "round-04"
@@ -442,6 +444,17 @@ class TestDashboardAPI:
             ),
             encoding="utf-8",
         )
+
+        class FakeDateTime:
+            @staticmethod
+            def now(_tz=None):
+                return real_datetime(2026, 3, 25, 0, 23, tzinfo=UTC)
+
+            @staticmethod
+            def fromisoformat(value: str):
+                return real_datetime.fromisoformat(value)
+
+        monkeypatch.setattr("spec_orch.dashboard.surfaces.datetime", FakeDateTime)
 
         response = client.get("/api/approvals")
         assert response.status_code == 200
@@ -716,7 +729,12 @@ class TestDashboardAPI:
         assert payload["results"][0]["action"]["status"] == "failed"
         assert payload["results"][1]["action"]["status"] == "failed"
 
-    def test_approvals_endpoint_surfaces_stale_and_failed_counts(self, client, repo: Path):
+    def test_approvals_endpoint_surfaces_stale_and_failed_counts(
+        self,
+        client,
+        repo: Path,
+        monkeypatch,
+    ):
         fresh_id = "mission-approval-fresh"
         stale_id = "mission-approval-stale"
         aged_id = "mission-approval-aged"
@@ -724,14 +742,14 @@ class TestDashboardAPI:
         for mission_id, completed_at, updated_at, history in [
             (
                 fresh_id,
-                "2026-03-25T00:22:00+00:00",
-                "2026-03-25T00:23:00+00:00",
+                "2026-03-25T03:22:00+00:00",
+                "2026-03-25T03:23:00+00:00",
                 None,
             ),
             (
                 stale_id,
-                "2026-03-25T00:00:00+00:00",
-                "2026-03-25T01:30:00+00:00",
+                "2026-03-25T02:00:00+00:00",
+                "2026-03-25T02:30:00+00:00",
                 None,
             ),
             (
@@ -827,6 +845,17 @@ class TestDashboardAPI:
                 encoding="utf-8",
             )
 
+        class FakeDateTime:
+            @staticmethod
+            def now(_tz=None):
+                return real_datetime(2026, 3, 25, 3, 30, tzinfo=UTC)
+
+            @staticmethod
+            def fromisoformat(value: str):
+                return real_datetime.fromisoformat(value)
+
+        monkeypatch.setattr("spec_orch.dashboard.surfaces.datetime", FakeDateTime)
+
         response = client.get("/api/approvals")
         assert response.status_code == 200
         data = response.json()
@@ -838,6 +867,210 @@ class TestDashboardAPI:
             "aged": 1,
             "failed_actions": 1,
         }
+
+    def test_approvals_endpoint_uses_current_time_for_wait_minutes(
+        self,
+        client,
+        repo: Path,
+        monkeypatch,
+    ):
+        mission_id = "mission-approval-clock"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-01"
+        specs.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Approval Clock Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Approval Clock Mission\n", encoding="utf-8")
+        (round_dir / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 1,
+                    "wave_id": 0,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:00:00+00:00",
+                    "completed_at": "2026-03-25T00:00:00+00:00",
+                    "worker_results": [],
+                    "decision": {
+                        "action": "ask_human",
+                        "reason_code": "needs_approval",
+                        "summary": "Approve this round.",
+                        "confidence": 0.8,
+                        "affected_workers": [],
+                        "artifacts": {},
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": ["Approve this round?"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (repo / ".spec_orch_runs" / "lifecycle_state.json").write_text(
+            json.dumps(
+                {
+                    mission_id: {
+                        "mission_id": mission_id,
+                        "phase": "executing",
+                        "issue_ids": [],
+                        "completed_issues": [],
+                        "error": None,
+                        "updated_at": "2026-03-25T00:01:00+00:00",
+                        "current_round": 1,
+                        "round_orchestrator_state": {
+                            "paused": True,
+                            "blocking_questions": ["Approve this round?"],
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        class FakeDateTime:
+            @staticmethod
+            def now(_tz=None):
+                return real_datetime(2026, 3, 25, 2, 30, tzinfo=UTC)
+
+            @staticmethod
+            def fromisoformat(value: str):
+                return real_datetime.fromisoformat(value)
+
+        monkeypatch.setattr("spec_orch.dashboard.surfaces.datetime", FakeDateTime)
+
+        response = client.get("/api/approvals")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["counts"]["stale"] == 1
+        assert payload["items"][0]["wait_minutes"] == 150
+        assert payload["items"][0]["age_bucket"] == "stale"
+
+    def test_inbox_endpoint_ignores_stale_historical_approval_requests(
+        self,
+        client,
+        repo: Path,
+    ):
+        mission_id = "mission-historical-approval"
+        specs = repo / "docs" / "specs" / mission_id
+        round_one = specs / "rounds" / "round-01"
+        round_two = specs / "rounds" / "round-02"
+        specs.mkdir(parents=True)
+        round_one.mkdir(parents=True)
+        round_two.mkdir(parents=True)
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Historical Approval Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Historical Approval Mission\n", encoding="utf-8")
+        (round_one / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 1,
+                    "wave_id": 0,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:00:00+00:00",
+                    "completed_at": "2026-03-25T00:10:00+00:00",
+                    "worker_results": [],
+                    "decision": {
+                        "action": "ask_human",
+                        "reason_code": "needs_approval",
+                        "summary": "Approve this round.",
+                        "confidence": 0.8,
+                        "affected_workers": [],
+                        "artifacts": {},
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": ["Approve this round?"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (round_two / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 2,
+                    "wave_id": 1,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:11:00+00:00",
+                    "completed_at": "2026-03-25T00:20:00+00:00",
+                    "worker_results": [],
+                    "decision": {
+                        "action": "stop",
+                        "reason_code": "verification_failed",
+                        "summary": "Mission failed after approval request.",
+                        "confidence": 0.4,
+                        "affected_workers": [],
+                        "artifacts": {},
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": [],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (repo / ".spec_orch_runs" / "lifecycle_state.json").write_text(
+            json.dumps(
+                {
+                    mission_id: {
+                        "mission_id": mission_id,
+                        "phase": "failed",
+                        "issue_ids": [],
+                        "completed_issues": [],
+                        "error": "Mission execution failed.",
+                        "updated_at": "2026-03-25T00:21:00+00:00",
+                        "current_round": 2,
+                        "round_orchestrator_state": {},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get("/api/inbox")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["counts"]["approvals"] == 0
+        assert payload["counts"]["failed"] == 1
+        assert payload["items"] == [
+            {
+                "mission_id": mission_id,
+                "title": "Historical Approval Mission",
+                "kind": "failed",
+                "phase": "failed",
+                "summary": "Mission execution failed.",
+                "updated_at": "2026-03-25T00:21:00+00:00",
+                "current_round": 2,
+            }
+        ]
 
     def test_mission_detail_endpoint(self, client, repo: Path):
         mission_id = "mission-detail"
@@ -2761,6 +2994,7 @@ class TestDashboardAPI:
         assert "renderCostsPanel" in js.text
         assert "function escAttr" in js.text
         assert "function safeJsArg" in js.text
+        assert "safeJsArg," in js.text
         assert "navigateOperatorRoute(${safeJsArg(route)})" in js.text
         assert "approveGo(${safeJsArg(missionId)})" in js.text
         assert "retryMission(${safeJsArg(missionId)})" in js.text
@@ -2778,6 +3012,8 @@ class TestDashboardAPI:
         )
         assert "focusMissionFromBatch(${safeJsArg(batchState.focusMissionId)})" in js.text
         assert "focusMissionFromBatch(${safeJsArg(batchState.nextPendingMissionId)})" in js.text
+        assert "${visualQa?.review_route || summary.focus_transcript_route ? `" in js.text
+        assert "${incident?.suggested_action?.route || incident?.transcript_route ? `" in js.text
 
     def test_favicon_route_returns_no_content(self, client):
         response = client.get("/favicon.ico")

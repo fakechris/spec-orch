@@ -145,8 +145,12 @@ def _gather_approval_queue(repo_root: Path) -> dict[str, Any]:
             str(item.get("approval_request", {}).get("timestamp") or item.get("updated_at") or "")
         )
         wait_minutes = 0
-        if updated_at is not None and request_ts is not None:
-            wait_minutes = max(0, int((updated_at - request_ts).total_seconds() // 60))
+        if request_ts is not None:
+            now = datetime.now(UTC)
+            wait_minutes = max(0, int((now - request_ts).total_seconds() // 60))
+        elif updated_at is not None:
+            now = datetime.now(UTC)
+            wait_minutes = max(0, int((now - updated_at).total_seconds() // 60))
 
         approval_state = item.get("approval_state", {})
         urgency = "pending"

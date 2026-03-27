@@ -1145,6 +1145,10 @@ function escHtml(s) {
   return d.innerHTML;
 }
 
+function safeJsArg(value) {
+  return getOperatorConsoleHelpers().safeJsArg(value);
+}
+
 /* ===== ACTIONS ===== */
 async function approveGo(mid) {
   const btn = event.target;

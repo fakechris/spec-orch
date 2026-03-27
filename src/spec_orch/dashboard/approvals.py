@@ -18,6 +18,7 @@ def _gather_latest_approval_request(repo_root: Path, mission_id: str) -> dict[st
     from spec_orch.domain.models import RoundAction, RoundSummary
 
     latest: dict[str, Any] | None = None
+    latest_round_id_seen = -1
     for round_dir in sorted(rounds_dir.glob("round-*")):
         summary_path = round_dir / "round_summary.json"
         if not summary_path.exists():
@@ -26,6 +27,7 @@ def _gather_latest_approval_request(repo_root: Path, mission_id: str) -> dict[st
             summary = RoundSummary.from_dict(json.loads(summary_path.read_text(encoding="utf-8")))
         except (OSError, ValueError, json.JSONDecodeError):
             continue
+        latest_round_id_seen = max(latest_round_id_seen, int(summary.round_id))
         if summary.decision is None or summary.decision.action is not RoundAction.ASK_HUMAN:
             continue
 
@@ -65,6 +67,10 @@ def _gather_latest_approval_request(repo_root: Path, mission_id: str) -> dict[st
                 },
             ],
         }
+    if latest is None:
+        return None
+    if int(latest.get("round_id", -1)) != latest_round_id_seen:
+        return None
     return latest
 
 
