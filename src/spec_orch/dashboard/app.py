@@ -1851,12 +1851,66 @@ function renderTranscriptDetails(details) {
   if (!details || typeof details !== 'object') {
     return '';
   }
+  const entries = Object.entries(details);
+  const artifactRows = [];
+  const findingRows = [];
+  const genericRows = [];
+
+  for (const [key, value] of entries) {
+    if (key === 'artifacts' && value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const [artifactKey, artifactValue] of Object.entries(value)) {
+        artifactRows.push(`
+          <div class="detail-row">
+            <div class="detail-key">${escHtml(artifactKey)}</div>
+            <div class="detail-value artifact-link">${escHtml(String(artifactValue))}</div>
+          </div>
+        `);
+      }
+      continue;
+    }
+
+    if (key === 'findings' && Array.isArray(value)) {
+      for (const finding of value) {
+        findingRows.push(`
+          <div class="context-card detail-finding">
+            <div class="context-title">${escHtml(String(finding?.severity || 'finding'))}</div>
+            <div class="transcript-entry-body">${escHtml(String(finding?.message || ''))}</div>
+          </div>
+        `);
+      }
+      continue;
+    }
+
+    genericRows.push(`
+      <div class="detail-row">
+        <div class="detail-key">${escHtml(key)}</div>
+        <div class="detail-value">${renderDetailValue(value)}</div>
+      </div>
+    `);
+  }
+
   return `
     <div class="context-card">
       <div class="context-title">Structured details</div>
-      <div class="transcript-entry-body">${escHtml(JSON.stringify(details, null, 2))}</div>
+      ${genericRows.length ? `<div class="detail-grid">${genericRows.join('')}</div>` : '<div class="empty-panel">No structured fields.</div>'}
+      ${findingRows.length ? `<div class="context-list detail-section"><div class="context-title">Findings</div>${findingRows.join('')}</div>` : ''}
+      ${artifactRows.length ? `<div class="detail-grid detail-section">${artifactRows.join('')}</div>` : ''}
     </div>
   `;
+}
+
+function renderDetailValue(value) {
+  if (Array.isArray(value)) {
+    if (!value.length) return '<span class="detail-empty">—</span>';
+    return value.map(item => `<span class="detail-chip">${escHtml(String(item))}</span>`).join('');
+  }
+  if (value && typeof value === 'object') {
+    return `<span class="detail-json">${escHtml(JSON.stringify(value))}</span>`;
+  }
+  if (value === null || value === undefined || value === '') {
+    return '<span class="detail-empty">—</span>';
+  }
+  return escHtml(String(value));
 }
 
 function renderTranscriptBody(entry) {

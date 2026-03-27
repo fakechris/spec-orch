@@ -350,6 +350,65 @@ button.transcript-entry.active {
   overflow: auto;
 }
 
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.detail-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.detail-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.detail-key {
+  font-size: 0.72rem;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.detail-value {
+  font-size: 0.83rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.detail-section {
+  margin-top: 12px;
+}
+
+.detail-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.detail-empty,
+.detail-json {
+  color: var(--dim);
+}
+
+.detail-finding {
+  border-left: 3px solid var(--amber);
+}
+
 .operator-context {
   display: flex;
   flex-direction: column;
