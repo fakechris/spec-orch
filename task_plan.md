@@ -17,6 +17,7 @@
 | 7. Operator console depth pass | complete | Added transcript jump targets and stronger evidence reading, promoted Visual QA to diff-first when comparison artifacts exist, added operator guidance to budget incidents and Inbox alerts, and extracted control/evolution helpers out of the transitional app shell |
 | 8. Operator feedback loop refinement | complete | Added operator-readout transcript summaries, approval age buckets and result summaries, next-pending mission routing after batch actions, explicit mission/round review routes for Visual QA, suggested-action routes for budget incidents, and refreshed the operator-console roadmap/docs to match the current UX baseline |
 | 9. Workbench route consumption pass | complete | Added exact approval round review routes, transcript/visual/cost packet review routes, surfaced them through the dashboard API, taught the workbench shell to consume mission/tab/packet routes directly, and verified the new internal navigation in-browser |
+| 10. Operator summary metrics pass | complete | Added stale/aged/failed approval counts, summary-level visual focus transcript routing, remaining-budget and incident-count cost metrics, and refreshed the operator docs/Todo baseline so the next remaining work is only deeper ergonomics rather than missing control-plane data |
 
 ## Comparison Dimensions
 - User entry points and onboarding flow

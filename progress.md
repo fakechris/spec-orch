@@ -240,6 +240,7 @@
   - Removed duplicated transcript implementation from `app.py`, leaving the package-backed transcript module as the single owner.
   - Deepened the operator feedback loop again: transcript summaries now emit operator-readout copy, Approval Queue exposes age buckets/result summaries/next-pending routing, Visual QA exposes explicit review routes, Costs incidents expose suggested-action routes, and the operator docs/Todo baseline were refreshed to match the current product surface.
   - Added route-aware workbench navigation: approval requests now expose exact round review routes, transcript round-evidence blocks expose review routes, Visual QA and Costs expose transcript-aware follow-through routes, and the dashboard shell now consumes those routes directly instead of treating them as inert links.
+  - Added another layer of operator summary metrics: Approval Queue now reports stale/aged/failed-action counts, Visual QA now emits a focus transcript route when blocking rounds map back to packets, and Costs summary now exposes incident counts and remaining budget against the critical threshold.
 
 ### Verification
 - `uv run --python 3.13 python -m pytest tests/unit/test_dashboard_api.py -q` → `41 passed`
@@ -247,6 +248,7 @@
 - `uv run --python 3.13 python -m ruff check src/spec_orch/dashboard.py src/spec_orch/dashboard tests/unit/test_dashboard_api.py tests/unit/test_dashboard_package.py pyproject.toml` → passed
 - Browser smoke on `http://127.0.0.1:8472` loaded cleanly, websocket status was `live`, and console errors were `0`
 - Browser smoke on `http://127.0.0.1:8473` confirmed route-aware buttons switch the shell into the expected mission/tab state and still keep websocket status `live` with console errors `0`
+- Browser smoke on `http://127.0.0.1:8474` still loaded cleanly after the summary-metrics pass; websocket status stayed `live` and console errors remained `0`
   - Added a dedicated `docs/guides/operator-console.md` guide and updated service/run docs to point to the operator-console workflow first.
   - Deepened Approval Queue with urgency, wait-time surfacing, batch actions, and persisted batch feedback.
   - Added post-batch mission focus/navigation so approval processing can jump directly into the affected mission.

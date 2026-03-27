@@ -166,6 +166,13 @@ def _gather_approval_queue(repo_root: Path) -> dict[str, Any]:
             "requires_followup": sum(
                 1 for item in approval_items if item.get("urgency") == "followup"
             ),
+            "stale": sum(1 for item in approval_items if item.get("age_bucket") == "stale"),
+            "aged": sum(1 for item in approval_items if item.get("age_bucket") == "aged"),
+            "failed_actions": sum(
+                1
+                for item in approval_items
+                if (item.get("latest_operator_action") or {}).get("status") == "failed"
+            ),
         },
         "items": approval_items,
     }
@@ -272,6 +279,15 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
     comparison_rounds = sum(
         1 for item in visual_rounds if item.get("comparison") is not None
     )
+    focus_transcript_route = next(
+        (
+            route
+            for item in visual_rounds
+            if item.get("status") == "blocking"
+            for route in item.get("transcript_routes", [])
+        ),
+        None,
+    )
     return {
         "mission_id": mission_id,
         "summary": {
@@ -283,6 +299,7 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
             "gallery_items": gallery_items,
             "diff_items": diff_items,
             "comparison_rounds": comparison_rounds,
+            "focus_transcript_route": focus_transcript_route,
         },
         "review_route": f"/?mission={mission_id}&mode=missions&tab=visual",
         "rounds": visual_rounds,
@@ -302,6 +319,8 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
                 "cost_usd": 0.0,
                 "budget_status": "unconfigured",
                 "thresholds": thresholds,
+                "incident_count": 0,
+                "remaining_budget_usd": None,
             },
             "review_route": f"/?mission={mission_id}&mode=missions&tab=costs",
             "focus_packet_id": None,
@@ -353,9 +372,12 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
 
     budget_status = "unconfigured"
     incidents: list[dict[str, Any]] = []
+    remaining_budget_usd: float | None = None
     if thresholds:
         warning = thresholds.get("warning_usd")
         critical = thresholds.get("critical_usd")
+        if critical is not None:
+            remaining_budget_usd = round(critical - total_cost, 4)
         if critical is not None and total_cost >= critical:
             budget_status = "critical"
             status_copy, operator_guidance = _budget_guidance("critical")
@@ -420,6 +442,8 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
             "cost_usd": total_cost,
             "budget_status": budget_status,
             "thresholds": thresholds,
+            "incident_count": len(incidents),
+            "remaining_budget_usd": remaining_budget_usd,
         },
         "review_route": f"/?mission={mission_id}&mode=missions&tab=costs",
         "focus_packet_id": focus_packet_id,

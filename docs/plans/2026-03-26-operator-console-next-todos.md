@@ -65,6 +65,7 @@ The following items from the refreshed foundation backlog are now complete:
 - Visual QA now exposes explicit mission/round review routes
 - Costs incidents now expose explicit suggested-action routes for operator follow-through
 - The dashboard shell now consumes operator routes directly, so review buttons switch the workbench into the intended mission/tab/packet state instead of falling back to default selection
+- Approval Queue now surfaces stale/aged/failed-action counts, Visual QA summary now exposes a focus transcript route, and Costs summary now exposes remaining budget against the critical threshold
 - `app.py` has been reduced further by moving the heavy approval/transcript/surface rendering into shared helpers, removing duplicated transcript implementations, and dropping the obsolete inline helper fallback
 - operator-console documentation now has a dedicated guide
 

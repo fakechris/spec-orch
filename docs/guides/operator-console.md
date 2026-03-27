@@ -62,6 +62,12 @@ Use this as the queue surface for approval-needed missions.
 
 This is the fastest route when you want to process multiple operator decisions in one pass.
 
+Queue summaries now also surface:
+
+- stale approvals
+- aged approvals
+- approval items whose latest operator action failed
+
 ### Evidence
 
 This forces the selected mission into transcript-first inspection mode.
@@ -140,6 +146,7 @@ It shows:
 - diff-first comparison view when before / after / diff artifacts exist
 - review routes back into mission/round visual surfaces
 - transcript routes back into affected packet evidence when round summaries provide packet ownership
+- summary-level focus transcript route when a blocking visual round already maps to a packet
 - per-round findings
 - screenshot gallery cards when available
 - primary artifact links and gallery thumbnails
@@ -161,6 +168,7 @@ It shows:
 - operator guidance and escalation copy for warning/critical incidents
 - explicit suggested-action routes back into mission costs review
 - transcript routes into the highest-cost packet when cost ownership is known
+- remaining budget versus the critical threshold when thresholds are configured
 - per-worker builder report linkage
 - budget-aware Inbox surfacing for warning/critical missions
 

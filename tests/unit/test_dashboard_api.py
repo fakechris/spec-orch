@@ -456,6 +456,9 @@ class TestDashboardAPI:
             "pending": 1,
             "missions": 1,
             "requires_followup": 1,
+            "stale": 0,
+            "aged": 0,
+            "failed_actions": 0,
         }
         assert data["items"] == [
             {
@@ -618,6 +621,125 @@ class TestDashboardAPI:
             ("mission-batch-a", "@approve Approve rollout after QA?", "web-dashboard"),
             ("mission-batch-b", "@approve Approve rollout after QA?", "web-dashboard"),
         ]
+
+    def test_approvals_endpoint_surfaces_stale_and_failed_counts(self, client, repo: Path):
+        fresh_id = "mission-approval-fresh"
+        stale_id = "mission-approval-stale"
+        aged_id = "mission-approval-aged"
+
+        for mission_id, completed_at, updated_at, history in [
+            (
+                fresh_id,
+                "2026-03-25T00:22:00+00:00",
+                "2026-03-25T00:23:00+00:00",
+                None,
+            ),
+            (
+                stale_id,
+                "2026-03-25T00:00:00+00:00",
+                "2026-03-25T01:30:00+00:00",
+                None,
+            ),
+            (
+                aged_id,
+                "2026-03-25T00:00:00+00:00",
+                "2026-03-25T03:30:00+00:00",
+                {
+                    "timestamp": "2026-03-25T03:31:00+00:00",
+                    "action_key": "approve",
+                    "label": "Approve",
+                    "message": "@approve Approve this round.",
+                    "channel": "web-dashboard",
+                    "status": "failed",
+                    "effect": "approval_granted",
+                },
+            ),
+        ]:
+            specs = repo / "docs" / "specs" / mission_id
+            round_dir = specs / "rounds" / "round-01"
+            specs.mkdir(parents=True)
+            round_dir.mkdir(parents=True)
+            (specs / "mission.json").write_text(
+                json.dumps(
+                    {
+                        "mission_id": mission_id,
+                        "title": mission_id,
+                        "status": "approved",
+                        "spec_path": f"docs/specs/{mission_id}/spec.md",
+                        "acceptance_criteria": [],
+                        "constraints": [],
+                        "interface_contracts": [],
+                        "created_at": "2026-03-25T00:00:00+00:00",
+                        "approved_at": "2026-03-25T00:05:00+00:00",
+                        "completed_at": None,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (specs / "spec.md").write_text("# Approval Mission\n", encoding="utf-8")
+            (round_dir / "round_summary.json").write_text(
+                json.dumps(
+                    {
+                        "round_id": 1,
+                        "wave_id": 0,
+                        "status": "decided",
+                        "started_at": "2026-03-25T00:00:00+00:00",
+                        "completed_at": completed_at,
+                        "worker_results": [],
+                        "decision": {
+                            "action": "ask_human",
+                            "reason_code": "needs_approval",
+                            "summary": "Approve this round.",
+                            "confidence": 0.8,
+                            "affected_workers": [],
+                            "artifacts": {},
+                            "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                            "blocking_questions": ["Approve this round?"],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            if history is not None:
+                operator_dir = specs / "operator"
+                operator_dir.mkdir(parents=True, exist_ok=True)
+                (operator_dir / "approval_actions.jsonl").write_text(
+                    json.dumps(history) + "\n",
+                    encoding="utf-8",
+                )
+
+            lifecycle_payload = json.loads(
+                (repo / ".spec_orch_runs" / "lifecycle_state.json").read_text(encoding="utf-8")
+            ) if (repo / ".spec_orch_runs" / "lifecycle_state.json").exists() else {}
+            lifecycle_payload[mission_id] = {
+                "mission_id": mission_id,
+                "phase": "executing",
+                "issue_ids": [],
+                "completed_issues": [],
+                "error": None,
+                "updated_at": updated_at,
+                "current_round": 1,
+                "round_orchestrator_state": {
+                    "paused": True,
+                    "blocking_questions": ["Approve this round?"],
+                },
+            }
+            (repo / ".spec_orch_runs" / "lifecycle_state.json").write_text(
+                json.dumps(lifecycle_payload),
+                encoding="utf-8",
+            )
+
+        response = client.get("/api/approvals")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["counts"] == {
+            "pending": 3,
+            "missions": 3,
+            "requires_followup": 0,
+            "stale": 1,
+            "aged": 1,
+            "failed_actions": 1,
+        }
 
     def test_mission_detail_endpoint(self, client, repo: Path):
         mission_id = "mission-detail"
@@ -848,6 +970,7 @@ class TestDashboardAPI:
                 "gallery_items": 0,
                 "diff_items": 0,
                 "comparison_rounds": 0,
+                "focus_transcript_route": None,
             },
             "review_route": f"/?mission={mission_id}&mode=missions&tab=visual",
             "rounds": [],
@@ -861,6 +984,8 @@ class TestDashboardAPI:
                 "cost_usd": 0.0,
                 "budget_status": "unconfigured",
                 "thresholds": None,
+                "incident_count": 0,
+                "remaining_budget_usd": None,
             },
             "review_route": f"/?mission={mission_id}&mode=missions&tab=costs",
             "focus_packet_id": None,
@@ -1234,6 +1359,7 @@ class TestDashboardAPI:
                 "gallery_items": 1,
                 "diff_items": 0,
                 "comparison_rounds": 0,
+                "focus_transcript_route": None,
             },
             "review_route": f"/?mission={mission_id}&mode=missions&tab=visual",
             "rounds": [
@@ -1314,6 +1440,7 @@ class TestDashboardAPI:
         data = response.json()
         assert data["summary"]["diff_items"] == 1
         assert data["summary"]["comparison_rounds"] == 1
+        assert data["summary"]["focus_transcript_route"] is None
         assert data["review_route"] == f"/?mission={mission_id}&mode=missions&tab=visual"
         assert data["rounds"][0]["comparison"] == {
             "mode": "diff-first",
@@ -1339,6 +1466,74 @@ class TestDashboardAPI:
             f"/?mission={mission_id}&mode=missions&tab=visual&round=4"
         )
         assert data["rounds"][0]["transcript_routes"] == []
+
+    def test_visual_qa_endpoint_links_back_to_packet_transcripts(self, client, repo: Path):
+        mission_id = "mission-visual-transcript-link"
+        round_dir = repo / "docs" / "specs" / mission_id / "rounds" / "round-05"
+        specs = repo / "docs" / "specs" / mission_id
+        specs.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Visual Transcript Link Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Visual Transcript Link Mission\n", encoding="utf-8")
+        (round_dir / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 5,
+                    "wave_id": 2,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:10:00+00:00",
+                    "completed_at": "2026-03-25T00:12:00+00:00",
+                    "worker_results": [
+                        {"packet_id": "pkt-a", "title": "A", "succeeded": True},
+                        {"packet_id": "pkt-b", "title": "B", "succeeded": True},
+                    ],
+                    "decision": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (round_dir / "visual_evaluation.json").write_text(
+            json.dumps(
+                {
+                    "evaluator": "playwright",
+                    "summary": "Detected spacing regressions.",
+                    "confidence": 0.73,
+                    "findings": [{"severity": "blocking", "message": "Spacing regressed."}],
+                    "artifacts": {
+                        "diff": f"docs/specs/{mission_id}/rounds/round-05/visual/diff.png",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get(f"/api/missions/{mission_id}/visual-qa")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["summary"]["focus_transcript_route"] == (
+            f"/?mission={mission_id}&mode=missions&tab=transcript&packet=pkt-a"
+        )
+        assert data["rounds"][0]["transcript_routes"] == [
+            f"/?mission={mission_id}&mode=missions&tab=transcript&packet=pkt-a",
+            f"/?mission={mission_id}&mode=missions&tab=transcript&packet=pkt-b",
+        ]
 
     def test_costs_endpoint_aggregates_worker_reports(self, client, repo: Path):
         mission_id = "mission-costs"
@@ -1389,6 +1584,8 @@ class TestDashboardAPI:
                 "cost_usd": 0.12,
                 "budget_status": "critical",
                 "thresholds": {"warning_usd": 0.1, "critical_usd": 0.11},
+                "incident_count": 1,
+                "remaining_budget_usd": -0.01,
             },
             "review_route": f"/?mission={mission_id}&mode=missions&tab=costs",
             "focus_packet_id": "pkt-2",
