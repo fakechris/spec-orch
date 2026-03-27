@@ -979,6 +979,8 @@ class TestDashboardAPI:
                 "label": "Approve",
                 "message": "@approve Approve rollout after QA?",
                 "channel": "web-dashboard",
+                "status": "sent",
+                "effect": "approval_granted",
             },
         }
         assert calls == [
@@ -994,6 +996,8 @@ class TestDashboardAPI:
         assert history[0]["action_key"] == "approve"
         assert history[0]["message"] == "@approve Approve rollout after QA?"
         assert history[0]["channel"] == "web-dashboard"
+        assert history[0]["status"] == "sent"
+        assert history[0]["effect"] == "approval_granted"
 
     def test_mission_detail_endpoint_includes_approval_history(self, client, repo: Path):
         mission_id = "mission-approval-history"
@@ -1055,6 +1059,8 @@ class TestDashboardAPI:
                             "label": "Ask follow-up",
                             "message": "@follow-up I need more detail before approving this round.",
                             "channel": "web-dashboard",
+                            "status": "sent",
+                            "effect": "followup_requested",
                         }
                     ),
                     json.dumps(
@@ -1064,6 +1070,8 @@ class TestDashboardAPI:
                             "label": "Approve",
                             "message": "@approve Approve rollout after QA?",
                             "channel": "web-dashboard",
+                            "status": "sent",
+                            "effect": "approval_granted",
                         }
                     ),
                 ]
@@ -1082,6 +1090,8 @@ class TestDashboardAPI:
                 "label": "Approve",
                 "message": "@approve Approve rollout after QA?",
                 "channel": "web-dashboard",
+                "status": "sent",
+                "effect": "approval_granted",
             },
             {
                 "timestamp": "2026-03-25T00:12:00+00:00",
@@ -1089,6 +1099,8 @@ class TestDashboardAPI:
                 "label": "Ask follow-up",
                 "message": "@follow-up I need more detail before approving this round.",
                 "channel": "web-dashboard",
+                "status": "sent",
+                "effect": "followup_requested",
             },
         ]
 

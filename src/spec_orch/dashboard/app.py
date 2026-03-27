@@ -1484,6 +1484,7 @@ function renderContextRail(detail) {
 }
 
 function renderApprovalWorkspace(approvalRequest, approvalHistory, missionId) {
+  const latestAction = approvalHistory && approvalHistory.length ? approvalHistory[0] : null;
   return `
     <div class="context-card">
       <div class="context-title">${escHtml(approvalRequest.summary || 'Approval required')}</div>
@@ -1493,6 +1494,17 @@ function renderApprovalWorkspace(approvalRequest, approvalHistory, missionId) {
         <span>${escHtml(approvalRequest.timestamp || '—')}</span>
       </div>
     </div>
+    ${latestAction ? `
+      <div class="context-card">
+        <div class="context-title">Latest operator decision</div>
+        <div class="context-meta">
+          <span class="detail-chip">${escHtml(latestAction.label || latestAction.action_key || 'Action')}</span>
+          <span class="detail-chip">${escHtml(latestAction.effect || 'guidance_sent')}</span>
+          <span>${escHtml(latestAction.timestamp || '—')}</span>
+        </div>
+        <div class="transcript-entry-body">${escHtml(latestAction.message || '')}</div>
+      </div>
+    ` : ''}
     <div class="context-card">
       <div class="context-title">Blocking question</div>
       <div class="transcript-entry-body">${escHtml(approvalRequest.blocking_question || 'No blocking question recorded.')}</div>
@@ -1526,6 +1538,8 @@ function renderApprovalWorkspace(approvalRequest, approvalHistory, missionId) {
                   <div class="context-meta">
                     <span>${escHtml(item.timestamp || '—')}</span>
                     <span>${escHtml(item.channel || 'web-dashboard')}</span>
+                    <span class="detail-chip">${escHtml(item.status || 'sent')}</span>
+                    <span class="detail-chip">${escHtml(item.effect || 'guidance_sent')}</span>
                   </div>
                   <div class="transcript-entry-body">${escHtml(item.message || '')}</div>
                 </div>

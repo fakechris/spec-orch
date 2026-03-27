@@ -111,13 +111,21 @@ def _record_approval_action(
     label: str,
     message: str,
     channel: str,
+    status: str = "sent",
 ) -> dict[str, Any]:
+    effect = {
+        "approve": "approval_granted",
+        "request_revision": "revision_requested",
+        "ask_followup": "followup_requested",
+    }.get(action_key, "guidance_sent")
     payload = {
         "timestamp": datetime.now(UTC).isoformat(),
         "action_key": action_key,
         "label": label,
         "message": message,
         "channel": channel,
+        "status": status,
+        "effect": effect,
     }
     history_path = _approval_history_path(repo_root, mission_id)
     history_path.parent.mkdir(parents=True, exist_ok=True)
