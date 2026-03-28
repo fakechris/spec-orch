@@ -219,6 +219,35 @@
 
 ## Session: 2026-03-25
 
+## Session: 2026-03-27
+
+### Phase: yoyo-evolve harness analysis
+- **Status:** complete
+- Actions taken:
+  - Collected primary source material from `yologdev/yoyo-evolve`:
+    - `README.md`
+    - `IDENTITY.md`
+    - `PERSONALITY.md`
+    - `JOURNAL.md`
+    - `CLAUDE.md`
+    - `CLAUDE_CODE_GAP.md`
+    - `memory/*`
+    - `scripts/evolve.sh`, `social.sh`, `yoyo_context.sh`
+    - `docs/src/*`
+  - Logged comparison findings into planning files.
+  - Wrote a dedicated roadmap/design document mapping the comparison into concrete SpecOrch phases and explicit Linear epics.
+  - Normalized `SON-234` into a real operator-console epic and attached `SON-235..241` as child issues.
+  - Created new roadmap epics and child issues:
+    - `SON-242` + `SON-245..248` for adversarial/exploratory acceptance
+    - `SON-243` + `SON-249..252` for selfhood, constitutions, and memory synthesis
+    - `SON-244` + `SON-253..256` for operator feedback and bounded social learning
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+  - `docs/plans/2026-03-28-spec-orch-vs-yoyo-evolve-roadmap.md`
+  - `docs/plans/roadmap.md`
+
 ## Session: 2026-03-28
 
 ### Acceptance Prompt Architecture
