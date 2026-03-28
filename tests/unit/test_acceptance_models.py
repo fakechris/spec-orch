@@ -134,3 +134,19 @@ def test_acceptance_campaign_round_trip() -> None:
     restored = AcceptanceCampaign.from_dict(campaign.to_dict())
 
     assert restored == campaign
+
+
+def test_acceptance_campaign_from_dict_coerces_invalid_route_budgets_to_zero() -> None:
+    restored = AcceptanceCampaign.from_dict(
+        {
+            "mode": AcceptanceMode.IMPACT_SWEEP.value,
+            "goal": "Validate mission routes.",
+            "primary_routes": ["/"],
+            "related_routes": ["/?mission=1&tab=transcript"],
+            "min_primary_routes": "abc",
+            "related_route_budget": object(),
+        }
+    )
+
+    assert restored.min_primary_routes == 0
+    assert restored.related_route_budget == 0

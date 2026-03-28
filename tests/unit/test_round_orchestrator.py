@@ -4,6 +4,8 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from spec_orch.domain.models import (
     AcceptanceIssueProposal,
     AcceptanceMode,
@@ -693,7 +695,6 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
         context_assembler=None,
     )
     artifacts = {
-        "browser_evidence": {"tested_routes": ["/", "/launcher"]},
         "review_routes": {
             "transcript": "/?mission=mission-1&tab=transcript",
             "visual_qa": "/?mission=mission-1&tab=visual",
@@ -703,8 +704,8 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
 
     monkeypatch.setenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.IMPACT_SWEEP.value)
     impact = orchestrator._build_acceptance_campaign(mission_id="mission-1", artifacts=artifacts)
-    assert impact.primary_routes == ["/", "/launcher"]
-    assert impact.min_primary_routes == 2
+    assert impact.primary_routes == ["/"]
+    assert impact.min_primary_routes == 1
     assert impact.related_route_budget == 3
     assert impact.related_routes == [
         "/?mission=mission-1&tab=transcript",
@@ -732,6 +733,44 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     ]
     assert exploratory.interaction_plans["/?mission=mission-1&tab=costs"][0].target == "Transcript"
     assert exploratory.interaction_plans["/?mission=mission-1&tab=costs"][-1].target == "Costs"
+
+
+def test_build_acceptance_campaign_uses_visual_eval_paths_env_for_primary_routes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    mission_dir = tmp_path / "docs" / "specs" / "mission-1"
+    mission_dir.mkdir(parents=True)
+    (mission_dir / "mission.json").write_text(
+        json.dumps(
+            {
+                "id": "mission-1",
+                "title": "Mission 1",
+                "acceptance_criteria": ["launcher works"],
+                "constraints": [],
+                "approved": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+
+    monkeypatch.setenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.IMPACT_SWEEP.value)
+    monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_PATHS", "/,/launcher")
+
+    campaign = orchestrator._build_acceptance_campaign(
+        mission_id="mission-1",
+        artifacts={"review_routes": {}},
+    )
+
+    assert campaign.primary_routes == ["/", "/launcher"]
 
 
 def test_run_supervised_persists_round_before_acceptance_side_effects(tmp_path: Path) -> None:

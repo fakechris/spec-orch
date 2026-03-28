@@ -45,9 +45,7 @@ def test_compose_acceptance_prompt_includes_mode_specific_instructions(tmp_path:
             primary_routes=["/launcher"],
             related_routes=["/"],
             interaction_plans={
-                "/launcher": [
-                    AcceptanceInteractionStep(action="click_text", target="Transcript")
-                ]
+                "/launcher": [AcceptanceInteractionStep(action="click_text", target="Transcript")]
             },
             coverage_expectations=["launcher create flow"],
             required_interactions=["open launcher"],
@@ -147,9 +145,10 @@ def test_compose_acceptance_prompt_embeds_structured_payload(tmp_path: Path) -> 
     assert payload["mission_id"] == "mission-3"
     assert payload["campaign"]["mode"] == "impact_sweep"
     assert payload["campaign"]["related_route_budget"] == 2
-    assert payload["campaign"]["interaction_plans"]["/?mission=mission-3&tab=transcript"][0][
-        "target"
-    ] == "Visual QA"
+    assert (
+        payload["campaign"]["interaction_plans"]["/?mission=mission-3&tab=transcript"][0]["target"]
+        == "Visual QA"
+    )
     assert (
         payload["artifacts"]["review_routes"]["transcript"] == "/?mission=mission-3&tab=transcript"
     )

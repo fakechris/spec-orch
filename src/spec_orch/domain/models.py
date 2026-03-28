@@ -717,6 +717,15 @@ class AcceptanceCampaign:
     filing_policy: str = ""
     exploration_budget: str = ""
 
+    @staticmethod
+    def _safe_int(value: Any, default: int = 0) -> int:
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "mode": self.mode.value,
@@ -754,8 +763,8 @@ class AcceptanceCampaign:
             },
             coverage_expectations=data.get("coverage_expectations", []),
             required_interactions=data.get("required_interactions", []),
-            min_primary_routes=int(data.get("min_primary_routes", 0) or 0),
-            related_route_budget=int(data.get("related_route_budget", 0) or 0),
+            min_primary_routes=cls._safe_int(data.get("min_primary_routes", 0)),
+            related_route_budget=cls._safe_int(data.get("related_route_budget", 0)),
             interaction_budget=data.get("interaction_budget", ""),
             filing_policy=data.get("filing_policy", ""),
             exploration_budget=data.get("exploration_budget", ""),

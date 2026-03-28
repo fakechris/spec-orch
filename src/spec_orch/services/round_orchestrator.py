@@ -863,15 +863,6 @@ class RoundOrchestrator:
             env_routes = [part.strip() for part in paths_env.split(",") if part.strip()]
             if env_routes:
                 return self._unique_preserve_order(env_routes)
-        browser_evidence = artifacts.get("browser_evidence")
-        if isinstance(browser_evidence, dict):
-            routes = [
-                route
-                for route in browser_evidence.get("tested_routes", [])
-                if isinstance(route, str) and route
-            ]
-            if routes:
-                return self._unique_preserve_order(routes)
         return ["/"]
 
     def _acceptance_related_routes(
