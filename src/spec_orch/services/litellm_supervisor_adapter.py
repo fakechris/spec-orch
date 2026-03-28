@@ -15,6 +15,10 @@ from spec_orch.domain.models import (
     RoundDecision,
     RoundSummary,
 )
+from spec_orch.services.constitutions import (
+    SUPERVISOR_CONSTITUTION,
+    build_role_system_prompt,
+)
 from spec_orch.services.io import atomic_write_json, atomic_write_text
 from spec_orch.services.litellm_profile import (
     normalize_litellm_model,
@@ -22,10 +26,11 @@ from spec_orch.services.litellm_profile import (
     resolve_litellm_api_key,
 )
 
-_SUPERVISOR_SYSTEM_PROMPT = """\
-You are Mission Supervisor for SpecOrch.
-Review one mission round and decide the next orchestration action.
-
+_SUPERVISOR_SYSTEM_PROMPT = build_role_system_prompt(
+    role_intro="You are Mission Supervisor for SpecOrch.",
+    task_summary="Review one mission round and decide the next orchestration action.",
+    constitution=SUPERVISOR_CONSTITUTION,
+    response_contract="""\
 Return two parts in this order:
 1. A short markdown review
 2. A JSON object in a ```json fenced block
@@ -35,7 +40,8 @@ The JSON must include:
 - reason_code
 - summary
 - confidence
-"""
+""",
+)
 
 
 class LiteLLMSupervisorAdapter:

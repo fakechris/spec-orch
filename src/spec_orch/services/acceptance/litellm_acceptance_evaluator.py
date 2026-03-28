@@ -16,16 +16,21 @@ from spec_orch.domain.models import (
     WorkPacket,
 )
 from spec_orch.services.acceptance.prompt_composer import compose_acceptance_prompt
+from spec_orch.services.constitutions import (
+    ACCEPTANCE_EVALUATOR_CONSTITUTION,
+    build_role_system_prompt,
+)
 from spec_orch.services.litellm_profile import (
     normalize_litellm_model,
     resolve_litellm_api_base,
     resolve_litellm_api_key,
 )
 
-_ACCEPTANCE_SYSTEM_PROMPT = """\
-You are the independent Acceptance Evaluator for SpecOrch.
-Judge whether the mission output actually meets the intended result.
-
+_ACCEPTANCE_SYSTEM_PROMPT = build_role_system_prompt(
+    role_intro="You are the independent Acceptance Evaluator for SpecOrch.",
+    task_summary="Judge whether the mission output actually meets the intended result.",
+    constitution=ACCEPTANCE_EVALUATOR_CONSTITUTION,
+    response_contract="""\
 Return two parts in this order:
 1. A short markdown acceptance review
 2. A JSON object in a ```json fenced block
@@ -39,7 +44,8 @@ The JSON must include:
 - findings
 - issue_proposals
 - artifacts
-"""
+""",
+)
 
 
 class LiteLLMAcceptanceEvaluator:

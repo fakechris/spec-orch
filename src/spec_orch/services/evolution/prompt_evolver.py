@@ -22,17 +22,20 @@ from spec_orch.domain.models import (
     EvolutionProposal,
     EvolutionValidationMethod,
 )
+from spec_orch.services.constitutions import EVOLVER_CONSTITUTION, build_role_system_prompt
 from spec_orch.services.io import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
 _PROMPT_HISTORY_FILE = "prompt_history.json"
-_EVOLVE_SYSTEM_PROMPT = """\
-You are a prompt-engineering specialist for an AI coding-agent orchestrator.
-
+_EVOLVE_SYSTEM_PROMPT = build_role_system_prompt(
+    role_intro="You are a prompt-engineering specialist for an AI coding-agent orchestrator.",
+    task_summary="""\
 Given the current builder prompt and performance statistics from recent runs,
 propose an improved prompt variant that addresses observed failure patterns.
-
+""",
+    constitution=EVOLVER_CONSTITUTION,
+    response_contract="""\
 Requirements:
 - Keep the same general structure as the current prompt.
 - Focus changes on areas that correlate with failures (e.g., narration issues,
@@ -47,7 +50,8 @@ Respond with ONLY a JSON object:
   "rationale": "brief explanation of what changed and why",
   "target_improvements": ["list of expected improvements"]
 }
-"""
+""",
+)
 
 
 @dataclass

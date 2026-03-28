@@ -182,3 +182,12 @@ def test_supervisor_adapter_normalizes_model_and_falls_back_to_minimax_envs(
     assert captured_kwargs["model"] == "anthropic/MiniMax-M2.7-highspeed"
     assert captured_kwargs["api_key"] == "sk-minimax"
     assert captured_kwargs["api_base"] == "https://api.minimaxi.com/anthropic"
+
+
+def test_supervisor_system_prompt_includes_constitution() -> None:
+    from spec_orch.services.litellm_supervisor_adapter import _SUPERVISOR_SYSTEM_PROMPT
+
+    assert "## Constitution" in _SUPERVISOR_SYSTEM_PROMPT
+    assert "Prefer evidence over optimism." in _SUPERVISOR_SYSTEM_PROMPT
+    assert "Escalate with explicit blocking questions" in _SUPERVISOR_SYSTEM_PROMPT
+    assert "Do not silently approve ambiguous outcomes" in _SUPERVISOR_SYSTEM_PROMPT

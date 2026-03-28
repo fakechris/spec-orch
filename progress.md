@@ -219,6 +219,26 @@
 
 ## Session: 2026-03-25
 
+### Harness Selfhood — Constitutions
+- **Status:** complete
+- Actions taken:
+  - Added a shared `services/constitutions.py` module for supervisor, acceptance evaluator, and evolver constitutions.
+  - Rebuilt the supervisor, acceptance evaluator, prompt evolver, and intent evolver system prompts to include explicit constitution sections rather than ad hoc role text only.
+  - Added regression tests that lock the constitution text into each role prompt.
+- Files created/modified:
+  - `src/spec_orch/services/constitutions.py`
+  - `src/spec_orch/services/litellm_supervisor_adapter.py`
+  - `src/spec_orch/services/acceptance/litellm_acceptance_evaluator.py`
+  - `src/spec_orch/services/evolution/prompt_evolver.py`
+  - `src/spec_orch/services/evolution/intent_evolver.py`
+  - `tests/unit/test_litellm_supervisor_adapter.py`
+  - `tests/unit/test_litellm_acceptance_evaluator.py`
+  - `tests/unit/test_prompt_evolver.py`
+  - `tests/unit/test_muscle_evolvers.py`
+
+### Verification — Harness Constitutions
+- targeted prompt tests: `67 passed`
+
 ## Session: 2026-03-28
 
 ### Acceptance Harness Phase 2 — Adversarial Rubric & Filing Policy

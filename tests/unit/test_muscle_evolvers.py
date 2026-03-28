@@ -139,6 +139,18 @@ class TestEvolverProtocol:
 
 
 class TestIntentEvolver:
+    def test_system_prompt_includes_constitution(self):
+        from spec_orch.services.evolution.intent_evolver import _EVOLVE_SYSTEM_PROMPT
+
+        assert "## Constitution" in _EVOLVE_SYSTEM_PROMPT
+        assert "Prefer narrow, evidence-backed prompt changes." in _EVOLVE_SYSTEM_PROMPT
+        assert (
+            "Do not widen change scope beyond the observed failure modes." in _EVOLVE_SYSTEM_PROMPT
+        )
+        assert (
+            "Do not claim improvements that the evidence does not support." in _EVOLVE_SYSTEM_PROMPT
+        )
+
     def test_empty_history(self, tmp_path: Path):
         e = IntentEvolver(tmp_path)
         assert e.load_history() == []

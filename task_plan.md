@@ -26,6 +26,7 @@
 | 16. Acceptance route planning and interaction-aware flows | complete | Acceptance campaigns now carry route budgets plus per-route interaction plans; browser evidence reuses Playwright capture to execute `click_text` flows and persist interaction traces into acceptance artifacts |
 | 17. Adversarial rubric and filing policy | complete | Added mode-aware adversarial rubric sections to acceptance prompts, made filing guidance explicit per policy, and hardened Linear auto-filing against missing coverage, exploratory UX holds, and out-of-scope routes |
 | 18. Acceptance calibration fixtures and dogfood regression suite | complete | Added fixed acceptance fixtures for feature-scoped, exploratory, and real dogfood dashboard samples, plus regression tests that lock filing-policy decisions and dashboard acceptance summary semantics |
+| 19. Harness constitutions | complete | Added explicit constitutions for supervisor, acceptance evaluator, and evolvers; system prompts now encode non-negotiable stance around evidence, uncertainty, and narrow evidence-backed change scope |
 
 ## Comparison Dimensions
 - User entry points and onboarding flow
