@@ -1,0 +1,84 @@
+{
+  "review": {
+    "status": "fail",
+    "summary": "Launcher regression removed the primary draft CTA.",
+    "confidence": 0.95,
+    "evaluator": "acceptance_llm",
+    "acceptance_mode": "feature_scoped",
+    "coverage_status": "complete",
+    "tested_routes": [
+      "/launcher",
+      "/?mission=launcher-smoke&mode=missions&tab=overview"
+    ],
+    "untested_expected_routes": [],
+    "recommended_next_step": "",
+    "findings": [
+      {
+        "severity": "high",
+        "summary": "Create Draft CTA missing",
+        "details": "The launcher opens but the draft action is absent.",
+        "expected": "Operators can create a draft from the launcher.",
+        "actual": "The CTA is missing from the launcher surface.",
+        "route": "/launcher",
+        "artifact_paths": {
+          "screenshot": "rounds/round-02/visual/launcher.png"
+        }
+      }
+    ],
+    "issue_proposals": [
+      {
+        "title": "Restore launcher Create Draft CTA",
+        "summary": "Acceptance found that the launcher no longer exposes the primary draft action.",
+        "severity": "high",
+        "confidence": 0.95,
+        "repro_steps": [
+          "Open the launcher",
+          "Verify the Create Draft button is visible"
+        ],
+        "expected": "Create Draft CTA is visible.",
+        "actual": "CTA missing.",
+        "route": "/launcher",
+        "artifact_paths": {
+          "screenshot": "rounds/round-02/visual/launcher.png"
+        },
+        "linear_issue_id": "",
+        "filing_status": "",
+        "filing_error": ""
+      }
+    ],
+    "artifacts": {
+      "acceptance_review": "rounds/round-02/acceptance_review.json"
+    },
+    "campaign": {
+      "mode": "feature_scoped",
+      "goal": "Validate launcher draft creation path.",
+      "primary_routes": [
+        "/launcher"
+      ],
+      "related_routes": [
+        "/?mission=launcher-smoke&mode=missions&tab=overview"
+      ],
+      "interaction_plans": {},
+      "coverage_expectations": [
+        "launcher CTA visible"
+      ],
+      "required_interactions": [
+        "open launcher",
+        "confirm primary CTA"
+      ],
+      "min_primary_routes": 1,
+      "related_route_budget": 1,
+      "interaction_budget": "tight",
+      "filing_policy": "in_scope_only",
+      "exploration_budget": "tight"
+    }
+  },
+  "expected": {
+    "filed_statuses": [
+      "filed"
+    ],
+    "linear_calls": 1,
+    "acceptance_mode": "feature_scoped",
+    "coverage_status": "complete"
+  }
+}

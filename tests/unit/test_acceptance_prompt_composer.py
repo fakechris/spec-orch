@@ -105,6 +105,9 @@ def test_compose_acceptance_prompt_marks_exploratory_runs_as_user_perspective(
         "Act as an independent operator using the product to complete the intended task." in prompt
     )
     assert "Do not assume the mission framing or UI structure is correct." in prompt
+    assert "## Adversarial Rubric" in prompt
+    assert "Treat the current implementation and mission framing as falsifiable." in prompt
+    assert "Do not auto-file broad UX criticism unless the flow is materially broken." in prompt
 
 
 def test_compose_acceptance_prompt_embeds_structured_payload(tmp_path: Path) -> None:
@@ -152,3 +155,35 @@ def test_compose_acceptance_prompt_embeds_structured_payload(tmp_path: Path) -> 
     assert (
         payload["artifacts"]["review_routes"]["transcript"] == "/?mission=mission-3&tab=transcript"
     )
+
+
+def test_compose_acceptance_prompt_adds_mode_specific_filing_policy_guidance(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.prompt_composer import compose_acceptance_prompt
+
+    prompt = compose_acceptance_prompt(
+        mission_id="mission-4",
+        round_id=4,
+        round_dir=tmp_path / "docs/specs/mission-4/rounds/round-04",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={"mission": {"mission_id": "mission-4", "title": "Mission 4"}},
+        repo_root=tmp_path,
+        campaign=AcceptanceCampaign(
+            mode=AcceptanceMode.FEATURE_SCOPED,
+            goal="Verify a targeted launcher fix.",
+            primary_routes=["/launcher"],
+            related_routes=["/"],
+            coverage_expectations=["launcher fix"],
+            required_interactions=["open launcher"],
+            min_primary_routes=1,
+            related_route_budget=1,
+            interaction_budget="tight",
+            filing_policy="in_scope_only",
+            exploration_budget="tight",
+        ),
+    )
+
+    assert "## Filing Policy" in prompt
+    assert "Only propose auto-file issues for in-scope regressions" in prompt
+    assert "If coverage is missing or partial, lower confidence and explain the gap." in prompt

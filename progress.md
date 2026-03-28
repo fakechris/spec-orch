@@ -138,7 +138,7 @@
 - `tests/unit/test_linear_write_back.py` — write-back tests
 - `tests/unit/test_github_pr_service.py` — github PR service tests
 
-### Verification
+### Verification — Adversarial Rubric & Filing Policy
 - **ruff**: All checks passed
 - **mypy**: No issues found
 - **pytest**: 42/42 tests passed
@@ -186,7 +186,7 @@
 | SPC-BOOT-2 | 半自动 | skipped | all pass | mergeable=True |
 | SPC-BOOT-3 | **全自动** | **codex exec** | test fix needed | mergeable after fix |
 
-### Verification
+### Verification — Calibration Fixtures & Dogfood Regression
 - **ruff**: All checks passed
 - **mypy**: No issues found
 - **pytest**: 47/47 tests passed
@@ -221,6 +221,26 @@
 
 ## Session: 2026-03-28
 
+### Acceptance Harness Phase 2 — Adversarial Rubric & Filing Policy
+- **Status:** complete
+- Actions taken:
+  - Added mode-aware adversarial rubric text to the acceptance prompt so feature-scoped, impact-sweep, and exploratory runs now have explicit evaluator stance rather than only route budgets.
+  - Added filing-policy guidance to the prompt so the evaluator is told when to auto-file, when to defer, and how to downgrade confidence when coverage is incomplete.
+  - Hardened `LinearAcceptanceFiler` so auto-filing now respects `coverage_status`, campaign filing policy, and route scope.
+  - Added skip reasons for held or out-of-scope proposals so the dashboard and artifacts can explain why an issue was not auto-filed.
+- Files created/modified:
+  - `src/spec_orch/services/acceptance/prompt_composer.py`
+  - `src/spec_orch/services/acceptance/linear_filing.py`
+  - `tests/unit/test_acceptance_prompt_composer.py`
+  - `tests/unit/test_acceptance_linear_filing.py`
+  - `task_plan.md`
+  - `progress.md`
+
+### Verification
+- **pytest**: targeted acceptance/prompt/filing/orchestrator suite passed (`35 passed`)
+- **ruff**: targeted acceptance/orchestrator checks passed
+- **mypy**: no issues found in touched acceptance/orchestrator files
+
 ### Acceptance Harness Phase 2 — Route Planning & Interaction Flows
 - **Status:** complete
 - Actions taken:
@@ -244,6 +264,24 @@
 - **ruff**: targeted checks passed
 - **mypy**: no issues found in touched acceptance/orchestrator files
 - **pytest**: 1505/1505 tests passed
+
+### Acceptance Harness Phase 2 — Calibration Fixtures & Dogfood Regression
+- **Status:** complete
+- Actions taken:
+  - Added fixed acceptance fixtures for a feature-scoped launcher regression, an exploratory UX hold case, and a sanitized operator-console dogfood run spanning three rounds.
+  - Added regression tests that round-trip acceptance review payloads through the domain model and assert policy-aware Linear filing decisions stay stable.
+  - Added a dashboard-surface regression that materializes the dogfood fixture into `acceptance_review.json` artifacts and verifies mission-level review summaries remain numerically correct.
+- Files created/modified:
+  - `tests/fixtures/acceptance/feature_scoped_launcher_regression.json`
+  - `tests/fixtures/acceptance/exploratory_dashboard_ux_hold.json`
+  - `tests/fixtures/acceptance/dogfood_dashboard_regression.json`
+  - `tests/unit/test_acceptance_calibration_suite.py`
+  - `task_plan.md`
+  - `progress.md`
+
+### Verification
+- **pytest**: acceptance calibration + filing + dashboard suite passed (`77 passed`)
+- **ruff**: calibration suite checks passed
 
 ## Session: 2026-03-27
 

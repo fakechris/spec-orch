@@ -1,0 +1,124 @@
+{
+  "mission_id": "operator-console-dogfood-smoke",
+  "rounds": [
+    {
+      "round_id": 1,
+      "review": {
+        "status": "fail",
+        "summary": "Round 1 executed but produced no contract/schema artifacts and only covered root plus inbox overview.",
+        "confidence": 0.95,
+        "evaluator": "acceptance_evaluator",
+        "acceptance_mode": "impact_sweep",
+        "coverage_status": "missing",
+        "tested_routes": [
+          "/",
+          "/?mission=operator-console-dogfood-smoke&mode=inbox&tab=overview"
+        ],
+        "untested_expected_routes": [
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=overview",
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript",
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=approvals",
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=visual-qa",
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=costs"
+        ],
+        "recommended_next_step": "Expand route coverage before filing copy-only dashboard issues.",
+        "findings": [
+          {
+            "severity": "critical",
+            "summary": "No contract artifacts were produced.",
+            "details": "",
+            "expected": "",
+            "actual": "",
+            "route": "",
+            "artifact_paths": {}
+          }
+        ],
+        "issue_proposals": [],
+        "artifacts": {
+          "builder_report": "docs/specs/operator-console-dogfood-smoke/workers/dogfood-contract-scaffold/builder_report.json"
+        }
+      }
+    },
+    {
+      "round_id": 2,
+      "review": {
+        "status": "fail",
+        "summary": "Round 2 repeated the no-contract failure and still missed all mission detail tabs.",
+        "confidence": 0.95,
+        "evaluator": "acceptance_evaluator",
+        "acceptance_mode": "impact_sweep",
+        "coverage_status": "missing",
+        "tested_routes": [
+          "/",
+          "/?mission=operator-console-dogfood-smoke&mode=inbox&tab=overview"
+        ],
+        "untested_expected_routes": [
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=overview",
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript",
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=approvals",
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=visual-qa",
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=costs"
+        ],
+        "recommended_next_step": "Block filing until mission detail routes are covered.",
+        "findings": [
+          {
+            "severity": "critical",
+            "summary": "No contract artifacts were produced.",
+            "details": "",
+            "expected": "",
+            "actual": "",
+            "route": "",
+            "artifact_paths": {}
+          }
+        ],
+        "issue_proposals": [],
+        "artifacts": {
+          "events": "docs/specs/operator-console-dogfood-smoke/workers/dogfood-contract-scaffold/telemetry/events.jsonl"
+        }
+      }
+    },
+    {
+      "round_id": 3,
+      "review": {
+        "status": "warn",
+        "summary": "Round 3 improved execution but still only visually verified root and inbox overview.",
+        "confidence": 0.72,
+        "evaluator": "acceptance_evaluator",
+        "acceptance_mode": "exploratory",
+        "coverage_status": "partial",
+        "tested_routes": [
+          "/",
+          "/?mission=operator-console-dogfood-smoke&mode=inbox&tab=overview"
+        ],
+        "untested_expected_routes": [
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=overview",
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript",
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=approvals",
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=visual-qa",
+          "/?mission=operator-console-dogfood-smoke&mode=missions&tab=costs"
+        ],
+        "recommended_next_step": "Run a wider dashboard acceptance sweep before calling the dogfood flow complete.",
+        "findings": [],
+        "issue_proposals": [],
+        "artifacts": {
+          "browser_evidence": "docs/specs/operator-console-dogfood-smoke/rounds/round-03/browser_evidence.json"
+        }
+      }
+    }
+  ],
+  "expected": {
+    "summary": {
+      "total_reviews": 3,
+      "passes": 0,
+      "warnings": 1,
+      "failures": 2,
+      "filed_issues": 0
+    },
+    "latest_review": {
+      "round_id": 3,
+      "status": "warn",
+      "coverage_status": "partial",
+      "acceptance_mode": "exploratory"
+    }
+  }
+}

@@ -32,8 +32,15 @@ class LinearAcceptanceFiler:
             if proposal.linear_issue_id:
                 proposals.append(replace(proposal, filing_status=proposal.filing_status or "filed"))
                 continue
-            if not self._should_file(result, proposal):
-                proposals.append(replace(proposal, filing_status="skipped", filing_error=""))
+            should_file, skip_reason = self._should_file(result, proposal)
+            if not should_file:
+                proposals.append(
+                    replace(
+                        proposal,
+                        filing_status="skipped",
+                        filing_error=skip_reason,
+                    )
+                )
                 continue
             try:
                 issue = self.client.create_issue(
@@ -71,13 +78,56 @@ class LinearAcceptanceFiler:
         self,
         result: AcceptanceReviewResult,
         proposal: AcceptanceIssueProposal,
-    ) -> bool:
+    ) -> tuple[bool, str]:
         if result.status != "fail":
-            return False
+            return False, "result status is not fail"
         confidence = max(result.confidence, proposal.confidence)
         if confidence < self.min_confidence:
-            return False
-        return self._severity_rank(proposal.severity) >= self._severity_rank(self.min_severity)
+            return False, "confidence below auto-file threshold"
+        if self._severity_rank(proposal.severity) < self._severity_rank(self.min_severity):
+            return False, "severity below auto-file threshold"
+        if result.coverage_status in {"missing", "unscoped"}:
+            return False, f"coverage {result.coverage_status} is insufficient for auto-filing"
+        return self._passes_campaign_policy(result, proposal)
+
+    def _passes_campaign_policy(
+        self,
+        result: AcceptanceReviewResult,
+        proposal: AcceptanceIssueProposal,
+    ) -> tuple[bool, str]:
+        campaign = result.campaign
+        if campaign is None or not campaign.filing_policy:
+            return True, ""
+
+        route = proposal.route.strip()
+
+        if campaign.filing_policy == "in_scope_only":
+            allowed_routes = set(campaign.primary_routes + campaign.related_routes)
+            if not route:
+                return False, "proposal route is required for in_scope_only auto-filing"
+            if route not in allowed_routes:
+                return False, "proposal route is out of scope for in_scope_only auto-filing"
+            return True, ""
+
+        if campaign.filing_policy == "auto_file_regressions_only":
+            covered_routes = set(result.tested_routes)
+            if not route:
+                return False, "proposal route is required for regression-only auto-filing"
+            if route not in covered_routes:
+                return False, "proposal route was not covered by the acceptance campaign"
+            return True, ""
+
+        if campaign.filing_policy == "hold_ux_concerns_for_operator_review":
+            if self._severity_rank(proposal.severity) < self._severity_rank("critical"):
+                return False, "proposal held for operator review under exploratory filing policy"
+            return True, ""
+
+        if campaign.filing_policy == "auto_file_broken_flows_only":
+            if self._severity_rank(proposal.severity) < self._severity_rank("critical"):
+                return False, "proposal held until broken-flow-only auto-filing is implemented"
+            return True, ""
+
+        return False, f"unknown filing policy: {campaign.filing_policy}"
 
     @staticmethod
     def _severity_rank(severity: str) -> int:
