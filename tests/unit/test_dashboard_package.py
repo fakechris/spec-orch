@@ -192,3 +192,7 @@ def test_operator_console_approval_actions_expose_stable_automation_targets() ->
     assert 'data-automation-target="approval-action"' in source
     assert "data-action-key=\"${escAttr(action?.key || '')}\"" in source
     assert 'data-mission-id="${escAttr(missionId)}"' in source
+    assert (
+        '<button class="btn btn-green btn-sm" type="button" data-automation-target="approval-action"'
+        in source
+    )

@@ -823,7 +823,7 @@ class RoundOrchestrator:
         min_primary_routes = {
             AcceptanceMode.FEATURE_SCOPED: max(1, len(primary_routes)),
             AcceptanceMode.IMPACT_SWEEP: max(1, len(primary_routes)),
-            AcceptanceMode.WORKFLOW: max(2, len(primary_routes)),
+            AcceptanceMode.WORKFLOW: max(1, len(primary_routes)),
             AcceptanceMode.EXPLORATORY: 1,
         }[mode]
         related_route_budget = {
@@ -1019,6 +1019,7 @@ class RoundOrchestrator:
         *,
         mission_id: str,
     ) -> list[AcceptanceInteractionStep]:
+        escaped_mission_id = self._css_attr_escape(mission_id)
         if route == "/":
             return [
                 AcceptanceInteractionStep(
@@ -1034,7 +1035,8 @@ class RoundOrchestrator:
                 AcceptanceInteractionStep(
                     action="click_selector",
                     target=(
-                        f'[data-automation-target="mission-card"][data-mission-id="{mission_id}"]'
+                        '[data-automation-target="mission-card"]'
+                        f'[data-mission-id="{escaped_mission_id}"]'
                     ),
                     description="Select the target mission from the mission list.",
                 ),
@@ -1078,6 +1080,10 @@ class RoundOrchestrator:
                 ),
             ]
         return []
+
+    @staticmethod
+    def _css_attr_escape(value: str) -> str:
+        return value.replace("\\", "\\\\").replace('"', '\\"')
 
     @staticmethod
     def _build_workflow_assertions() -> list[str]:

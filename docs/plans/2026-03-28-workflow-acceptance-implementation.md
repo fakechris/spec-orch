@@ -210,6 +210,6 @@ Expected: PASS
 **Step 3: Commit final integration**
 
 ```bash
-git add .
+git add src/spec_orch/domain/models.py src/spec_orch/services/acceptance/prompt_composer.py src/spec_orch/services/acceptance/browser_evidence.py src/spec_orch/services/visual/playwright_visual_eval.py src/spec_orch/services/round_orchestrator.py src/spec_orch/dashboard/app.py src/spec_orch/dashboard_assets/static/operator-console.js tests/fixtures/acceptance/workflow_dashboard_repair_loop.json tests/unit/test_acceptance_models.py tests/unit/test_acceptance_prompt_composer.py tests/unit/test_playwright_visual_eval.py tests/unit/test_browser_evidence.py tests/unit/test_round_orchestrator.py tests/unit/test_acceptance_calibration_suite.py tests/unit/test_dashboard_package.py task_plan.md progress.md
 git commit -m "feat: finish workflow acceptance epic"
 ```

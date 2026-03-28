@@ -783,6 +783,84 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     assert exploratory.interaction_plans["/?mission=mission-1&tab=costs"][-1].target == "Costs"
 
 
+def test_build_acceptance_campaign_escapes_mission_id_for_workflow_css_selector(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    mission_id = 'mission"with\\quotes'
+    mission_dir = tmp_path / "docs" / "specs" / mission_id
+    mission_dir.mkdir(parents=True)
+    (mission_dir / "mission.json").write_text(
+        json.dumps(
+            {
+                "id": mission_id,
+                "title": "Mission 1",
+                "acceptance_criteria": [],
+                "constraints": [],
+                "approved": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    monkeypatch.setenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.WORKFLOW.value)
+
+    campaign = orchestrator._build_acceptance_campaign(
+        mission_id=mission_id,
+        artifacts={"review_routes": {}},
+    )
+
+    assert (
+        campaign.interaction_plans["/"][2].target
+        == '[data-automation-target="mission-card"][data-mission-id="mission\\"with\\\\quotes"]'
+    )
+
+
+def test_build_acceptance_campaign_workflow_allows_single_env_primary_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    mission_dir = tmp_path / "docs" / "specs" / "mission-1"
+    mission_dir.mkdir(parents=True)
+    (mission_dir / "mission.json").write_text(
+        json.dumps(
+            {
+                "id": "mission-1",
+                "title": "Mission 1",
+                "acceptance_criteria": [],
+                "constraints": [],
+                "approved": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    monkeypatch.setenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.WORKFLOW.value)
+    monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_PATHS", "/")
+
+    campaign = orchestrator._build_acceptance_campaign(
+        mission_id="mission-1",
+        artifacts={"review_routes": {}},
+    )
+
+    assert campaign.primary_routes == ["/"]
+    assert campaign.min_primary_routes == 1
+
+
 def test_build_acceptance_campaign_uses_visual_eval_paths_env_for_primary_routes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

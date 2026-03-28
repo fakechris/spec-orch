@@ -80,6 +80,43 @@
             "action": "click_selector",
             "target": "[data-automation-target=\"mission-card\"][data-mission-id=\"workflow-smoke\"]",
             "description": "Select the target mission from the mission list."
+          },
+          {
+            "action": "wait_for_selector",
+            "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"overview\"][data-active=\"true\"]",
+            "description": "Confirm the mission overview is active."
+          }
+        ],
+        "/?mission=workflow-smoke&mode=missions&tab=overview": [
+          {
+            "action": "click_selector",
+            "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
+            "description": "Open the transcript tab from mission detail."
+          },
+          {
+            "action": "wait_for_selector",
+            "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"][data-active=\"true\"]",
+            "description": "Confirm the transcript tab became active."
+          },
+          {
+            "action": "click_selector",
+            "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"approvals\"]",
+            "description": "Open the approvals tab from mission detail."
+          },
+          {
+            "action": "wait_for_selector",
+            "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"approvals\"][data-active=\"true\"]",
+            "description": "Confirm the approvals tab became active."
+          },
+          {
+            "action": "click_selector",
+            "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"overview\"]",
+            "description": "Return to the overview tab after the workflow sweep."
+          },
+          {
+            "action": "wait_for_selector",
+            "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"overview\"][data-active=\"true\"]",
+            "description": "Confirm the overview tab became active again."
           }
         ]
       },
@@ -97,7 +134,7 @@
         "open the transcript tab",
         "confirm actionable review surfaces are reachable"
       ],
-      "min_primary_routes": 2,
+      "min_primary_routes": 1,
       "related_route_budget": 2,
       "interaction_budget": "moderate",
       "filing_policy": "auto_file_broken_flows_only",
