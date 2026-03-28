@@ -31,6 +31,7 @@ from spec_orch.domain.protocols import (
     VisualEvaluatorAdapter,
     WorkerHandleFactory,
 )
+from spec_orch.services.acceptance.browser_evidence import collect_playwright_browser_evidence
 from spec_orch.services.event_bus import Event, EventBus, EventTopic
 from spec_orch.services.io import atomic_write_json
 from spec_orch.services.node_context_registry import get_node_context_spec
@@ -630,18 +631,26 @@ class RoundOrchestrator:
     ) -> AcceptanceReviewResult | None:
         if self.acceptance_evaluator is None:
             return None
+        acceptance_artifacts = self._build_acceptance_artifacts(
+            mission_id=mission_id,
+            round_id=round_id,
+            artifacts=artifacts,
+            summary=summary,
+        )
+        browser_evidence = self._collect_acceptance_browser_evidence(
+            mission_id=mission_id,
+            round_id=round_id,
+            round_dir=round_dir,
+        )
+        if browser_evidence is not None:
+            acceptance_artifacts["browser_evidence"] = browser_evidence
         try:
             result = self.acceptance_evaluator.evaluate_acceptance(
                 mission_id=mission_id,
                 round_id=round_id,
                 round_dir=round_dir,
                 worker_results=worker_results,
-                artifacts=self._build_acceptance_artifacts(
-                    mission_id=mission_id,
-                    round_id=round_id,
-                    artifacts=artifacts,
-                    summary=summary,
-                ),
+                artifacts=acceptance_artifacts,
                 repo_root=self.repo_root,
             )
         except Exception:
@@ -660,6 +669,27 @@ class RoundOrchestrator:
                 result = self._mark_acceptance_filing_failure(result, str(exc))
         atomic_write_json(round_dir / "acceptance_review.json", result.to_dict())
         return result
+
+    def _collect_acceptance_browser_evidence(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        round_dir: Path,
+    ) -> dict[str, Any] | None:
+        try:
+            return collect_playwright_browser_evidence(
+                mission_id=mission_id,
+                round_id=round_id,
+                round_dir=round_dir,
+            )
+        except Exception:
+            logger.exception(
+                "Acceptance browser evidence collection failed for %s round %s",
+                mission_id,
+                round_id,
+            )
+            return None
 
     @staticmethod
     def _mark_acceptance_filing_failure(

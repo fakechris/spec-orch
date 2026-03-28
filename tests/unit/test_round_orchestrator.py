@@ -546,6 +546,105 @@ def test_run_supervised_persists_acceptance_review_and_files_issue(tmp_path: Pat
     assert "SON-321" in payload
 
 
+def test_run_supervised_passes_browser_evidence_to_acceptance_evaluator(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import spec_orch.services.round_orchestrator as round_orchestrator_module
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            return RoundDecision(action=RoundAction.STOP, summary="Done")
+
+    class StubAssembler:
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            return {}
+
+    captured_artifacts: dict[str, object] = {}
+
+    class StubAcceptanceEvaluator:
+        ADAPTER_NAME = "stub_acceptance"
+
+        def evaluate_acceptance(
+            self,
+            *,
+            mission_id: str,
+            round_id: int,
+            round_dir: Path,
+            worker_results,
+            artifacts,
+            repo_root: Path,
+        ) -> AcceptanceReviewResult | None:
+            captured_artifacts.update(artifacts)
+            return AcceptanceReviewResult(
+                status="pass",
+                summary="Acceptance passed.",
+                confidence=0.9,
+                evaluator="stub_acceptance",
+            )
+
+    monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_URL", "http://127.0.0.1:4173")
+    monkeypatch.setattr(
+        round_orchestrator_module,
+        "collect_playwright_browser_evidence",
+        lambda **kwargs: {
+            "tested_routes": ["/", "/settings"],
+            "screenshots": {"/": "rounds/round-01/visual/root.png"},
+            "console_errors": [],
+            "page_errors": [],
+            "artifact_paths": {"round_dir": str(kwargs["round_dir"])},
+        },
+    )
+
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=StubBuilderAdapter(),
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=factory,
+        context_assembler=StubAssembler(),
+        acceptance_evaluator=StubAcceptanceEvaluator(),
+    )
+
+    result = orchestrator.run_supervised(mission_id="mission-1", plan=_make_single_wave_plan())
+
+    assert result.completed is True
+    assert captured_artifacts["browser_evidence"] == {
+        "tested_routes": ["/", "/settings"],
+        "screenshots": {"/": "rounds/round-01/visual/root.png"},
+        "console_errors": [],
+        "page_errors": [],
+        "artifact_paths": {"round_dir": str(tmp_path / "docs/specs/mission-1/rounds/round-01")},
+    }
+
+
 def test_run_supervised_persists_round_before_acceptance_side_effects(tmp_path: Path) -> None:
     from spec_orch.services.round_orchestrator import RoundOrchestrator
     from spec_orch.services.workers.in_memory_worker_handle_factory import (

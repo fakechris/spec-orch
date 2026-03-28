@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
-from spec_orch.services.visual.playwright_visual_eval import PageSnapshot, VisualEvalRequest
+from spec_orch.services.io import atomic_write_json
+from spec_orch.services.visual.playwright_visual_eval import (
+    PageSnapshot,
+    VisualEvalRequest,
+    capture_page_snapshots,
+)
 
 
 def build_acceptance_browser_request(
@@ -24,6 +30,36 @@ def build_acceptance_browser_request(
         round_dir=round_dir,
         base_url=base_url.rstrip("/"),
         paths=list(paths),
+        wait_for_selector=wait_for_selector,
+        timeout_ms=timeout_ms,
+        headless=headless,
+        browser=browser,
+    )
+
+
+def build_acceptance_browser_request_from_env(
+    *,
+    mission_id: str,
+    round_id: int,
+    round_dir: Path,
+) -> VisualEvalRequest | None:
+    base_url = os.environ.get("SPEC_ORCH_VISUAL_EVAL_URL", "").strip()
+    if not base_url:
+        return None
+    paths_env = os.environ.get("SPEC_ORCH_VISUAL_EVAL_PATHS", "/")
+    paths = [part.strip() for part in paths_env.split(",") if part.strip()]
+    if not paths:
+        paths = ["/"]
+    wait_for_selector = os.environ.get("SPEC_ORCH_VISUAL_EVAL_WAIT_FOR") or None
+    timeout_ms = int(os.environ.get("SPEC_ORCH_VISUAL_EVAL_TIMEOUT_MS", "5000"))
+    headless = os.environ.get("SPEC_ORCH_VISUAL_EVAL_HEADLESS", "1") != "0"
+    browser = os.environ.get("SPEC_ORCH_VISUAL_EVAL_BROWSER", "chromium")
+    return build_acceptance_browser_request(
+        mission_id=mission_id,
+        round_id=round_id,
+        round_dir=round_dir,
+        base_url=base_url,
+        paths=paths,
         wait_for_selector=wait_for_selector,
         timeout_ms=timeout_ms,
         headless=headless,
@@ -65,3 +101,30 @@ def collect_browser_evidence(
             "visual_dir": str(round_dir / "visual"),
         },
     }
+
+
+def collect_playwright_browser_evidence(
+    *,
+    mission_id: str,
+    round_id: int,
+    round_dir: Path,
+) -> dict[str, Any] | None:
+    request = build_acceptance_browser_request_from_env(
+        mission_id=mission_id,
+        round_id=round_id,
+        round_dir=round_dir,
+    )
+    if request is None:
+        return None
+    snapshots, failures = capture_page_snapshots(request)
+    evidence = collect_browser_evidence(
+        mission_id=mission_id,
+        round_id=round_id,
+        round_dir=round_dir,
+        snapshots=snapshots,
+    )
+    evidence["page_errors"].extend(
+        {"path": failure["path"], "message": failure["message"]} for failure in failures
+    )
+    atomic_write_json(round_dir / "browser_evidence.json", evidence)
+    return evidence
