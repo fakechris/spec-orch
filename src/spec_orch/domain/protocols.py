@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from spec_orch.domain.models import (
+    AcceptanceCampaign,
     AcceptanceReviewResult,
     BuilderEvent,
     BuilderResult,
@@ -285,6 +286,7 @@ class AcceptanceEvaluatorAdapter(Protocol):
         worker_results: list[tuple[WorkPacket, BuilderResult]],
         artifacts: dict[str, Any],
         repo_root: Path,
+        campaign: AcceptanceCampaign | None = None,
     ) -> AcceptanceReviewResult | None:
         """Return acceptance review artifacts or None when evaluation is skipped."""
         ...

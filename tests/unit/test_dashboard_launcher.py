@@ -61,6 +61,95 @@ adapter = "acpx_codex"
     assert ready["builder"]["ready"] is True
 
 
+def test_launcher_readiness_falls_back_to_minimax_env_aliases(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import _gather_launcher_readiness
+
+    (repo / "spec-orch.toml").write_text(
+        """
+[linear]
+token_env = "SPEC_ORCH_LINEAR_TOKEN"
+
+[planner]
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "SPEC_ORCH_LLM_API_KEY"
+api_base_env = "SPEC_ORCH_LLM_API_BASE"
+
+[supervisor]
+adapter = "litellm"
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "SPEC_ORCH_LLM_API_KEY"
+api_base_env = "SPEC_ORCH_LLM_API_BASE"
+max_rounds = 12
+
+[builder]
+adapter = "acpx"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("SPEC_ORCH_LINEAR_TOKEN", "lin_api_test")
+    monkeypatch.delenv("SPEC_ORCH_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("SPEC_ORCH_LLM_API_BASE", raising=False)
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+
+    readiness = _gather_launcher_readiness(repo)
+    assert readiness["planner"]["ready"] is True
+    assert readiness["supervisor"]["ready"] is True
+
+
+def test_launcher_readiness_rejects_invalid_api_types(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import _gather_launcher_readiness
+
+    (repo / "spec-orch.toml").write_text(
+        """
+[linear]
+token_env = "SPEC_ORCH_LINEAR_TOKEN"
+
+[planner]
+model = "MiniMax-M2.7-highspeed"
+api_type = "not-a-provider"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+
+[supervisor]
+adapter = "litellm"
+model = "MiniMax-M2.7-highspeed"
+api_type = "also-bad"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+max_rounds = 12
+
+[builder]
+adapter = "acpx"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("SPEC_ORCH_LINEAR_TOKEN", "lin_api_test")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+
+    readiness = _gather_launcher_readiness(repo)
+
+    assert readiness["planner"]["ready"] is False
+    assert readiness["planner"]["api_type"] == "not-a-provider"
+    assert readiness["planner"]["error"] == "invalid api_type"
+    assert readiness["supervisor"]["ready"] is False
+    assert readiness["supervisor"]["api_type"] == "also-bad"
+    assert readiness["supervisor"]["error"] == "invalid api_type"
+
+
 def test_create_mission_draft_writes_meta_and_spec(repo: Path) -> None:
     from spec_orch.dashboard.launcher import _create_mission_draft
 

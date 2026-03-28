@@ -1,0 +1,14 @@
+{
+  "action": "retry",
+  "reason_code": "contracts_not_defined",
+  "summary": "Wave 0 builder reported success but produced no contract/schema artifacts and the git diff shows unrelated infrastructure refactoring. The packet needs to be re-run to produce explicit Mission schema definitions, daemon pickup interface contract, dashboard API contracts (Mission Detail, Transcript, Approval, Visual QA, Costs), and ask_human intervention contract before Wave 1 e2e test can proceed.",
+  "confidence": 0.88,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

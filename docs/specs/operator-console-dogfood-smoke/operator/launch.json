@@ -1,0 +1,27 @@
+{
+  "linear_issue": {
+    "id": "ed927a63-d54e-4758-9876-56f646ba74c5",
+    "identifier": "SON-241",
+    "title": "Real supervised mission dogfood and E2E validation",
+    "url": "https://linear.app/songwork/issue/SON-241/real-supervised-mission-dogfood-and-e2e-validation"
+  },
+  "linear_team_key": "SON",
+  "last_launch": {
+    "state": {
+      "mission_id": "operator-console-dogfood-smoke",
+      "phase": "executing",
+      "issue_ids": [
+        "LOCAL-OPERATOR-CONSOLE-DOGFOOD-SMOKE-1",
+        "LOCAL-OPERATOR-CONSOLE-DOGFOOD-SMOKE-2"
+      ],
+      "completed_issues": [],
+      "error": null,
+      "updated_at": "2026-03-28T02:35:36.627103+00:00",
+      "current_round": 0,
+      "round_orchestrator_state": {}
+    }
+  },
+  "runner": {
+    "status": "running"
+  }
+}

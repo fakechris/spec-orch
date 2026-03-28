@@ -62,6 +62,7 @@ class DaemonConfig:
         supervisor = raw.get("supervisor", {})
         self.supervisor_adapter: str | None = supervisor.get("adapter")
         self.supervisor_model: str | None = supervisor.get("model")
+        self.supervisor_api_type: str = supervisor.get("api_type", "anthropic")
         self.supervisor_api_key_env: str | None = supervisor.get("api_key_env")
         self.supervisor_api_base_env: str | None = supervisor.get("api_base_env")
         self.supervisor_max_rounds: int = supervisor.get("max_rounds", 20)
@@ -77,6 +78,7 @@ class DaemonConfig:
         acceptance = raw.get("acceptance_evaluator", {})
         self.acceptance_evaluator_adapter: str | None = acceptance.get("adapter")
         self.acceptance_evaluator_model: str | None = acceptance.get("model")
+        self.acceptance_evaluator_api_type: str = acceptance.get("api_type", "anthropic")
         self.acceptance_evaluator_api_key_env: str | None = acceptance.get("api_key_env")
         self.acceptance_evaluator_api_base_env: str | None = acceptance.get("api_base_env")
         self.acceptance_auto_file_issues: bool = acceptance.get("auto_file_issues", False)
@@ -360,6 +362,7 @@ class SpecOrchDaemon:
         supervisor = LiteLLMSupervisorAdapter(
             repo_root=self.repo_root,
             model=self.config.supervisor_model,
+            api_type=self.config.supervisor_api_type,
             api_key=api_key,
             api_base=api_base,
         )
@@ -425,6 +428,7 @@ class SpecOrchDaemon:
             acceptance_evaluator = LiteLLMAcceptanceEvaluator(
                 repo_root=self.repo_root,
                 model=self.config.acceptance_evaluator_model,
+                api_type=self.config.acceptance_evaluator_api_type,
                 api_key=acceptance_api_key,
                 api_base=acceptance_api_base,
             )

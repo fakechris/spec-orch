@@ -20,6 +20,8 @@
 | 10. Operator summary metrics pass | complete | Added stale/aged/failed approval counts, summary-level visual focus transcript routing, remaining-budget and incident-count cost metrics, and refreshed the operator docs/Todo baseline so the next remaining work is only deeper ergonomics rather than missing control-plane data |
 | 11. Dashboard Mission Launcher | complete | Dashboard-first mission setup now exists: readiness checks, draft creation, approve+plan, Linear create/bind, launch actions, clearer mode semantics, and mission-list relevance sorting are all in place |
 | 12. Acceptance evaluator implementation | complete | Added acceptance domain models, browser evidence collection, LiteLLM evaluator, policy-gated Linear filing, dashboard acceptance surface, and daemon/config/docs/e2e wiring for independent acceptance review |
+| 13. Acceptance prompt architecture | complete | Reframed acceptance as three evaluator modes (feature-scoped, impact-sweep, exploratory), defined prompt hierarchy, coverage semantics, filing policy by mode, and the next implementation slices for route planning and exploratory evaluation |
+| 14. Acceptance mode wiring | complete | Added `AcceptanceMode`/`AcceptanceCampaign`, mode-aware prompt composition, orchestrator-side campaign generation, enriched acceptance review payloads, and dashboard acceptance coverage surfacing |
 
 ## Comparison Dimensions
 - User entry points and onboarding flow
@@ -41,3 +43,5 @@
 - The current remaining work is now mostly high-order UX depth: faster transcript reconstruction, deeper approval queue workflow, stronger visual comparison UX, and more opinionated budget intervention guidance.
 - The user correctly called out that the old mission startup flow was still too engineering-heavy; this is now being addressed as a first-class product gap rather than a documentation problem.
 - The acceptance evaluator is now wired into the supervised round loop and dashboard surfaces, but the next depth pass should focus on richer issue-filing policy, stronger browser evidence capture, and fully automated dogfood runs.
+- The user correctly pushed on the current evaluator’s epistemic limits: it still inherits too much implementation framing and too little true user-perspective exploration.
+- The new prompt architecture is now partially live: mode-aware evaluation, explicit coverage reporting, and campaign-specific route planning are wired, but exploratory interaction planning is still the next depth step.

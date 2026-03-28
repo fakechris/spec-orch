@@ -3,16 +3,23 @@
 from __future__ import annotations
 
 import json
-import os
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.models import (
+    AcceptanceCampaign,
     AcceptanceFinding,
     AcceptanceReviewResult,
     BuilderResult,
     WorkPacket,
+)
+from spec_orch.services.acceptance.prompt_composer import compose_acceptance_prompt
+from spec_orch.services.litellm_profile import (
+    normalize_litellm_model,
+    resolve_litellm_api_base,
+    resolve_litellm_api_key,
 )
 
 _ACCEPTANCE_SYSTEM_PROMPT = """\
@@ -37,21 +44,26 @@ The JSON must include:
 
 class LiteLLMAcceptanceEvaluator:
     ADAPTER_NAME = "litellm_acceptance"
+    VALID_API_TYPES = ("anthropic", "openai")
 
     def __init__(
         self,
         *,
         repo_root: Path,
         model: str,
+        api_type: str = "anthropic",
         api_key: str | None = None,
         api_base: str | None = None,
         temperature: float = 0.1,
         chat_completion: Any | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
-        self.model = model
-        self.api_key = api_key or os.environ.get("SPEC_ORCH_LLM_API_KEY")
-        self.api_base = api_base or os.environ.get("SPEC_ORCH_LLM_API_BASE")
+        if api_type not in self.VALID_API_TYPES:
+            raise ValueError(f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}")
+        self.api_type = api_type
+        self.model = normalize_litellm_model(model, api_type=api_type)
+        self.api_key = resolve_litellm_api_key(api_key=api_key, api_type=api_type)
+        self.api_base = resolve_litellm_api_base(api_base=api_base, api_type=api_type)
         self.temperature = temperature
         self._chat_completion = chat_completion
 
@@ -64,18 +76,20 @@ class LiteLLMAcceptanceEvaluator:
         worker_results: list[tuple[WorkPacket, BuilderResult]],
         artifacts: dict[str, Any],
         repo_root: Path,
+        campaign: AcceptanceCampaign | None = None,
     ) -> AcceptanceReviewResult:
-        prompt = self._build_prompt(
+        prompt = compose_acceptance_prompt(
             mission_id=mission_id,
             round_id=round_id,
             round_dir=round_dir,
             worker_results=worker_results,
             artifacts=artifacts,
             repo_root=repo_root,
+            campaign=campaign,
         )
         raw_output = self._call_model(prompt)
         _, result = self._parse_output(raw_output)
-        return result
+        return self._apply_campaign_defaults(result, campaign=campaign)
 
     def _call_model(self, prompt: str) -> str:
         if self._chat_completion is not None:
@@ -111,36 +125,6 @@ class LiteLLMAcceptanceEvaluator:
         )
         return self._extract_text(response)
 
-    def _build_prompt(
-        self,
-        *,
-        mission_id: str,
-        round_id: int,
-        round_dir: Path,
-        worker_results: list[tuple[WorkPacket, BuilderResult]],
-        artifacts: dict[str, Any],
-        repo_root: Path,
-    ) -> str:
-        payload = {
-            "mission_id": mission_id,
-            "round_id": round_id,
-            "round_dir": str(round_dir),
-            "repo_root": str(repo_root),
-            "worker_results": [
-                {
-                    "packet_id": packet.packet_id,
-                    "title": packet.title,
-                    "succeeded": result.succeeded,
-                    "report_path": str(result.report_path),
-                    "adapter": result.adapter,
-                    "agent": result.agent,
-                }
-                for packet, result in worker_results
-            ],
-            "artifacts": artifacts,
-        }
-        return json.dumps(payload, ensure_ascii=False, indent=2)
-
     def _parse_output(self, raw_output: str) -> tuple[str, AcceptanceReviewResult]:
         try:
             review_text, json_blob = self._split_review_and_json(raw_output)
@@ -162,6 +146,46 @@ class LiteLLMAcceptanceEvaluator:
                 ],
             )
             return raw_output.strip() or "Acceptance evaluator parsing failed.", fallback
+
+    @staticmethod
+    def _apply_campaign_defaults(
+        result: AcceptanceReviewResult,
+        *,
+        campaign: AcceptanceCampaign | None,
+    ) -> AcceptanceReviewResult:
+        if campaign is None:
+            return result
+
+        tested_routes = list(result.tested_routes)
+        expected_routes = list(dict.fromkeys(campaign.primary_routes + campaign.related_routes))
+        if result.coverage_status:
+            coverage_status = result.coverage_status
+        elif not expected_routes:
+            coverage_status = "unscoped"
+        elif all(route in tested_routes for route in expected_routes):
+            coverage_status = "complete"
+        elif any(route in tested_routes for route in expected_routes):
+            coverage_status = "partial"
+        else:
+            coverage_status = "missing"
+
+        untested_expected_routes = (
+            list(result.untested_expected_routes)
+            if result.untested_expected_routes
+            else [route for route in expected_routes if route not in tested_routes]
+        )
+        recommended_next_step = result.recommended_next_step
+        if not recommended_next_step and untested_expected_routes:
+            recommended_next_step = "Expand route coverage before filing lower-confidence findings."
+
+        return replace(
+            result,
+            acceptance_mode=result.acceptance_mode or campaign.mode.value,
+            coverage_status=coverage_status,
+            untested_expected_routes=untested_expected_routes,
+            recommended_next_step=recommended_next_step,
+            campaign=result.campaign or campaign,
+        )
 
     @staticmethod
     def _split_review_and_json(raw_output: str) -> tuple[str, str]:

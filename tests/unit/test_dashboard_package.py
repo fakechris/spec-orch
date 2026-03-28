@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 
 def test_dashboard_package_exports_app_factory() -> None:
     from spec_orch.dashboard import create_app
@@ -133,3 +135,17 @@ def test_dashboard_package_exposes_shell_template() -> None:
     assert "function setOperatorMode(mode)" in html
     assert "syncOperatorRoute();" in html
     assert "renderMissions();" in html
+
+
+def test_operator_console_asset_surfaces_acceptance_coverage_labels() -> None:
+    asset_path = (
+        Path(__file__).resolve().parents[2]
+        / "src/spec_orch/dashboard_assets/static/operator-console.js"
+    )
+    source = asset_path.read_text(encoding="utf-8")
+
+    assert "Coverage" in source
+    assert "Next step" in source
+    assert "Untested expected routes" in source
+    assert "Array.isArray(latest.untested_expected_routes)" in source
+    assert "Array.isArray(review.untested_expected_routes)" in source

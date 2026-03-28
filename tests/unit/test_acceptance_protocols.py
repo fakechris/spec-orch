@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from spec_orch.domain.models import (
+    AcceptanceCampaign,
     AcceptanceReviewResult,
     BuilderResult,
     WorkPacket,
@@ -23,6 +24,7 @@ def test_stub_acceptance_evaluator_is_protocol() -> None:
             worker_results: list[tuple[WorkPacket, BuilderResult]],
             artifacts: dict[str, object],
             repo_root: Path,
+            campaign: AcceptanceCampaign | None = None,
         ) -> AcceptanceReviewResult | None:
             return AcceptanceReviewResult(
                 status="pass",

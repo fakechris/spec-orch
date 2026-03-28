@@ -1,0 +1,61 @@
+{
+  "plan_id": "plan-0e5bc1a2",
+  "mission_id": "operator-console-dogfood-smoke",
+  "waves": [
+    {
+      "wave_number": 0,
+      "description": "Define contracts and schemas for mission data structures, daemon APIs, and dashboard interfaces",
+      "work_packets": [
+        {
+          "packet_id": "dogfood-contract-scaffold",
+          "title": "Mission Data Models & API Contracts",
+          "spec_section": "Interface Contracts",
+          "run_class": "scaffold",
+          "files_in_scope": [],
+          "files_out_of_scope": [],
+          "depends_on": [],
+          "acceptance_criteria": [
+            "Mission schema defines: id, status, detail, transcript, approval_state, visual_qa_data, costs",
+            "Daemon mission pickup interface defined",
+            "Dashboard API contract for Mission Detail, Transcript, Approval, Visual QA, Costs endpoints",
+            "ask_human intervention contract defined"
+          ],
+          "verification_commands": {},
+          "builder_prompt": "Create data models and type definitions for: Mission (with detail, transcript, approval_state, visual_qa_data, costs fields), MissionRound, HumanInterventionRequest. Define Pydantic schemas or equivalent. Create base test fixtures that can be used across the integration test.",
+          "linear_issue_id": null
+        }
+      ]
+    },
+    {
+      "wave_number": 1,
+      "description": "Integration smoke test - end-to-end validation of daemon pickup, dashboard display, round visibility, and human intervention",
+      "work_packets": [
+        {
+          "packet_id": "dogfood-e2e-smoke-test",
+          "title": "Operator Console End-to-End Smoke Test",
+          "spec_section": "Intent / Acceptance Criteria",
+          "run_class": "qa",
+          "files_in_scope": [],
+          "files_out_of_scope": [],
+          "depends_on": [
+            "dogfood-contract-scaffold"
+          ],
+          "acceptance_criteria": [
+            "daemon picks up test issue as a mission",
+            "dashboard displays Mission Detail panel",
+            "dashboard displays Transcript panel",
+            "dashboard displays Approval panel",
+            "dashboard displays Visual QA panel",
+            "dashboard displays Costs panel",
+            "at least one complete mission round is visible end-to-end",
+            "when ask_human appears in a round, operator can trigger intervention from dashboard"
+          ],
+          "verification_commands": {},
+          "builder_prompt": "Write an integration test that: (1) submits a test issue to the daemon, (2) verifies daemon picks it up and creates a mission, (3) navigates to dashboard and verifies Mission Detail/Transcript/Approval/Visual QA/Costs sections render, (4) executes a round and verifies round completion is visible, (5) simulates an ask_human scenario and verifies operator can intervene from the dashboard UI. Use the contracts from Wave 0. Assert against actual running services if available, or mock appropriately.",
+          "linear_issue_id": null
+        }
+      ]
+    }
+  ],
+  "status": "draft"
+}

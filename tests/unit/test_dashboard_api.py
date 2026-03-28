@@ -209,7 +209,11 @@ class TestDashboardAPI:
                     "summary": "Home page CTA is missing.",
                     "confidence": 0.93,
                     "evaluator": "acceptance_llm",
+                    "acceptance_mode": "impact_sweep",
+                    "coverage_status": "partial",
                     "tested_routes": ["/"],
+                    "untested_expected_routes": ["/pricing"],
+                    "recommended_next_step": "Expand coverage before filing copy-only issues.",
                     "findings": [
                         {"severity": "high", "summary": "Primary CTA missing", "route": "/"}
                     ],
@@ -227,6 +231,15 @@ class TestDashboardAPI:
                     "artifacts": {
                         "acceptance_review": "docs/specs/mission-acceptance/rounds/round-02/acceptance_review.json"
                     },
+                    "campaign": {
+                        "mode": "impact_sweep",
+                        "goal": "Sweep home and pricing routes for launch regressions.",
+                        "primary_routes": ["/"],
+                        "related_routes": ["/pricing"],
+                        "coverage_expectations": ["homepage", "pricing"],
+                        "filing_policy": "auto_file_regressions_only",
+                        "exploration_budget": "medium",
+                    },
                 }
             ),
             encoding="utf-8",
@@ -240,6 +253,9 @@ class TestDashboardAPI:
         assert data["summary"]["failures"] == 1
         assert data["summary"]["filed_issues"] == 1
         assert data["latest_review"]["summary"] == "Home page CTA is missing."
+        assert data["latest_review"]["acceptance_mode"] == "impact_sweep"
+        assert data["latest_review"]["coverage_status"] == "partial"
+        assert data["latest_review"]["untested_expected_routes"] == ["/pricing"]
         assert data["latest_review"]["issue_proposals"][0]["linear_issue_id"] == "SON-777"
         assert data["latest_review"]["review_route"] == (
             f"/?mission={mission_id}&mode=missions&tab=acceptance&round=2"

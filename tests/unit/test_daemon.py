@@ -190,13 +190,16 @@ def test_build_round_orchestrator_wires_acceptance_evaluator_and_filer(
         def __init__(self, **kwargs):
             captured.update(kwargs)
 
+    captured_supervisor: dict[str, object] = {}
+    captured_acceptance: dict[str, object] = {}
+
     monkeypatch.setattr(
         "spec_orch.services.litellm_supervisor_adapter.LiteLLMSupervisorAdapter",
-        lambda **kwargs: object(),
+        lambda **kwargs: captured_supervisor.update(kwargs) or object(),
     )
     monkeypatch.setattr(
         "spec_orch.services.acceptance.litellm_acceptance_evaluator.LiteLLMAcceptanceEvaluator",
-        lambda **kwargs: object(),
+        lambda **kwargs: captured_acceptance.update(kwargs) or object(),
     )
     monkeypatch.setattr(
         "spec_orch.services.acceptance.linear_filing.LinearAcceptanceFiler",
@@ -212,6 +215,8 @@ def test_build_round_orchestrator_wires_acceptance_evaluator_and_filer(
     assert isinstance(orchestrator, StubRoundOrchestrator)
     assert captured["acceptance_evaluator"] is not None
     assert captured["acceptance_filer"] is not None
+    assert captured_supervisor["api_type"] == "anthropic"
+    assert captured_acceptance["api_type"] == "anthropic"
 
 
 def test_daemon_poll_and_run_skips_locked(tmp_path: Path) -> None:

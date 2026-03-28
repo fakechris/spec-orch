@@ -219,6 +219,47 @@
 
 ## Session: 2026-03-25
 
+## Session: 2026-03-28
+
+### Acceptance Prompt Architecture
+- **Status:** complete
+- Actions taken:
+  - Ran a real dogfood acceptance pass against the operator console dashboard.
+  - Confirmed that the current evaluator can produce browser evidence and independent findings, but still over-inherits implementation framing and route constraints.
+  - Designed a new mode-based prompt architecture for acceptance evaluation with three explicit modes:
+    - feature-scoped verification
+    - impact-sweep verification
+    - exploratory user-perspective acceptance
+  - Defined the prompt stack, coverage semantics, filing policy by mode, and the next implementation order.
+- Files created/modified:
+  - `docs/plans/2026-03-28-acceptance-prompt-architecture.md`
+  - `task_plan.md`
+  - `progress.md`
+
+### Acceptance Prompt Architecture Implementation
+- **Status:** complete
+- Actions taken:
+  - Added `AcceptanceMode` and `AcceptanceCampaign` to the acceptance domain model.
+  - Extended `AcceptanceReviewResult` with explicit coverage fields, campaign metadata, and recommended next-step semantics.
+  - Added `prompt_composer.py` so acceptance prompts are mode-aware instead of one generic JSON dump.
+  - Wired `RoundOrchestrator` to build a per-round acceptance campaign from mission criteria, browser evidence, review routes, and `SPEC_ORCH_ACCEPTANCE_MODE`.
+  - Updated the LiteLLM acceptance evaluator to consume campaigns and backfill mode/coverage defaults into structured review results.
+  - Surfaced mode/coverage/untested-routes/next-step data through the dashboard acceptance API and Acceptance panel.
+- Files created/modified:
+  - `src/spec_orch/domain/models.py`
+  - `src/spec_orch/domain/protocols.py`
+  - `src/spec_orch/services/acceptance/prompt_composer.py`
+  - `src/spec_orch/services/acceptance/litellm_acceptance_evaluator.py`
+  - `src/spec_orch/services/round_orchestrator.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `tests/unit/test_acceptance_models.py`
+  - `tests/unit/test_acceptance_protocols.py`
+  - `tests/unit/test_acceptance_prompt_composer.py`
+  - `tests/unit/test_litellm_acceptance_evaluator.py`
+  - `tests/unit/test_round_orchestrator.py`
+  - `tests/unit/test_dashboard_api.py`
+  - `tests/unit/test_dashboard_package.py`
+
 ### Operator Console and Mission Launcher Consolidation
 - **Status:** complete
 - Actions taken:

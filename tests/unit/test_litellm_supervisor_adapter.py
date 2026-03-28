@@ -139,3 +139,46 @@ Looks good.
     assert "Layout looks good." in prompt
     assert '"packet_ids"' in prompt
     assert "no schema changes" in prompt
+
+
+def test_supervisor_adapter_normalizes_model_and_falls_back_to_minimax_envs(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from spec_orch.services.litellm_supervisor_adapter import LiteLLMSupervisorAdapter
+
+    captured_kwargs = {}
+
+    def fake_chat_completion(**kwargs):
+        captured_kwargs.update(kwargs)
+        return """# Review
+
+```json
+{
+  "action": "stop",
+  "reason_code": "done",
+  "summary": "Mission is complete.",
+  "confidence": 0.9
+}
+```"""
+
+    monkeypatch.delenv("SPEC_ORCH_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("SPEC_ORCH_LLM_API_BASE", raising=False)
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+
+    adapter = LiteLLMSupervisorAdapter(
+        repo_root=tmp_path,
+        model="MiniMax-M2.7-highspeed",
+        api_type="anthropic",
+        chat_completion=fake_chat_completion,
+    )
+    adapter.review_round(
+        round_artifacts=RoundArtifacts(round_id=4, mission_id="mission-4"),
+        plan=ExecutionPlan(plan_id="plan-4", mission_id="mission-4"),
+        round_history=[],
+        context=None,
+    )
+
+    assert captured_kwargs["model"] == "anthropic/MiniMax-M2.7-highspeed"
+    assert captured_kwargs["api_key"] == "sk-minimax"
+    assert captured_kwargs["api_base"] == "https://api.minimaxi.com/anthropic"
