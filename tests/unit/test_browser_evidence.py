@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
+
+import pytest
 
 from spec_orch.services.acceptance.browser_evidence import (
     build_acceptance_browser_request,
@@ -121,3 +124,72 @@ def test_collect_browser_evidence_rejects_duplicate_snapshot_paths(tmp_path: Pat
         assert "Duplicate snapshot path" in str(exc)
     else:
         raise AssertionError("expected duplicate snapshot paths to fail fast")
+
+
+def test_collect_playwright_browser_evidence_reuses_snapshot_capture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import spec_orch.services.acceptance.browser_evidence as browser_evidence
+
+    round_dir = tmp_path / "docs" / "specs" / "demo" / "rounds" / "round-01"
+    visual_dir = round_dir / "visual"
+    visual_dir.mkdir(parents=True)
+    home_png = visual_dir / "home.png"
+    home_png.write_text("png", encoding="utf-8")
+
+    monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_URL", "http://127.0.0.1:4173")
+    monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_PATHS", "/,/settings")
+
+    def fake_capture(request):
+        assert request.mission_id == "demo-mission"
+        assert request.round_id == 1
+        return (
+            [
+                PageSnapshot(
+                    path="/",
+                    url="http://127.0.0.1:4173/",
+                    title="Home",
+                    screenshot_path=home_png,
+                    console_errors=["ReferenceError: boom"],
+                    page_errors=[],
+                )
+            ],
+            [{"path": "/settings", "message": "navigation timeout"}],
+        )
+
+    monkeypatch.setattr(browser_evidence, "capture_page_snapshots", fake_capture)
+
+    evidence = browser_evidence.collect_playwright_browser_evidence(
+        mission_id="demo-mission",
+        round_id=1,
+        round_dir=round_dir,
+    )
+
+    assert evidence["tested_routes"] == ["/"]
+    assert evidence["screenshots"]["/"] == str(home_png)
+    assert evidence["console_errors"] == [{"path": "/", "message": "ReferenceError: boom"}]
+    assert evidence["page_errors"] == [{"path": "/settings", "message": "navigation timeout"}]
+    persisted = json.loads((round_dir / "browser_evidence.json").read_text(encoding="utf-8"))
+    assert persisted["artifact_paths"]["visual_dir"] == str(visual_dir)
+
+
+def test_build_acceptance_browser_request_from_env_falls_back_on_bad_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from spec_orch.services.acceptance.browser_evidence import (
+        build_acceptance_browser_request_from_env,
+    )
+
+    round_dir = tmp_path / "docs" / "specs" / "demo" / "rounds" / "round-01"
+    monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_URL", "http://127.0.0.1:4173")
+    monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_TIMEOUT_MS", "not-a-number")
+
+    request = build_acceptance_browser_request_from_env(
+        mission_id="demo-mission",
+        round_id=1,
+        round_dir=round_dir,
+    )
+
+    assert request is not None
+    assert request.timeout_ms == 5000
+    assert "SPEC_ORCH_VISUAL_EVAL_TIMEOUT_MS" in caplog.text
