@@ -287,3 +287,16 @@ def test_acceptance_evaluator_normalizes_model_and_falls_back_to_minimax_envs(
     assert captured_kwargs["model"] == "anthropic/MiniMax-M2.7-highspeed"
     assert captured_kwargs["api_key"] == "sk-minimax"
     assert captured_kwargs["api_base"] == "https://api.minimaxi.com/anthropic"
+
+
+def test_acceptance_system_prompt_includes_constitution() -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        _ACCEPTANCE_SYSTEM_PROMPT,
+    )
+
+    assert "## Constitution" in _ACCEPTANCE_SYSTEM_PROMPT
+    assert (
+        "Treat the implementation and mission framing as falsifiable." in _ACCEPTANCE_SYSTEM_PROMPT
+    )
+    assert "Be honest about missing coverage and uncertainty." in _ACCEPTANCE_SYSTEM_PROMPT
+    assert "Do not inherit builder intent as proof of user value." in _ACCEPTANCE_SYSTEM_PROMPT

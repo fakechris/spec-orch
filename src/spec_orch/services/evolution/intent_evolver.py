@@ -22,6 +22,7 @@ from spec_orch.domain.models import (
     EvolutionProposal,
     EvolutionValidationMethod,
 )
+from spec_orch.services.constitutions import EVOLVER_CONSTITUTION, build_role_system_prompt
 from spec_orch.services.io import atomic_write_json
 
 logger = logging.getLogger(__name__)
@@ -29,13 +30,15 @@ logger = logging.getLogger(__name__)
 _HISTORY_FILE = "classifier_prompt_history.json"
 _EVOLUTION_DIR = ".spec_orch_evolution"
 
-_EVOLVE_SYSTEM_PROMPT = """\
-You are a prompt-engineering specialist for an AI intent classifier.
-
+_EVOLVE_SYSTEM_PROMPT = build_role_system_prompt(
+    role_intro="You are a prompt-engineering specialist for an AI intent classifier.",
+    task_summary="""\
 Given the current classifier prompt, misclassification statistics, and
 promotion/demotion event correlations, propose an improved prompt that
 reduces the observed error patterns.
-
+""",
+    constitution=EVOLVER_CONSTITUTION,
+    response_contract="""\
 Requirements:
 - Keep the same output JSON schema (category, confidence, summary, reasoning).
 - Focus changes on disambiguation rules for the most frequent errors.
@@ -48,7 +51,8 @@ Respond with ONLY a JSON object:
   "rationale": "brief explanation",
   "target_improvements": ["list of expected improvements"]
 }
-"""
+""",
+)
 
 
 @dataclass

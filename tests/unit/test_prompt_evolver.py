@@ -142,6 +142,15 @@ def test_evolve_with_mock_planner(tmp_path: Path) -> None:
     assert "prompt-engineering specialist" in messages[0]["content"]
 
 
+def test_prompt_evolver_system_prompt_includes_constitution() -> None:
+    from spec_orch.services.evolution.prompt_evolver import _EVOLVE_SYSTEM_PROMPT
+
+    assert "## Constitution" in _EVOLVE_SYSTEM_PROMPT
+    assert "Prefer narrow, evidence-backed prompt changes." in _EVOLVE_SYSTEM_PROMPT
+    assert "Do not widen change scope beyond the observed failure modes." in _EVOLVE_SYSTEM_PROMPT
+    assert "Do not claim improvements that the evidence does not support." in _EVOLVE_SYSTEM_PROMPT
+
+
 def test_evolve_non_string_response(tmp_path: Path) -> None:
     planner = MagicMock()
     planner.brainstorm.return_value = None
