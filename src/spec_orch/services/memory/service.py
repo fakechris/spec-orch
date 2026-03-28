@@ -12,6 +12,7 @@ Heavy concerns are delegated to:
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -153,10 +154,18 @@ class MemoryService:
             entity_id = payload.get("entity_id")
             self.get_success_recipes(entity_id=entity_id, top_k=10)
 
+        def _handle_active_learning_synthesis(payload: dict[str, Any]) -> None:
+            kind = str(payload.get("kind", "")).strip().lower()
+            if kind:
+                self.synthesize_active_learning_slice(kind, top_k=int(payload.get("top_k", 5)))
+
         self._derivation_worker.register("compact", _handle_compact)
         self._derivation_worker.register("profile-refresh", _handle_profile_refresh)
         self._derivation_worker.register("stale-cleanup", _handle_stale_cleanup)
         self._derivation_worker.register("recipe-extraction", _handle_recipe_extraction)
+        self._derivation_worker.register(
+            "active-learning-synthesis", _handle_active_learning_synthesis
+        )
 
     def enqueue_derivation(self, task_type: str, payload: dict[str, Any] | None = None) -> str:
         """Enqueue a background derivation task."""
@@ -195,10 +204,20 @@ class MemoryService:
                 )
             )
             task_ids.append(self.enqueue_derivation("recipe-extraction", {"entity_id": issue_id}))
+            for kind in ("self", "delivery", "feedback"):
+                task_ids.append(
+                    self.enqueue_derivation(
+                        "active-learning-synthesis",
+                        {"kind": kind, "top_k": 5},
+                    )
+                )
         else:
             self.compact(max_age_days=30, summarize=True)
             if repo_root:
                 self.get_project_profile(repo_root=repo_root)
+            self.get_success_recipes(entity_id=issue_id, top_k=10)
+            for kind in ("self", "delivery", "feedback"):
+                self.synthesize_active_learning_slice(kind, top_k=5)
         return task_ids
 
     def _soft_delete_stale_entries(self, *, max_age_days: int = 90) -> int:
@@ -243,6 +262,43 @@ class MemoryService:
     def get_project_profile(self, repo_root: Path | None = None) -> dict[str, Any]:
         return self._analytics.get_project_profile(repo_root=repo_root)
 
+    def synthesize_active_learning_slice(
+        self,
+        kind: str,
+        *,
+        top_k: int = 5,
+    ) -> list[dict[str, Any]]:
+        return self._distiller.synthesize_active_learning_slice(kind, top_k=top_k)
+
+    def get_active_learning_slice(self, kind: str) -> list[dict[str, Any]]:
+        entry = self._provider.get(f"active-learning-{kind.strip().lower()}")
+        if entry is None:
+            return []
+        try:
+            payload = json.loads(entry.content)
+        except json.JSONDecodeError:
+            return []
+        if not isinstance(payload, dict):
+            return []
+        items = payload.get("items", [])
+        return items if isinstance(items, list) else []
+
+    def get_recent_evolution_journal(self, *, limit: int = 5) -> list[dict[str, Any]]:
+        query = MemoryQuery(layer=MemoryLayer.EPISODIC, tags=["evolution-journal"], top_k=limit)
+        entries = self._provider.recall(query)
+        journal: list[dict[str, Any]] = []
+        for entry in entries:
+            journal.append(
+                {
+                    "key": entry.key,
+                    "evolver_name": entry.metadata.get("evolver_name", ""),
+                    "stage": entry.metadata.get("stage", ""),
+                    "summary": entry.content,
+                    "metadata": entry.metadata,
+                }
+            )
+        return journal
+
     # -- recorder delegates --------------------------------------------------
 
     def consolidate_run(self, **kwargs: Any) -> str | None:
@@ -253,6 +309,9 @@ class MemoryService:
 
     def record_acceptance(self, **kwargs: Any) -> str:
         return self._recorder.record_acceptance(**kwargs)
+
+    def record_evolution_journal(self, **kwargs: Any) -> str:
+        return self._recorder.record_evolution_journal(**kwargs)
 
     def recall_latest(
         self,

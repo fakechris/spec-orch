@@ -80,6 +80,10 @@ class LearningContext:
     failure_patterns: list[dict[str, Any]] = field(default_factory=list)
     success_recipes: list[dict[str, Any]] = field(default_factory=list)
     active_run_signals: dict[str, Any] | None = None
+    active_self_learnings: list[dict[str, Any]] = field(default_factory=list)
+    active_delivery_learnings: list[dict[str, Any]] = field(default_factory=list)
+    active_feedback_learnings: list[dict[str, Any]] = field(default_factory=list)
+    recent_evolution_journal: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(slots=True)

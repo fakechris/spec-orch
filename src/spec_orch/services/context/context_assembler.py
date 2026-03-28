@@ -198,6 +198,17 @@ class ContextAssembler:
             text = json.dumps(signals, ensure_ascii=False, indent=1)
             sections.append(RankedSection("active_run_signals", text, priorities.TOOL_OUTPUT))
 
+        for name in (
+            "active_self_learnings",
+            "active_delivery_learnings",
+            "active_feedback_learnings",
+            "recent_evolution_journal",
+        ):
+            value = getattr(learn, name, None)
+            if value:
+                text = json.dumps(value, ensure_ascii=False, indent=1)
+                sections.append(RankedSection(name, text, priorities.TOOL_OUTPUT))
+
     _LEARNING_LIST_FIELDS = frozenset(
         {
             "scoper_hints",
@@ -206,6 +217,10 @@ class ContextAssembler:
             "relevant_procedures",
             "failure_patterns",
             "success_recipes",
+            "active_self_learnings",
+            "active_delivery_learnings",
+            "active_feedback_learnings",
+            "recent_evolution_journal",
         }
     )
     _LEARNING_DICT_FIELDS = frozenset({"success_trend", "project_profile", "active_run_signals"})
@@ -567,6 +582,34 @@ class ContextAssembler:
                     ctx.active_run_signals = memory.get_active_run_signals()
             except Exception:
                 logger.debug("Failed to build active run signals", exc_info=True)
+
+        if memory is not None and (not required or "active_self_learnings" in required):
+            try:
+                if hasattr(memory, "get_active_learning_slice"):
+                    ctx.active_self_learnings = memory.get_active_learning_slice("self")
+            except Exception:
+                logger.debug("Failed to build active self learnings", exc_info=True)
+
+        if memory is not None and (not required or "active_delivery_learnings" in required):
+            try:
+                if hasattr(memory, "get_active_learning_slice"):
+                    ctx.active_delivery_learnings = memory.get_active_learning_slice("delivery")
+            except Exception:
+                logger.debug("Failed to build active delivery learnings", exc_info=True)
+
+        if memory is not None and (not required or "active_feedback_learnings" in required):
+            try:
+                if hasattr(memory, "get_active_learning_slice"):
+                    ctx.active_feedback_learnings = memory.get_active_learning_slice("feedback")
+            except Exception:
+                logger.debug("Failed to build active feedback learnings", exc_info=True)
+
+        if memory is not None and (not required or "recent_evolution_journal" in required):
+            try:
+                if hasattr(memory, "get_recent_evolution_journal"):
+                    ctx.recent_evolution_journal = memory.get_recent_evolution_journal()
+            except Exception:
+                logger.debug("Failed to build recent evolution journal", exc_info=True)
 
         return ctx
 

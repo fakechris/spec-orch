@@ -270,18 +270,50 @@ class EvolutionTrigger:
         try:
             evidence = evolver.observe(run_dirs, context=context)
             if not evidence:
+                self._write_journal_entry(
+                    evolver_name=name,
+                    stage="observe",
+                    payload={"evidence_count": 0, "skipped": True},
+                )
                 logger.debug("%s: no evidence collected, skipping", name)
                 return
+            self._write_journal_entry(
+                evolver_name=name,
+                stage="observe",
+                payload={"evidence_count": len(evidence)},
+            )
 
             proposals = evolver.propose(evidence, context=context)
             if not proposals:
+                self._write_journal_entry(
+                    evolver_name=name,
+                    stage="propose",
+                    payload={"proposal_count": 0, "skipped": True},
+                )
                 logger.debug("%s: no proposals generated", name)
                 return
+            self._write_journal_entry(
+                evolver_name=name,
+                stage="propose",
+                payload={"proposal_count": len(proposals)},
+            )
 
             promoted_any = False
             has_ab_testing = hasattr(evolver, "promote_variant")
             for proposal in proposals:
                 outcome = evolver.validate(proposal)
+                self._write_journal_entry(
+                    evolver_name=name,
+                    stage="validate",
+                    payload={
+                        "proposal_id": proposal.proposal_id,
+                        "change_type": proposal.change_type.value,
+                        "accepted": outcome.accepted,
+                        "validation_method": outcome.validation_method.value,
+                        "reason": outcome.reason,
+                        "metrics": outcome.metrics,
+                    },
+                )
                 if outcome.accepted:
                     if has_ab_testing and not self._config.auto_promote:
                         logger.info(
@@ -294,6 +326,11 @@ class EvolutionTrigger:
                     ok = evolver.promote(proposal)
                     if ok:
                         promoted_any = True
+                        self._write_journal_entry(
+                            evolver_name=name,
+                            stage="promote",
+                            payload={"proposal_id": proposal.proposal_id, "promoted": True},
+                        )
                         logger.info(
                             "%s: promoted proposal %s",
                             name,
@@ -303,6 +340,11 @@ class EvolutionTrigger:
             self._update_result_flags(name, result, proposals, promoted_any)
         except Exception as exc:
             result.errors.append(f"{name}: {exc}")
+            self._write_journal_entry(
+                evolver_name=name,
+                stage="error",
+                payload={"error": str(exc)},
+            )
             logger.warning("%s failed", name, exc_info=True)
 
     def _collect_run_dirs(self) -> list[Path]:
@@ -398,6 +440,38 @@ class EvolutionTrigger:
         }
         with log_path.open("a") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    def _write_journal_entry(
+        self,
+        *,
+        evolver_name: str,
+        stage: str,
+        payload: dict[str, Any],
+    ) -> None:
+        log_dir = self._repo_root / ".spec_orch_evolution"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        journal_path = log_dir / "evolution_journal.jsonl"
+        entry = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "evolver_name": evolver_name,
+            "stage": stage,
+            **payload,
+        }
+        with journal_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+        try:
+            from spec_orch.services.memory.service import get_memory_service
+
+            summary = payload.get("reason") or payload.get("error") or ""
+            get_memory_service(repo_root=self._repo_root).record_evolution_journal(
+                evolver_name=evolver_name,
+                stage=stage,
+                summary=str(summary),
+                metadata=entry,
+            )
+        except Exception:
+            logger.debug("Failed to mirror evolution journal into memory", exc_info=True)
 
     def _assemble_evolver_context(self, node_name: str) -> Any | None:
         """Best-effort ContextBundle assembly for evolver nodes."""

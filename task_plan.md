@@ -27,6 +27,7 @@
 | 17. Adversarial rubric and filing policy | complete | Added mode-aware adversarial rubric sections to acceptance prompts, made filing guidance explicit per policy, and hardened Linear auto-filing against missing coverage, exploratory UX holds, and out-of-scope routes |
 | 18. Acceptance calibration fixtures and dogfood regression suite | complete | Added fixed acceptance fixtures for feature-scoped, exploratory, and real dogfood dashboard samples, plus regression tests that lock filing-policy decisions and dashboard acceptance summary semantics |
 | 19. Harness constitutions | complete | Added explicit constitutions for supervisor, acceptance evaluator, and evolvers; system prompts now encode non-negotiable stance around evidence, uncertainty, and narrow evidence-backed change scope |
+| 20. Active memory synthesis and evolution journal | in_progress | Adding synthesized self/delivery/feedback active-memory slices, role-scoped learning injection for supervisor/evolvers, and a granular `evolution_journal.jsonl` mirrored into memory for future selfhood work |
 
 ## Comparison Dimensions
 - User entry points and onboarding flow
@@ -56,3 +57,4 @@
 - `yoyo-evolve`'s stability strategy is explicit: one change at a time, mandatory build/test gates, revert on failure, and a public journal. Its “wild growth” is bounded by a very small self-edit aperture.
 - `yoyo-evolve`'s social layer is not ornamental. Discussions, family/fork identity, sponsor economics, and social learnings are integrated into the operational scripts, which is materially different from SpecOrch’s current PM/workflow-centric Linear model.
 - Roadmap/Linear alignment is now explicit: `SON-74` remains the completed self-evolution baseline, `SON-234` is the normalized operator-console epic, and new epics `SON-242` / `SON-243` / `SON-244` cover adversarial acceptance, selfhood/memory synthesis, and operator-feedback/social learning.
+- The current selfhood pass should stay narrow: synthesized learnings must remain machine-readable and role-scoped, rather than turning MemoryService into a second narrative document store.

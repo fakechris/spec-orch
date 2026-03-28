@@ -231,3 +231,37 @@ class MemoryRecorder:
                 metadata=payload,
             )
         )
+
+    def record_evolution_journal(
+        self,
+        *,
+        evolver_name: str,
+        stage: str,
+        summary: str = "",
+        metadata: dict[str, Any] | None = None,
+    ) -> str:
+        """Write a detailed evolution-journal event to episodic memory."""
+        entry_metadata = {
+            "evolver_name": evolver_name,
+            "stage": stage,
+            "entity_scope": "evolution",
+            "entity_id": evolver_name,
+            "relation_type": "observed",
+            **(metadata or {}),
+        }
+        content = f"# Evolution {evolver_name} — {stage}"
+        if summary:
+            content += f"\n\n{summary}"
+        return self._provider.store(
+            MemoryEntry(
+                key=f"evolution-journal-{evolver_name}-{stage}",
+                content=content,
+                layer=MemoryLayer.EPISODIC,
+                tags=[
+                    "evolution-journal",
+                    f"evolver:{evolver_name}",
+                    f"stage:{stage}",
+                ],
+                metadata=entry_metadata,
+            )
+        )

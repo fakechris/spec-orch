@@ -254,6 +254,64 @@ class TestAcceptanceFeedback:
         assert entry.metadata["accepted_by"] == "chris"
 
 
+class TestActiveLearningSynthesis:
+    def test_schedule_post_run_derivations_synthesizes_active_learning_slices(
+        self, svc: MemoryService, tmp_path: Path
+    ) -> None:
+        svc.record_issue_completion(
+            "SON-90",
+            succeeded=False,
+            summary="Launcher flow regressed after review route cleanup",
+        )
+        svc.record_acceptance(issue_id="SON-90", accepted_by="chris", run_id="run-90")
+        svc.record_evolution_journal(
+            evolver_name="prompt_evolver",
+            stage="validate",
+            summary="Prompt variant reduced over-optimistic acceptance summaries.",
+            metadata={"proposal_id": "proposal-1", "accepted": True},
+        )
+
+        task_ids = svc.schedule_post_run_derivations(
+            issue_id="SON-90",
+            run_id="run-90",
+            repo_root=tmp_path,
+        )
+
+        assert task_ids == []
+        assert [item["key"] for item in svc.get_active_learning_slice("delivery")] == [
+            "issue-result-SON-90"
+        ]
+        assert [item["key"] for item in svc.get_active_learning_slice("feedback")] == [
+            "acceptance-SON-90"
+        ]
+        assert [item["key"] for item in svc.get_active_learning_slice("self")] == [
+            "evolution-journal-prompt_evolver-validate"
+        ]
+
+        active_entry = svc.get("active-learning-self")
+        assert active_entry is not None
+        assert active_entry.layer == MemoryLayer.SEMANTIC
+        assert active_entry.metadata["kind"] == "self"
+        assert active_entry.metadata["source_count"] == 1
+
+    def test_record_evolution_journal_is_available_as_recent_journal(
+        self, svc: MemoryService
+    ) -> None:
+        key = svc.record_evolution_journal(
+            evolver_name="intent_evolver",
+            stage="promote",
+            summary="Promoted classifier prompt after stable demotion reduction.",
+            metadata={"proposal_id": "proposal-2", "promoted": True},
+        )
+
+        assert key == "evolution-journal-intent_evolver-promote"
+        recent = svc.get_recent_evolution_journal(limit=5)
+        assert recent
+        assert recent[0]["evolver_name"] == "intent_evolver"
+        assert recent[0]["stage"] == "promote"
+        assert recent[0]["metadata"]["promoted"] is True
+
+
 class TestTrendSummary:
     def test_trend_summary_with_runs(self, svc: MemoryService):
         for i in range(5):

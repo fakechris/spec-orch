@@ -650,6 +650,31 @@
 | Dashboard shell slice | `uv run --python 3.13 python -m pytest tests/unit/test_dashboard.py tests/unit/test_dashboard_api.py -q` | Dashboard UI/API regression suite stays green | `29 passed` | pass |
 | Dashboard lint | `uv run --python 3.13 python -m ruff check src/spec_orch/dashboard.py tests/unit/test_dashboard_api.py pyproject.toml` | Dashboard files lint cleanly | `All checks passed` | pass |
 
+## Session: 2026-03-28
+
+### Phase 20: Active Memory Synthesis and Evolution Journal
+- **Status:** in_progress
+- Actions taken:
+  - Added red tests for three selfhood seams: active learning synthesis in MemoryService, role-scoped learning injection in ContextAssembler, and granular evolution journal writes in EvolutionTrigger.
+  - Added new learning fields to `LearningContext` for `active_self_learnings`, `active_delivery_learnings`, `active_feedback_learnings`, and `recent_evolution_journal`.
+  - Extended node context specs so supervisor/reviewer consume delivery-feedback slices while evolvers consume self learnings and recent journal entries.
+  - Added `record_evolution_journal()` to MemoryRecorder/MemoryService and started mirroring evolution lifecycle stages into episodic memory.
+  - Added active-memory synthesis in `MemoryDistiller` and `MemoryService`, plus post-run derivation hooks for `self`, `delivery`, and `feedback` slices.
+  - Added granular `evolution_journal.jsonl` emission from `EvolutionTrigger` for observe/propose/validate/promote/error stages.
+- Files created/modified:
+  - `src/spec_orch/domain/context.py`
+  - `src/spec_orch/services/context/context_assembler.py`
+  - `src/spec_orch/services/context/node_context_registry.py`
+  - `src/spec_orch/services/memory/distiller.py`
+  - `src/spec_orch/services/memory/recorder.py`
+  - `src/spec_orch/services/memory/service.py`
+  - `src/spec_orch/services/evolution/evolution_trigger.py`
+  - `tests/unit/test_context_assembler.py`
+  - `tests/unit/test_evolution_journal.py`
+  - `tests/unit/test_memory_service.py`
+  - `task_plan.md`
+  - `progress.md`
+
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
