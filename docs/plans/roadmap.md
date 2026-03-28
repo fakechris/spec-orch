@@ -60,13 +60,17 @@ Linear 现状：主干基础能力已完成，当前重新打开了下一阶段 
 
 详细设计见：
 - [SpecOrch vs yoyo-evolve: Harness Engineering Roadmap](2026-03-28-spec-orch-vs-yoyo-evolve-roadmap.md)
+- [Acceptance Taxonomy and Epic Structure](2026-03-28-acceptance-taxonomy-and-epics.md)
 
 | 方向 | 说明 | Linear |
 |------|------|--------|
 | Operator Console Phase 2 | 收口 transcript / approvals / Visual QA / costs / dogfood 闭环 | `SON-234`, `SON-235..241` |
-| Acceptance Harness Phase 2 | exploratory / adversarial acceptance、route planning、browser interaction | `SON-242`, `SON-245..248` |
+| Verification Acceptance | 严格、可回归、可修复的 acceptance verifier | `SON-242`, `SON-245..248` |
+| Workflow Acceptance | 面向真实 operator 任务的端到端交互验收 | `new epic required` |
+| Exploratory Acceptance | 用户视角 / dogfood 式 acceptance critique | `new epic required` |
 | Harness Selfhood | constitutions、active memory synthesis、role-scoped memory、evolution journal | `SON-243`, `SON-249..252` |
-| Operator Feedback & Social Learning | operator feedback capture、feedback synthesis、policy loop、social ingestion spike | `SON-244`, `SON-253..256` |
+| Human Acceptance & Feedback Loop | operator feedback capture、feedback synthesis、policy loop | `SON-244`, `SON-253..255` |
+| External Discussion Ingestion | 受限的外部讨论/社交输入设计探索 | `SON-256` or later epic split |
 
 ### Milestone 2: Contract 自动化
 
