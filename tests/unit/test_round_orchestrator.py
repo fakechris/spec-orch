@@ -696,7 +696,9 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     )
     artifacts = {
         "review_routes": {
+            "overview": "/?mission=mission-1&tab=overview",
             "transcript": "/?mission=mission-1&tab=transcript",
+            "approvals": "/?mission=mission-1&tab=approvals",
             "visual_qa": "/?mission=mission-1&tab=visual",
             "costs": "/?mission=mission-1&tab=costs",
         },
@@ -720,6 +722,52 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     assert impact.interaction_plans["/?mission=mission-1&tab=transcript"][0].target == "Visual QA"
     assert impact.interaction_plans["/?mission=mission-1&tab=transcript"][-1].target == "Transcript"
 
+    monkeypatch.setenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.WORKFLOW.value)
+    workflow = orchestrator._build_acceptance_campaign(mission_id="mission-1", artifacts=artifacts)
+    assert workflow.primary_routes == [
+        "/",
+        "/?mission=mission-1&mode=missions&tab=overview",
+    ]
+    assert workflow.related_route_budget == 2
+    assert workflow.related_routes == [
+        "/?mission=mission-1&tab=transcript",
+        "/?mission=mission-1&tab=approvals",
+    ]
+    assert workflow.interaction_budget == "moderate"
+    assert workflow.required_interactions == [
+        "open launcher",
+        "switch to mission inventory",
+        "select the mission",
+        "open the transcript tab",
+        "confirm actionable review surfaces are reachable",
+    ]
+    assert workflow.filing_policy == "auto_file_broken_flows_only"
+    assert workflow.interaction_plans["/"][0].action == "click_selector"
+    assert workflow.interaction_plans["/"][0].target == '[data-automation-target="open-launcher"]'
+    assert (
+        workflow.interaction_plans["/"][1].target
+        == '[data-automation-target="operator-mode"][data-mode-key="missions"]'
+    )
+    assert (
+        workflow.interaction_plans["/"][2].target
+        == '[data-automation-target="mission-card"][data-mission-id="mission-1"]'
+    )
+    assert (
+        workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][0].target
+        == '[data-automation-target="mission-tab"][data-tab-key="transcript"]'
+    )
+    assert (
+        workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][-1].target
+        == '[data-automation-target="mission-tab"][data-tab-key="overview"][data-active="true"]'
+    )
+    assert workflow.coverage_expectations[-5:] == [
+        "launcher panel can be opened from the header",
+        "missions mode can be selected from mission control",
+        "the target mission can be selected from the mission list",
+        "the transcript tab can be opened from mission detail",
+        "the approvals surface exposes actionable operator controls when present",
+    ]
+
     monkeypatch.setenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.EXPLORATORY.value)
     exploratory = orchestrator._build_acceptance_campaign(
         mission_id="mission-1", artifacts=artifacts
@@ -733,6 +781,84 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     ]
     assert exploratory.interaction_plans["/?mission=mission-1&tab=costs"][0].target == "Transcript"
     assert exploratory.interaction_plans["/?mission=mission-1&tab=costs"][-1].target == "Costs"
+
+
+def test_build_acceptance_campaign_escapes_mission_id_for_workflow_css_selector(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    mission_id = 'mission"with\\quotes'
+    mission_dir = tmp_path / "docs" / "specs" / mission_id
+    mission_dir.mkdir(parents=True)
+    (mission_dir / "mission.json").write_text(
+        json.dumps(
+            {
+                "id": mission_id,
+                "title": "Mission 1",
+                "acceptance_criteria": [],
+                "constraints": [],
+                "approved": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    monkeypatch.setenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.WORKFLOW.value)
+
+    campaign = orchestrator._build_acceptance_campaign(
+        mission_id=mission_id,
+        artifacts={"review_routes": {}},
+    )
+
+    assert (
+        campaign.interaction_plans["/"][2].target
+        == '[data-automation-target="mission-card"][data-mission-id="mission\\"with\\\\quotes"]'
+    )
+
+
+def test_build_acceptance_campaign_workflow_allows_single_env_primary_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    mission_dir = tmp_path / "docs" / "specs" / "mission-1"
+    mission_dir.mkdir(parents=True)
+    (mission_dir / "mission.json").write_text(
+        json.dumps(
+            {
+                "id": "mission-1",
+                "title": "Mission 1",
+                "acceptance_criteria": [],
+                "constraints": [],
+                "approved": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    monkeypatch.setenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.WORKFLOW.value)
+    monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_PATHS", "/")
+
+    campaign = orchestrator._build_acceptance_campaign(
+        mission_id="mission-1",
+        artifacts={"review_routes": {}},
+    )
+
+    assert campaign.primary_routes == ["/"]
+    assert campaign.min_primary_routes == 1
 
 
 def test_build_acceptance_campaign_uses_visual_eval_paths_env_for_primary_routes(

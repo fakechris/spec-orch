@@ -17,6 +17,10 @@ _MODE_GUIDANCE: dict[AcceptanceMode, str] = {
         "Validate the target feature and sweep neighboring routes for regressions or "
         "cross-surface breakage caused by the change."
     ),
+    AcceptanceMode.WORKFLOW: (
+        "Verify that a real operator workflow can be completed end-to-end. "
+        "Focus on blocked transitions, missing actionability, and broken handoffs."
+    ),
     AcceptanceMode.EXPLORATORY: (
         "Act as an independent operator using the product to complete the intended task. "
         "Do not assume the mission framing or UI structure is correct."
@@ -38,6 +42,17 @@ _MODE_RUBRIC: dict[AcceptanceMode, list[str]] = {
         (
             "Downgrade confidence when coverage misses routes needed to confirm or "
             "falsify a regression."
+        ),
+    ],
+    AcceptanceMode.WORKFLOW: [
+        "Treat end-to-end task completion as the primary contract for this review.",
+        (
+            "Prefer step-level breakage, blocked transitions, and missing actionability "
+            "over broad product critique."
+        ),
+        (
+            "Fail the run when the workflow cannot progress through the declared operator "
+            "steps, even if the surrounding UI still renders."
         ),
     ],
     AcceptanceMode.EXPLORATORY: [
@@ -120,6 +135,15 @@ def compose_acceptance_prompt(
         ],
     )
     filing_policy_guidance = "\n".join(f"- {line}" for line in filing_policy_lines)
+    workflow_contract = ""
+    if active_campaign.mode is AcceptanceMode.WORKFLOW:
+        required_interactions = ", ".join(active_campaign.required_interactions) or "none"
+        workflow_assertions = ", ".join(active_campaign.coverage_expectations) or "none"
+        workflow_contract = (
+            "## Workflow Contract\n"
+            f"- Required interactions: {required_interactions}\n"
+            f"- Workflow assertions: {workflow_assertions}\n\n"
+        )
     return (
         "## Acceptance Mode\n"
         f"Mode: {active_campaign.mode.value}\n"
@@ -141,6 +165,7 @@ def compose_acceptance_prompt(
         "## Filing Policy\n"
         f"- Policy: {active_campaign.filing_policy or 'unspecified'}\n"
         f"{filing_policy_guidance}\n\n"
+        f"{workflow_contract}"
         "## Evidence Payload\n"
         f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
     )

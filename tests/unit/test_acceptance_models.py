@@ -150,3 +150,32 @@ def test_acceptance_campaign_from_dict_coerces_invalid_route_budgets_to_zero() -
 
     assert restored.min_primary_routes == 0
     assert restored.related_route_budget == 0
+
+
+def test_acceptance_campaign_round_trip_supports_workflow_mode() -> None:
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.WORKFLOW,
+        goal="Complete the launcher-to-mission-control operator workflow.",
+        primary_routes=["/"],
+        related_routes=["/?mission=workflow-smoke&mode=missions&tab=transcript"],
+        interaction_plans={
+            "/": [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="mission-card"][data-mission-id="workflow-smoke"]',
+                    description="Select the workflow smoke mission from the mission list.",
+                )
+            ]
+        },
+        coverage_expectations=["launcher flow", "mission selection", "transcript tab"],
+        required_interactions=["select mission", "switch transcript tab"],
+        min_primary_routes=2,
+        related_route_budget=1,
+        interaction_budget="moderate",
+        filing_policy="auto_file_broken_flows_only",
+        exploration_budget="bounded",
+    )
+
+    restored = AcceptanceCampaign.from_dict(campaign.to_dict())
+
+    assert restored == campaign

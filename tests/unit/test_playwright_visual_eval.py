@@ -236,6 +236,9 @@ def test_capture_page_snapshots_executes_interaction_plan(
         def get_by_text(self, text: str, exact: bool = True) -> FakeLocator:
             return FakeLocator(text, self.log)
 
+        def locator(self, selector: str) -> FakeLocator:
+            return FakeLocator(selector, self.log)
+
         def wait_for_load_state(self, state: str, timeout: int) -> None:
             self.log.append(("load_state", state))
 
@@ -297,6 +300,10 @@ def test_capture_page_snapshots_executes_interaction_plan(
         paths=["/?mission=mission-5&tab=overview"],
         interaction_plans={
             "/?mission=mission-5&tab=overview": [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="mission-card"][data-mission-id="mission-5"]',
+                ),
                 AcceptanceInteractionStep(action="click_text", target="Transcript"),
                 AcceptanceInteractionStep(action="click_text", target="Overview"),
             ]
@@ -308,8 +315,15 @@ def test_capture_page_snapshots_executes_interaction_plan(
 
     assert failures == []
     assert snapshots[0].interaction_log == [
+        {
+            "action": "click_selector",
+            "target": '[data-automation-target="mission-card"][data-mission-id="mission-5"]',
+            "description": "",
+            "status": "passed",
+        },
         {"action": "click_text", "target": "Transcript", "description": "", "status": "passed"},
         {"action": "click_text", "target": "Overview", "description": "", "status": "passed"},
     ]
+    assert ("click", '[data-automation-target="mission-card"][data-mission-id="mission-5"]') in log
     assert ("click", "Transcript") in log
     assert ("click", "Overview") in log

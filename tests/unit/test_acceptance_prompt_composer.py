@@ -187,3 +187,60 @@ def test_compose_acceptance_prompt_adds_mode_specific_filing_policy_guidance(
     assert "## Filing Policy" in prompt
     assert "Only propose auto-file issues for in-scope regressions" in prompt
     assert "If coverage is missing or partial, lower confidence and explain the gap." in prompt
+
+
+def test_compose_acceptance_prompt_marks_workflow_runs_as_flow_verification(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.prompt_composer import compose_acceptance_prompt
+
+    prompt = compose_acceptance_prompt(
+        mission_id="mission-5",
+        round_id=5,
+        round_dir=tmp_path / "docs/specs/mission-5/rounds/round-05",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={
+            "mission": {"mission_id": "mission-5", "title": "Mission 5"},
+            "browser_evidence": {"tested_routes": ["/", "/?mission=workflow-smoke&tab=transcript"]},
+        },
+        repo_root=tmp_path,
+        campaign=AcceptanceCampaign(
+            mode=AcceptanceMode.WORKFLOW,
+            goal="Verify the operator can complete launcher and mission-control steps end-to-end.",
+            primary_routes=["/", "/?mission=workflow-smoke&mode=missions&tab=overview"],
+            related_routes=["/?mission=workflow-smoke&mode=missions&tab=transcript"],
+            interaction_plans={
+                "/": [
+                    AcceptanceInteractionStep(
+                        action="click_selector",
+                        target='[data-automation-target="mission-card"][data-mission-id="workflow-smoke"]',
+                    )
+                ]
+            },
+            coverage_expectations=["launcher", "mission detail", "transcript"],
+            required_interactions=[
+                "select mission",
+                "open transcript tab",
+                "verify mission detail",
+            ],
+            min_primary_routes=2,
+            related_route_budget=1,
+            interaction_budget="moderate",
+            filing_policy="auto_file_broken_flows_only",
+            exploration_budget="bounded",
+        ),
+    )
+
+    assert "Mode: workflow" in prompt
+    assert "Verify that a real operator workflow can be completed end-to-end." in prompt
+    assert "Treat end-to-end task completion as the primary contract for this review." in prompt
+    assert (
+        "Prefer step-level breakage, blocked transitions, and missing actionability over broad product critique."
+        in prompt
+    )
+    assert "Use issue proposals for clearly broken or blocked operator flows" in prompt
+    assert "## Workflow Contract" in prompt
+    assert (
+        "Required interactions: select mission, open transcript tab, verify mission detail"
+        in prompt
+    )

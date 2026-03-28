@@ -753,8 +753,12 @@ class RoundOrchestrator:
                 ),
             },
             "review_routes": {
+                "overview": f"/?mission={mission_id}&mode=missions&tab=overview",
                 "transcript": (
                     f"/?mission={mission_id}&mode=missions&tab=transcript&round={round_id}"
+                ),
+                "approvals": (
+                    f"/?mission={mission_id}&mode=missions&tab=approvals&round={round_id}"
                 ),
                 "visual_qa": f"/?mission={mission_id}&mode=missions&tab=visual&round={round_id}",
                 "costs": f"/?mission={mission_id}&mode=missions&tab=costs&round={round_id}",
@@ -762,6 +766,7 @@ class RoundOrchestrator:
                     f"/?mission={mission_id}&mode=missions&tab=acceptance&round={round_id}"
                 ),
             },
+            "workflow_assertions": self._build_workflow_assertions(),
         }
 
     def _build_acceptance_campaign(
@@ -772,7 +777,11 @@ class RoundOrchestrator:
     ) -> AcceptanceCampaign:
         mode = self._resolve_acceptance_mode()
         review_routes = artifacts.get("review_routes", {})
-        primary_routes = self._acceptance_primary_routes(artifacts)
+        primary_routes = self._acceptance_primary_routes(
+            mission_id=mission_id,
+            artifacts=artifacts,
+            mode=mode,
+        )
         mission = self._load_mission(mission_id)
         related_routes = self._acceptance_related_routes(
             primary_routes=primary_routes,
@@ -780,14 +789,23 @@ class RoundOrchestrator:
             mode=mode,
         )
         coverage_expectations = list(mission.acceptance_criteria) if mission is not None else []
+        workflow_assertions = [
+            str(assertion)
+            for assertion in artifacts.get("workflow_assertions", [])
+            if str(assertion).strip()
+        ]
+        if mode is AcceptanceMode.WORKFLOW and not workflow_assertions:
+            workflow_assertions = self._build_workflow_assertions()
         filing_policy = {
             AcceptanceMode.FEATURE_SCOPED: "in_scope_only",
             AcceptanceMode.IMPACT_SWEEP: "auto_file_regressions_only",
+            AcceptanceMode.WORKFLOW: "auto_file_broken_flows_only",
             AcceptanceMode.EXPLORATORY: "hold_ux_concerns_for_operator_review",
         }[mode]
         exploration_budget = {
             AcceptanceMode.FEATURE_SCOPED: "tight",
             AcceptanceMode.IMPACT_SWEEP: "medium",
+            AcceptanceMode.WORKFLOW: "bounded",
             AcceptanceMode.EXPLORATORY: "wide",
         }[mode]
         goal = {
@@ -797,21 +815,27 @@ class RoundOrchestrator:
             AcceptanceMode.IMPACT_SWEEP: (
                 "Sweep nearby routes for regressions caused by this round."
             ),
+            AcceptanceMode.WORKFLOW: (
+                "Verify the operator can complete launcher and mission-control steps end-to-end."
+            ),
             AcceptanceMode.EXPLORATORY: "Dogfood the output from an operator perspective.",
         }[mode]
         min_primary_routes = {
             AcceptanceMode.FEATURE_SCOPED: max(1, len(primary_routes)),
             AcceptanceMode.IMPACT_SWEEP: max(1, len(primary_routes)),
+            AcceptanceMode.WORKFLOW: max(1, len(primary_routes)),
             AcceptanceMode.EXPLORATORY: 1,
         }[mode]
         related_route_budget = {
             AcceptanceMode.FEATURE_SCOPED: 1,
             AcceptanceMode.IMPACT_SWEEP: 3,
+            AcceptanceMode.WORKFLOW: 2,
             AcceptanceMode.EXPLORATORY: 5,
         }[mode]
         interaction_budget = {
             AcceptanceMode.FEATURE_SCOPED: "tight",
             AcceptanceMode.IMPACT_SWEEP: "moderate",
+            AcceptanceMode.WORKFLOW: "moderate",
             AcceptanceMode.EXPLORATORY: "wide",
         }[mode]
         required_interactions = {
@@ -819,6 +843,13 @@ class RoundOrchestrator:
             AcceptanceMode.IMPACT_SWEEP: [
                 "verify declared feature flow",
                 "sweep adjacent mission surfaces",
+            ],
+            AcceptanceMode.WORKFLOW: [
+                "open launcher",
+                "switch to mission inventory",
+                "select the mission",
+                "open the transcript tab",
+                "confirm actionable review surfaces are reachable",
             ],
             AcceptanceMode.EXPLORATORY: [
                 "complete the intended operator task",
@@ -829,6 +860,7 @@ class RoundOrchestrator:
             mode=mode,
             primary_routes=primary_routes,
             related_routes=related_routes,
+            mission_id=mission_id,
         )
         return AcceptanceCampaign(
             mode=mode,
@@ -836,7 +868,7 @@ class RoundOrchestrator:
             primary_routes=primary_routes,
             related_routes=related_routes,
             interaction_plans=interaction_plans,
-            coverage_expectations=coverage_expectations,
+            coverage_expectations=coverage_expectations + workflow_assertions,
             required_interactions=required_interactions,
             min_primary_routes=min_primary_routes,
             related_route_budget=related_route_budget,
@@ -857,12 +889,23 @@ class RoundOrchestrator:
             )
             return AcceptanceMode.FEATURE_SCOPED
 
-    def _acceptance_primary_routes(self, artifacts: dict[str, Any]) -> list[str]:
+    def _acceptance_primary_routes(
+        self,
+        *,
+        mission_id: str,
+        artifacts: dict[str, Any],
+        mode: AcceptanceMode,
+    ) -> list[str]:
         paths_env = os.getenv("SPEC_ORCH_VISUAL_EVAL_PATHS", "").strip()
         if paths_env:
             env_routes = [part.strip() for part in paths_env.split(",") if part.strip()]
             if env_routes:
                 return self._unique_preserve_order(env_routes)
+        if mode is AcceptanceMode.WORKFLOW:
+            return [
+                "/",
+                f"/?mission={mission_id}&mode=missions&tab=overview",
+            ]
         return ["/"]
 
     def _acceptance_related_routes(
@@ -875,6 +918,7 @@ class RoundOrchestrator:
         budget = {
             AcceptanceMode.FEATURE_SCOPED: 1,
             AcceptanceMode.IMPACT_SWEEP: 3,
+            AcceptanceMode.WORKFLOW: 2,
             AcceptanceMode.EXPLORATORY: 5,
         }[mode]
         candidates = [
@@ -882,7 +926,41 @@ class RoundOrchestrator:
             for route in review_routes.values()
             if isinstance(route, str) and route and route not in primary_routes
         ]
-        return self._unique_preserve_order(candidates)[:budget]
+        priority = self._acceptance_route_priority(mode)
+        candidates = sorted(
+            self._unique_preserve_order(candidates),
+            key=lambda route: (priority.get(self._route_tab_key(route), 99), route),
+        )
+        return candidates[:budget]
+
+    @staticmethod
+    def _acceptance_route_priority(mode: AcceptanceMode) -> dict[str, int]:
+        if mode is AcceptanceMode.WORKFLOW:
+            return {
+                "transcript": 0,
+                "approvals": 1,
+                "acceptance": 2,
+                "visual": 3,
+                "costs": 4,
+                "overview": 5,
+            }
+        if mode is AcceptanceMode.IMPACT_SWEEP:
+            return {
+                "transcript": 0,
+                "visual": 1,
+                "costs": 2,
+                "approvals": 3,
+                "acceptance": 4,
+                "overview": 5,
+            }
+        return {
+            "transcript": 0,
+            "visual": 1,
+            "costs": 2,
+            "approvals": 3,
+            "acceptance": 4,
+            "overview": 5,
+        }
 
     def _build_acceptance_interaction_plans(
         self,
@@ -890,10 +968,11 @@ class RoundOrchestrator:
         mode: AcceptanceMode,
         primary_routes: list[str],
         related_routes: list[str],
+        mission_id: str,
     ) -> dict[str, list[AcceptanceInteractionStep]]:
         plans: dict[str, list[AcceptanceInteractionStep]] = {}
         for route in self._unique_preserve_order([*primary_routes, *related_routes]):
-            plan = self._interaction_plan_for_route(route, mode=mode)
+            plan = self._interaction_plan_for_route(route, mode=mode, mission_id=mission_id)
             if plan:
                 plans[route] = plan
         return plans
@@ -903,7 +982,10 @@ class RoundOrchestrator:
         route: str,
         *,
         mode: AcceptanceMode,
+        mission_id: str,
     ) -> list[AcceptanceInteractionStep]:
+        if mode is AcceptanceMode.WORKFLOW:
+            return self._workflow_interaction_plan_for_route(route, mission_id=mission_id)
         if "mission=" not in route:
             return []
         restore_label = self._route_tab_label(route)
@@ -931,11 +1013,91 @@ class RoundOrchestrator:
             )
         return steps
 
+    def _workflow_interaction_plan_for_route(
+        self,
+        route: str,
+        *,
+        mission_id: str,
+    ) -> list[AcceptanceInteractionStep]:
+        escaped_mission_id = self._css_attr_escape(mission_id)
+        if route == "/":
+            return [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="open-launcher"]',
+                    description="Open the launcher from the dashboard header.",
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="operator-mode"][data-mode-key="missions"]',
+                    description="Switch mission control into the All Missions inventory.",
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target=(
+                        '[data-automation-target="mission-card"]'
+                        f'[data-mission-id="{escaped_mission_id}"]'
+                    ),
+                    description="Select the target mission from the mission list.",
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="overview"][data-active="true"]',
+                    description="Confirm the mission overview is active.",
+                ),
+            ]
+        if "tab=overview" in route:
+            return [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="transcript"]',
+                    description="Open the transcript tab from mission detail.",
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="transcript"][data-active="true"]',
+                    description="Confirm the transcript tab became active.",
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="approvals"]',
+                    description="Open the approvals tab from mission detail.",
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="approvals"][data-active="true"]',
+                    description="Confirm the approvals tab became active.",
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="overview"]',
+                    description="Return to the overview tab after the workflow sweep.",
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="overview"][data-active="true"]',
+                    description="Confirm the overview tab became active again.",
+                ),
+            ]
+        return []
+
+    @staticmethod
+    def _css_attr_escape(value: str) -> str:
+        return value.replace("\\", "\\\\").replace('"', '\\"')
+
+    @staticmethod
+    def _build_workflow_assertions() -> list[str]:
+        return [
+            "launcher panel can be opened from the header",
+            "missions mode can be selected from mission control",
+            "the target mission can be selected from the mission list",
+            "the transcript tab can be opened from mission detail",
+            "the approvals surface exposes actionable operator controls when present",
+        ]
+
     @staticmethod
     def _route_tab_label(route: str) -> str:
-        tab = ""
-        if "tab=" in route:
-            tab = route.split("tab=", 1)[1].split("&", 1)[0]
+        tab = RoundOrchestrator._route_tab_key(route)
         return {
             "overview": "Overview",
             "transcript": "Transcript",
@@ -945,6 +1107,12 @@ class RoundOrchestrator:
             "acceptance": "Acceptance",
             "costs": "Costs",
         }.get(tab, "Overview")
+
+    @staticmethod
+    def _route_tab_key(route: str) -> str:
+        if "tab=" not in route:
+            return "overview"
+        return route.split("tab=", 1)[1].split("&", 1)[0]
 
     def _acceptance_browser_routes(self, campaign: AcceptanceCampaign) -> list[str]:
         return self._unique_preserve_order(

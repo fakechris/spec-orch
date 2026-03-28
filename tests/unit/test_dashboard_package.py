@@ -149,3 +149,50 @@ def test_operator_console_asset_surfaces_acceptance_coverage_labels() -> None:
     assert "Untested expected routes" in source
     assert "Array.isArray(latest.untested_expected_routes)" in source
     assert "Array.isArray(review.untested_expected_routes)" in source
+
+
+def test_dashboard_mission_cards_expose_stable_automation_targets() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert 'data-automation-target="mission-card"' in source
+    assert 'data-mission-id="${escAttr(m.mission_id)}"' in source
+
+
+def test_dashboard_mission_tabs_expose_stable_automation_targets() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert 'data-automation-target="mission-tab"' in source
+    assert 'data-tab-key="${escAttr(key)}"' in source
+    assert "data-active=\"${activeTab === key ? 'true' : 'false'}\"" in source
+
+
+def test_dashboard_operator_modes_and_launcher_actions_expose_workflow_targets() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert 'data-automation-target="open-launcher"' in source
+    assert 'data-automation-target="operator-mode"' in source
+    assert 'data-mode-key="inbox"' in source
+    assert 'data-mode-key="missions"' in source
+    assert 'data-mode-key="approvals"' in source
+    assert 'data-mode-key="evidence"' in source
+    assert "button.dataset.active = selectedOperatorMode === mode ? 'true' : 'false';" in source
+    assert 'data-automation-target="launcher-action"' in source
+
+
+def test_operator_console_approval_actions_expose_stable_automation_targets() -> None:
+    asset_path = (
+        Path(__file__).resolve().parents[2]
+        / "src/spec_orch/dashboard_assets/static/operator-console.js"
+    )
+    source = asset_path.read_text(encoding="utf-8")
+
+    assert 'data-automation-target="approval-action"' in source
+    assert "data-action-key=\"${escAttr(action?.key || '')}\"" in source
+    assert 'data-mission-id="${escAttr(missionId)}"' in source
+    assert (
+        '<button class="btn btn-green btn-sm" type="button" data-automation-target="approval-action"'
+        in source
+    )
