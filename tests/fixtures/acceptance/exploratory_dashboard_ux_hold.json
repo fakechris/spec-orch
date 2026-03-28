@@ -1,0 +1,83 @@
+{
+  "review": {
+    "status": "fail",
+    "summary": "Exploratory review found transcript navigation confusing for first-time operators.",
+    "confidence": 0.91,
+    "evaluator": "acceptance_llm",
+    "acceptance_mode": "exploratory",
+    "coverage_status": "complete",
+    "tested_routes": [
+      "/",
+      "/?mission=operator-console&mode=missions&tab=transcript"
+    ],
+    "untested_expected_routes": [],
+    "recommended_next_step": "Hold broad UX concerns for operator review before filing.",
+    "findings": [
+      {
+        "severity": "high",
+        "summary": "Transcript navigation is hard to understand",
+        "details": "The page is functionally intact but the route structure is not self-evident.",
+        "expected": "A first-time operator can discover transcript controls without guidance.",
+        "actual": "The operator must infer which tab and packet selection state matters.",
+        "route": "/?mission=operator-console&mode=missions&tab=transcript",
+        "artifact_paths": {
+          "screenshot": "rounds/round-03/visual/transcript.png"
+        }
+      }
+    ],
+    "issue_proposals": [
+      {
+        "title": "Clarify transcript navigation language",
+        "summary": "Exploratory acceptance found the transcript area conceptually confusing but not broken.",
+        "severity": "high",
+        "confidence": 0.91,
+        "repro_steps": [
+          "Open transcript tab",
+          "Attempt to understand packet selection without prior context"
+        ],
+        "expected": "Transcript controls feel self-explanatory.",
+        "actual": "Operator must infer the intended flow.",
+        "route": "/?mission=operator-console&mode=missions&tab=transcript",
+        "artifact_paths": {
+          "screenshot": "rounds/round-03/visual/transcript.png"
+        },
+        "linear_issue_id": "",
+        "filing_status": "",
+        "filing_error": ""
+      }
+    ],
+    "artifacts": {
+      "acceptance_review": "rounds/round-03/acceptance_review.json"
+    },
+    "campaign": {
+      "mode": "exploratory",
+      "goal": "Dogfood the operator console as a first-time operator.",
+      "primary_routes": [
+        "/"
+      ],
+      "related_routes": [
+        "/?mission=operator-console&mode=missions&tab=transcript"
+      ],
+      "interaction_plans": {},
+      "coverage_expectations": [
+        "operator can discover transcript flow"
+      ],
+      "required_interactions": [
+        "open transcript tab"
+      ],
+      "min_primary_routes": 1,
+      "related_route_budget": 2,
+      "interaction_budget": "wide",
+      "filing_policy": "hold_ux_concerns_for_operator_review",
+      "exploration_budget": "wide"
+    }
+  },
+  "expected": {
+    "filed_statuses": [
+      "skipped"
+    ],
+    "linear_calls": 0,
+    "acceptance_mode": "exploratory",
+    "coverage_status": "complete"
+  }
+}

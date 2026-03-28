@@ -106,8 +106,10 @@ class LinearAcceptanceFiler:
             return True, ""
 
         if campaign.filing_policy == "auto_file_regressions_only":
-            covered_routes = set(result.tested_routes) | set(campaign.primary_routes) | set(
-                campaign.related_routes
+            covered_routes = (
+                set(result.tested_routes)
+                | set(campaign.primary_routes)
+                | set(campaign.related_routes)
             )
             if proposal.route and proposal.route not in covered_routes:
                 return False, "proposal route was not covered by the acceptance campaign"

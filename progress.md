@@ -265,6 +265,24 @@
 - **mypy**: no issues found in touched acceptance/orchestrator files
 - **pytest**: 1505/1505 tests passed
 
+### Acceptance Harness Phase 2 — Calibration Fixtures & Dogfood Regression
+- **Status:** complete
+- Actions taken:
+  - Added fixed acceptance fixtures for a feature-scoped launcher regression, an exploratory UX hold case, and a sanitized operator-console dogfood run spanning three rounds.
+  - Added regression tests that round-trip acceptance review payloads through the domain model and assert policy-aware Linear filing decisions stay stable.
+  - Added a dashboard-surface regression that materializes the dogfood fixture into `acceptance_review.json` artifacts and verifies mission-level review summaries remain numerically correct.
+- Files created/modified:
+  - `tests/fixtures/acceptance/feature_scoped_launcher_regression.json`
+  - `tests/fixtures/acceptance/exploratory_dashboard_ux_hold.json`
+  - `tests/fixtures/acceptance/dogfood_dashboard_regression.json`
+  - `tests/unit/test_acceptance_calibration_suite.py`
+  - `task_plan.md`
+  - `progress.md`
+
+### Verification
+- **pytest**: acceptance calibration + filing + dashboard suite passed (`77 passed`)
+- **ruff**: calibration suite checks passed
+
 ## Session: 2026-03-27
 
 ### Phase: yoyo-evolve harness analysis
