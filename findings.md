@@ -79,3 +79,41 @@
   - add `/static` entrypoints
   - add mission detail and transcript projections
   - only then rebuild the UI shell on top
+
+## Session: 2026-03-27 yoyo-evolve Harness Research
+
+### Research Focus
+- Deeply inspect `yologdev/yoyo-evolve` as a harness engineering case study.
+- Compare its self-evolution loop, memory system, personality/identity model, and social vision against SpecOrch.
+- Identify what is directly borrowable versus what belongs to a different product thesis.
+
+### Source Findings
+- `yoyo-evolve` treats `IDENTITY.md`, `PERSONALITY.md`, `JOURNAL.md`, `memory/active_learnings.md`, and `memory/active_social_learnings.md` as operational prompt assets, not passive documentation.
+- The evolution loop is tightly bounded: one evolution cycle, explicit plan/implement/respond phases, mandatory `cargo build`/`cargo test`, revert-on-failure, and a public journal entry every session.
+- The project’s “wildness” is constrained less by product management and more by a strong constitution plus a very narrow self-edit loop. It grows autonomously, but within a heavily ritualized engineering envelope.
+- Memory is explicitly layered:
+  - append-only JSONL archives as source of truth
+  - daily-synthesized active markdown for prompt injection
+  - separate self-learnings and social-learnings
+  - context assembly through `scripts/yoyo_context.sh`
+- Social behavior is part of the architecture, not a side project:
+  - `social.sh` runs periodic discussion sessions
+  - `create_address_book.sh` and the `yoyobook` category define a fork-family registry
+  - sponsor economics and social learnings feed operational behavior
+- `yoyo`'s personality is intentionally lightweight but persistent: “small octopus growing up in public,” curious/honest/stubborn, and this persona is reinforced by both docs and prompt context.
+
+### Comparison Implications For SpecOrch
+- SpecOrch is stronger as a delivery control plane: explicit missions, rounds, approvals, acceptance artifacts, budget/QA/operator surfaces.
+- `yoyo-evolve` is stronger as an agent-selfhood system: identity continuity, memory continuity, autobiographical evolution, and socially legible personality.
+- SpecOrch’s current memory architecture is infrastructurally richer but less narratively alive; it stores task and run knowledge, but not a durable “who am I becoming?” layer.
+- SpecOrch’s operator console and mission launcher already surpass `yoyo` on multi-surface observability, but `yoyo` is ahead on making evolution itself inspectable as a story.
+
+### Roadmap Alignment Decision
+- Keep `SON-74` as the completed self-evolution baseline. Do not reopen it to absorb new harness-engineering work.
+- Normalize `SON-234` into a real epic and attach `SON-235..241` as its child issues so operator-console depth work has an actual parent epic.
+- Create a dedicated adversarial/exploratory acceptance epic instead of hiding it under operator-console tasks:
+  - `SON-242` with children `SON-245..248`
+- Create a dedicated selfhood/memory-synthesis epic for the yoyo-inspired borrowings:
+  - `SON-243` with children `SON-249..252`
+- Create a bounded operator-feedback/social-learning epic instead of overcommitting to a full social-product pivot:
+  - `SON-244` with children `SON-253..256`
