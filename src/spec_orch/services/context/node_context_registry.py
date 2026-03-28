@@ -28,6 +28,10 @@ _LEARNING_FIELDS = {
     "scoper_hints",
     "relevant_policies",
     "matched_skills",
+    "active_self_learnings",
+    "active_delivery_learnings",
+    "active_feedback_learnings",
+    "recent_evolution_journal",
 }
 
 
@@ -66,7 +70,7 @@ NODE_CONTEXT_SPEC_REGISTRY: dict[str, NodeContextSpec] = {
         node_name="llm_reviewer",
         required_task_fields=["acceptance_criteria", "constraints"],
         required_execution_fields=["git_diff", "verification_results", "gate_report"],
-        required_learning_fields=["similar_failure_samples"],
+        required_learning_fields=["similar_failure_samples", "active_delivery_learnings"],
         max_tokens_budget=10000,
     ),
     "supervisor": NodeContextSpec(
@@ -79,7 +83,11 @@ NODE_CONTEXT_SPEC_REGISTRY: dict[str, NodeContextSpec] = {
             "builder_events_summary",
             "review_summary",
         ],
-        required_learning_fields=["similar_failure_samples"],
+        required_learning_fields=[
+            "similar_failure_samples",
+            "active_delivery_learnings",
+            "active_feedback_learnings",
+        ],
         max_tokens_budget=9000,
     ),
     # SON-179 group B
@@ -87,49 +95,79 @@ NODE_CONTEXT_SPEC_REGISTRY: dict[str, NodeContextSpec] = {
         node_name="prompt_evolver",
         required_task_fields=["constraints"],
         required_execution_fields=["verification_results", "deviation_slices"],
-        required_learning_fields=["similar_failure_samples"],
+        required_learning_fields=[
+            "similar_failure_samples",
+            "active_self_learnings",
+            "recent_evolution_journal",
+        ],
         max_tokens_budget=7000,
     ),
     "plan_strategy_evolver": NodeContextSpec(
         node_name="plan_strategy_evolver",
         required_task_fields=["constraints"],
         required_execution_fields=["verification_results", "deviation_slices"],
-        required_learning_fields=["similar_failure_samples"],
+        required_learning_fields=[
+            "similar_failure_samples",
+            "active_self_learnings",
+            "recent_evolution_journal",
+        ],
         max_tokens_budget=7000,
     ),
     "flow_policy_evolver": NodeContextSpec(
         node_name="flow_policy_evolver",
         required_task_fields=["constraints"],
         required_execution_fields=["verification_results", "deviation_slices"],
-        required_learning_fields=["similar_failure_samples"],
+        required_learning_fields=[
+            "similar_failure_samples",
+            "active_self_learnings",
+            "recent_evolution_journal",
+        ],
         max_tokens_budget=7000,
     ),
     "gate_policy_evolver": NodeContextSpec(
         node_name="gate_policy_evolver",
         required_task_fields=["constraints", "acceptance_criteria"],
         required_execution_fields=["verification_results", "gate_report"],
-        required_learning_fields=["similar_failure_samples"],
+        required_learning_fields=[
+            "similar_failure_samples",
+            "active_self_learnings",
+            "recent_evolution_journal",
+        ],
         max_tokens_budget=7000,
     ),
     "intent_evolver": NodeContextSpec(
         node_name="intent_evolver",
         required_task_fields=["constraints"],
         required_execution_fields=["deviation_slices"],
-        required_learning_fields=["scoper_hints", "similar_failure_samples"],
+        required_learning_fields=[
+            "scoper_hints",
+            "similar_failure_samples",
+            "active_self_learnings",
+            "recent_evolution_journal",
+        ],
         max_tokens_budget=7000,
     ),
     "config_evolver": NodeContextSpec(
         node_name="config_evolver",
         required_task_fields=["constraints"],
         required_execution_fields=["verification_results", "deviation_slices"],
-        required_learning_fields=["similar_failure_samples", "relevant_policies"],
+        required_learning_fields=[
+            "similar_failure_samples",
+            "relevant_policies",
+            "active_self_learnings",
+            "recent_evolution_journal",
+        ],
         max_tokens_budget=7000,
     ),
     "harness_synthesizer": NodeContextSpec(
         node_name="harness_synthesizer",
         required_task_fields=["constraints"],
         required_execution_fields=["verification_results", "deviation_slices"],
-        required_learning_fields=["similar_failure_samples"],
+        required_learning_fields=[
+            "similar_failure_samples",
+            "active_self_learnings",
+            "recent_evolution_journal",
+        ],
         max_tokens_budget=8000,
     ),
     "policy_distiller": NodeContextSpec(

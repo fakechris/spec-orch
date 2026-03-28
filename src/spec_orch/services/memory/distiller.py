@@ -6,6 +6,7 @@ LLM-based (or fallback) summarisation, and soft-delete of stale entries.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import TYPE_CHECKING, Any
@@ -17,6 +18,32 @@ if TYPE_CHECKING:
     from spec_orch.services.memory.protocol import MemoryProvider
 
 logger = logging.getLogger(__name__)
+
+_ACTIVE_LEARNING_TAGS: dict[str, tuple[str, ...]] = {
+    "self": (
+        "evolution-journal",
+        "prompt-variant",
+        "intent-classified",
+        "conductor-fork",
+        "distilled",
+    ),
+    "delivery": (
+        "run-summary",
+        "issue-result",
+        "gate-verdict",
+        "builder-telemetry",
+        "mission-event",
+        "distilled",
+    ),
+    "feedback": (
+        "acceptance",
+        "human-feedback",
+        "review",
+        "acceptance-review",
+        "linear-filed",
+        "followup",
+    ),
+}
 
 
 class MemoryDistiller:
@@ -255,3 +282,72 @@ class MemoryDistiller:
         if removed > 0:
             logger.info("GC'd %d old superseded entries", removed)
         return removed
+
+    def synthesize_active_learning_slice(
+        self,
+        kind: str,
+        *,
+        top_k: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Promote recent learnings into a stable active-memory slice."""
+        normalized = kind.strip().lower()
+        tag_prefixes = _ACTIVE_LEARNING_TAGS.get(normalized)
+        if tag_prefixes is None:
+            raise ValueError(f"Unsupported active learning kind: {kind}")
+
+        summaries = self._list_summaries(limit=100_000)
+        candidates: list[dict[str, Any]] = []
+        for summary in summaries:
+            tags = summary.get("tags", [])
+            if not isinstance(tags, list):
+                continue
+            if "active-learning" in tags:
+                continue
+            if not any(
+                any(tag.startswith(prefix) or tag == prefix for prefix in tag_prefixes)
+                for tag in tags
+            ):
+                continue
+            entry = self._provider.get(summary["key"])
+            if entry is None:
+                continue
+            if entry.metadata.get("relation_type") == "superseded":
+                continue
+            candidates.append(
+                {
+                    "key": entry.key,
+                    "content": entry.content,
+                    "tags": entry.tags,
+                    "metadata": entry.metadata,
+                    "created_at": entry.created_at,
+                    "updated_at": entry.updated_at,
+                }
+            )
+
+        candidates.sort(
+            key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""),
+            reverse=True,
+        )
+        items = candidates[:top_k]
+        if not items:
+            return []
+
+        payload = {
+            "kind": normalized,
+            "summary": [f"{item['key']}: {item['content'][:160]}" for item in items],
+            "items": items,
+        }
+        self._provider.store(
+            MemoryEntry(
+                key=f"active-learning-{normalized}",
+                content=json.dumps(payload, ensure_ascii=False),
+                layer=MemoryLayer.SEMANTIC,
+                tags=["active-learning", f"active-learning:{normalized}"],
+                metadata={
+                    "kind": normalized,
+                    "source_count": len(items),
+                    "relation_type": "derive",
+                },
+            )
+        )
+        return items

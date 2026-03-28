@@ -157,7 +157,7 @@ class TestMemoryServiceDerivationMode:
 class TestSchedulePostRunDerivations:
     def test_async_mode_enqueues(self, svc_async: MemoryService):
         task_ids = svc_async.schedule_post_run_derivations(issue_id="I1", run_id="r1")
-        assert len(task_ids) == 3
+        assert len(task_ids) == 6
 
     def test_sync_mode_executes_inline(self, svc_sync: MemoryService):
         task_ids = svc_sync.schedule_post_run_derivations(issue_id="I1", run_id="r1")
