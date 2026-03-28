@@ -215,6 +215,7 @@ class MemoryService:
             self.compact(max_age_days=30, summarize=True)
             if repo_root:
                 self.get_project_profile(repo_root=repo_root)
+            self.get_success_recipes(entity_id=issue_id, top_k=10)
             for kind in ("self", "delivery", "feedback"):
                 self.synthesize_active_learning_slice(kind, top_k=5)
         return task_ids
