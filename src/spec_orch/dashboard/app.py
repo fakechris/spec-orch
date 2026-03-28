@@ -286,7 +286,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
   <span class="status-dot disconnected" id="ws-dot"></span>
   <span class="header-label" id="ws-label">disconnected</span>
   <button class="btn" onclick="load()">Refresh</button>
-  <button class="btn btn-primary" id="btn-new-mission" onclick="openNewMission()">+ New Mission</button>
+  <button class="btn btn-primary" id="btn-new-mission" data-automation-target="open-launcher" onclick="openNewMission()">+ New Mission</button>
 </div>
 
 <!-- ===== MAIN ===== -->
@@ -298,10 +298,10 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
           <h2>Mission Control</h2>
         </div>
         <div class="operator-nav-modes">
-          <button class="operator-mode active" id="operator-mode-inbox" type="button" onclick="setOperatorMode('inbox')"><span id="inbox-attention-chip">Needs Attention</span></button>
-          <button class="operator-mode" id="operator-mode-missions" type="button" onclick="setOperatorMode('missions')">All Missions</button>
-          <button class="operator-mode" id="operator-mode-approvals" type="button" onclick="setOperatorMode('approvals')">Decision Queue</button>
-          <button class="operator-mode" id="operator-mode-evidence" type="button" onclick="setOperatorMode('evidence')">Deep Evidence</button>
+          <button class="operator-mode active" id="operator-mode-inbox" data-automation-target="operator-mode" data-mode-key="inbox" data-active="true" type="button" onclick="setOperatorMode('inbox')"><span id="inbox-attention-chip">Needs Attention</span></button>
+          <button class="operator-mode" id="operator-mode-missions" data-automation-target="operator-mode" data-mode-key="missions" data-active="false" type="button" onclick="setOperatorMode('missions')">All Missions</button>
+          <button class="operator-mode" id="operator-mode-approvals" data-automation-target="operator-mode" data-mode-key="approvals" data-active="false" type="button" onclick="setOperatorMode('approvals')">Decision Queue</button>
+          <button class="operator-mode" id="operator-mode-evidence" data-automation-target="operator-mode" data-mode-key="evidence" data-active="false" type="button" onclick="setOperatorMode('evidence')">Deep Evidence</button>
         </div>
         <div id="operator-nav-context" class="operator-nav-context"></div>
         <div id="inbox-list" class="mission-list"></div>
@@ -370,14 +370,14 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
         <input id="launcher-linear-issue-id" class="launcher-input" placeholder="SON-241"/>
       </div>
       <div class="launcher-actions">
-        <button class="btn" type="button" data-launcher-action="create-draft" onclick="createMissionDraft()">Create Draft</button>
-        <button class="btn" type="button" data-launcher-action="approve-plan" onclick="approveAndPlanMission()">Approve &amp; Plan</button>
-        <button class="btn" type="button" data-launcher-action="linear-create" onclick="createLinearIssueForMission()">Create Linear Issue</button>
-        <button class="btn" type="button" data-launcher-action="linear-bind" onclick="bindLinearIssueForMission()">Bind Existing Issue</button>
+        <button class="btn" type="button" data-automation-target="launcher-action" data-launcher-action="create-draft" onclick="createMissionDraft()">Create Draft</button>
+        <button class="btn" type="button" data-automation-target="launcher-action" data-launcher-action="approve-plan" onclick="approveAndPlanMission()">Approve &amp; Plan</button>
+        <button class="btn" type="button" data-automation-target="launcher-action" data-launcher-action="linear-create" onclick="createLinearIssueForMission()">Create Linear Issue</button>
+        <button class="btn" type="button" data-automation-target="launcher-action" data-launcher-action="linear-bind" onclick="bindLinearIssueForMission()">Bind Existing Issue</button>
       </div>
       <div class="launcher-actions">
-        <button class="btn btn-primary" type="button" data-launcher-action="launch" onclick="launchMissionFromLauncher()">Launch Mission</button>
-        <button class="btn" type="button" data-launcher-action="refresh-readiness" onclick="loadLauncherReadiness()">Refresh Readiness</button>
+        <button class="btn btn-primary" type="button" data-automation-target="launcher-action" data-launcher-action="launch" onclick="launchMissionFromLauncher()">Launch Mission</button>
+        <button class="btn" type="button" data-automation-target="launcher-action" data-launcher-action="refresh-readiness" onclick="loadLauncherReadiness()">Refresh Readiness</button>
       </div>
     </div>
     <div id="discuss-panel" class="sidebar-panel active">
@@ -681,6 +681,7 @@ function renderOperatorModes() {
     const button = document.getElementById(`operator-mode-${mode}`);
     if (!button) continue;
     button.classList.toggle('active', selectedOperatorMode === mode);
+    button.dataset.active = selectedOperatorMode === mode ? 'true' : 'false';
     const [label, count] = modeLabels[mode];
     button.innerHTML = count ? `${escHtml(label)} <span class="operator-mode-count">${escHtml(String(count))}</span>` : escHtml(label);
   }
@@ -754,7 +755,11 @@ function renderMissions() {
       ? `${(lc.completed_issues || []).length}/${(lc.issue_ids || []).length || 1} issues complete`
       : m.plan ? `${m.plan.packet_count} packets across ${m.plan.wave_count} waves` : 'Spec in progress';
     return `<button class="mission-list-item ${selectedMissionId === m.mission_id ? 'active' : ''}"
-      id="card-${escAttr(m.mission_id)}" data-mid="${escAttr(m.mission_id)}" onclick="selectMission(${safeJsArg(m.mission_id)})">
+      id="card-${escAttr(m.mission_id)}"
+      data-mid="${escAttr(m.mission_id)}"
+      data-mission-id="${escAttr(m.mission_id)}"
+      data-automation-target="mission-card"
+      onclick="selectMission(${safeJsArg(m.mission_id)})">
       <div class="mission-list-title">${escHtml(m.title)}</div>
       <div class="mission-list-meta">
         <span class="badge ${phase}">${escHtml(phaseInfo.label)}</span>
@@ -1027,7 +1032,14 @@ function renderMissionDetail(detail) {
     </section>
     <section class="mission-tabs">
       ${tabButtons.map(([key, label]) => `
-        <button class="mission-tab ${activeTab === key ? 'active' : ''}" type="button" onclick="setMissionTab('${key}')">${escHtml(label)}</button>
+        <button
+          class="mission-tab ${activeTab === key ? 'active' : ''}"
+          type="button"
+          data-automation-target="mission-tab"
+          data-tab-key="${escAttr(key)}"
+          data-active="${activeTab === key ? 'true' : 'false'}"
+          onclick="setMissionTab('${key}')"
+        >${escHtml(label)}</button>
       `).join('')}
       <button class="mission-tab" type="button" onclick="openDiscuss('${escHtml(mission.mission_id || '')}')">Discuss</button>
       <button class="mission-tab" type="button" onclick="load()">Refresh</button>

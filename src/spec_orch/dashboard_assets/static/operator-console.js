@@ -185,7 +185,7 @@
   function renderActionButtons(actions, missionId, escHtml) {
     return (actions || []).map(action => {
       if (action === 'approve') {
-        return `<button class="btn btn-green btn-sm" onclick="approveGo(${safeJsArg(missionId)})">Approve</button>`
+        return `<button class="btn btn-green btn-sm" data-automation-target="approval-action" data-action-key="approve" data-mission-id="${escAttr(missionId)}" onclick="approveGo(${safeJsArg(missionId)})">Approve</button>`
       }
       if (action === 'retry' || action === 'rerun') {
         return `<button class="btn btn-red btn-sm" onclick="retryMission(${safeJsArg(missionId)})">${action}</button>`
@@ -311,6 +311,9 @@
             <button
               class="btn ${action.key === 'approve' ? 'btn-primary' : ''} btn-sm"
               type="button"
+              data-automation-target="approval-action"
+              data-action-key="${escAttr(action?.key || '')}"
+              data-mission-id="${escAttr(missionId)}"
               ${pending ? 'disabled' : ''}
               onclick="triggerApprovalAction(${safeJsArg(missionId)}, ${safeJsArg(action?.key || '')})"
             >${safeEsc(escHtml, action?.label || action?.key || 'Action')}</button>

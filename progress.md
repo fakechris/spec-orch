@@ -395,6 +395,20 @@
   - `task_plan.md`
   - `progress.md`
 
+### Workflow Automation Semantics for Dashboard Operator Targets
+- **Status:** complete
+- Actions taken:
+  - Added stable automation-target semantics for dashboard mission cards so workflow acceptance can select missions without ambiguous text matching.
+  - Added stable automation-target semantics for mission tabs so workflow acceptance can switch surfaces without colliding with repeated visible headings like `Transcript`.
+  - Added stable automation-target semantics for approval actions so workflow acceptance can invoke approval decisions without Playwright strict-mode collisions on duplicate `Approve` labels.
+  - Locked these semantics with new static package tests before implementation, then re-ran the full dashboard unit suite.
+- Files created/modified:
+  - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `tests/unit/test_dashboard_package.py`
+  - `task_plan.md`
+  - `progress.md`
+
 ### Operator Console and Mission Launcher Consolidation
 - **Status:** complete
 - Actions taken:
@@ -673,6 +687,31 @@
 | Dashboard lint | `uv run --python 3.13 python -m ruff check src/spec_orch/dashboard.py tests/unit/test_dashboard_api.py pyproject.toml` | Dashboard files lint cleanly | `All checks passed` | pass |
 
 ## Session: 2026-03-28
+
+### Phase 23: Workflow Acceptance Epic
+- **Status:** complete
+- Actions taken:
+  - Added stable dashboard automation semantics for workflow-critical controls: launcher entry, operator modes, mission cards, mission tabs, launcher actions, approval actions, and explicit active-state markers.
+  - Added `AcceptanceMode.WORKFLOW` plus workflow-specific prompt guidance so acceptance reviews can judge blocked operator flows as first-class failures rather than generic exploratory critique.
+  - Extended Playwright interaction execution with selector-based actions and used those selectors to build workflow campaign steps in `RoundOrchestrator`.
+  - Added workflow assertions and coverage contracts for launcher-to-mission-control handoffs, including transcript/approvals tab transitions and actionable operator-surface reachability.
+  - Added `workflow_dashboard_repair_loop` calibration fixture and regression coverage so broken workflow findings can be replayed and auto-file behavior stays stable.
+- Files created/modified:
+  - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `src/spec_orch/domain/models.py`
+  - `src/spec_orch/services/acceptance/prompt_composer.py`
+  - `src/spec_orch/services/round_orchestrator.py`
+  - `src/spec_orch/services/visual/playwright_visual_eval.py`
+  - `tests/fixtures/acceptance/workflow_dashboard_repair_loop.json`
+  - `tests/unit/test_acceptance_calibration_suite.py`
+  - `tests/unit/test_acceptance_models.py`
+  - `tests/unit/test_acceptance_prompt_composer.py`
+  - `tests/unit/test_dashboard_package.py`
+  - `tests/unit/test_playwright_visual_eval.py`
+  - `tests/unit/test_round_orchestrator.py`
+  - `task_plan.md`
+  - `progress.md`
 
 ### Phase 20: Active Memory Synthesis and Evolution Journal
 - **Status:** in_progress

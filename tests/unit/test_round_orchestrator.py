@@ -696,7 +696,9 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     )
     artifacts = {
         "review_routes": {
+            "overview": "/?mission=mission-1&tab=overview",
             "transcript": "/?mission=mission-1&tab=transcript",
+            "approvals": "/?mission=mission-1&tab=approvals",
             "visual_qa": "/?mission=mission-1&tab=visual",
             "costs": "/?mission=mission-1&tab=costs",
         },
@@ -719,6 +721,52 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     ]
     assert impact.interaction_plans["/?mission=mission-1&tab=transcript"][0].target == "Visual QA"
     assert impact.interaction_plans["/?mission=mission-1&tab=transcript"][-1].target == "Transcript"
+
+    monkeypatch.setenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.WORKFLOW.value)
+    workflow = orchestrator._build_acceptance_campaign(mission_id="mission-1", artifacts=artifacts)
+    assert workflow.primary_routes == [
+        "/",
+        "/?mission=mission-1&mode=missions&tab=overview",
+    ]
+    assert workflow.related_route_budget == 2
+    assert workflow.related_routes == [
+        "/?mission=mission-1&tab=transcript",
+        "/?mission=mission-1&tab=approvals",
+    ]
+    assert workflow.interaction_budget == "moderate"
+    assert workflow.required_interactions == [
+        "open launcher",
+        "switch to mission inventory",
+        "select the mission",
+        "open the transcript tab",
+        "confirm actionable review surfaces are reachable",
+    ]
+    assert workflow.filing_policy == "auto_file_broken_flows_only"
+    assert workflow.interaction_plans["/"][0].action == "click_selector"
+    assert workflow.interaction_plans["/"][0].target == '[data-automation-target="open-launcher"]'
+    assert (
+        workflow.interaction_plans["/"][1].target
+        == '[data-automation-target="operator-mode"][data-mode-key="missions"]'
+    )
+    assert (
+        workflow.interaction_plans["/"][2].target
+        == '[data-automation-target="mission-card"][data-mission-id="mission-1"]'
+    )
+    assert (
+        workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][0].target
+        == '[data-automation-target="mission-tab"][data-tab-key="transcript"]'
+    )
+    assert (
+        workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][-1].target
+        == '[data-automation-target="mission-tab"][data-tab-key="overview"][data-active="true"]'
+    )
+    assert workflow.coverage_expectations[-5:] == [
+        "launcher panel can be opened from the header",
+        "missions mode can be selected from mission control",
+        "the target mission can be selected from the mission list",
+        "the transcript tab can be opened from mission detail",
+        "the approvals surface exposes actionable operator controls when present",
+    ]
 
     monkeypatch.setenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.EXPLORATORY.value)
     exploratory = orchestrator._build_acceptance_campaign(

@@ -40,6 +40,7 @@ class _StubLinearClient:
     ("fixture_name", "mission_id", "round_id"),
     [
         ("feature_scoped_launcher_regression", "launcher-smoke", 2),
+        ("workflow_dashboard_repair_loop", "workflow-smoke", 4),
         ("exploratory_dashboard_ux_hold", "operator-console-smoke", 3),
     ],
 )

@@ -677,6 +677,7 @@ class AcceptanceFinding:
 class AcceptanceMode(StrEnum):
     FEATURE_SCOPED = "feature_scoped"
     IMPACT_SWEEP = "impact_sweep"
+    WORKFLOW = "workflow"
     EXPLORATORY = "exploratory"
 
 

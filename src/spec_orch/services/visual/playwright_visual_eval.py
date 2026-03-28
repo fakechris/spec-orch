@@ -239,6 +239,9 @@ def _execute_interaction_plan(
             if step.action == "click_text":
                 page.get_by_text(step.target, exact=True).click(timeout=timeout_ms)
                 _wait_for_network_idle(page, timeout_ms=timeout_ms)
+            elif step.action == "click_selector":
+                page.locator(step.target).click(timeout=timeout_ms)
+                _wait_for_network_idle(page, timeout_ms=timeout_ms)
             elif step.action == "wait_for_text":
                 page.get_by_text(step.target, exact=True).wait_for(
                     state="visible",

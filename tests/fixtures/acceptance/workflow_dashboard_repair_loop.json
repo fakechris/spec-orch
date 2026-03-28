@@ -1,0 +1,115 @@
+{
+  "review": {
+    "status": "fail",
+    "summary": "Workflow acceptance found that the dashboard mission-control flow is blocked by ambiguous operator targets.",
+    "confidence": 0.96,
+    "evaluator": "acceptance_llm",
+    "acceptance_mode": "workflow",
+    "coverage_status": "complete",
+    "tested_routes": [
+      "/",
+      "/?mission=workflow-smoke&mode=missions&tab=overview",
+      "/?mission=workflow-smoke&mode=missions&tab=transcript",
+      "/?mission=workflow-smoke&mode=missions&tab=approvals"
+    ],
+    "untested_expected_routes": [],
+    "recommended_next_step": "Repair the blocked operator target and rerun the workflow acceptance campaign.",
+    "findings": [
+      {
+        "severity": "critical",
+        "summary": "Mission selection is blocked by ambiguous automation targets.",
+        "details": "The mission-control flow cannot reliably continue because selector matching resolves multiple mission cards.",
+        "expected": "Selecting the target mission moves the operator into the mission workbench.",
+        "actual": "The mission selection step fails before the workflow can continue.",
+        "route": "/",
+        "artifact_paths": {
+          "browser_evidence": "rounds/round-04/browser_evidence.json"
+        }
+      }
+    ],
+    "issue_proposals": [
+      {
+        "title": "Repair dashboard mission-selection automation target",
+        "summary": "Workflow acceptance found that mission selection is blocked by ambiguous operator targets.",
+        "severity": "critical",
+        "confidence": 0.96,
+        "repro_steps": [
+          "Open the dashboard root route.",
+          "Switch to the All Missions mode.",
+          "Attempt to select the workflow smoke mission."
+        ],
+        "expected": "The selected mission opens in the mission workbench and the overview tab becomes active.",
+        "actual": "The mission selection step fails before the workflow can progress.",
+        "route": "/",
+        "artifact_paths": {
+          "browser_evidence": "rounds/round-04/browser_evidence.json"
+        },
+        "linear_issue_id": "",
+        "filing_status": "",
+        "filing_error": ""
+      }
+    ],
+    "artifacts": {
+      "acceptance_review": "rounds/round-04/acceptance_review.json",
+      "browser_evidence": "rounds/round-04/browser_evidence.json"
+    },
+    "campaign": {
+      "mode": "workflow",
+      "goal": "Verify the operator can complete launcher and mission-control steps end-to-end.",
+      "primary_routes": [
+        "/",
+        "/?mission=workflow-smoke&mode=missions&tab=overview"
+      ],
+      "related_routes": [
+        "/?mission=workflow-smoke&mode=missions&tab=transcript",
+        "/?mission=workflow-smoke&mode=missions&tab=approvals"
+      ],
+      "interaction_plans": {
+        "/": [
+          {
+            "action": "click_selector",
+            "target": "[data-automation-target=\"open-launcher\"]",
+            "description": "Open the launcher from the dashboard header."
+          },
+          {
+            "action": "click_selector",
+            "target": "[data-automation-target=\"operator-mode\"][data-mode-key=\"missions\"]",
+            "description": "Switch mission control into the All Missions inventory."
+          },
+          {
+            "action": "click_selector",
+            "target": "[data-automation-target=\"mission-card\"][data-mission-id=\"workflow-smoke\"]",
+            "description": "Select the target mission from the mission list."
+          }
+        ]
+      },
+      "coverage_expectations": [
+        "launcher panel can be opened from the header",
+        "missions mode can be selected from mission control",
+        "the target mission can be selected from the mission list",
+        "the transcript tab can be opened from mission detail",
+        "the approvals surface exposes actionable operator controls when present"
+      ],
+      "required_interactions": [
+        "open launcher",
+        "switch to mission inventory",
+        "select the mission",
+        "open the transcript tab",
+        "confirm actionable review surfaces are reachable"
+      ],
+      "min_primary_routes": 2,
+      "related_route_budget": 2,
+      "interaction_budget": "moderate",
+      "filing_policy": "auto_file_broken_flows_only",
+      "exploration_budget": "bounded"
+    }
+  },
+  "expected": {
+    "filed_statuses": [
+      "filed"
+    ],
+    "linear_calls": 1,
+    "acceptance_mode": "workflow",
+    "coverage_status": "complete"
+  }
+}
