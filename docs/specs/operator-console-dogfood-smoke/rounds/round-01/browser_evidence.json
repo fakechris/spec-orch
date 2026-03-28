@@ -1,0 +1,18 @@
+{
+  "mission_id": "operator-console-dogfood-smoke",
+  "round_id": 1,
+  "tested_routes": [
+    "/",
+    "/?mission=operator-console-dogfood-smoke&mode=inbox&tab=overview"
+  ],
+  "screenshots": {
+    "/": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/rounds/round-01/visual/root.png",
+    "/?mission=operator-console-dogfood-smoke&mode=inbox&tab=overview": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/rounds/round-01/visual/_mission=operator-console-dogfood-smoke_mode=inbox_tab=overview.png"
+  },
+  "console_errors": [],
+  "page_errors": [],
+  "artifact_paths": {
+    "round_dir": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/rounds/round-01",
+    "visual_dir": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/rounds/round-01/visual"
+  }
+}

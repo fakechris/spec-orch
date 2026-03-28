@@ -1,0 +1,107 @@
+{
+  "status": "fail",
+  "summary": "Round 1 executed but produced no contract/schema artifacts despite builder reporting success. Dashboard verification incomplete—only root/inbox overview visited; Mission Detail, Transcript, Approval, Visual QA, Costs routes not tested. Round decision is 'retry' with reason_code 'contracts_not_defined'.",
+  "confidence": 0.95,
+  "evaluator": "acceptance_evaluator",
+  "findings": [
+    {
+      "severity": "critical",
+      "summary": "",
+      "details": "",
+      "expected": "",
+      "actual": "",
+      "route": "",
+      "artifact_paths": {}
+    },
+    {
+      "severity": "critical",
+      "summary": "",
+      "details": "",
+      "expected": "",
+      "actual": "",
+      "route": "",
+      "artifact_paths": {}
+    },
+    {
+      "severity": "high",
+      "summary": "",
+      "details": "",
+      "expected": "",
+      "actual": "",
+      "route": "",
+      "artifact_paths": {}
+    },
+    {
+      "severity": "high",
+      "summary": "",
+      "details": "",
+      "expected": "",
+      "actual": "",
+      "route": "",
+      "artifact_paths": {}
+    }
+  ],
+  "issue_proposals": [
+    {
+      "title": "Worker self-assessment quality",
+      "summary": "",
+      "severity": "",
+      "confidence": 0.0,
+      "repro_steps": [],
+      "expected": "",
+      "actual": "",
+      "route": "",
+      "artifact_paths": {},
+      "linear_issue_id": "",
+      "filing_status": "",
+      "filing_error": ""
+    },
+    {
+      "title": "Comprehensive dashboard route testing",
+      "summary": "",
+      "severity": "",
+      "confidence": 0.0,
+      "repro_steps": [],
+      "expected": "",
+      "actual": "",
+      "route": "",
+      "artifact_paths": {},
+      "linear_issue_id": "",
+      "filing_status": "",
+      "filing_error": ""
+    },
+    {
+      "title": "Contract artifact gating",
+      "summary": "",
+      "severity": "",
+      "confidence": 0.0,
+      "repro_steps": [],
+      "expected": "",
+      "actual": "",
+      "route": "",
+      "artifact_paths": {},
+      "linear_issue_id": "",
+      "filing_status": "",
+      "filing_error": ""
+    }
+  ],
+  "artifacts": {
+    "builder_report": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/workers/dogfood-contract-scaffold/builder_report.json",
+    "round_decision": "retry (contracts_not_defined)",
+    "screenshots_available": {
+      "root": "visual/root.png",
+      "inbox_overview": "visual/_mission=operator-console-dogfood-smoke_mode=inbox_tab=overview.png"
+    },
+    "screenshots_missing": [
+      "Mission Detail tab",
+      "Transcript tab",
+      "Approval tab",
+      "Visual QA tab",
+      "Costs tab"
+    ]
+  },
+  "tested_routes": [
+    "/",
+    "/?mission=operator-console-dogfood-smoke&mode=inbox&tab=overview"
+  ]
+}

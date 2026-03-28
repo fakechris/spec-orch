@@ -1,0 +1,33 @@
+{
+  "round_id": 1,
+  "wave_id": 0,
+  "status": "decided",
+  "started_at": "2026-03-28T02:35:37.575019+00:00",
+  "completed_at": "2026-03-28T02:36:29.855031+00:00",
+  "worker_results": [
+    {
+      "packet_id": "dogfood-contract-scaffold",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/workers/dogfood-contract-scaffold/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/workers/dogfood-contract-scaffold/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/workers/dogfood-contract-scaffold/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/workers/dogfood-contract-scaffold/telemetry/activity.log"
+    }
+  ],
+  "decision": {
+    "action": "retry",
+    "reason_code": "contracts_not_defined",
+    "summary": "Wave 0 builder reported success but produced no contract/schema artifacts and the git diff shows unrelated infrastructure refactoring. The packet needs to be re-run to produce explicit Mission schema definitions, daemon pickup interface contract, dashboard API contracts (Mission Detail, Transcript, Approval, Visual QA, Costs), and ask_human intervention contract before Wave 1 e2e test can proceed.",
+    "confidence": 0.88,
+    "affected_workers": [],
+    "artifacts": {},
+    "session_ops": {
+      "reuse": [],
+      "spawn": [],
+      "cancel": []
+    },
+    "blocking_questions": []
+  }
+}
