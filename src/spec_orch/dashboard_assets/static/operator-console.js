@@ -613,7 +613,7 @@
             <span>Confidence ${safeEsc(escHtml, String(latest.confidence ?? 0))}</span>
             <span>${safeEsc(escHtml, latest.evaluator || 'acceptance evaluator')}</span>
           </div>
-          ${latest.untested_expected_routes?.length ? `
+          ${Array.isArray(latest.untested_expected_routes) && latest.untested_expected_routes.length ? `
             <div class="context-meta">
               <span>Untested expected routes</span>
               ${latest.untested_expected_routes.map(route => `<span class="detail-chip">${safeEsc(escHtml, route)}</span>`).join('')}
@@ -638,7 +638,7 @@
               ${review.coverage_status ? `<span>Coverage ${safeEsc(escHtml, review.coverage_status)}</span>` : ''}
               <span>${safeEsc(escHtml, review.summary || '')}</span>
             </div>
-            ${review.untested_expected_routes?.length ? `
+            ${Array.isArray(review.untested_expected_routes) && review.untested_expected_routes.length ? `
               <div class="context-meta">
                 <span>Untested expected routes</span>
                 ${review.untested_expected_routes.map(route => `<span class="detail-chip">${safeEsc(escHtml, route)}</span>`).join('')}

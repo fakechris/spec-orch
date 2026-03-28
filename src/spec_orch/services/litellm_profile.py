@@ -43,6 +43,8 @@ def resolve_configured_or_fallback_env(
     api_type: str = "anthropic",
     kind: str = "api_key",
 ) -> str:
+    if kind not in {"api_key", "api_base"}:
+        raise ValueError(f"kind must be 'api_key' or 'api_base', got {kind!r}")
     if env_name:
         value = os.environ.get(env_name)
         if value:

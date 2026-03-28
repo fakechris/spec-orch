@@ -147,3 +147,5 @@ def test_operator_console_asset_surfaces_acceptance_coverage_labels() -> None:
     assert "Coverage" in source
     assert "Next step" in source
     assert "Untested expected routes" in source
+    assert "Array.isArray(latest.untested_expected_routes)" in source
+    assert "Array.isArray(review.untested_expected_routes)" in source

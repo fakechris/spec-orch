@@ -105,8 +105,10 @@ def _gather_launcher_readiness(repo_root: Path) -> dict[str, Any]:
     )
     builder_cfg = raw.get("builder", {}) if isinstance(raw.get("builder", {}), dict) else {}
     token_env, _team_key = _get_linear_settings(repo_root)
+    valid_api_types = {"anthropic", "openai"}
 
-    planner_api_type = str(planner_cfg.get("api_type", "anthropic"))
+    planner_api_type = str(planner_cfg.get("api_type", "anthropic")).strip().lower()
+    planner_api_type_valid = planner_api_type in valid_api_types
     planner_key = resolve_configured_or_fallback_env(
         str(planner_cfg.get("api_key_env", "")) or None,
         api_type=planner_api_type,
@@ -118,7 +120,8 @@ def _gather_launcher_readiness(repo_root: Path) -> dict[str, Any]:
         kind="api_base",
     )
 
-    supervisor_api_type = str(supervisor_cfg.get("api_type", "anthropic"))
+    supervisor_api_type = str(supervisor_cfg.get("api_type", "anthropic")).strip().lower()
+    supervisor_api_type_valid = supervisor_api_type in valid_api_types
     supervisor_key = resolve_configured_or_fallback_env(
         str(supervisor_cfg.get("api_key_env", "")) or None,
         api_type=supervisor_api_type,
@@ -147,18 +150,28 @@ def _gather_launcher_readiness(repo_root: Path) -> dict[str, Any]:
             "token_env": token_env,
         },
         "planner": {
-            "ready": bool(planner_cfg.get("model")) and bool(planner_key) and bool(planner_base),
+            "ready": (
+                planner_api_type_valid
+                and bool(planner_cfg.get("model"))
+                and bool(planner_key)
+                and bool(planner_base)
+            ),
             "model": planner_cfg.get("model"),
+            "api_type": planner_api_type,
+            "error": "" if planner_api_type_valid else "invalid api_type",
         },
         "supervisor": {
             "ready": (
-                bool(supervisor_cfg.get("adapter"))
+                supervisor_api_type_valid
+                and bool(supervisor_cfg.get("adapter"))
                 and bool(supervisor_cfg.get("model"))
                 and bool(supervisor_key)
                 and bool(supervisor_base)
                 and 0 < supervisor_max_rounds <= 1000
             ),
             "model": supervisor_cfg.get("model"),
+            "api_type": supervisor_api_type,
+            "error": "" if supervisor_api_type_valid else "invalid api_type",
         },
         "builder": {
             "ready": bool(builder_cfg.get("adapter")),
