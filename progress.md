@@ -235,10 +235,31 @@
   - `docs/guides/supervised-mission-e2e-playbook.md`
   - `spec-orch.toml`
 
-### Acceptance Evaluator Planning
-- **Status:** in_progress
+### Acceptance Evaluator Implementation
+- **Status:** complete
 - Actions taken:
-  - Defined the next slice as an independent acceptance evaluator rather than further manual dashboard QA.
+  - Added acceptance domain models and adapter protocol seams.
+  - Added browser evidence collection for acceptance review.
+  - Added LiteLLM-backed independent acceptance evaluator with safe parse fallback.
+  - Persisted `acceptance_review.json` after supervised rounds and added policy-gated Linear filing.
+  - Added dashboard Acceptance surface and acceptance summary surfacing in mission detail/context rail.
+  - Wired acceptance evaluator config through daemon startup, config docs, and supervised mission dogfood samples.
+- Files created/modified:
+  - `src/spec_orch/services/acceptance/browser_evidence.py`
+  - `src/spec_orch/services/acceptance/litellm_acceptance_evaluator.py`
+  - `src/spec_orch/services/acceptance/linear_filing.py`
+  - `src/spec_orch/services/round_orchestrator.py`
+  - `src/spec_orch/services/daemon.py`
+  - `src/spec_orch/domain/models.py`
+  - `src/spec_orch/domain/protocols.py`
+  - `src/spec_orch/dashboard/surfaces.py`
+  - `src/spec_orch/dashboard/routes.py`
+  - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `docs/reference/spec-orch-toml.md`
+  - `docs/guides/operator-console.md`
+  - `docs/guides/supervised-mission-e2e-playbook.md`
+  - `tests/e2e/supervised_mission_minimax.sh`
   - Wrote a concrete implementation plan for Playwright evidence capture, separate evaluator LLM review, structured acceptance artifacts, and policy-gated Linear issue filing.
 - Files created/modified:
   - `docs/plans/2026-03-27-acceptance-evaluator-playwright-linear.md`

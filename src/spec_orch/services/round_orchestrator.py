@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import IO, Any
 
 from spec_orch.domain.models import (
+    AcceptanceReviewResult,
     BuilderResult,
     ExecutionPlan,
     Issue,
@@ -25,6 +26,7 @@ from spec_orch.domain.models import (
     WorkPacket,
 )
 from spec_orch.domain.protocols import (
+    AcceptanceEvaluatorAdapter,
     SupervisorAdapter,
     VisualEvaluatorAdapter,
     WorkerHandleFactory,
@@ -65,6 +67,8 @@ class RoundOrchestrator:
         worker_factory: WorkerHandleFactory,
         context_assembler: Any,
         visual_evaluator: VisualEvaluatorAdapter | None = None,
+        acceptance_evaluator: AcceptanceEvaluatorAdapter | None = None,
+        acceptance_filer: Any | None = None,
         event_bus: EventBus | None = None,
         max_rounds: int = DEFAULT_MAX_ROUNDS,
         live_stream: IO[str] | None = None,
@@ -74,6 +78,8 @@ class RoundOrchestrator:
         self.worker_factory = worker_factory
         self.context_assembler = context_assembler
         self.visual_evaluator = visual_evaluator
+        self.acceptance_evaluator = acceptance_evaluator
+        self.acceptance_filer = acceptance_filer
         self.event_bus = event_bus
         self.max_rounds = max_rounds
         self._event_logger = RunEventLogger(
@@ -167,6 +173,14 @@ class RoundOrchestrator:
             summary.completed_at = datetime.now(UTC).isoformat()
             self._persist_round(round_dir, summary)
             round_history.append(summary)
+            self._run_acceptance_evaluation(
+                mission_id=mission_id,
+                round_id=round_id,
+                round_dir=round_dir,
+                worker_results=worker_results,
+                artifacts=artifacts,
+                summary=summary,
+            )
 
             self._apply_session_ops(mission_id, decision)
 
@@ -603,6 +617,109 @@ class RoundOrchestrator:
         if result is not None:
             atomic_write_json(round_dir / "visual_evaluation.json", result.to_dict())
         return result
+
+    def _run_acceptance_evaluation(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        round_dir: Path,
+        worker_results: list[tuple[WorkPacket, BuilderResult]],
+        artifacts: RoundArtifacts,
+        summary: RoundSummary,
+    ) -> AcceptanceReviewResult | None:
+        if self.acceptance_evaluator is None:
+            return None
+        try:
+            result = self.acceptance_evaluator.evaluate_acceptance(
+                mission_id=mission_id,
+                round_id=round_id,
+                round_dir=round_dir,
+                worker_results=worker_results,
+                artifacts=self._build_acceptance_artifacts(
+                    mission_id=mission_id,
+                    round_id=round_id,
+                    artifacts=artifacts,
+                    summary=summary,
+                ),
+                repo_root=self.repo_root,
+            )
+        except Exception:
+            logger.exception("Acceptance evaluation failed for %s round %s", mission_id, round_id)
+            return None
+        if result is None:
+            return None
+        if self.acceptance_filer is not None:
+            try:
+                result = self.acceptance_filer.apply(
+                    result,
+                    mission_id=mission_id,
+                    round_id=round_id,
+                )
+            except Exception as exc:
+                result = self._mark_acceptance_filing_failure(result, str(exc))
+        atomic_write_json(round_dir / "acceptance_review.json", result.to_dict())
+        return result
+
+    @staticmethod
+    def _mark_acceptance_filing_failure(
+        result: AcceptanceReviewResult,
+        error: str,
+    ) -> AcceptanceReviewResult:
+        if result.issue_proposals:
+            proposals = [
+                replace(proposal, filing_status="failed", filing_error=error)
+                for proposal in result.issue_proposals
+            ]
+            return replace(result, issue_proposals=proposals)
+        return replace(
+            result,
+            artifacts={**result.artifacts, "filing_error": error},
+        )
+
+    def _build_acceptance_artifacts(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        artifacts: RoundArtifacts,
+        summary: RoundSummary,
+    ) -> dict[str, Any]:
+        mission = self._load_mission(mission_id)
+        return {
+            "mission": {
+                "mission_id": mission_id,
+                "title": mission.title if mission is not None else mission_id,
+                "acceptance_criteria": list(mission.acceptance_criteria) if mission else [],
+                "constraints": list(mission.constraints) if mission else [],
+            },
+            "round_summary": summary.to_dict(),
+            "round_artifacts": {
+                "round_id": artifacts.round_id,
+                "mission_id": artifacts.mission_id,
+                "builder_reports": artifacts.builder_reports,
+                "verification_outputs": artifacts.verification_outputs,
+                "gate_verdicts": artifacts.gate_verdicts,
+                "manifest_paths": artifacts.manifest_paths,
+                "diff_summary": artifacts.diff_summary,
+                "worker_session_ids": artifacts.worker_session_ids,
+                "visual_evaluation": (
+                    artifacts.visual_evaluation.to_dict()
+                    if artifacts.visual_evaluation is not None
+                    else None
+                ),
+            },
+            "review_routes": {
+                "transcript": (
+                    f"/?mission={mission_id}&mode=missions&tab=transcript&round={round_id}"
+                ),
+                "visual_qa": f"/?mission={mission_id}&mode=missions&tab=visual&round={round_id}",
+                "costs": f"/?mission={mission_id}&mode=missions&tab=costs&round={round_id}",
+                "acceptance": (
+                    f"/?mission={mission_id}&mode=missions&tab=acceptance&round={round_id}"
+                ),
+            },
+        }
 
     def _build_supervisor_issue(
         self,

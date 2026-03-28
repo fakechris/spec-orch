@@ -19,7 +19,7 @@
 | 9. Workbench route consumption pass | complete | Added exact approval round review routes, transcript/visual/cost packet review routes, surfaced them through the dashboard API, taught the workbench shell to consume mission/tab/packet routes directly, and verified the new internal navigation in-browser |
 | 10. Operator summary metrics pass | complete | Added stale/aged/failed approval counts, summary-level visual focus transcript routing, remaining-budget and incident-count cost metrics, and refreshed the operator docs/Todo baseline so the next remaining work is only deeper ergonomics rather than missing control-plane data |
 | 11. Dashboard Mission Launcher | complete | Dashboard-first mission setup now exists: readiness checks, draft creation, approve+plan, Linear create/bind, launch actions, clearer mode semantics, and mission-list relevance sorting are all in place |
-| 12. Acceptance evaluator planning | in_progress | Define the next slice: independent Playwright-backed acceptance review with separate evaluator LLM, structured acceptance artifacts, and policy-gated Linear filing |
+| 12. Acceptance evaluator implementation | complete | Added acceptance domain models, browser evidence collection, LiteLLM evaluator, policy-gated Linear filing, dashboard acceptance surface, and daemon/config/docs/e2e wiring for independent acceptance review |
 
 ## Comparison Dimensions
 - User entry points and onboarding flow
@@ -40,4 +40,4 @@
 - Visual QA and Costs/Budgets now exist as first-class surfaces with diff/comparison and escalation guidance, but both can still go deeper on operator ergonomics.
 - The current remaining work is now mostly high-order UX depth: faster transcript reconstruction, deeper approval queue workflow, stronger visual comparison UX, and more opinionated budget intervention guidance.
 - The user correctly called out that the old mission startup flow was still too engineering-heavy; this is now being addressed as a first-class product gap rather than a documentation problem.
-- The launcher now solves the old multi-tool startup flow, but the next product gap is acceptance itself: an independent evaluator should inspect the running app, judge acceptance, and file structured follow-up issues without relying on builder self-evaluation.
+- The acceptance evaluator is now wired into the supervised round loop and dashboard surfaces, but the next depth pass should focus on richer issue-filing policy, stronger browser evidence capture, and fully automated dogfood runs.

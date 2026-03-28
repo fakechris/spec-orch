@@ -69,11 +69,13 @@ def test_dashboard_package_exposes_mission_helpers() -> None:
 def test_dashboard_package_exposes_surface_helpers() -> None:
     from spec_orch.dashboard.surfaces import (
         _gather_approval_queue,
+        _gather_mission_acceptance_review,
         _gather_mission_costs,
         _gather_mission_visual_qa,
     )
 
     assert callable(_gather_approval_queue)
+    assert callable(_gather_mission_acceptance_review)
     assert callable(_gather_mission_visual_qa)
     assert callable(_gather_mission_costs)
 
@@ -104,6 +106,7 @@ def test_dashboard_package_exposes_shell_template() -> None:
     assert "launcher-panel" in html
     assert "launcher-readiness" in html
     assert "Approve &amp; Plan" in html or "Approve & Plan" in html
+    assert "Acceptance" in html
     assert "return value.split('\\n').map(line => line.trim()).filter(Boolean);" in html
     assert 'data-launcher-action="create-draft"' in html
     assert 'data-launcher-action="approve-plan"' in html

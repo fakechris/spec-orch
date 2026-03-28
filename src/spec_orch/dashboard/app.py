@@ -37,6 +37,7 @@ from .missions import _gather_lifecycle_states as _missions_gather_lifecycle_sta
 from .missions import _gather_mission_detail as _missions_gather_mission_detail
 from .missions import _gather_missions as _missions_gather_missions
 from .surfaces import _gather_approval_queue as _surfaces_gather_approval_queue
+from .surfaces import _gather_mission_acceptance_review as _surfaces_gather_mission_acceptance
 from .surfaces import _gather_mission_costs as _surfaces_gather_mission_costs
 from .surfaces import _gather_mission_visual_qa as _surfaces_gather_mission_visual_qa
 from .transcript import _gather_packet_transcript as _transcript_gather_packet_transcript
@@ -91,6 +92,7 @@ _create_linear_issue_for_mission = _launcher_create_linear_issue_for_mission
 _bind_linear_issue_to_mission = _launcher_bind_linear_issue_to_mission
 _launch_mission = _launcher_launch_mission
 _gather_approval_queue = _surfaces_gather_approval_queue
+_gather_mission_acceptance_review = _surfaces_gather_mission_acceptance
 _gather_mission_visual_qa = _surfaces_gather_mission_visual_qa
 _gather_mission_costs = _surfaces_gather_mission_costs
 _record_approval_action = _approval_record_approval_action
@@ -429,6 +431,7 @@ let selectedMissionId = null;
 let selectedMissionDetail = null;
 let selectedMissionTab = 'overview';
 let selectedMissionVisualQa = null;
+let selectedMissionAcceptance = null;
 let selectedMissionCosts = null;
 let selectedPacketId = null;
 let pendingRoutePacketId = null;
@@ -838,14 +841,16 @@ async function selectMission(missionId, options = {}) {
   renderMissionDetailLoading();
   renderContextRailLoading();
   try {
-    const [detailResponse, visualResponse, costsResponse] = await Promise.all([
+    const [detailResponse, visualResponse, acceptanceResponse, costsResponse] = await Promise.all([
       fetch(`/api/missions/${missionId}/detail`),
       fetch(`/api/missions/${missionId}/visual-qa`).catch(() => ({ok:false})),
+      fetch(`/api/missions/${missionId}/acceptance-review`).catch(() => ({ok:false})),
       fetch(`/api/missions/${missionId}/costs`).catch(() => ({ok:false})),
     ]);
     if (!detailResponse.ok) throw new Error(`Failed to load mission detail (${detailResponse.status})`);
     selectedMissionDetail = await detailResponse.json();
     selectedMissionVisualQa = visualResponse.ok ? await visualResponse.json() : null;
+    selectedMissionAcceptance = acceptanceResponse.ok ? await acceptanceResponse.json() : null;
     selectedMissionCosts = costsResponse.ok ? await costsResponse.json() : null;
     const packetIds = (selectedMissionDetail.packets || []).map(packet => packet.packet_id);
     selectedPacketId = packetIds.includes(pendingRoutePacketId)
@@ -924,6 +929,7 @@ function renderMissionDetail(detail) {
     ['transcript', 'Transcript'],
     ['approvals', 'Approvals'],
     ['visual-qa', 'Visual QA'],
+    ['acceptance', 'Acceptance'],
     ['costs', 'Costs'],
   ];
 
@@ -950,6 +956,13 @@ function renderMissionDetail(detail) {
       <section class="mission-section">
         <h3>Visual QA</h3>
         ${renderVisualQaPanel(selectedMissionVisualQa || detail.visual_qa)}
+      </section>
+    `;
+  } else if (activeTab === 'acceptance') {
+    primarySurface = `
+      <section class="mission-section">
+        <h3>Acceptance Review</h3>
+        ${renderAcceptancePanel(selectedMissionAcceptance || detail.acceptance_review)}
       </section>
     `;
   } else if (activeTab === 'costs') {
@@ -1037,6 +1050,7 @@ function renderContextRail(detail) {
   const approvalState = approvalActionStates[mission.mission_id] || detail.approval_state || null;
   const packet = (detail.packets || []).find(item => item.packet_id === selectedPacketId) || detail.packets?.[0];
   const visualQa = selectedMissionVisualQa || detail.visual_qa || {};
+  const acceptance = selectedMissionAcceptance || detail.acceptance_review || {};
   const costs = selectedMissionCosts || detail.costs || {};
   rail.innerHTML = `
     <div class="mission-section">
@@ -1091,6 +1105,14 @@ function renderContextRail(detail) {
           ${visualQa?.review_route ? `<div class="context-meta"><button class="btn btn-sm" type="button" onclick="navigateOperatorRoute('${escHtml(visualQa.review_route)}')">Open visual review</button></div>` : ''}
         </div>
         <div class="context-card">
+          <div class="context-title">Acceptance</div>
+          <div class="context-meta">
+            <span class="detail-chip">${escHtml(acceptance?.latest_review?.status || 'pending')}</span>
+            <span>${escHtml(String(acceptance?.summary?.filed_issues || 0))} filed</span>
+          </div>
+          ${acceptance?.review_route ? `<div class="context-meta"><button class="btn btn-sm" type="button" onclick="navigateOperatorRoute('${escHtml(acceptance.review_route)}')">Open acceptance review</button></div>` : ''}
+        </div>
+        <div class="context-card">
           <div class="context-title">Costs</div>
           <div class="context-meta">
             <span class="detail-chip">${escHtml(costs?.summary?.budget_status || 'unconfigured')}</span>
@@ -1143,6 +1165,10 @@ function renderApprovalQueuePanel() {
 
 function renderVisualQaPanel(visualQa) {
   return getOperatorConsoleHelpers().renderVisualQaPanel(visualQa, escHtml);
+}
+
+function renderAcceptancePanel(acceptance) {
+  return getOperatorConsoleHelpers().renderAcceptancePanel(acceptance, escHtml);
 }
 
 function renderCostsPanel(costs) {

@@ -143,6 +143,188 @@ class TestDashboardAPI:
         assert response.status_code == 200
         assert response.json()["state"]["phase"] == "executing"
 
+    def test_acceptance_review_endpoint_returns_empty_state(self, client, repo: Path):
+        mission_id = "mission-acceptance-empty"
+        specs = repo / "docs" / "specs" / mission_id
+        specs.mkdir(parents=True)
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Acceptance Empty Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-27T00:00:00+00:00",
+                    "approved_at": "2026-03-27T00:10:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Acceptance Empty Mission\n", encoding="utf-8")
+
+        response = client.get(f"/api/missions/{mission_id}/acceptance-review")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["mission_id"] == mission_id
+        assert data["latest_review"] is None
+        assert data["summary"]["total_reviews"] == 0
+        assert data["review_route"] == f"/?mission={mission_id}&mode=missions&tab=acceptance"
+
+    def test_acceptance_review_endpoint_surfaces_latest_review_and_filed_issues(
+        self,
+        client,
+        repo: Path,
+    ):
+        mission_id = "mission-acceptance"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-02"
+        round_dir.mkdir(parents=True)
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Acceptance Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": ["ship it"],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-27T00:00:00+00:00",
+                    "approved_at": "2026-03-27T00:10:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Acceptance Mission\n", encoding="utf-8")
+        (round_dir / "acceptance_review.json").write_text(
+            json.dumps(
+                {
+                    "status": "fail",
+                    "summary": "Home page CTA is missing.",
+                    "confidence": 0.93,
+                    "evaluator": "acceptance_llm",
+                    "tested_routes": ["/"],
+                    "findings": [
+                        {"severity": "high", "summary": "Primary CTA missing", "route": "/"}
+                    ],
+                    "issue_proposals": [
+                        {
+                            "title": "Restore primary CTA",
+                            "summary": "Acceptance evaluator found no CTA in the hero section.",
+                            "severity": "high",
+                            "confidence": 0.93,
+                            "linear_issue_id": "SON-777",
+                            "filing_status": "filed",
+                            "filing_error": "",
+                        }
+                    ],
+                    "artifacts": {
+                        "acceptance_review": "docs/specs/mission-acceptance/rounds/round-02/acceptance_review.json"
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get(f"/api/missions/{mission_id}/acceptance-review")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["summary"]["total_reviews"] == 1
+        assert data["summary"]["failures"] == 1
+        assert data["summary"]["filed_issues"] == 1
+        assert data["latest_review"]["summary"] == "Home page CTA is missing."
+        assert data["latest_review"]["issue_proposals"][0]["linear_issue_id"] == "SON-777"
+        assert data["latest_review"]["review_route"] == (
+            f"/?mission={mission_id}&mode=missions&tab=acceptance&round=2"
+        )
+
+    def test_acceptance_review_endpoint_sorts_rounds_numerically(self, client, repo: Path):
+        mission_id = "mission-acceptance-sort"
+        specs = repo / "docs" / "specs" / mission_id
+        for round_name, summary in (
+            ("round-2", "Older review"),
+            ("round-10", "Newest review"),
+        ):
+            round_dir = specs / "rounds" / round_name
+            round_dir.mkdir(parents=True, exist_ok=True)
+            (round_dir / "acceptance_review.json").write_text(
+                json.dumps(
+                    {
+                        "status": "warn",
+                        "summary": summary,
+                        "confidence": 0.5,
+                        "evaluator": "acceptance_llm",
+                        "tested_routes": ["/"],
+                        "findings": [],
+                        "issue_proposals": [],
+                        "artifacts": {},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+        response = client.get(f"/api/missions/{mission_id}/acceptance-review")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert [review["round_id"] for review in data["reviews"]] == [2, 10]
+        assert data["latest_review"]["summary"] == "Newest review"
+
+    def test_mission_detail_includes_acceptance_review_summary(self, client, repo: Path):
+        mission_id = "mission-acceptance-detail"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-01"
+        round_dir.mkdir(parents=True)
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Acceptance Detail Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-27T00:00:00+00:00",
+                    "approved_at": "2026-03-27T00:10:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Acceptance Detail Mission\n", encoding="utf-8")
+        (round_dir / "acceptance_review.json").write_text(
+            json.dumps(
+                {
+                    "status": "warn",
+                    "summary": "There is one warning to inspect.",
+                    "confidence": 0.61,
+                    "evaluator": "acceptance_llm",
+                    "tested_routes": ["/settings"],
+                    "findings": [{"severity": "medium", "summary": "Copy mismatch"}],
+                    "issue_proposals": [],
+                    "artifacts": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get(f"/api/missions/{mission_id}/detail")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["acceptance_review"]["summary"]["total_reviews"] == 1
+        assert data["acceptance_review"]["review_route"] == (
+            f"/?mission={mission_id}&mode=missions&tab=acceptance"
+        )
+
     def test_health(self, client):
         r = client.get("/api/health")
         assert r.status_code == 200

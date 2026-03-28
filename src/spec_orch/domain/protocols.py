@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from spec_orch.domain.models import (
+    AcceptanceReviewResult,
     BuilderEvent,
     BuilderResult,
     ConversationMessage,
@@ -266,6 +267,26 @@ class VisualEvaluatorAdapter(Protocol):
         round_dir: Path,
     ) -> VisualEvaluationResult | None:
         """Return visual evaluation artifacts or None when evaluation is skipped."""
+        ...
+
+
+@runtime_checkable
+class AcceptanceEvaluatorAdapter(Protocol):
+    """Independent evaluator that judges round output using browser/runtime evidence."""
+
+    ADAPTER_NAME: str
+
+    def evaluate_acceptance(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        round_dir: Path,
+        worker_results: list[tuple[WorkPacket, BuilderResult]],
+        artifacts: dict[str, Any],
+        repo_root: Path,
+    ) -> AcceptanceReviewResult | None:
+        """Return acceptance review artifacts or None when evaluation is skipped."""
         ...
 
 

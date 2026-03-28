@@ -74,6 +74,15 @@ class DaemonConfig:
             "timeout_seconds", 300
         )
 
+        acceptance = raw.get("acceptance_evaluator", {})
+        self.acceptance_evaluator_adapter: str | None = acceptance.get("adapter")
+        self.acceptance_evaluator_model: str | None = acceptance.get("model")
+        self.acceptance_evaluator_api_key_env: str | None = acceptance.get("api_key_env")
+        self.acceptance_evaluator_api_base_env: str | None = acceptance.get("api_base_env")
+        self.acceptance_auto_file_issues: bool = acceptance.get("auto_file_issues", False)
+        self.acceptance_min_confidence: float = float(acceptance.get("min_confidence", 0.8))
+        self.acceptance_min_severity: str = str(acceptance.get("min_severity", "high"))
+
         github = raw.get("github", {})
         self.base_branch: str = github.get("base_branch", "main")
 
@@ -334,6 +343,10 @@ class SpecOrchDaemon:
             raise ValueError(f"Unsupported supervisor adapter: {self.config.supervisor_adapter!r}")
 
         from spec_orch.domain.protocols import WorkerHandleFactory
+        from spec_orch.services.acceptance.linear_filing import LinearAcceptanceFiler
+        from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+            LiteLLMAcceptanceEvaluator,
+        )
         from spec_orch.services.litellm_supervisor_adapter import LiteLLMSupervisorAdapter
         from spec_orch.services.round_orchestrator import RoundOrchestrator
         from spec_orch.services.visual.command_visual_evaluator import CommandVisualEvaluator
@@ -394,12 +407,45 @@ class SpecOrchDaemon:
                 f"{self.config.supervisor_visual_evaluator_adapter!r}"
             )
 
+        acceptance_api_key: str | None = None
+        if self.config.acceptance_evaluator_api_key_env:
+            acceptance_api_key = os.environ.get(self.config.acceptance_evaluator_api_key_env)
+
+        acceptance_api_base: str | None = None
+        if self.config.acceptance_evaluator_api_base_env:
+            acceptance_api_base = os.environ.get(self.config.acceptance_evaluator_api_base_env)
+
+        acceptance_evaluator: Any | None = None
+        if self.config.acceptance_evaluator_model:
+            if self.config.acceptance_evaluator_adapter not in (None, "litellm"):
+                raise ValueError(
+                    "Unsupported acceptance evaluator adapter: "
+                    f"{self.config.acceptance_evaluator_adapter!r}"
+                )
+            acceptance_evaluator = LiteLLMAcceptanceEvaluator(
+                repo_root=self.repo_root,
+                model=self.config.acceptance_evaluator_model,
+                api_key=acceptance_api_key,
+                api_base=acceptance_api_base,
+            )
+
+        acceptance_filer: Any | None = None
+        if acceptance_evaluator is not None and self.config.acceptance_auto_file_issues:
+            acceptance_filer = LinearAcceptanceFiler(
+                client=LinearClient(token_env=self.config.linear_token_env),
+                team_key=self.config.team_key,
+                min_confidence=self.config.acceptance_min_confidence,
+                min_severity=self.config.acceptance_min_severity,
+            )
+
         return RoundOrchestrator(
             repo_root=self.repo_root,
             supervisor=supervisor,
             worker_factory=worker_factory,
             context_assembler=ContextAssembler(),
             visual_evaluator=visual_evaluator,
+            acceptance_evaluator=acceptance_evaluator,
+            acceptance_filer=acceptance_filer,
             event_bus=self._event_bus,
             max_rounds=self.config.supervisor_max_rounds,
             live_stream=sys.stderr if self._live_mission_workers else None,

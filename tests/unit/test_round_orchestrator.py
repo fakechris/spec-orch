@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from spec_orch.domain.models import (
+    AcceptanceIssueProposal,
+    AcceptanceReviewResult,
     BuilderResult,
     ExecutionPlan,
     PlanPatch,
@@ -447,6 +450,280 @@ def test_run_supervised_retries_same_wave_when_decision_is_retry(tmp_path: Path)
     assert [round_.wave_id for round_ in result.rounds] == [0, 0]
     assert result.rounds[-1].decision is not None
     assert result.rounds[-1].decision.action is RoundAction.STOP
+
+
+def test_run_supervised_persists_acceptance_review_and_files_issue(tmp_path: Path) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            return RoundDecision(action=RoundAction.STOP, summary="Done")
+
+    class StubAssembler:
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            return {}
+
+    class StubAcceptanceEvaluator:
+        ADAPTER_NAME = "stub_acceptance"
+
+        def evaluate_acceptance(
+            self,
+            *,
+            mission_id: str,
+            round_id: int,
+            round_dir: Path,
+            worker_results,
+            artifacts,
+            repo_root: Path,
+        ) -> AcceptanceReviewResult | None:
+            return AcceptanceReviewResult(
+                status="fail",
+                summary="Acceptance failed.",
+                confidence=0.93,
+                evaluator="stub_acceptance",
+                issue_proposals=[
+                    AcceptanceIssueProposal(
+                        title="Fix acceptance regression",
+                        summary="Regression detected by acceptance evaluator.",
+                        severity="high",
+                        confidence=0.93,
+                    )
+                ],
+            )
+
+    class StubAcceptanceFiler:
+        def apply(self, result: AcceptanceReviewResult, *, mission_id: str, round_id: int):
+            proposals = [
+                replace(p, linear_issue_id="SON-321", filing_status="filed")
+                for p in result.issue_proposals
+            ]
+            return replace(result, issue_proposals=proposals)
+
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=StubBuilderAdapter(),
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=factory,
+        context_assembler=StubAssembler(),
+        acceptance_evaluator=StubAcceptanceEvaluator(),
+        acceptance_filer=StubAcceptanceFiler(),
+    )
+
+    result = orchestrator.run_supervised(mission_id="mission-1", plan=_make_single_wave_plan())
+
+    assert result.completed is True
+    review_path = tmp_path / "docs/specs/mission-1/rounds/round-01/acceptance_review.json"
+    assert review_path.exists()
+    payload = review_path.read_text(encoding="utf-8")
+    assert "SON-321" in payload
+
+
+def test_run_supervised_persists_round_before_acceptance_side_effects(tmp_path: Path) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            return RoundDecision(action=RoundAction.STOP, summary="Done")
+
+    class StubAssembler:
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            return {}
+
+    class StubAcceptanceEvaluator:
+        ADAPTER_NAME = "stub_acceptance"
+
+        def evaluate_acceptance(
+            self,
+            *,
+            mission_id: str,
+            round_id: int,
+            round_dir: Path,
+            worker_results,
+            artifacts,
+            repo_root: Path,
+        ) -> AcceptanceReviewResult | None:
+            return AcceptanceReviewResult(
+                status="warn",
+                summary="Acceptance warning.",
+                confidence=0.5,
+                evaluator="stub_acceptance",
+            )
+
+    class InspectingAcceptanceFiler:
+        def apply(self, result: AcceptanceReviewResult, *, mission_id: str, round_id: int):
+            summary_path = (
+                tmp_path
+                / "docs"
+                / "specs"
+                / mission_id
+                / "rounds"
+                / f"round-{round_id:02d}"
+                / "round_summary.json"
+            )
+            assert summary_path.exists(), "round summary should exist before acceptance filing"
+            return result
+
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=StubBuilderAdapter(),
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=factory,
+        context_assembler=StubAssembler(),
+        acceptance_evaluator=StubAcceptanceEvaluator(),
+        acceptance_filer=InspectingAcceptanceFiler(),
+    )
+
+    result = orchestrator.run_supervised(mission_id="mission-1", plan=_make_single_wave_plan())
+
+    assert result.completed is True
+
+
+def test_run_supervised_records_acceptance_filing_failure_without_failing_round(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            return RoundDecision(action=RoundAction.STOP, summary="Done")
+
+    class StubAssembler:
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            return {}
+
+    class StubAcceptanceEvaluator:
+        ADAPTER_NAME = "stub_acceptance"
+
+        def evaluate_acceptance(
+            self,
+            *,
+            mission_id: str,
+            round_id: int,
+            round_dir: Path,
+            worker_results,
+            artifacts,
+            repo_root: Path,
+        ) -> AcceptanceReviewResult | None:
+            return AcceptanceReviewResult(
+                status="fail",
+                summary="Acceptance failed.",
+                confidence=0.95,
+                evaluator="stub_acceptance",
+                issue_proposals=[
+                    AcceptanceIssueProposal(
+                        title="Fix regression",
+                        summary="Regression detected.",
+                        severity="high",
+                        confidence=0.95,
+                    )
+                ],
+            )
+
+    class FailingAcceptanceFiler:
+        def apply(self, result: AcceptanceReviewResult, *, mission_id: str, round_id: int):
+            raise RuntimeError("filing exploded")
+
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=StubBuilderAdapter(),
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=factory,
+        context_assembler=StubAssembler(),
+        acceptance_evaluator=StubAcceptanceEvaluator(),
+        acceptance_filer=FailingAcceptanceFiler(),
+    )
+
+    result = orchestrator.run_supervised(mission_id="mission-1", plan=_make_single_wave_plan())
+
+    assert result.completed is True
+    review_path = tmp_path / "docs/specs/mission-1/rounds/round-01/acceptance_review.json"
+    assert review_path.exists()
+    payload = review_path.read_text(encoding="utf-8")
+    assert "filing exploded" in payload
 
 
 def test_run_supervised_writes_packet_telemetry_and_activity_log(tmp_path: Path) -> None:

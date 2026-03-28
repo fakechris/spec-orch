@@ -138,6 +138,7 @@ Inside a selected mission, the main canvas supports:
 - `Transcript`
 - `Approvals`
 - `Visual QA`
+- `Acceptance`
 - `Costs`
 
 ### Overview
@@ -210,6 +211,26 @@ It shows:
 - primary artifact links and gallery thumbnails
 - blocking-round summary surfaced back into the operator rail
 
+### Acceptance
+
+Acceptance is the independent evaluator surface.
+
+It is intended to answer:
+
+- did this round actually meet the intended result?
+- what should be rejected versus merely warned on?
+- what follow-up issue should be filed?
+
+Current acceptance surface includes:
+
+- latest acceptance result
+- pass / warn / fail summary
+- evaluator confidence
+- tested routes
+- structured findings
+- issue proposals and filing state
+- links back to the persisted `acceptance_review.json`
+
 ### Costs
 
 Costs & Budgets is now a dedicated mission surface.
@@ -238,6 +259,7 @@ It currently includes:
 
 - available actions
 - current packet
+- acceptance summary
 - approval workspace
 - artifact links
 - round evidence

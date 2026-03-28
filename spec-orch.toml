@@ -49,6 +49,15 @@ api_key_env = "MINIMAX_API_KEY"
 api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
 max_rounds = 12
 
+[acceptance_evaluator]
+adapter = "litellm"
+model = "MiniMax-M2.7-highspeed"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+auto_file_issues = false
+min_confidence = 0.85
+min_severity = "high"
+
 [daemon]
 max_concurrent = 1
 lockfile_dir = ".spec_orch_locks/"
