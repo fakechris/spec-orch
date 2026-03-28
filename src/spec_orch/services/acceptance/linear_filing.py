@@ -99,15 +99,21 @@ class LinearAcceptanceFiler:
         if campaign is None or not campaign.filing_policy:
             return True, ""
 
+        route = proposal.route.strip()
+
         if campaign.filing_policy == "in_scope_only":
             allowed_routes = set(campaign.primary_routes + campaign.related_routes)
-            if proposal.route and proposal.route not in allowed_routes:
+            if not route:
+                return False, "proposal route is required for in_scope_only auto-filing"
+            if route not in allowed_routes:
                 return False, "proposal route is out of scope for in_scope_only auto-filing"
             return True, ""
 
         if campaign.filing_policy == "auto_file_regressions_only":
             covered_routes = set(result.tested_routes)
-            if proposal.route and proposal.route not in covered_routes:
+            if not route:
+                return False, "proposal route is required for regression-only auto-filing"
+            if route not in covered_routes:
                 return False, "proposal route was not covered by the acceptance campaign"
             return True, ""
 
@@ -121,7 +127,7 @@ class LinearAcceptanceFiler:
                 return False, "proposal held until broken-flow-only auto-filing is implemented"
             return True, ""
 
-        return True, ""
+        return False, f"unknown filing policy: {campaign.filing_policy}"
 
     @staticmethod
     def _severity_rank(severity: str) -> int:

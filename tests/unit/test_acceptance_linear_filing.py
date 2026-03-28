@@ -371,3 +371,83 @@ def test_linear_acceptance_filer_broken_flows_policy_holds_non_critical_proposal
 
     assert filed.issue_proposals[0].filing_status == "skipped"
     assert "broken-flow-only" in filed.issue_proposals[0].filing_error
+
+
+def test_linear_acceptance_filer_requires_route_for_in_scope_policy() -> None:
+    from spec_orch.services.acceptance.linear_filing import LinearAcceptanceFiler
+
+    class StubLinearClient:
+        def create_issue(
+            self, *, team_key: str, title: str, description: str = ""
+        ) -> dict[str, str]:
+            raise AssertionError("route-less in-scope proposals should not be auto-filed")
+
+    filer = LinearAcceptanceFiler(client=StubLinearClient(), team_key="SON", min_confidence=0.8)
+    result = AcceptanceReviewResult(
+        status="fail",
+        summary="Feature-scoped launcher review found a regression.",
+        confidence=0.93,
+        evaluator="acceptance_llm",
+        coverage_status="complete",
+        campaign=AcceptanceCampaign(
+            mode=AcceptanceMode.FEATURE_SCOPED,
+            goal="Verify launcher create draft flow.",
+            primary_routes=["/launcher"],
+            related_routes=["/"],
+            filing_policy="in_scope_only",
+        ),
+        issue_proposals=[
+            AcceptanceIssueProposal(
+                title="Restore launcher CTA",
+                summary="Launcher CTA is missing.",
+                severity="high",
+                confidence=0.93,
+                route="",
+            )
+        ],
+    )
+
+    filed = filer.apply(result, mission_id="mission-1", round_id=1)
+
+    assert filed.issue_proposals[0].filing_status == "skipped"
+    assert "required" in filed.issue_proposals[0].filing_error
+
+
+def test_linear_acceptance_filer_requires_route_for_regression_only_policy() -> None:
+    from spec_orch.services.acceptance.linear_filing import LinearAcceptanceFiler
+
+    class StubLinearClient:
+        def create_issue(
+            self, *, team_key: str, title: str, description: str = ""
+        ) -> dict[str, str]:
+            raise AssertionError("route-less regression-only proposals should not be auto-filed")
+
+    filer = LinearAcceptanceFiler(client=StubLinearClient(), team_key="SON", min_confidence=0.8)
+    result = AcceptanceReviewResult(
+        status="fail",
+        summary="Impact sweep found a route-level regression.",
+        confidence=0.93,
+        evaluator="acceptance_llm",
+        coverage_status="complete",
+        tested_routes=["/launcher"],
+        campaign=AcceptanceCampaign(
+            mode=AcceptanceMode.IMPACT_SWEEP,
+            goal="Check launcher regressions.",
+            primary_routes=["/launcher"],
+            filing_policy="auto_file_regressions_only",
+        ),
+        issue_proposals=[
+            AcceptanceIssueProposal(
+                title="Launcher regression",
+                summary="Regression exists but proposal route was omitted.",
+                severity="high",
+                confidence=0.93,
+                route="   ",
+            )
+        ],
+    )
+
+    filed = filer.apply(result, mission_id="mission-1", round_id=1)
+
+    assert filed.issue_proposals[0].filing_status == "skipped"
+    assert "required" in filed.issue_proposals[0].filing_error
