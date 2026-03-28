@@ -10,6 +10,21 @@ Define a production-grade prompt system for SpecOrch acceptance evaluation that 
 
 The purpose of this document is to prevent the current failure mode where the evaluator inherits too much of the implementation framing and only catches narrow, route-local defects.
 
+## Current Implementation Status
+
+Part of this architecture is now live:
+
+- mode-aware acceptance campaigns
+- explicit coverage budgets (`min_primary_routes`, `related_route_budget`, `interaction_budget`)
+- per-route interaction plans
+- browser evidence traces that record which interaction steps passed or failed
+
+What is still not live:
+
+- broad autonomous exploratory browsing
+- multi-step form/input flows beyond the current minimal click-based sweeps
+- stronger calibration and filing policy refinement across different evaluator modes
+
 ## Why The Current Prompt Is Not Enough
 
 The current acceptance evaluator prompt is intentionally small and structurally safe, but it has two hard limits:

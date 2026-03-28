@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from spec_orch.domain.models import AcceptanceInteractionStep
 from spec_orch.services.acceptance.browser_evidence import (
     build_acceptance_browser_request,
     collect_browser_evidence,
@@ -22,6 +23,9 @@ def test_build_acceptance_browser_request_uses_round_context(tmp_path: Path) -> 
         round_dir=round_dir,
         base_url="http://127.0.0.1:3000",
         paths=["/", "/settings"],
+        interaction_plans={
+            "/settings": [AcceptanceInteractionStep(action="click_text", target="Transcript")]
+        },
         wait_for_selector="#app",
         timeout_ms=9000,
         headless=False,
@@ -33,6 +37,7 @@ def test_build_acceptance_browser_request_uses_round_context(tmp_path: Path) -> 
     assert request.round_dir == round_dir
     assert request.base_url == "http://127.0.0.1:3000"
     assert request.paths == ["/", "/settings"]
+    assert request.interaction_plans["/settings"][0].target == "Transcript"
     assert request.wait_for_selector == "#app"
     assert request.timeout_ms == 9000
     assert request.headless is False
@@ -61,6 +66,7 @@ def test_collect_browser_evidence_returns_operator_friendly_payload(tmp_path: Pa
                 screenshot_path=home_png,
                 console_errors=["ReferenceError: boom"],
                 page_errors=[],
+                interaction_log=[{"action": "click_text", "status": "passed"}],
             ),
             PageSnapshot(
                 path="/settings",
@@ -69,6 +75,7 @@ def test_collect_browser_evidence_returns_operator_friendly_payload(tmp_path: Pa
                 screenshot_path=settings_png,
                 console_errors=[],
                 page_errors=["Unhandled exception"],
+                interaction_log=[{"action": "click_text", "status": "failed"}],
             ),
         ],
     )
@@ -79,6 +86,10 @@ def test_collect_browser_evidence_returns_operator_friendly_payload(tmp_path: Pa
     assert evidence["screenshots"] == {
         "/": str(home_png),
         "/settings": str(settings_png),
+    }
+    assert evidence["interactions"] == {
+        "/": [{"action": "click_text", "status": "passed"}],
+        "/settings": [{"action": "click_text", "status": "failed"}],
     }
     assert evidence["artifact_paths"]["round_dir"] == str(round_dir)
     assert evidence["artifact_paths"]["visual_dir"] == str(visual_dir)
@@ -143,6 +154,7 @@ def test_collect_playwright_browser_evidence_reuses_snapshot_capture(
     def fake_capture(request):
         assert request.mission_id == "demo-mission"
         assert request.round_id == 1
+        assert request.interaction_plans["/settings"][0].target == "Transcript"
         return (
             [
                 PageSnapshot(
@@ -152,6 +164,7 @@ def test_collect_playwright_browser_evidence_reuses_snapshot_capture(
                     screenshot_path=home_png,
                     console_errors=["ReferenceError: boom"],
                     page_errors=[],
+                    interaction_log=[],
                 )
             ],
             [{"path": "/settings", "message": "navigation timeout"}],
@@ -163,9 +176,13 @@ def test_collect_playwright_browser_evidence_reuses_snapshot_capture(
         mission_id="demo-mission",
         round_id=1,
         round_dir=round_dir,
+        interaction_plans={
+            "/settings": [AcceptanceInteractionStep(action="click_text", target="Transcript")]
+        },
     )
 
     assert evidence["tested_routes"] == ["/"]
+    assert evidence["interactions"] == {"/": []}
     assert evidence["screenshots"]["/"] == str(home_png)
     assert evidence["console_errors"] == [{"path": "/", "message": "ReferenceError: boom"}]
     assert evidence["page_errors"] == [{"path": "/settings", "message": "navigation timeout"}]

@@ -3,7 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from spec_orch.domain.models import AcceptanceCampaign, AcceptanceMode, BuilderResult, WorkPacket
+from spec_orch.domain.models import (
+    AcceptanceCampaign,
+    AcceptanceInteractionStep,
+    AcceptanceMode,
+    BuilderResult,
+    WorkPacket,
+)
 
 
 def _worker_result(tmp_path: Path) -> tuple[WorkPacket, BuilderResult]:
@@ -38,7 +44,14 @@ def test_compose_acceptance_prompt_includes_mode_specific_instructions(tmp_path:
             goal="Verify a single mission launcher interaction.",
             primary_routes=["/launcher"],
             related_routes=["/"],
+            interaction_plans={
+                "/launcher": [AcceptanceInteractionStep(action="click_text", target="Transcript")]
+            },
             coverage_expectations=["launcher create flow"],
+            required_interactions=["open launcher"],
+            min_primary_routes=1,
+            related_route_budget=1,
+            interaction_budget="tight",
             filing_policy="in_scope_only",
             exploration_budget="tight",
         ),
@@ -48,6 +61,8 @@ def test_compose_acceptance_prompt_includes_mode_specific_instructions(tmp_path:
     assert "Verify only the declared feature and its immediately adjacent states." in prompt
     assert '"coverage_expectations"' in prompt
     assert '"primary_routes"' in prompt
+    assert '"required_interactions"' in prompt
+    assert '"min_primary_routes"' in prompt
 
 
 def test_compose_acceptance_prompt_marks_exploratory_runs_as_user_perspective(
@@ -70,7 +85,16 @@ def test_compose_acceptance_prompt_marks_exploratory_runs_as_user_perspective(
             goal="Dogfood the operator console from a real operator perspective.",
             primary_routes=["/"],
             related_routes=["/?mode=inbox"],
+            interaction_plans={
+                "/?mode=inbox": [
+                    AcceptanceInteractionStep(action="click_text", target="All Missions")
+                ]
+            },
             coverage_expectations=["mission control", "transcript"],
+            required_interactions=["switch mission mode", "inspect transcript"],
+            min_primary_routes=1,
+            related_route_budget=4,
+            interaction_budget="wide",
             filing_policy="auto_file_broken_flows_only",
             exploration_budget="wide",
         ),
@@ -102,7 +126,16 @@ def test_compose_acceptance_prompt_embeds_structured_payload(tmp_path: Path) -> 
             goal="Sweep related routes for dashboard regressions.",
             primary_routes=["/settings"],
             related_routes=["/", "/?mission=mission-3&tab=transcript"],
+            interaction_plans={
+                "/?mission=mission-3&tab=transcript": [
+                    AcceptanceInteractionStep(action="click_text", target="Visual QA")
+                ]
+            },
             coverage_expectations=["settings", "mission transcript"],
+            required_interactions=["switch transcript tab", "inspect settings state"],
+            min_primary_routes=1,
+            related_route_budget=2,
+            interaction_budget="moderate",
             filing_policy="auto_file_regressions_only",
             exploration_budget="medium",
         ),
@@ -111,6 +144,11 @@ def test_compose_acceptance_prompt_embeds_structured_payload(tmp_path: Path) -> 
     payload = json.loads(prompt.split("## Evidence Payload\n", 1)[1])
     assert payload["mission_id"] == "mission-3"
     assert payload["campaign"]["mode"] == "impact_sweep"
+    assert payload["campaign"]["related_route_budget"] == 2
+    assert (
+        payload["campaign"]["interaction_plans"]["/?mission=mission-3&tab=transcript"][0]["target"]
+        == "Visual QA"
+    )
     assert (
         payload["artifacts"]["review_routes"]["transcript"] == "/?mission=mission-3&tab=transcript"
     )

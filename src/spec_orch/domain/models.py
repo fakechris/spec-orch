@@ -681,14 +681,50 @@ class AcceptanceMode(StrEnum):
 
 
 @dataclass
+class AcceptanceInteractionStep:
+    action: str
+    target: str
+    description: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "action": self.action,
+            "target": self.target,
+            "description": self.description,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AcceptanceInteractionStep:
+        return cls(
+            action=data.get("action", ""),
+            target=data.get("target", ""),
+            description=data.get("description", ""),
+        )
+
+
+@dataclass
 class AcceptanceCampaign:
     mode: AcceptanceMode
     goal: str
     primary_routes: list[str] = field(default_factory=list)
     related_routes: list[str] = field(default_factory=list)
+    interaction_plans: dict[str, list[AcceptanceInteractionStep]] = field(default_factory=dict)
     coverage_expectations: list[str] = field(default_factory=list)
+    required_interactions: list[str] = field(default_factory=list)
+    min_primary_routes: int = 0
+    related_route_budget: int = 0
+    interaction_budget: str = ""
     filing_policy: str = ""
     exploration_budget: str = ""
+
+    @staticmethod
+    def _safe_int(value: Any, default: int = 0) -> int:
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -696,7 +732,15 @@ class AcceptanceCampaign:
             "goal": self.goal,
             "primary_routes": self.primary_routes,
             "related_routes": self.related_routes,
+            "interaction_plans": {
+                route: [step.to_dict() for step in steps]
+                for route, steps in self.interaction_plans.items()
+            },
             "coverage_expectations": self.coverage_expectations,
+            "required_interactions": self.required_interactions,
+            "min_primary_routes": self.min_primary_routes,
+            "related_route_budget": self.related_route_budget,
+            "interaction_budget": self.interaction_budget,
             "filing_policy": self.filing_policy,
             "exploration_budget": self.exploration_budget,
         }
@@ -708,7 +752,20 @@ class AcceptanceCampaign:
             goal=data.get("goal", ""),
             primary_routes=data.get("primary_routes", []),
             related_routes=data.get("related_routes", []),
+            interaction_plans={
+                route: [
+                    AcceptanceInteractionStep.from_dict(step)
+                    for step in steps
+                    if isinstance(step, dict)
+                ]
+                for route, steps in data.get("interaction_plans", {}).items()
+                if isinstance(route, str) and isinstance(steps, list)
+            },
             coverage_expectations=data.get("coverage_expectations", []),
+            required_interactions=data.get("required_interactions", []),
+            min_primary_routes=cls._safe_int(data.get("min_primary_routes", 0)),
+            related_route_budget=cls._safe_int(data.get("related_route_budget", 0)),
+            interaction_budget=data.get("interaction_budget", ""),
             filing_policy=data.get("filing_policy", ""),
             exploration_budget=data.get("exploration_budget", ""),
         )

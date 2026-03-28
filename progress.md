@@ -219,6 +219,32 @@
 
 ## Session: 2026-03-25
 
+## Session: 2026-03-28
+
+### Acceptance Harness Phase 2 — Route Planning & Interaction Flows
+- **Status:** complete
+- Actions taken:
+  - Added mode-aware acceptance coverage budgets to `AcceptanceCampaign`, including required interactions and route-budget semantics.
+  - Reordered acceptance orchestration so campaigns are built before browser evidence collection and now drive which routes are sampled.
+  - Added per-route interaction plans and wired Playwright evidence capture to execute simple `click_text` sweeps before screenshotting.
+  - Persisted interaction traces into `browser_evidence.json` and surfaced the richer campaign payload through the acceptance prompt stack.
+- Files created/modified:
+  - `src/spec_orch/domain/models.py`
+  - `src/spec_orch/services/acceptance/browser_evidence.py`
+  - `src/spec_orch/services/acceptance/prompt_composer.py`
+  - `src/spec_orch/services/visual/playwright_visual_eval.py`
+  - `src/spec_orch/services/round_orchestrator.py`
+  - `tests/unit/test_acceptance_models.py`
+  - `tests/unit/test_acceptance_prompt_composer.py`
+  - `tests/unit/test_browser_evidence.py`
+  - `tests/unit/test_playwright_visual_eval.py`
+  - `tests/unit/test_round_orchestrator.py`
+
+### Verification
+- **ruff**: targeted checks passed
+- **mypy**: no issues found in touched acceptance/orchestrator files
+- **pytest**: 1505/1505 tests passed
+
 ## Session: 2026-03-27
 
 ### Phase: yoyo-evolve harness analysis
