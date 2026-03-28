@@ -171,3 +171,25 @@ def test_collect_playwright_browser_evidence_reuses_snapshot_capture(
     assert evidence["page_errors"] == [{"path": "/settings", "message": "navigation timeout"}]
     persisted = json.loads((round_dir / "browser_evidence.json").read_text(encoding="utf-8"))
     assert persisted["artifact_paths"]["visual_dir"] == str(visual_dir)
+
+
+def test_build_acceptance_browser_request_from_env_falls_back_on_bad_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from spec_orch.services.acceptance.browser_evidence import (
+        build_acceptance_browser_request_from_env,
+    )
+
+    round_dir = tmp_path / "docs" / "specs" / "demo" / "rounds" / "round-01"
+    monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_URL", "http://127.0.0.1:4173")
+    monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_TIMEOUT_MS", "not-a-number")
+
+    request = build_acceptance_browser_request_from_env(
+        mission_id="demo-mission",
+        round_id=1,
+        round_dir=round_dir,
+    )
+
+    assert request is not None
+    assert request.timeout_ms == 5000
+    assert "SPEC_ORCH_VISUAL_EVAL_TIMEOUT_MS" in caplog.text

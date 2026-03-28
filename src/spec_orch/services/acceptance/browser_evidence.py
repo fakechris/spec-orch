@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,8 @@ from spec_orch.services.visual.playwright_visual_eval import (
     VisualEvalRequest,
     capture_page_snapshots,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def build_acceptance_browser_request(
@@ -51,7 +54,15 @@ def build_acceptance_browser_request_from_env(
     if not paths:
         paths = ["/"]
     wait_for_selector = os.environ.get("SPEC_ORCH_VISUAL_EVAL_WAIT_FOR") or None
-    timeout_ms = int(os.environ.get("SPEC_ORCH_VISUAL_EVAL_TIMEOUT_MS", "5000"))
+    raw_timeout = os.environ.get("SPEC_ORCH_VISUAL_EVAL_TIMEOUT_MS", "5000")
+    try:
+        timeout_ms = int(raw_timeout)
+    except ValueError:
+        logger.warning(
+            "Invalid SPEC_ORCH_VISUAL_EVAL_TIMEOUT_MS=%r; falling back to 5000",
+            raw_timeout,
+        )
+        timeout_ms = 5000
     headless = os.environ.get("SPEC_ORCH_VISUAL_EVAL_HEADLESS", "1") != "0"
     browser = os.environ.get("SPEC_ORCH_VISUAL_EVAL_BROWSER", "chromium")
     return build_acceptance_browser_request(
