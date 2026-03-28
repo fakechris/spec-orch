@@ -580,6 +580,78 @@
     `
   }
 
+  function renderAcceptancePanel(acceptance, escHtml) {
+    const summary = acceptance?.summary || {}
+    const latest = acceptance?.latest_review || null
+    const reviews = acceptance?.reviews || []
+    return `
+      <div class="mission-metrics surface-metrics">
+        <div class="mission-metric">
+          <div class="mission-metric-label">Reviews</div>
+          <div class="mission-metric-value">${safeEsc(escHtml, String(summary.total_reviews || 0))}</div>
+        </div>
+        <div class="mission-metric">
+          <div class="mission-metric-label">Failures</div>
+          <div class="mission-metric-value">${safeEsc(escHtml, String(summary.failures || 0))}</div>
+        </div>
+        <div class="mission-metric">
+          <div class="mission-metric-label">Warnings</div>
+          <div class="mission-metric-value">${safeEsc(escHtml, String(summary.warnings || 0))}</div>
+        </div>
+        <div class="mission-metric">
+          <div class="mission-metric-label">Filed issues</div>
+          <div class="mission-metric-value">${safeEsc(escHtml, String(summary.filed_issues || 0))}</div>
+        </div>
+      </div>
+      ${latest ? `
+        <div class="context-card">
+          <div class="context-title">${safeEsc(escHtml, latest.summary || 'Latest acceptance review')}</div>
+          <div class="context-meta">
+            <span class="detail-chip">${safeEsc(escHtml, latest.status || 'unknown')}</span>
+            <span>Confidence ${safeEsc(escHtml, String(latest.confidence ?? 0))}</span>
+            <span>${safeEsc(escHtml, latest.evaluator || 'acceptance evaluator')}</span>
+          </div>
+          <div class="context-meta">
+            ${latest.review_route ? renderInternalRouteButton(latest.review_route, 'Review round', escHtml) : ''}
+            ${latest.artifact_path ? `<a class="artifact-link" href="/artifacts/${escAttr(latest.artifact_path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, latest.artifact_path)}</a>` : ''}
+          </div>
+        </div>
+      ` : '<div class="empty-panel">No acceptance review has been recorded yet.</div>'}
+      ${reviews.length ? `<div class="context-list">
+        ${reviews.map(review => `
+          <div class="context-card">
+            <div class="context-title">Round ${safeEsc(escHtml, review.round_id)}</div>
+            <div class="context-meta">
+              <span class="detail-chip">${safeEsc(escHtml, review.status || 'unknown')}</span>
+              <span>${safeEsc(escHtml, review.summary || '')}</span>
+            </div>
+            ${review.findings?.length ? `<div class="context-list detail-section">
+              ${review.findings.map(finding => `
+                <div class="context-card detail-finding">
+                  <div class="context-title">${safeEsc(escHtml, finding?.severity || 'finding')}</div>
+                  <div class="transcript-entry-body">${safeEsc(escHtml, finding?.summary || '')}</div>
+                </div>
+              `).join('')}
+            </div>` : ''}
+            ${review.issue_proposals?.length ? `<div class="context-list detail-section">
+              ${review.issue_proposals.map(proposal => `
+                <div class="context-card">
+                  <div class="context-title">${safeEsc(escHtml, proposal?.title || 'proposal')}</div>
+                  <div class="context-meta">
+                    <span class="detail-chip">${safeEsc(escHtml, proposal?.severity || 'unknown')}</span>
+                    <span>${safeEsc(escHtml, proposal?.filing_status || 'pending')}</span>
+                    ${proposal?.linear_issue_id ? `<span>${safeEsc(escHtml, proposal.linear_issue_id)}</span>` : ''}
+                  </div>
+                  <div class="transcript-entry-body">${safeEsc(escHtml, proposal?.summary || '')}</div>
+                </div>
+              `).join('')}
+            </div>` : ''}
+          </div>
+        `).join('')}
+      </div>` : ''}
+    `
+  }
+
   function renderCostsPanel(costs, escHtml) {
     const summary = costs?.summary || {}
     const workers = costs?.workers || []
@@ -830,6 +902,7 @@
     escAttr,
     safeJsArg,
     renderActionButtons,
+    renderAcceptancePanel,
     renderApprovalQueue,
     renderApprovalQueuePanel,
     renderApprovalWorkspace,

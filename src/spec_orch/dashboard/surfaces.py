@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from spec_orch.domain.models import VisualEvaluationResult
+from spec_orch.domain.models import AcceptanceReviewResult, VisualEvaluationResult
 
 logger = logging.getLogger(__name__)
 
@@ -336,6 +336,78 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
     }
 
 
+def _gather_mission_acceptance_review(repo_root: Path, mission_id: str) -> dict[str, Any]:
+    rounds_dir = repo_root / "docs" / "specs" / mission_id / "rounds"
+    review_route = f"/?mission={mission_id}&mode=evidence&tab=acceptance"
+    if not rounds_dir.exists():
+        return {
+            "mission_id": mission_id,
+            "summary": {
+                "total_reviews": 0,
+                "passes": 0,
+                "warnings": 0,
+                "failures": 0,
+                "filed_issues": 0,
+                "latest_confidence": 0.0,
+            },
+            "review_route": review_route,
+            "latest_review": None,
+            "reviews": [],
+        }
+
+    reviews: list[dict[str, Any]] = []
+    for round_dir in sorted(rounds_dir.glob("round-*")):
+        review_path = round_dir / "acceptance_review.json"
+        if not review_path.exists():
+            continue
+        try:
+            round_id = int(round_dir.name.split("-")[-1])
+        except (TypeError, ValueError, IndexError):
+            logger.warning("Skipping acceptance directory with invalid round suffix: %s", round_dir)
+            continue
+        try:
+            payload = json.loads(review_path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                logger.warning("Ignoring malformed acceptance review payload: %s", review_path)
+                continue
+            review = AcceptanceReviewResult.from_dict(payload)
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+
+        review_data = review.to_dict()
+        review_data.update(
+            {
+                "round_id": round_id,
+                "artifact_path": str(review_path.relative_to(repo_root)),
+                "filed_issues": [
+                    proposal.to_dict()
+                    for proposal in review.issue_proposals
+                    if proposal.linear_issue_id or proposal.filing_status == "filed"
+                ],
+                "review_route": (
+                    f"/?mission={mission_id}&mode=evidence&tab=acceptance&round={round_id}"
+                ),
+            }
+        )
+        reviews.append(review_data)
+
+    summary = {
+        "total_reviews": len(reviews),
+        "passes": sum(1 for review in reviews if review.get("status") == "pass"),
+        "warnings": sum(1 for review in reviews if review.get("status") == "warn"),
+        "failures": sum(1 for review in reviews if review.get("status") == "fail"),
+        "filed_issues": sum(len(review.get("filed_issues", [])) for review in reviews),
+        "latest_confidence": float(reviews[-1].get("confidence", 0.0)) if reviews else 0.0,
+    }
+    return {
+        "mission_id": mission_id,
+        "summary": summary,
+        "review_route": review_route,
+        "latest_review": reviews[-1] if reviews else None,
+        "reviews": reviews,
+    }
+
+
 def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
     thresholds = _load_cost_thresholds(repo_root)
     workers_dir = repo_root / "docs" / "specs" / mission_id / "workers"
@@ -506,6 +578,7 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
 
 __all__ = [
     "_gather_approval_queue",
+    "_gather_mission_acceptance_review",
     "_gather_mission_costs",
     "_gather_mission_visual_qa",
 ]

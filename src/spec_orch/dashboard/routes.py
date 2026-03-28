@@ -211,6 +211,10 @@ def register_routes(app: FastAPI, root: Path) -> None:
     async def api_mission_visual_qa(mission_id: str) -> JSONResponse:
         return JSONResponse(dashboard_app._gather_mission_visual_qa(root, mission_id))
 
+    @app.get("/api/missions/{mission_id}/acceptance-review")
+    async def api_mission_acceptance_review(mission_id: str) -> JSONResponse:
+        return JSONResponse(dashboard_app._gather_mission_acceptance_review(root, mission_id))
+
     @app.get("/api/missions/{mission_id}/costs")
     async def api_mission_costs(mission_id: str) -> JSONResponse:
         return JSONResponse(dashboard_app._gather_mission_costs(root, mission_id))

@@ -159,6 +159,61 @@ def test_build_round_orchestrator_wires_command_visual_evaluator(
     assert visual_evaluator.__class__.__name__ == "CommandVisualEvaluator"
 
 
+def test_build_round_orchestrator_wires_acceptance_evaluator_and_filer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "spec_orch.services.daemon.LinearClient",
+        lambda **kwargs: object(),
+    )
+    cfg = DaemonConfig(
+        {
+            "linear": {"team_key": "SON"},
+            "supervisor": {
+                "adapter": "litellm",
+                "model": "openai/gpt-4o",
+            },
+            "acceptance_evaluator": {
+                "adapter": "litellm",
+                "model": "minimax/MiniMax-M2.7-highspeed",
+                "auto_file_issues": True,
+                "min_confidence": 0.91,
+                "min_severity": "critical",
+            },
+        }
+    )
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    captured: dict[str, object] = {}
+
+    class StubRoundOrchestrator:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(
+        "spec_orch.services.litellm_supervisor_adapter.LiteLLMSupervisorAdapter",
+        lambda **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "spec_orch.services.acceptance.litellm_acceptance_evaluator.LiteLLMAcceptanceEvaluator",
+        lambda **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "spec_orch.services.acceptance.linear_filing.LinearAcceptanceFiler",
+        lambda **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "spec_orch.services.round_orchestrator.RoundOrchestrator",
+        StubRoundOrchestrator,
+    )
+
+    orchestrator = daemon._build_round_orchestrator()
+
+    assert isinstance(orchestrator, StubRoundOrchestrator)
+    assert captured["acceptance_evaluator"] is not None
+    assert captured["acceptance_filer"] is not None
+
+
 def test_daemon_poll_and_run_skips_locked(tmp_path: Path) -> None:
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)

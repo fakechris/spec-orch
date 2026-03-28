@@ -641,6 +641,134 @@ class VisualEvaluationResult:
 
 
 @dataclass
+class AcceptanceFinding:
+    severity: str
+    summary: str
+    details: str = ""
+    expected: str = ""
+    actual: str = ""
+    route: str = ""
+    artifact_paths: dict[str, str] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "severity": self.severity,
+            "summary": self.summary,
+            "details": self.details,
+            "expected": self.expected,
+            "actual": self.actual,
+            "route": self.route,
+            "artifact_paths": self.artifact_paths,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AcceptanceFinding:
+        return cls(
+            severity=data.get("severity", ""),
+            summary=data.get("summary", ""),
+            details=data.get("details", ""),
+            expected=data.get("expected", ""),
+            actual=data.get("actual", ""),
+            route=data.get("route", ""),
+            artifact_paths=data.get("artifact_paths", {}),
+        )
+
+
+@dataclass
+class AcceptanceIssueProposal:
+    title: str
+    summary: str
+    severity: str
+    confidence: float = 0.0
+    repro_steps: list[str] = field(default_factory=list)
+    expected: str = ""
+    actual: str = ""
+    route: str = ""
+    artifact_paths: dict[str, str] = field(default_factory=dict)
+    linear_issue_id: str = ""
+    filing_status: str = ""
+    filing_error: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "title": self.title,
+            "summary": self.summary,
+            "severity": self.severity,
+            "confidence": self.confidence,
+            "repro_steps": self.repro_steps,
+            "expected": self.expected,
+            "actual": self.actual,
+            "route": self.route,
+            "artifact_paths": self.artifact_paths,
+            "linear_issue_id": self.linear_issue_id,
+            "filing_status": self.filing_status,
+            "filing_error": self.filing_error,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AcceptanceIssueProposal:
+        return cls(
+            title=data.get("title", ""),
+            summary=data.get("summary", ""),
+            severity=data.get("severity", ""),
+            confidence=data.get("confidence", 0.0),
+            repro_steps=data.get("repro_steps", []),
+            expected=data.get("expected", ""),
+            actual=data.get("actual", ""),
+            route=data.get("route", ""),
+            artifact_paths=data.get("artifact_paths", {}),
+            linear_issue_id=data.get("linear_issue_id", ""),
+            filing_status=data.get("filing_status", ""),
+            filing_error=data.get("filing_error", ""),
+        )
+
+
+@dataclass
+class AcceptanceReviewResult:
+    status: str
+    summary: str
+    confidence: float
+    evaluator: str
+    findings: list[AcceptanceFinding] = field(default_factory=list)
+    issue_proposals: list[AcceptanceIssueProposal] = field(default_factory=list)
+    artifacts: dict[str, str] = field(default_factory=dict)
+    tested_routes: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "summary": self.summary,
+            "confidence": self.confidence,
+            "evaluator": self.evaluator,
+            "findings": [finding.to_dict() for finding in self.findings],
+            "issue_proposals": [proposal.to_dict() for proposal in self.issue_proposals],
+            "artifacts": self.artifacts,
+            "tested_routes": self.tested_routes,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AcceptanceReviewResult:
+        return cls(
+            status=data.get("status", ""),
+            summary=data.get("summary", ""),
+            confidence=data.get("confidence", 0.0),
+            evaluator=data.get("evaluator", ""),
+            findings=[
+                AcceptanceFinding.from_dict(item)
+                for item in data.get("findings", [])
+                if isinstance(item, dict)
+            ],
+            issue_proposals=[
+                AcceptanceIssueProposal.from_dict(item)
+                for item in data.get("issue_proposals", [])
+                if isinstance(item, dict)
+            ],
+            artifacts=data.get("artifacts", {}),
+            tested_routes=data.get("tested_routes", []),
+        )
+
+
+@dataclass
 class RoundSummary:
     """Persistent summary of one full execute-review-decide cycle."""
 

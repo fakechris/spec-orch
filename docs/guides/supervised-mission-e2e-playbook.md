@@ -86,6 +86,15 @@ adapter = "command"
 command = ["{python}", "tools/visual_eval.py", "{input_json}", "{output_json}"]
 timeout_seconds = 120
 
+[acceptance_evaluator]
+adapter = "litellm"
+model = "MiniMax-M2.7-highspeed"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+auto_file_issues = false
+min_confidence = 0.85
+min_severity = "high"
+
 [daemon]
 live_mission_workers = true
 ```
@@ -95,6 +104,7 @@ live_mission_workers = true
 - `[builder]` 决定 mission worker 用什么 agent
 - `[supervisor]` 决定每轮 review/decision 用什么模型
 - `[supervisor.visual_evaluator]` 决定 round review 前是否额外跑视觉/浏览器检查
+- `[acceptance_evaluator]` 决定 round 结束后是否跑独立验收评估，以及是否自动提交 Linear follow-up issue
 - `[daemon].live_mission_workers = true` 只是默认值，第一次试跑更推荐直接在命令行加 `--live-mission-workers`
 
 如果你暂时不接视觉检查，这段可以完全省略。
@@ -242,6 +252,8 @@ daemon
   - 先看有没有 `approval` / `paused` / `failed`
 - `Mission Detail`
   - 看当前 packet、latest round、transcript 过滤后的时间线
+- `Acceptance`
+  - 看独立 acceptance evaluator 的结论、findings、以及是否提了 follow-up issue
 - `Context Rail`
   - 看 `Approval workspace`、`Transcript inspector`、artifact path
   - approval request 出现时，可以直接点击 `Approve` / `Request revision` / `Ask follow-up`

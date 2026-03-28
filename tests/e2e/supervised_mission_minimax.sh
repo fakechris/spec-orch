@@ -6,11 +6,13 @@
 #   ./tests/e2e/supervised_mission_minimax.sh
 #
 # Full mode:
-#   MINIMAX_API_KEY=$KEY ./tests/e2e/supervised_mission_minimax.sh --full
+#   MINIMAX_API_KEY=$KEY MINIMAX_ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic \
+#     ./tests/e2e/supervised_mission_minimax.sh --full
 #
 # Full mode exercises:
 #   1. tools/visual_eval.py against a tiny local website
 #   2. LiteLLMSupervisorAdapter with MiniMax
+#   3. LiteLLMAcceptanceEvaluator with MiniMax
 #
 
 set -euo pipefail
@@ -41,6 +43,7 @@ command -v rsync >/dev/null || fail "rsync not found"
 
 if [ "$FULL_MODE" = true ]; then
   [ -n "${MINIMAX_API_KEY:-}" ] || fail "MINIMAX_API_KEY required for --full mode"
+  [ -n "${MINIMAX_ANTHROPIC_BASE_URL:-}" ] || fail "MINIMAX_ANTHROPIC_BASE_URL required for --full mode"
 fi
 
 WORK_DIR=$(mktemp -d -t spec-orch-supervised-XXXXXX)
@@ -72,19 +75,30 @@ adapter = "codex_exec"
 adapter = "litellm"
 model = "minimax/MiniMax-M2.5"
 api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
 
 [supervisor.visual_evaluator]
 adapter = "command"
 command = ["{python}", "tools/visual_eval.py", "{input_json}", "{output_json}"]
 timeout_seconds = 120
+
+[acceptance_evaluator]
+adapter = "litellm"
+model = "minimax/MiniMax-M2.7-highspeed"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+auto_file_issues = false
+min_confidence = 0.85
+min_severity = "high"
 EOF
 ok "spec-orch.toml written"
 
 if [ "$FULL_MODE" != true ]; then
   [ -f tools/visual_eval.py ] || fail "tools/visual_eval.py missing"
   ok "visual evaluator sample script present"
-  warn "Dry-run only. To execute MiniMax supervisor + browser sample:"
-  echo "  MINIMAX_API_KEY=\$KEY ./tests/e2e/supervised_mission_minimax.sh --full"
+  warn "Dry-run only. To execute MiniMax supervisor + acceptance sample:"
+  echo "  MINIMAX_API_KEY=\$KEY MINIMAX_ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic \\"
+  echo "    ./tests/e2e/supervised_mission_minimax.sh --full"
   exit 0
 fi
 
@@ -175,6 +189,43 @@ print(decision.action.value)
 PY
 [ -f docs/specs/supervised-e2e/rounds/round-01/round_decision.json ] || fail "round_decision.json missing"
 ok "MiniMax supervisor completed"
+
+step "Run independent acceptance evaluator"
+python - <<'PY'
+import json
+from pathlib import Path
+
+from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+    LiteLLMAcceptanceEvaluator,
+)
+
+repo_root = Path(".").resolve()
+round_dir = repo_root / "docs/specs/supervised-e2e/rounds/round-01"
+adapter = LiteLLMAcceptanceEvaluator(
+    repo_root=repo_root,
+    model="minimax/MiniMax-M2.7-highspeed",
+    api_key=None,
+    api_base=None,
+)
+result = adapter.evaluate_acceptance(
+    mission_id="supervised-e2e",
+    round_id=1,
+    round_dir=round_dir,
+    worker_results=[],
+    artifacts={
+        "browser_evidence": json.loads((round_dir / "output.json").read_text(encoding="utf-8")),
+        "visual_evaluation": json.loads((round_dir / "output.json").read_text(encoding="utf-8")),
+    },
+    repo_root=repo_root,
+)
+(round_dir / "acceptance_review.json").write_text(
+    json.dumps(result.to_dict(), indent=2) + "\n",
+    encoding="utf-8",
+)
+print(result.status)
+PY
+[ -f docs/specs/supervised-e2e/rounds/round-01/acceptance_review.json ] || fail "acceptance_review.json missing"
+ok "acceptance evaluator completed"
 
 echo ""
 echo -e "${GREEN}supervised mission MiniMax E2E passed${NC}"

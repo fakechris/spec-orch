@@ -196,6 +196,44 @@ command = ["{python}", "tools/visual_eval.py", "{input_json}", "{output_json}"]
 timeout_seconds = 120
 ```
 
+## [acceptance_evaluator]
+
+Optional independent evaluator that runs after a supervised round finishes.
+
+It consumes the round artifacts, browser/visual evidence, and worker results, then
+persists `acceptance_review.json`. When `auto_file_issues = true`, it can also
+create Linear issues for high-confidence failures.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `adapter` | string | — | Acceptance evaluator adapter. Currently `litellm` is supported. |
+| `model` | string | — | LLM model used for independent acceptance review. |
+| `api_key_env` | string | — | Environment variable for evaluator API key. |
+| `api_base_env` | string | — | Environment variable for evaluator API base URL. |
+| `auto_file_issues` | bool | `false` | Whether to auto-file Linear issues from accepted proposals. |
+| `min_confidence` | float | `0.8` | Minimum confidence required for auto-filing. |
+| `min_severity` | string | `"high"` | Minimum severity required for auto-filing. |
+
+Acceptance artifacts are written under:
+
+```text
+docs/specs/<mission_id>/rounds/round-XX/
+  acceptance_review.json
+```
+
+Example:
+
+```toml
+[acceptance_evaluator]
+adapter = "litellm"
+model = "minimax/MiniMax-M2.7-highspeed"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+auto_file_issues = true
+min_confidence = 0.85
+min_severity = "high"
+```
+
 ## [github]
 
 | Key | Type | Default | Description |

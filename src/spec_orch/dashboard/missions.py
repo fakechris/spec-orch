@@ -332,9 +332,14 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
     approval_request = _gather_latest_approval_request(repo_root, mission_id)
     approval_history = _load_approval_history(repo_root, mission_id)
     approval_state = _derive_approval_state(approval_request, approval_history)
-    from .surfaces import _gather_mission_costs, _gather_mission_visual_qa
+    from .surfaces import (
+        _gather_mission_acceptance_review,
+        _gather_mission_costs,
+        _gather_mission_visual_qa,
+    )
 
     visual_qa = _gather_mission_visual_qa(repo_root, mission_id)
+    acceptance_review = _gather_mission_acceptance_review(repo_root, mission_id)
     costs = _gather_mission_costs(repo_root, mission_id)
 
     rounds_dir = repo_root / "docs/specs" / mission_id / "rounds"
@@ -418,6 +423,7 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
         "approval_history": approval_history,
         "approval_state": approval_state,
         "visual_qa": visual_qa,
+        "acceptance_review": acceptance_review,
         "costs": costs,
         "artifacts": {
             "spec": str((repo_root / mission.spec_path).relative_to(repo_root)),
