@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 
 from spec_orch.domain.models import (
     AcceptanceIssueProposal,
+    AcceptanceMode,
     AcceptanceReviewResult,
     BuilderResult,
     ExecutionPlan,
@@ -612,11 +614,13 @@ def test_run_supervised_passes_browser_evidence_to_acceptance_evaluator(
             )
 
     monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_URL", "http://127.0.0.1:4173")
+    monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_PATHS", "/,/settings")
     monkeypatch.setattr(
         round_orchestrator_module,
         "collect_playwright_browser_evidence",
         lambda **kwargs: {
             "tested_routes": ["/", "/settings"],
+            "interactions": {"/settings": [{"action": "click_text", "status": "passed"}]},
             "screenshots": {"/": "rounds/round-01/visual/root.png"},
             "console_errors": [],
             "page_errors": [],
@@ -643,6 +647,7 @@ def test_run_supervised_passes_browser_evidence_to_acceptance_evaluator(
     assert result.completed is True
     assert captured_artifacts["browser_evidence"] == {
         "tested_routes": ["/", "/settings"],
+        "interactions": {"/settings": [{"action": "click_text", "status": "passed"}]},
         "screenshots": {"/": "rounds/round-01/visual/root.png"},
         "console_errors": [],
         "page_errors": [],
@@ -651,7 +656,82 @@ def test_run_supervised_passes_browser_evidence_to_acceptance_evaluator(
     assert captured_campaign["value"] is not None
     assert captured_campaign["value"].mode is AcceptanceMode.FEATURE_SCOPED
     assert captured_campaign["value"].primary_routes == ["/", "/settings"]
-    assert captured_campaign["value"].related_routes == []
+    assert captured_campaign["value"].min_primary_routes == 2
+    assert captured_campaign["value"].related_route_budget == 1
+    assert captured_campaign["value"].interaction_budget == "tight"
+    assert captured_campaign["value"].required_interactions == ["verify declared feature flow"]
+    assert captured_campaign["value"].related_routes == [
+        "/?mission=mission-1&mode=missions&tab=transcript&round=1"
+    ]
+    assert captured_campaign["value"].interaction_plans == {}
+
+
+def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    mission_dir = tmp_path / "docs/specs/mission-1"
+    mission_dir.mkdir(parents=True)
+    (mission_dir / "mission.json").write_text(
+        json.dumps(
+            {
+                "mission_id": "mission-1",
+                "title": "Mission 1",
+                "acceptance_criteria": ["launcher works", "mission visible"],
+                "constraints": [],
+                "approved": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    artifacts = {
+        "browser_evidence": {"tested_routes": ["/", "/launcher"]},
+        "review_routes": {
+            "transcript": "/?mission=mission-1&tab=transcript",
+            "visual_qa": "/?mission=mission-1&tab=visual",
+            "costs": "/?mission=mission-1&tab=costs",
+        },
+    }
+
+    monkeypatch.setenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.IMPACT_SWEEP.value)
+    impact = orchestrator._build_acceptance_campaign(mission_id="mission-1", artifacts=artifacts)
+    assert impact.primary_routes == ["/", "/launcher"]
+    assert impact.min_primary_routes == 2
+    assert impact.related_route_budget == 3
+    assert impact.related_routes == [
+        "/?mission=mission-1&tab=transcript",
+        "/?mission=mission-1&tab=visual",
+        "/?mission=mission-1&tab=costs",
+    ]
+    assert impact.interaction_budget == "moderate"
+    assert impact.required_interactions == [
+        "verify declared feature flow",
+        "sweep adjacent mission surfaces",
+    ]
+    assert impact.interaction_plans["/?mission=mission-1&tab=transcript"][0].target == "Visual QA"
+    assert impact.interaction_plans["/?mission=mission-1&tab=transcript"][-1].target == "Transcript"
+
+    monkeypatch.setenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.EXPLORATORY.value)
+    exploratory = orchestrator._build_acceptance_campaign(
+        mission_id="mission-1", artifacts=artifacts
+    )
+    assert exploratory.min_primary_routes == 1
+    assert exploratory.related_route_budget == 5
+    assert exploratory.interaction_budget == "wide"
+    assert exploratory.required_interactions == [
+        "complete the intended operator task",
+        "switch into adjacent surfaces when the task suggests it",
+    ]
+    assert exploratory.interaction_plans["/?mission=mission-1&tab=costs"][0].target == "Transcript"
+    assert exploratory.interaction_plans["/?mission=mission-1&tab=costs"][-1].target == "Costs"
 
 
 def test_run_supervised_persists_round_before_acceptance_side_effects(tmp_path: Path) -> None:

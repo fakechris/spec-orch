@@ -3,6 +3,7 @@ from __future__ import annotations
 from spec_orch.domain.models import (
     AcceptanceCampaign,
     AcceptanceFinding,
+    AcceptanceInteractionStep,
     AcceptanceIssueProposal,
     AcceptanceMode,
     AcceptanceReviewResult,
@@ -53,7 +54,20 @@ def test_acceptance_review_result_round_trip() -> None:
         goal="Validate the updated dashboard launcher across core mission routes.",
         primary_routes=["/launcher"],
         related_routes=["/", "/?tab=missions"],
+        interaction_plans={
+            "/launcher": [
+                AcceptanceInteractionStep(
+                    action="click_text",
+                    target="Transcript",
+                    description="Open transcript from the launcher mission view.",
+                )
+            ]
+        },
         coverage_expectations=["Mission launcher", "Mission list", "Mission detail"],
+        required_interactions=["open launcher", "confirm mission appears in list"],
+        min_primary_routes=1,
+        related_route_budget=2,
+        interaction_budget="moderate",
         filing_policy="auto_file_regressions_only",
         exploration_budget="medium",
     )
@@ -99,7 +113,20 @@ def test_acceptance_campaign_round_trip() -> None:
         goal="Dogfood the operator console like a first-principles operator.",
         primary_routes=["/"],
         related_routes=["/?mode=inbox"],
+        interaction_plans={
+            "/?mode=inbox": [
+                AcceptanceInteractionStep(
+                    action="click_text",
+                    target="All Missions",
+                    description="Switch into the mission inventory view.",
+                )
+            ]
+        },
         coverage_expectations=["Mission control", "Acceptance surface"],
+        required_interactions=["switch work modes", "inspect mission detail"],
+        min_primary_routes=1,
+        related_route_budget=3,
+        interaction_budget="wide",
         filing_policy="hold_ux_concerns_for_operator_review",
         exploration_budget="wide",
     )

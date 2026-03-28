@@ -12,6 +12,7 @@ from typing import IO, Any
 
 from spec_orch.domain.models import (
     AcceptanceCampaign,
+    AcceptanceInteractionStep,
     AcceptanceMode,
     AcceptanceReviewResult,
     BuilderResult,
@@ -640,18 +641,19 @@ class RoundOrchestrator:
             artifacts=artifacts,
             summary=summary,
         )
+        campaign = self._build_acceptance_campaign(
+            mission_id=mission_id,
+            artifacts=acceptance_artifacts,
+        )
         browser_evidence = self._collect_acceptance_browser_evidence(
             mission_id=mission_id,
             round_id=round_id,
             round_dir=round_dir,
+            campaign=campaign,
         )
         if browser_evidence is not None:
             acceptance_artifacts["browser_evidence"] = browser_evidence
         try:
-            campaign = self._build_acceptance_campaign(
-                mission_id=mission_id,
-                artifacts=acceptance_artifacts,
-            )
             result = self.acceptance_evaluator.evaluate_acceptance(
                 mission_id=mission_id,
                 round_id=round_id,
@@ -684,12 +686,15 @@ class RoundOrchestrator:
         mission_id: str,
         round_id: int,
         round_dir: Path,
+        campaign: AcceptanceCampaign,
     ) -> dict[str, Any] | None:
         try:
             return collect_playwright_browser_evidence(
                 mission_id=mission_id,
                 round_id=round_id,
                 round_dir=round_dir,
+                paths=self._acceptance_browser_routes(campaign),
+                interaction_plans=campaign.interaction_plans,
             )
         except Exception:
             logger.exception(
@@ -766,15 +771,14 @@ class RoundOrchestrator:
         artifacts: dict[str, Any],
     ) -> AcceptanceCampaign:
         mode = self._resolve_acceptance_mode()
-        browser_evidence = artifacts.get("browser_evidence")
-        primary_routes: list[str] = []
-        if isinstance(browser_evidence, dict):
-            primary_routes = [
-                route
-                for route in browser_evidence.get("tested_routes", [])
-                if isinstance(route, str) and route
-            ]
+        review_routes = artifacts.get("review_routes", {})
+        primary_routes = self._acceptance_primary_routes(artifacts)
         mission = self._load_mission(mission_id)
+        related_routes = self._acceptance_related_routes(
+            primary_routes=primary_routes,
+            review_routes=review_routes if isinstance(review_routes, dict) else {},
+            mode=mode,
+        )
         coverage_expectations = list(mission.acceptance_criteria) if mission is not None else []
         filing_policy = {
             AcceptanceMode.FEATURE_SCOPED: "in_scope_only",
@@ -795,12 +799,48 @@ class RoundOrchestrator:
             ),
             AcceptanceMode.EXPLORATORY: "Dogfood the output from an operator perspective.",
         }[mode]
+        min_primary_routes = {
+            AcceptanceMode.FEATURE_SCOPED: max(1, len(primary_routes)),
+            AcceptanceMode.IMPACT_SWEEP: max(1, len(primary_routes)),
+            AcceptanceMode.EXPLORATORY: 1,
+        }[mode]
+        related_route_budget = {
+            AcceptanceMode.FEATURE_SCOPED: 1,
+            AcceptanceMode.IMPACT_SWEEP: 3,
+            AcceptanceMode.EXPLORATORY: 5,
+        }[mode]
+        interaction_budget = {
+            AcceptanceMode.FEATURE_SCOPED: "tight",
+            AcceptanceMode.IMPACT_SWEEP: "moderate",
+            AcceptanceMode.EXPLORATORY: "wide",
+        }[mode]
+        required_interactions = {
+            AcceptanceMode.FEATURE_SCOPED: ["verify declared feature flow"],
+            AcceptanceMode.IMPACT_SWEEP: [
+                "verify declared feature flow",
+                "sweep adjacent mission surfaces",
+            ],
+            AcceptanceMode.EXPLORATORY: [
+                "complete the intended operator task",
+                "switch into adjacent surfaces when the task suggests it",
+            ],
+        }[mode]
+        interaction_plans = self._build_acceptance_interaction_plans(
+            mode=mode,
+            primary_routes=primary_routes,
+            related_routes=related_routes,
+        )
         return AcceptanceCampaign(
             mode=mode,
             goal=goal,
             primary_routes=primary_routes,
-            related_routes=[],
+            related_routes=related_routes,
+            interaction_plans=interaction_plans,
             coverage_expectations=coverage_expectations,
+            required_interactions=required_interactions,
+            min_primary_routes=min_primary_routes,
+            related_route_budget=related_route_budget,
+            interaction_budget=interaction_budget,
             filing_policy=filing_policy,
             exploration_budget=exploration_budget,
         )
@@ -816,6 +856,112 @@ class RoundOrchestrator:
                 raw_mode,
             )
             return AcceptanceMode.FEATURE_SCOPED
+
+    def _acceptance_primary_routes(self, artifacts: dict[str, Any]) -> list[str]:
+        paths_env = os.getenv("SPEC_ORCH_VISUAL_EVAL_PATHS", "").strip()
+        if paths_env:
+            env_routes = [part.strip() for part in paths_env.split(",") if part.strip()]
+            if env_routes:
+                return self._unique_preserve_order(env_routes)
+        browser_evidence = artifacts.get("browser_evidence")
+        if isinstance(browser_evidence, dict):
+            routes = [
+                route
+                for route in browser_evidence.get("tested_routes", [])
+                if isinstance(route, str) and route
+            ]
+            if routes:
+                return self._unique_preserve_order(routes)
+        return ["/"]
+
+    def _acceptance_related_routes(
+        self,
+        *,
+        primary_routes: list[str],
+        review_routes: dict[str, Any],
+        mode: AcceptanceMode,
+    ) -> list[str]:
+        budget = {
+            AcceptanceMode.FEATURE_SCOPED: 1,
+            AcceptanceMode.IMPACT_SWEEP: 3,
+            AcceptanceMode.EXPLORATORY: 5,
+        }[mode]
+        candidates = [
+            route
+            for route in review_routes.values()
+            if isinstance(route, str) and route and route not in primary_routes
+        ]
+        return self._unique_preserve_order(candidates)[:budget]
+
+    def _build_acceptance_interaction_plans(
+        self,
+        *,
+        mode: AcceptanceMode,
+        primary_routes: list[str],
+        related_routes: list[str],
+    ) -> dict[str, list[AcceptanceInteractionStep]]:
+        plans: dict[str, list[AcceptanceInteractionStep]] = {}
+        for route in self._unique_preserve_order([*primary_routes, *related_routes]):
+            plan = self._interaction_plan_for_route(route, mode=mode)
+            if plan:
+                plans[route] = plan
+        return plans
+
+    def _interaction_plan_for_route(
+        self,
+        route: str,
+        *,
+        mode: AcceptanceMode,
+    ) -> list[AcceptanceInteractionStep]:
+        if "mission=" not in route:
+            return []
+        restore_label = self._route_tab_label(route)
+        labels_by_mode: dict[AcceptanceMode, list[str]] = {
+            AcceptanceMode.FEATURE_SCOPED: ["Transcript"],
+            AcceptanceMode.IMPACT_SWEEP: ["Transcript", "Visual QA"],
+            AcceptanceMode.EXPLORATORY: ["Transcript", "Approvals", "Visual QA", "Costs"],
+        }
+        steps = [
+            AcceptanceInteractionStep(
+                action="click_text",
+                target=label,
+                description=f"Open the {label} surface from the mission workbench.",
+            )
+            for label in labels_by_mode[mode]
+            if label != restore_label
+        ]
+        if restore_label and steps:
+            steps.append(
+                AcceptanceInteractionStep(
+                    action="click_text",
+                    target=restore_label,
+                    description=f"Return to the {restore_label} surface after the sweep.",
+                )
+            )
+        return steps
+
+    @staticmethod
+    def _route_tab_label(route: str) -> str:
+        tab = ""
+        if "tab=" in route:
+            tab = route.split("tab=", 1)[1].split("&", 1)[0]
+        return {
+            "overview": "Overview",
+            "transcript": "Transcript",
+            "approvals": "Approvals",
+            "visual": "Visual QA",
+            "visual-qa": "Visual QA",
+            "acceptance": "Acceptance",
+            "costs": "Costs",
+        }.get(tab, "Overview")
+
+    def _acceptance_browser_routes(self, campaign: AcceptanceCampaign) -> list[str]:
+        return self._unique_preserve_order(
+            [
+                *campaign.primary_routes,
+                *campaign.related_routes[: campaign.related_route_budget],
+            ]
+        )
 
     def _build_supervisor_issue(
         self,

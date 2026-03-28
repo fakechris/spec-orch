@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
-from spec_orch.domain.models import VisualEvaluationResult
+from spec_orch.domain.models import AcceptanceInteractionStep, VisualEvaluationResult
 from spec_orch.services.io import atomic_write_json
 
 
@@ -16,6 +17,7 @@ class VisualEvalRequest:
     round_dir: Path
     base_url: str
     paths: list[str]
+    interaction_plans: dict[str, list[AcceptanceInteractionStep]] = field(default_factory=dict)
     wait_for_selector: str | None = None
     timeout_ms: int = 5000
     headless: bool = True
@@ -30,6 +32,7 @@ class PageSnapshot:
     screenshot_path: Path
     console_errors: list[str]
     page_errors: list[str]
+    interaction_log: list[dict[str, Any]] = field(default_factory=list)
 
 
 def capture_page_snapshots(
@@ -76,6 +79,16 @@ def capture_page_snapshots(
                         page.wait_for_selector(
                             request.wait_for_selector, timeout=request.timeout_ms
                         )
+                    interaction_log = _execute_interaction_plan(
+                        page,
+                        request.interaction_plans.get(path, []),
+                        timeout_ms=request.timeout_ms,
+                    )
+                    page_errors.extend(
+                        entry["message"]
+                        for entry in interaction_log
+                        if entry.get("status") == "failed" and isinstance(entry.get("message"), str)
+                    )
                     title = page.title()
                     screenshot_path = visual_dir / _slugify_path(path)
                     page.screenshot(path=str(screenshot_path), full_page=True)
@@ -87,6 +100,7 @@ def capture_page_snapshots(
                             screenshot_path=screenshot_path,
                             console_errors=console_errors,
                             page_errors=page_errors,
+                            interaction_log=interaction_log,
                         )
                     )
                 except Exception as exc:
@@ -127,6 +141,7 @@ def parse_request(input_path: Path) -> VisualEvalRequest:
         round_dir=round_dir,
         base_url=base_url.rstrip("/"),
         paths=paths,
+        interaction_plans={},
         wait_for_selector=wait_for_selector,
         timeout_ms=timeout_ms,
         headless=headless,
@@ -205,3 +220,46 @@ def _slugify_path(path: str) -> str:
         return "root.png"
     cleaned = path.strip("/").replace("/", "__").replace("?", "_").replace("&", "_")
     return f"{cleaned or 'page'}.png"
+
+
+def _execute_interaction_plan(
+    page: Any,
+    steps: list[AcceptanceInteractionStep],
+    *,
+    timeout_ms: int,
+) -> list[dict[str, Any]]:
+    log: list[dict[str, Any]] = []
+    for step in steps:
+        entry: dict[str, Any] = {
+            "action": step.action,
+            "target": step.target,
+            "description": step.description,
+        }
+        try:
+            if step.action == "click_text":
+                page.get_by_text(step.target, exact=True).click(timeout=timeout_ms)
+                _wait_for_network_idle(page, timeout_ms=timeout_ms)
+            elif step.action == "wait_for_text":
+                page.get_by_text(step.target, exact=True).wait_for(
+                    state="visible",
+                    timeout=timeout_ms,
+                )
+            elif step.action == "wait_for_selector":
+                page.wait_for_selector(step.target, timeout=timeout_ms)
+            else:
+                raise ValueError(f"Unsupported interaction action: {step.action}")
+        except Exception as exc:
+            entry["status"] = "failed"
+            entry["message"] = f"{step.action} {step.target!r} failed: {exc}"
+            log.append(entry)
+            break
+        entry["status"] = "passed"
+        log.append(entry)
+    return log
+
+
+def _wait_for_network_idle(page: Any, *, timeout_ms: int) -> None:
+    try:
+        page.wait_for_load_state("networkidle", timeout=timeout_ms)
+    except Exception:
+        return None
