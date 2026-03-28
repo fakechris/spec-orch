@@ -290,3 +290,84 @@ def test_linear_acceptance_filer_skips_in_scope_policy_for_out_of_scope_route() 
 
     assert filed.issue_proposals[0].filing_status == "skipped"
     assert "out of scope" in filed.issue_proposals[0].filing_error
+
+
+def test_linear_acceptance_filer_regressions_policy_only_trusts_tested_routes() -> None:
+    from spec_orch.services.acceptance.linear_filing import LinearAcceptanceFiler
+
+    class StubLinearClient:
+        def create_issue(
+            self, *, team_key: str, title: str, description: str = ""
+        ) -> dict[str, str]:
+            raise AssertionError("untested routes should not be auto-filed as regressions")
+
+    filer = LinearAcceptanceFiler(client=StubLinearClient(), team_key="SON", min_confidence=0.8)
+    result = AcceptanceReviewResult(
+        status="fail",
+        summary="Launcher regression may affect transcript route.",
+        confidence=0.94,
+        evaluator="acceptance_llm",
+        coverage_status="partial",
+        tested_routes=["/launcher"],
+        campaign=AcceptanceCampaign(
+            mode=AcceptanceMode.IMPACT_SWEEP,
+            goal="Check launcher and transcript routes for regressions.",
+            primary_routes=["/launcher"],
+            related_routes=["/?mission=mission-1&tab=transcript"],
+            filing_policy="auto_file_regressions_only",
+        ),
+        issue_proposals=[
+            AcceptanceIssueProposal(
+                title="Transcript route regression",
+                summary="Transcript route appears broken.",
+                severity="high",
+                confidence=0.94,
+                route="/?mission=mission-1&tab=transcript",
+            )
+        ],
+    )
+
+    filed = filer.apply(result, mission_id="mission-1", round_id=1)
+
+    assert filed.issue_proposals[0].filing_status == "skipped"
+    assert "not covered" in filed.issue_proposals[0].filing_error
+
+
+def test_linear_acceptance_filer_broken_flows_policy_holds_non_critical_proposals() -> None:
+    from spec_orch.services.acceptance.linear_filing import LinearAcceptanceFiler
+
+    class StubLinearClient:
+        def create_issue(
+            self, *, team_key: str, title: str, description: str = ""
+        ) -> dict[str, str]:
+            raise AssertionError("non-critical broken-flow proposals should be held")
+
+    filer = LinearAcceptanceFiler(client=StubLinearClient(), team_key="SON", min_confidence=0.8)
+    result = AcceptanceReviewResult(
+        status="fail",
+        summary="Exploratory run found a confusing flow.",
+        confidence=0.9,
+        evaluator="acceptance_llm",
+        coverage_status="complete",
+        tested_routes=["/"],
+        campaign=AcceptanceCampaign(
+            mode=AcceptanceMode.EXPLORATORY,
+            goal="Dogfood the operator flow.",
+            primary_routes=["/"],
+            filing_policy="auto_file_broken_flows_only",
+        ),
+        issue_proposals=[
+            AcceptanceIssueProposal(
+                title="Clarify operator flow",
+                summary="The flow is confusing but not visibly broken.",
+                severity="high",
+                confidence=0.9,
+                route="/",
+            )
+        ],
+    )
+
+    filed = filer.apply(result, mission_id="mission-1", round_id=1)
+
+    assert filed.issue_proposals[0].filing_status == "skipped"
+    assert "broken-flow-only" in filed.issue_proposals[0].filing_error

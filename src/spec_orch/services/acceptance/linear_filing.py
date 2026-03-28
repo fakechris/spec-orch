@@ -106,11 +106,7 @@ class LinearAcceptanceFiler:
             return True, ""
 
         if campaign.filing_policy == "auto_file_regressions_only":
-            covered_routes = (
-                set(result.tested_routes)
-                | set(campaign.primary_routes)
-                | set(campaign.related_routes)
-            )
+            covered_routes = set(result.tested_routes)
             if proposal.route and proposal.route not in covered_routes:
                 return False, "proposal route was not covered by the acceptance campaign"
             return True, ""
@@ -118,6 +114,11 @@ class LinearAcceptanceFiler:
         if campaign.filing_policy == "hold_ux_concerns_for_operator_review":
             if self._severity_rank(proposal.severity) < self._severity_rank("critical"):
                 return False, "proposal held for operator review under exploratory filing policy"
+            return True, ""
+
+        if campaign.filing_policy == "auto_file_broken_flows_only":
+            if self._severity_rank(proposal.severity) < self._severity_rank("critical"):
+                return False, "proposal held until broken-flow-only auto-filing is implemented"
             return True, ""
 
         return True, ""

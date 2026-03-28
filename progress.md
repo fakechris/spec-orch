@@ -138,7 +138,7 @@
 - `tests/unit/test_linear_write_back.py` — write-back tests
 - `tests/unit/test_github_pr_service.py` — github PR service tests
 
-### Verification
+### Verification — Adversarial Rubric & Filing Policy
 - **ruff**: All checks passed
 - **mypy**: No issues found
 - **pytest**: 42/42 tests passed
@@ -186,7 +186,7 @@
 | SPC-BOOT-2 | 半自动 | skipped | all pass | mergeable=True |
 | SPC-BOOT-3 | **全自动** | **codex exec** | test fix needed | mergeable after fix |
 
-### Verification
+### Verification — Calibration Fixtures & Dogfood Regression
 - **ruff**: All checks passed
 - **mypy**: No issues found
 - **pytest**: 47/47 tests passed
