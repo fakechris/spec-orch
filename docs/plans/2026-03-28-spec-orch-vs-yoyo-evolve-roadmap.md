@@ -301,3 +301,35 @@ The right lesson is:
 - make feedback and evolution inspectable
 
 That is the roadmap reflected in `SON-242`, `SON-243`, and `SON-244`.
+
+## Acceptance Taxonomy Realignment
+
+After the first real dashboard dogfood passes, one product-language problem became obvious:
+
+- `acceptance` was still being used to mean three different things
+- strict verification, workflow operability, and exploratory critique were partly mixed together
+
+That is now formalized in:
+
+- [Acceptance Taxonomy and Epic Structure](2026-03-28-acceptance-taxonomy-and-epics.md)
+
+The updated interpretation is:
+
+1. `SON-242` is the **Verification Acceptance** epic
+2. a **new Workflow Acceptance** epic should be created for end-to-end operator-task flows
+3. a **new Exploratory Acceptance** epic should be created for bounded user-perspective dogfood
+4. `SON-244` should be narrowed to **Human Acceptance and Feedback Loop**, not treated as the immediate next implementation step
+
+This changes the recommended order:
+
+1. finish Verification Acceptance
+2. make Workflow Acceptance real
+3. make Exploratory Acceptance real
+4. only then open the human feedback loop in earnest
+
+This ordering better matches the actual maturity path:
+
+- first make findings stable
+- then make workflows operable
+- then broaden perspective
+- then let human feedback reshape policy

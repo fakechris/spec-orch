@@ -27,7 +27,8 @@
 | 17. Adversarial rubric and filing policy | complete | Added mode-aware adversarial rubric sections to acceptance prompts, made filing guidance explicit per policy, and hardened Linear auto-filing against missing coverage, exploratory UX holds, and out-of-scope routes |
 | 18. Acceptance calibration fixtures and dogfood regression suite | complete | Added fixed acceptance fixtures for feature-scoped, exploratory, and real dogfood dashboard samples, plus regression tests that lock filing-policy decisions and dashboard acceptance summary semantics |
 | 19. Harness constitutions | complete | Added explicit constitutions for supervisor, acceptance evaluator, and evolvers; system prompts now encode non-negotiable stance around evidence, uncertainty, and narrow evidence-backed change scope |
-| 20. Active memory synthesis and evolution journal | in_progress | Adding synthesized self/delivery/feedback active-memory slices, role-scoped learning injection for supervisor/evolvers, and a granular `evolution_journal.jsonl` mirrored into memory for future selfhood work |
+| 20. Active memory synthesis and evolution journal | complete | Added synthesized self/delivery/feedback active-memory slices, role-scoped memory injection, and a granular evolution journal mirrored into memory and prompts |
+| 21. Acceptance taxonomy and epic alignment | complete | Split acceptance into verification/workflow/exploratory/human layers, defined unified product semantics, and realigned roadmap/Epic structure before further implementation |
 
 ## Comparison Dimensions
 - User entry points and onboarding flow
@@ -53,6 +54,8 @@
 - The new prompt architecture is now partially live: mode-aware evaluation, explicit coverage reporting, campaign-specific route planning, and basic interaction-aware browser flows are wired, but exploratory autonomy and richer task execution are still the next depth step.
 - The acceptance harness now encodes adversarial rubric and policy-aware auto-filing, but it still lacks richer finding taxonomy and truly exploratory multi-step browser task execution.
 - The acceptance harness now has repeatable calibration fixtures and a dogfood regression suite, but the next gap is evaluator quality itself: richer finding content, less empty-summary output, and more trustworthy exploratory task execution.
+- Acceptance work had started to mix “strict verification”, “workflow operability”, and “exploratory critique” under one umbrella. This is now treated as a product-language problem, not just an implementation problem.
+- The immediate next acceptance work should not jump to operator/social feedback. Workflow Acceptance needs its own epic and should land before Human Acceptance & Feedback Loop starts in earnest.
 - `yoyo-evolve` appears to encode identity, personality, journal history, self-learnings, and social-learnings as first-class prompt inputs, not just docs. This is likely the biggest philosophical gap versus SpecOrch, which is currently mission/control-plane oriented rather than agent-selfhood oriented.
 - `yoyo-evolve`'s stability strategy is explicit: one change at a time, mandatory build/test gates, revert on failure, and a public journal. Its “wild growth” is bounded by a very small self-edit aperture.
 - `yoyo-evolve`'s social layer is not ornamental. Discussions, family/fork identity, sponsor economics, and social learnings are integrated into the operational scripts, which is materially different from SpecOrch’s current PM/workflow-centric Linear model.

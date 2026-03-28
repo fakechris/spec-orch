@@ -373,6 +373,28 @@
   - `tests/unit/test_dashboard_api.py`
   - `tests/unit/test_dashboard_package.py`
 
+### Acceptance Taxonomy and Epic Alignment
+- **Status:** complete
+- Actions taken:
+  - Formalized acceptance as a four-layer stack:
+    - Verification Acceptance
+    - Workflow Acceptance
+    - Exploratory Acceptance
+    - Human Acceptance
+  - Wrote a dedicated taxonomy document so “acceptance” no longer ambiguously mixes strict verification, workflow dogfooding, and user-perspective critique.
+  - Realigned the roadmap so:
+    - `SON-242` is explicitly the Verification Acceptance epic
+    - Workflow Acceptance becomes its own required future epic
+    - Exploratory Acceptance becomes its own required future epic
+    - `SON-244` is narrowed to Human Acceptance and Feedback Loop rather than treated as the immediate next implementation target
+  - Updated the yoyo-roadmap document to reflect the new acceptance-layer interpretation and execution order.
+- Files created/modified:
+  - `docs/plans/2026-03-28-acceptance-taxonomy-and-epics.md`
+  - `docs/plans/roadmap.md`
+  - `docs/plans/2026-03-28-spec-orch-vs-yoyo-evolve-roadmap.md`
+  - `task_plan.md`
+  - `progress.md`
+
 ### Operator Console and Mission Launcher Consolidation
 - **Status:** complete
 - Actions taken:
