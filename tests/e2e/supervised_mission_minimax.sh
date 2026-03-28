@@ -204,8 +204,8 @@ round_dir = repo_root / "docs/specs/supervised-e2e/rounds/round-01"
 adapter = LiteLLMAcceptanceEvaluator(
     repo_root=repo_root,
     model="minimax/MiniMax-M2.7-highspeed",
-    api_key=None,
-    api_base=None,
+    api_key=__import__("os").environ.get("MINIMAX_API_KEY"),
+    api_base=__import__("os").environ.get("MINIMAX_ANTHROPIC_BASE_URL"),
 )
 result = adapter.evaluate_acceptance(
     mission_id="supervised-e2e",

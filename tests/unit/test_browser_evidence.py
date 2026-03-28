@@ -78,5 +78,46 @@ def test_collect_browser_evidence_returns_operator_friendly_payload(tmp_path: Pa
         "/settings": str(settings_png),
     }
     assert evidence["artifact_paths"]["round_dir"] == str(round_dir)
+    assert evidence["artifact_paths"]["visual_dir"] == str(visual_dir)
     assert evidence["console_errors"] == [{"path": "/", "message": "ReferenceError: boom"}]
     assert evidence["page_errors"] == [{"path": "/settings", "message": "Unhandled exception"}]
+
+
+def test_collect_browser_evidence_rejects_duplicate_snapshot_paths(tmp_path: Path) -> None:
+    round_dir = tmp_path / "round-01"
+    round_dir.mkdir(parents=True)
+    visual_dir = round_dir / "visual"
+    visual_dir.mkdir()
+    first_png = visual_dir / "home-a.png"
+    second_png = visual_dir / "home-b.png"
+    first_png.write_text("png", encoding="utf-8")
+    second_png.write_text("png", encoding="utf-8")
+
+    try:
+        collect_browser_evidence(
+            mission_id="demo-mission",
+            round_id=1,
+            round_dir=round_dir,
+            snapshots=[
+                PageSnapshot(
+                    path="/",
+                    url="http://127.0.0.1:3000/",
+                    title="Home",
+                    screenshot_path=first_png,
+                    console_errors=[],
+                    page_errors=[],
+                ),
+                PageSnapshot(
+                    path="/",
+                    url="http://127.0.0.1:3000/",
+                    title="Home duplicate",
+                    screenshot_path=second_png,
+                    console_errors=[],
+                    page_errors=[],
+                ),
+            ],
+        )
+    except ValueError as exc:
+        assert "Duplicate snapshot path" in str(exc)
+    else:
+        raise AssertionError("expected duplicate snapshot paths to fail fast")

@@ -43,6 +43,8 @@ def collect_browser_evidence(
     screenshots: dict[str, str] = {}
 
     for snapshot in snapshots:
+        if snapshot.path in screenshots:
+            raise ValueError(f"Duplicate snapshot path in acceptance evidence: {snapshot.path}")
         screenshots[snapshot.path] = str(snapshot.screenshot_path)
         console_errors.extend(
             {"path": snapshot.path, "message": message} for message in snapshot.console_errors

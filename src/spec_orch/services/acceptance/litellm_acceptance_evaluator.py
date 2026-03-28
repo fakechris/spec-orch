@@ -144,7 +144,10 @@ class LiteLLMAcceptanceEvaluator:
     def _parse_output(self, raw_output: str) -> tuple[str, AcceptanceReviewResult]:
         try:
             review_text, json_blob = self._split_review_and_json(raw_output)
-            return review_text, AcceptanceReviewResult.from_dict(json.loads(json_blob))
+            payload = json.loads(json_blob)
+            if not isinstance(payload, dict) or not payload.get("status"):
+                raise ValueError("Acceptance evaluator JSON payload missing required status")
+            return review_text, AcceptanceReviewResult.from_dict(payload)
         except Exception:
             fallback = AcceptanceReviewResult(
                 status="warn",

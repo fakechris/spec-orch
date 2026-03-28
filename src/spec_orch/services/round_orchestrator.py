@@ -171,6 +171,8 @@ class RoundOrchestrator:
             summary.decision = decision
             summary.status = RoundStatus.DECIDED
             summary.completed_at = datetime.now(UTC).isoformat()
+            self._persist_round(round_dir, summary)
+            round_history.append(summary)
             self._run_acceptance_evaluation(
                 mission_id=mission_id,
                 round_id=round_id,
@@ -179,8 +181,6 @@ class RoundOrchestrator:
                 artifacts=artifacts,
                 summary=summary,
             )
-            self._persist_round(round_dir, summary)
-            round_history.append(summary)
 
             self._apply_session_ops(mission_id, decision)
 
@@ -710,10 +710,14 @@ class RoundOrchestrator:
                 ),
             },
             "review_routes": {
-                "transcript": f"/?mission={mission_id}&mode=missions&tab=transcript",
-                "visual_qa": f"/?mission={mission_id}&mode=missions&tab=visual",
-                "costs": f"/?mission={mission_id}&mode=missions&tab=costs",
-                "acceptance": f"/?mission={mission_id}&mode=evidence&tab=acceptance",
+                "transcript": (
+                    f"/?mission={mission_id}&mode=missions&tab=transcript&round={round_id}"
+                ),
+                "visual_qa": f"/?mission={mission_id}&mode=missions&tab=visual&round={round_id}",
+                "costs": f"/?mission={mission_id}&mode=missions&tab=costs&round={round_id}",
+                "acceptance": (
+                    f"/?mission={mission_id}&mode=missions&tab=acceptance&round={round_id}"
+                ),
             },
         }
 

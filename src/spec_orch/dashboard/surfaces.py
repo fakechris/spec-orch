@@ -338,7 +338,7 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
 
 def _gather_mission_acceptance_review(repo_root: Path, mission_id: str) -> dict[str, Any]:
     rounds_dir = repo_root / "docs" / "specs" / mission_id / "rounds"
-    review_route = f"/?mission={mission_id}&mode=evidence&tab=acceptance"
+    review_route = f"/?mission={mission_id}&mode=missions&tab=acceptance"
     if not rounds_dir.exists():
         return {
             "mission_id": mission_id,
@@ -356,14 +356,18 @@ def _gather_mission_acceptance_review(repo_root: Path, mission_id: str) -> dict[
         }
 
     reviews: list[dict[str, Any]] = []
-    for round_dir in sorted(rounds_dir.glob("round-*")):
-        review_path = round_dir / "acceptance_review.json"
-        if not review_path.exists():
-            continue
+    round_dirs: list[tuple[int, Path]] = []
+    for round_dir in rounds_dir.glob("round-*"):
         try:
             round_id = int(round_dir.name.split("-")[-1])
         except (TypeError, ValueError, IndexError):
             logger.warning("Skipping acceptance directory with invalid round suffix: %s", round_dir)
+            continue
+        round_dirs.append((round_id, round_dir))
+
+    for round_id, round_dir in sorted(round_dirs, key=lambda item: item[0]):
+        review_path = round_dir / "acceptance_review.json"
+        if not review_path.exists():
             continue
         try:
             payload = json.loads(review_path.read_text(encoding="utf-8"))
@@ -385,7 +389,7 @@ def _gather_mission_acceptance_review(repo_root: Path, mission_id: str) -> dict[
                     if proposal.linear_issue_id or proposal.filing_status == "filed"
                 ],
                 "review_route": (
-                    f"/?mission={mission_id}&mode=evidence&tab=acceptance&round={round_id}"
+                    f"/?mission={mission_id}&mode=missions&tab=acceptance&round={round_id}"
                 ),
             }
         )

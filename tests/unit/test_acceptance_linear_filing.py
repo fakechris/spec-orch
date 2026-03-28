@@ -103,3 +103,67 @@ def test_linear_acceptance_filer_records_failure_without_raising() -> None:
 
     assert filed.issue_proposals[0].filing_status == "failed"
     assert "Linear outage" in filed.issue_proposals[0].filing_error
+
+
+def test_linear_acceptance_filer_is_idempotent_for_already_filed_proposals() -> None:
+    from spec_orch.services.acceptance.linear_filing import LinearAcceptanceFiler
+
+    class StubLinearClient:
+        def create_issue(
+            self, *, team_key: str, title: str, description: str = ""
+        ) -> dict[str, str]:
+            raise AssertionError("should not recreate already-filed issues")
+
+    filer = LinearAcceptanceFiler(client=StubLinearClient(), team_key="SON", min_confidence=0.8)
+    result = AcceptanceReviewResult(
+        status="fail",
+        summary="Reject this run.",
+        confidence=0.97,
+        evaluator="acceptance_llm",
+        issue_proposals=[
+            AcceptanceIssueProposal(
+                title="Existing issue",
+                summary="Already filed.",
+                severity="high",
+                confidence=0.97,
+                linear_issue_id="SON-555",
+                filing_status="filed",
+            )
+        ],
+    )
+
+    filed = filer.apply(result, mission_id="mission-1", round_id=1)
+
+    assert filed.issue_proposals[0].linear_issue_id == "SON-555"
+    assert filed.issue_proposals[0].filing_status == "filed"
+
+
+def test_linear_acceptance_filer_records_failure_when_issue_identifier_missing() -> None:
+    from spec_orch.services.acceptance.linear_filing import LinearAcceptanceFiler
+
+    class StubLinearClient:
+        def create_issue(
+            self, *, team_key: str, title: str, description: str = ""
+        ) -> dict[str, str]:
+            return {"title": title}
+
+    filer = LinearAcceptanceFiler(client=StubLinearClient(), team_key="SON", min_confidence=0.8)
+    result = AcceptanceReviewResult(
+        status="fail",
+        summary="Reject this run.",
+        confidence=0.97,
+        evaluator="acceptance_llm",
+        issue_proposals=[
+            AcceptanceIssueProposal(
+                title="Fix regression",
+                summary="Regression detected on the home page.",
+                severity="high",
+                confidence=0.97,
+            )
+        ],
+    )
+
+    filed = filer.apply(result, mission_id="mission-1", round_id=1)
+
+    assert filed.issue_proposals[0].filing_status == "failed"
+    assert "identifier" in filed.issue_proposals[0].filing_error

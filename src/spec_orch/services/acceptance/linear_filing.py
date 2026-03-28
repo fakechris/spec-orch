@@ -29,6 +29,9 @@ class LinearAcceptanceFiler:
     ) -> AcceptanceReviewResult:
         proposals: list[AcceptanceIssueProposal] = []
         for proposal in result.issue_proposals:
+            if proposal.linear_issue_id:
+                proposals.append(replace(proposal, filing_status=proposal.filing_status or "filed"))
+                continue
             if not self._should_file(result, proposal):
                 proposals.append(replace(proposal, filing_status="skipped", filing_error=""))
                 continue
@@ -44,6 +47,8 @@ class LinearAcceptanceFiler:
                     ),
                 )
                 identifier = str(issue.get("identifier") or issue.get("id") or "")
+                if not identifier:
+                    raise ValueError("Linear create_issue returned no identifier")
                 proposals.append(
                     replace(
                         proposal,

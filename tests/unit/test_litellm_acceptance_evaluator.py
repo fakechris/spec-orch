@@ -173,3 +173,34 @@ def test_acceptance_evaluator_degrades_safely_on_parse_error(tmp_path: Path) -> 
     assert result.status == "warn"
     assert result.confidence == 0.0
     assert result.findings[0].summary == "Acceptance evaluator output could not be parsed."
+
+
+def test_acceptance_evaluator_degrades_safely_on_empty_json_payload(tmp_path: Path) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-4",
+        round_id=4,
+        round_dir=tmp_path / "docs/specs/mission-4/rounds/round-04",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={},
+        repo_root=tmp_path,
+    )
+
+    assert result.status == "warn"
+    assert result.findings[0].summary == "Acceptance evaluator output could not be parsed."
