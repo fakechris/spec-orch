@@ -674,6 +674,46 @@ class AcceptanceFinding:
         )
 
 
+class AcceptanceMode(StrEnum):
+    FEATURE_SCOPED = "feature_scoped"
+    IMPACT_SWEEP = "impact_sweep"
+    EXPLORATORY = "exploratory"
+
+
+@dataclass
+class AcceptanceCampaign:
+    mode: AcceptanceMode
+    goal: str
+    primary_routes: list[str] = field(default_factory=list)
+    related_routes: list[str] = field(default_factory=list)
+    coverage_expectations: list[str] = field(default_factory=list)
+    filing_policy: str = ""
+    exploration_budget: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode.value,
+            "goal": self.goal,
+            "primary_routes": self.primary_routes,
+            "related_routes": self.related_routes,
+            "coverage_expectations": self.coverage_expectations,
+            "filing_policy": self.filing_policy,
+            "exploration_budget": self.exploration_budget,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AcceptanceCampaign:
+        return cls(
+            mode=AcceptanceMode(data.get("mode", AcceptanceMode.EXPLORATORY.value)),
+            goal=data.get("goal", ""),
+            primary_routes=data.get("primary_routes", []),
+            related_routes=data.get("related_routes", []),
+            coverage_expectations=data.get("coverage_expectations", []),
+            filing_policy=data.get("filing_policy", ""),
+            exploration_budget=data.get("exploration_budget", ""),
+        )
+
+
 @dataclass
 class AcceptanceIssueProposal:
     title: str
@@ -733,9 +773,14 @@ class AcceptanceReviewResult:
     issue_proposals: list[AcceptanceIssueProposal] = field(default_factory=list)
     artifacts: dict[str, str] = field(default_factory=dict)
     tested_routes: list[str] = field(default_factory=list)
+    acceptance_mode: str = ""
+    coverage_status: str = ""
+    untested_expected_routes: list[str] = field(default_factory=list)
+    recommended_next_step: str = ""
+    campaign: AcceptanceCampaign | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "status": self.status,
             "summary": self.summary,
             "confidence": self.confidence,
@@ -744,7 +789,14 @@ class AcceptanceReviewResult:
             "issue_proposals": [proposal.to_dict() for proposal in self.issue_proposals],
             "artifacts": self.artifacts,
             "tested_routes": self.tested_routes,
+            "acceptance_mode": self.acceptance_mode,
+            "coverage_status": self.coverage_status,
+            "untested_expected_routes": self.untested_expected_routes,
+            "recommended_next_step": self.recommended_next_step,
         }
+        if self.campaign is not None:
+            payload["campaign"] = self.campaign.to_dict()
+        return payload
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AcceptanceReviewResult:
@@ -765,6 +817,15 @@ class AcceptanceReviewResult:
             ],
             artifacts=data.get("artifacts", {}),
             tested_routes=data.get("tested_routes", []),
+            acceptance_mode=data.get("acceptance_mode", ""),
+            coverage_status=data.get("coverage_status", ""),
+            untested_expected_routes=data.get("untested_expected_routes", []),
+            recommended_next_step=data.get("recommended_next_step", ""),
+            campaign=(
+                AcceptanceCampaign.from_dict(data["campaign"])
+                if isinstance(data.get("campaign"), dict)
+                else None
+            ),
         )
 
 

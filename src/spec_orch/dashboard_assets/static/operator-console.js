@@ -608,9 +608,20 @@
           <div class="context-title">${safeEsc(escHtml, latest.summary || 'Latest acceptance review')}</div>
           <div class="context-meta">
             <span class="detail-chip">${safeEsc(escHtml, latest.status || 'unknown')}</span>
+            ${latest.acceptance_mode ? `<span>Mode ${safeEsc(escHtml, latest.acceptance_mode)}</span>` : ''}
+            ${latest.coverage_status ? `<span>Coverage ${safeEsc(escHtml, latest.coverage_status)}</span>` : ''}
             <span>Confidence ${safeEsc(escHtml, String(latest.confidence ?? 0))}</span>
             <span>${safeEsc(escHtml, latest.evaluator || 'acceptance evaluator')}</span>
           </div>
+          ${latest.untested_expected_routes?.length ? `
+            <div class="context-meta">
+              <span>Untested expected routes</span>
+              ${latest.untested_expected_routes.map(route => `<span class="detail-chip">${safeEsc(escHtml, route)}</span>`).join('')}
+            </div>
+          ` : ''}
+          ${latest.recommended_next_step ? `
+            <div class="transcript-entry-body"><strong>Next step:</strong> ${safeEsc(escHtml, latest.recommended_next_step)}</div>
+          ` : ''}
           <div class="context-meta">
             ${latest.review_route ? renderInternalRouteButton(latest.review_route, 'Review round', escHtml) : ''}
             ${latest.artifact_path ? `<a class="artifact-link" href="/artifacts/${escAttr(latest.artifact_path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, latest.artifact_path)}</a>` : ''}
@@ -623,8 +634,19 @@
             <div class="context-title">Round ${safeEsc(escHtml, review.round_id)}</div>
             <div class="context-meta">
               <span class="detail-chip">${safeEsc(escHtml, review.status || 'unknown')}</span>
+              ${review.acceptance_mode ? `<span>Mode ${safeEsc(escHtml, review.acceptance_mode)}</span>` : ''}
+              ${review.coverage_status ? `<span>Coverage ${safeEsc(escHtml, review.coverage_status)}</span>` : ''}
               <span>${safeEsc(escHtml, review.summary || '')}</span>
             </div>
+            ${review.untested_expected_routes?.length ? `
+              <div class="context-meta">
+                <span>Untested expected routes</span>
+                ${review.untested_expected_routes.map(route => `<span class="detail-chip">${safeEsc(escHtml, route)}</span>`).join('')}
+              </div>
+            ` : ''}
+            ${review.recommended_next_step ? `
+              <div class="transcript-entry-body"><strong>Next step:</strong> ${safeEsc(escHtml, review.recommended_next_step)}</div>
+            ` : ''}
             ${review.findings?.length ? `<div class="context-list detail-section">
               ${review.findings.map(finding => `
                 <div class="context-card detail-finding">

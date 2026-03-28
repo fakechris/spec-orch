@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
@@ -17,6 +16,11 @@ from spec_orch.domain.models import (
     RoundSummary,
 )
 from spec_orch.services.io import atomic_write_json, atomic_write_text
+from spec_orch.services.litellm_profile import (
+    normalize_litellm_model,
+    resolve_litellm_api_base,
+    resolve_litellm_api_key,
+)
 
 _SUPERVISOR_SYSTEM_PROMPT = """\
 You are Mission Supervisor for SpecOrch.
@@ -36,21 +40,26 @@ The JSON must include:
 
 class LiteLLMSupervisorAdapter:
     ADAPTER_NAME = "litellm"
+    VALID_API_TYPES = ("anthropic", "openai")
 
     def __init__(
         self,
         *,
         repo_root: Path,
         model: str,
+        api_type: str = "anthropic",
         api_key: str | None = None,
         api_base: str | None = None,
         temperature: float = 0.1,
         chat_completion: Any | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
-        self.model = model
-        self.api_key = api_key or os.environ.get("SPEC_ORCH_LLM_API_KEY")
-        self.api_base = api_base or os.environ.get("SPEC_ORCH_LLM_API_BASE")
+        if api_type not in self.VALID_API_TYPES:
+            raise ValueError(f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}")
+        self.api_type = api_type
+        self.model = normalize_litellm_model(model, api_type=api_type)
+        self.api_key = resolve_litellm_api_key(api_key=api_key, api_type=api_type)
+        self.api_base = resolve_litellm_api_base(api_base=api_base, api_type=api_type)
         self.temperature = temperature
         self._chat_completion = chat_completion
 

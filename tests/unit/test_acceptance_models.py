@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from spec_orch.domain.models import (
+    AcceptanceCampaign,
     AcceptanceFinding,
     AcceptanceIssueProposal,
+    AcceptanceMode,
     AcceptanceReviewResult,
 )
 
@@ -46,12 +48,25 @@ def test_acceptance_issue_proposal_round_trip() -> None:
 
 
 def test_acceptance_review_result_round_trip() -> None:
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.IMPACT_SWEEP,
+        goal="Validate the updated dashboard launcher across core mission routes.",
+        primary_routes=["/launcher"],
+        related_routes=["/", "/?tab=missions"],
+        coverage_expectations=["Mission launcher", "Mission list", "Mission detail"],
+        filing_policy="auto_file_regressions_only",
+        exploration_budget="medium",
+    )
     result = AcceptanceReviewResult(
         status="fail",
         summary="The mission output is not acceptable yet.",
         confidence=0.88,
         evaluator="acceptance_llm",
+        acceptance_mode="impact_sweep",
+        coverage_status="partial",
         tested_routes=["/", "/settings"],
+        untested_expected_routes=["/launcher"],
+        recommended_next_step="Expand route coverage before filing aesthetic-only issues.",
         findings=[
             AcceptanceFinding(
                 severity="high",
@@ -70,8 +85,25 @@ def test_acceptance_review_result_round_trip() -> None:
             "acceptance_json": "rounds/round-01/acceptance_review.json",
             "home_screenshot": "rounds/round-01/acceptance/home.png",
         },
+        campaign=campaign,
     )
 
     restored = AcceptanceReviewResult.from_dict(result.to_dict())
 
     assert restored == result
+
+
+def test_acceptance_campaign_round_trip() -> None:
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.EXPLORATORY,
+        goal="Dogfood the operator console like a first-principles operator.",
+        primary_routes=["/"],
+        related_routes=["/?mode=inbox"],
+        coverage_expectations=["Mission control", "Acceptance surface"],
+        filing_policy="hold_ux_concerns_for_operator_review",
+        exploration_budget="wide",
+    )
+
+    restored = AcceptanceCampaign.from_dict(campaign.to_dict())
+
+    assert restored == campaign

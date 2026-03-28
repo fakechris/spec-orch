@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
 
 from spec_orch.domain.models import (
+    AcceptanceCampaign,
+    AcceptanceMode,
     AcceptanceReviewResult,
     BuilderResult,
     ExecutionPlan,
@@ -645,6 +648,10 @@ class RoundOrchestrator:
         if browser_evidence is not None:
             acceptance_artifacts["browser_evidence"] = browser_evidence
         try:
+            campaign = self._build_acceptance_campaign(
+                mission_id=mission_id,
+                artifacts=acceptance_artifacts,
+            )
             result = self.acceptance_evaluator.evaluate_acceptance(
                 mission_id=mission_id,
                 round_id=round_id,
@@ -652,6 +659,7 @@ class RoundOrchestrator:
                 worker_results=worker_results,
                 artifacts=acceptance_artifacts,
                 repo_root=self.repo_root,
+                campaign=campaign,
             )
         except Exception:
             logger.exception("Acceptance evaluation failed for %s round %s", mission_id, round_id)
@@ -750,6 +758,70 @@ class RoundOrchestrator:
                 ),
             },
         }
+
+    def _build_acceptance_campaign(
+        self,
+        *,
+        mission_id: str,
+        artifacts: dict[str, Any],
+    ) -> AcceptanceCampaign:
+        mode = self._resolve_acceptance_mode()
+        browser_evidence = artifacts.get("browser_evidence")
+        review_routes = artifacts.get("review_routes")
+        primary_routes: list[str] = []
+        if isinstance(browser_evidence, dict):
+            primary_routes = [
+                route
+                for route in browser_evidence.get("tested_routes", [])
+                if isinstance(route, str) and route
+            ]
+        related_routes: list[str] = []
+        if isinstance(review_routes, dict):
+            related_routes = [
+                route for route in review_routes.values() if isinstance(route, str) and route
+            ]
+        mission = self._load_mission(mission_id)
+        coverage_expectations = list(mission.acceptance_criteria) if mission is not None else []
+        filing_policy = {
+            AcceptanceMode.FEATURE_SCOPED: "in_scope_only",
+            AcceptanceMode.IMPACT_SWEEP: "auto_file_regressions_only",
+            AcceptanceMode.EXPLORATORY: "hold_ux_concerns_for_operator_review",
+        }[mode]
+        exploration_budget = {
+            AcceptanceMode.FEATURE_SCOPED: "tight",
+            AcceptanceMode.IMPACT_SWEEP: "medium",
+            AcceptanceMode.EXPLORATORY: "wide",
+        }[mode]
+        goal = {
+            AcceptanceMode.FEATURE_SCOPED: (
+                "Verify the declared feature and directly affected routes."
+            ),
+            AcceptanceMode.IMPACT_SWEEP: (
+                "Sweep nearby routes for regressions caused by this round."
+            ),
+            AcceptanceMode.EXPLORATORY: "Dogfood the output from an operator perspective.",
+        }[mode]
+        return AcceptanceCampaign(
+            mode=mode,
+            goal=goal,
+            primary_routes=primary_routes,
+            related_routes=related_routes,
+            coverage_expectations=coverage_expectations,
+            filing_policy=filing_policy,
+            exploration_budget=exploration_budget,
+        )
+
+    @staticmethod
+    def _resolve_acceptance_mode() -> AcceptanceMode:
+        raw_mode = os.getenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.FEATURE_SCOPED.value)
+        try:
+            return AcceptanceMode(raw_mode.strip().lower())
+        except ValueError:
+            logger.warning(
+                "Invalid SPEC_ORCH_ACCEPTANCE_MODE=%r; falling back to feature_scoped",
+                raw_mode,
+            )
+            return AcceptanceMode.FEATURE_SCOPED
 
     def _build_supervisor_issue(
         self,

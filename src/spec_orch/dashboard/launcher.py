@@ -10,6 +10,7 @@ from typing import Any
 
 from spec_orch.services.lifecycle_manager import MissionLifecycleManager
 from spec_orch.services.linear_client import LinearClient
+from spec_orch.services.litellm_profile import resolve_configured_or_fallback_env
 from spec_orch.services.mission_service import MissionService
 from spec_orch.services.promotion_service import load_plan
 
@@ -105,19 +106,29 @@ def _gather_launcher_readiness(repo_root: Path) -> dict[str, Any]:
     builder_cfg = raw.get("builder", {}) if isinstance(raw.get("builder", {}), dict) else {}
     token_env, _team_key = _get_linear_settings(repo_root)
 
-    planner_key = ""
-    if planner_cfg.get("api_key_env"):
-        planner_key = os.environ.get(str(planner_cfg["api_key_env"]), "")
-    planner_base = ""
-    if planner_cfg.get("api_base_env"):
-        planner_base = os.environ.get(str(planner_cfg["api_base_env"]), "")
+    planner_api_type = str(planner_cfg.get("api_type", "anthropic"))
+    planner_key = resolve_configured_or_fallback_env(
+        str(planner_cfg.get("api_key_env", "")) or None,
+        api_type=planner_api_type,
+        kind="api_key",
+    )
+    planner_base = resolve_configured_or_fallback_env(
+        str(planner_cfg.get("api_base_env", "")) or None,
+        api_type=planner_api_type,
+        kind="api_base",
+    )
 
-    supervisor_key = ""
-    if supervisor_cfg.get("api_key_env"):
-        supervisor_key = os.environ.get(str(supervisor_cfg["api_key_env"]), "")
-    supervisor_base = ""
-    if supervisor_cfg.get("api_base_env"):
-        supervisor_base = os.environ.get(str(supervisor_cfg["api_base_env"]), "")
+    supervisor_api_type = str(supervisor_cfg.get("api_type", "anthropic"))
+    supervisor_key = resolve_configured_or_fallback_env(
+        str(supervisor_cfg.get("api_key_env", "")) or None,
+        api_type=supervisor_api_type,
+        kind="api_key",
+    )
+    supervisor_base = resolve_configured_or_fallback_env(
+        str(supervisor_cfg.get("api_base_env", "")) or None,
+        api_type=supervisor_api_type,
+        kind="api_base",
+    )
     try:
         supervisor_max_rounds = int(supervisor_cfg.get("max_rounds", 0))
     except (TypeError, ValueError):

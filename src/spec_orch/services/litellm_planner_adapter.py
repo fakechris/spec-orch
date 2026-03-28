@@ -8,7 +8,6 @@ drives the spec stage via CLI commands instead — no LLM call needed.
 from __future__ import annotations
 
 import json
-import os
 import shlex
 import subprocess
 import uuid
@@ -23,6 +22,11 @@ from spec_orch.domain.models import (
     PlannerResult,
     Question,
     SpecSnapshot,
+)
+from spec_orch.services.litellm_profile import (
+    normalize_litellm_model,
+    resolve_litellm_api_base,
+    resolve_litellm_api_key,
 )
 
 PLANNER_SYSTEM_PROMPT = """\
@@ -106,12 +110,9 @@ class LiteLLMPlannerAdapter:
         if api_type not in self.VALID_API_TYPES:
             raise ValueError(f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}")
         self.api_type = api_type
-        if "/" in model:
-            self.model = model
-        else:
-            self.model = f"{api_type}/{model}"
-        self._static_api_key = api_key or os.environ.get("SPEC_ORCH_LLM_API_KEY")
-        self.api_base = api_base or os.environ.get("SPEC_ORCH_LLM_API_BASE")
+        self.model = normalize_litellm_model(model, api_type=api_type)
+        self._static_api_key = resolve_litellm_api_key(api_key=api_key, api_type=api_type)
+        self.api_base = resolve_litellm_api_base(api_base=api_base, api_type=api_type)
         self.temperature = temperature
         self._token_command = token_command
         self.enable_prompt_caching = enable_prompt_caching

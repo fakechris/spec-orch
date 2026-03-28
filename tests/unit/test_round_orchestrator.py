@@ -498,6 +498,7 @@ def test_run_supervised_persists_acceptance_review_and_files_issue(tmp_path: Pat
             worker_results,
             artifacts,
             repo_root: Path,
+            campaign=None,
         ) -> AcceptanceReviewResult | None:
             return AcceptanceReviewResult(
                 status="fail",
@@ -550,6 +551,7 @@ def test_run_supervised_passes_browser_evidence_to_acceptance_evaluator(
     tmp_path: Path, monkeypatch
 ) -> None:
     import spec_orch.services.round_orchestrator as round_orchestrator_module
+    from spec_orch.domain.models import AcceptanceMode
     from spec_orch.services.round_orchestrator import RoundOrchestrator
     from spec_orch.services.workers.in_memory_worker_handle_factory import (
         InMemoryWorkerHandleFactory,
@@ -584,6 +586,7 @@ def test_run_supervised_passes_browser_evidence_to_acceptance_evaluator(
             return {}
 
     captured_artifacts: dict[str, object] = {}
+    captured_campaign: dict[str, object] = {}
 
     class StubAcceptanceEvaluator:
         ADAPTER_NAME = "stub_acceptance"
@@ -597,8 +600,10 @@ def test_run_supervised_passes_browser_evidence_to_acceptance_evaluator(
             worker_results,
             artifacts,
             repo_root: Path,
+            campaign=None,
         ) -> AcceptanceReviewResult | None:
             captured_artifacts.update(artifacts)
+            captured_campaign["value"] = campaign
             return AcceptanceReviewResult(
                 status="pass",
                 summary="Acceptance passed.",
@@ -643,6 +648,9 @@ def test_run_supervised_passes_browser_evidence_to_acceptance_evaluator(
         "page_errors": [],
         "artifact_paths": {"round_dir": str(tmp_path / "docs/specs/mission-1/rounds/round-01")},
     }
+    assert captured_campaign["value"] is not None
+    assert captured_campaign["value"].mode is AcceptanceMode.FEATURE_SCOPED
+    assert captured_campaign["value"].primary_routes == ["/", "/settings"]
 
 
 def test_run_supervised_persists_round_before_acceptance_side_effects(tmp_path: Path) -> None:
@@ -691,6 +699,7 @@ def test_run_supervised_persists_round_before_acceptance_side_effects(tmp_path: 
             worker_results,
             artifacts,
             repo_root: Path,
+            campaign=None,
         ) -> AcceptanceReviewResult | None:
             return AcceptanceReviewResult(
                 status="warn",
@@ -781,6 +790,7 @@ def test_run_supervised_records_acceptance_filing_failure_without_failing_round(
             worker_results,
             artifacts,
             repo_root: Path,
+            campaign=None,
         ) -> AcceptanceReviewResult | None:
             return AcceptanceReviewResult(
                 status="fail",
