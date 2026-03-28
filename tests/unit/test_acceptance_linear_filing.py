@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from spec_orch.domain.models import (
+    AcceptanceCampaign,
     AcceptanceIssueProposal,
+    AcceptanceMode,
     AcceptanceReviewResult,
 )
 
@@ -167,3 +169,124 @@ def test_linear_acceptance_filer_records_failure_when_issue_identifier_missing()
 
     assert filed.issue_proposals[0].filing_status == "failed"
     assert "identifier" in filed.issue_proposals[0].filing_error
+
+
+def test_linear_acceptance_filer_holds_exploratory_high_severity_ux_findings_for_review() -> None:
+    from spec_orch.services.acceptance.linear_filing import LinearAcceptanceFiler
+
+    class StubLinearClient:
+        def create_issue(
+            self, *, team_key: str, title: str, description: str = ""
+        ) -> dict[str, str]:
+            raise AssertionError("exploratory UX issues should be held for operator review")
+
+    filer = LinearAcceptanceFiler(client=StubLinearClient(), team_key="SON", min_confidence=0.8)
+    result = AcceptanceReviewResult(
+        status="fail",
+        summary="Operator flow feels confusing.",
+        confidence=0.92,
+        evaluator="acceptance_llm",
+        coverage_status="complete",
+        tested_routes=["/", "/?mission=mission-1&tab=transcript"],
+        campaign=AcceptanceCampaign(
+            mode=AcceptanceMode.EXPLORATORY,
+            goal="Dogfood the operator flow.",
+            primary_routes=["/"],
+            related_routes=["/?mission=mission-1&tab=transcript"],
+            filing_policy="hold_ux_concerns_for_operator_review",
+        ),
+        issue_proposals=[
+            AcceptanceIssueProposal(
+                title="Reduce transcript navigation confusion",
+                summary="Transcript navigation is hard to understand for first-time operators.",
+                severity="high",
+                confidence=0.92,
+                route="/?mission=mission-1&tab=transcript",
+            )
+        ],
+    )
+
+    filed = filer.apply(result, mission_id="mission-1", round_id=1)
+
+    assert filed.issue_proposals[0].filing_status == "skipped"
+    assert "operator review" in filed.issue_proposals[0].filing_error
+
+
+def test_linear_acceptance_filer_skips_auto_filing_when_coverage_is_missing() -> None:
+    from spec_orch.services.acceptance.linear_filing import LinearAcceptanceFiler
+
+    class StubLinearClient:
+        def create_issue(
+            self, *, team_key: str, title: str, description: str = ""
+        ) -> dict[str, str]:
+            raise AssertionError("should not auto-file when coverage is missing")
+
+    filer = LinearAcceptanceFiler(client=StubLinearClient(), team_key="SON", min_confidence=0.8)
+    result = AcceptanceReviewResult(
+        status="fail",
+        summary="Coverage did not reach the target route.",
+        confidence=0.96,
+        evaluator="acceptance_llm",
+        coverage_status="missing",
+        untested_expected_routes=["/launcher"],
+        campaign=AcceptanceCampaign(
+            mode=AcceptanceMode.IMPACT_SWEEP,
+            goal="Check launcher regressions.",
+            primary_routes=["/launcher"],
+            filing_policy="auto_file_regressions_only",
+        ),
+        issue_proposals=[
+            AcceptanceIssueProposal(
+                title="Launcher CTA missing",
+                summary="The launcher CTA appears absent.",
+                severity="high",
+                confidence=0.96,
+                route="/launcher",
+            )
+        ],
+    )
+
+    filed = filer.apply(result, mission_id="mission-1", round_id=1)
+
+    assert filed.issue_proposals[0].filing_status == "skipped"
+    assert "coverage" in filed.issue_proposals[0].filing_error
+
+
+def test_linear_acceptance_filer_skips_in_scope_policy_for_out_of_scope_route() -> None:
+    from spec_orch.services.acceptance.linear_filing import LinearAcceptanceFiler
+
+    class StubLinearClient:
+        def create_issue(
+            self, *, team_key: str, title: str, description: str = ""
+        ) -> dict[str, str]:
+            raise AssertionError("out-of-scope routes should not be auto-filed")
+
+    filer = LinearAcceptanceFiler(client=StubLinearClient(), team_key="SON", min_confidence=0.8)
+    result = AcceptanceReviewResult(
+        status="fail",
+        summary="An unrelated route looks broken.",
+        confidence=0.95,
+        evaluator="acceptance_llm",
+        coverage_status="complete",
+        campaign=AcceptanceCampaign(
+            mode=AcceptanceMode.FEATURE_SCOPED,
+            goal="Verify launcher create draft flow.",
+            primary_routes=["/launcher"],
+            related_routes=["/"],
+            filing_policy="in_scope_only",
+        ),
+        issue_proposals=[
+            AcceptanceIssueProposal(
+                title="Pricing page spacing regression",
+                summary="Pricing page spacing shifted.",
+                severity="high",
+                confidence=0.95,
+                route="/pricing",
+            )
+        ],
+    )
+
+    filed = filer.apply(result, mission_id="mission-1", round_id=1)
+
+    assert filed.issue_proposals[0].filing_status == "skipped"
+    assert "out of scope" in filed.issue_proposals[0].filing_error

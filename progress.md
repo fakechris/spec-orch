@@ -221,6 +221,26 @@
 
 ## Session: 2026-03-28
 
+### Acceptance Harness Phase 2 — Adversarial Rubric & Filing Policy
+- **Status:** complete
+- Actions taken:
+  - Added mode-aware adversarial rubric text to the acceptance prompt so feature-scoped, impact-sweep, and exploratory runs now have explicit evaluator stance rather than only route budgets.
+  - Added filing-policy guidance to the prompt so the evaluator is told when to auto-file, when to defer, and how to downgrade confidence when coverage is incomplete.
+  - Hardened `LinearAcceptanceFiler` so auto-filing now respects `coverage_status`, campaign filing policy, and route scope.
+  - Added skip reasons for held or out-of-scope proposals so the dashboard and artifacts can explain why an issue was not auto-filed.
+- Files created/modified:
+  - `src/spec_orch/services/acceptance/prompt_composer.py`
+  - `src/spec_orch/services/acceptance/linear_filing.py`
+  - `tests/unit/test_acceptance_prompt_composer.py`
+  - `tests/unit/test_acceptance_linear_filing.py`
+  - `task_plan.md`
+  - `progress.md`
+
+### Verification
+- **pytest**: targeted acceptance/prompt/filing/orchestrator suite passed (`35 passed`)
+- **ruff**: targeted acceptance/orchestrator checks passed
+- **mypy**: no issues found in touched acceptance/orchestrator files
+
 ### Acceptance Harness Phase 2 — Route Planning & Interaction Flows
 - **Status:** complete
 - Actions taken:

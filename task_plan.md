@@ -24,6 +24,7 @@
 | 14. Acceptance mode wiring | complete | Added `AcceptanceMode`/`AcceptanceCampaign`, mode-aware prompt composition, orchestrator-side campaign generation, enriched acceptance review payloads, and dashboard acceptance coverage surfacing |
 | 15. yoyo-evolve harness research | complete | Compared yoyo's identity/personality/memory/social/evolution architecture against SpecOrch, wrote a roadmap/design doc, normalized `SON-234` as an epic, and created aligned roadmap epics `SON-242..244` with child issues `SON-245..256` |
 | 16. Acceptance route planning and interaction-aware flows | complete | Acceptance campaigns now carry route budgets plus per-route interaction plans; browser evidence reuses Playwright capture to execute `click_text` flows and persist interaction traces into acceptance artifacts |
+| 17. Adversarial rubric and filing policy | complete | Added mode-aware adversarial rubric sections to acceptance prompts, made filing guidance explicit per policy, and hardened Linear auto-filing against missing coverage, exploratory UX holds, and out-of-scope routes |
 
 ## Comparison Dimensions
 - User entry points and onboarding flow
@@ -47,6 +48,7 @@
 - The acceptance evaluator is now wired into the supervised round loop and dashboard surfaces, but the next depth pass should focus on richer issue-filing policy, stronger browser evidence capture, and fully automated dogfood runs.
 - The user correctly pushed on the current evaluator’s epistemic limits: it still inherits too much implementation framing and too little true user-perspective exploration.
 - The new prompt architecture is now partially live: mode-aware evaluation, explicit coverage reporting, campaign-specific route planning, and basic interaction-aware browser flows are wired, but exploratory autonomy and richer task execution are still the next depth step.
+- The acceptance harness now encodes adversarial rubric and policy-aware auto-filing, but it still lacks richer finding taxonomy and truly exploratory multi-step browser task execution.
 - `yoyo-evolve` appears to encode identity, personality, journal history, self-learnings, and social-learnings as first-class prompt inputs, not just docs. This is likely the biggest philosophical gap versus SpecOrch, which is currently mission/control-plane oriented rather than agent-selfhood oriented.
 - `yoyo-evolve`'s stability strategy is explicit: one change at a time, mandatory build/test gates, revert on failure, and a public journal. Its “wild growth” is bounded by a very small self-edit aperture.
 - `yoyo-evolve`'s social layer is not ornamental. Discussions, family/fork identity, sponsor economics, and social learnings are integrated into the operational scripts, which is materially different from SpecOrch’s current PM/workflow-centric Linear model.
