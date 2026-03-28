@@ -651,6 +651,7 @@ def test_run_supervised_passes_browser_evidence_to_acceptance_evaluator(
     assert captured_campaign["value"] is not None
     assert captured_campaign["value"].mode is AcceptanceMode.FEATURE_SCOPED
     assert captured_campaign["value"].primary_routes == ["/", "/settings"]
+    assert captured_campaign["value"].related_routes == []
 
 
 def test_run_supervised_persists_round_before_acceptance_side_effects(tmp_path: Path) -> None:

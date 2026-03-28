@@ -767,18 +767,12 @@ class RoundOrchestrator:
     ) -> AcceptanceCampaign:
         mode = self._resolve_acceptance_mode()
         browser_evidence = artifacts.get("browser_evidence")
-        review_routes = artifacts.get("review_routes")
         primary_routes: list[str] = []
         if isinstance(browser_evidence, dict):
             primary_routes = [
                 route
                 for route in browser_evidence.get("tested_routes", [])
                 if isinstance(route, str) and route
-            ]
-        related_routes: list[str] = []
-        if isinstance(review_routes, dict):
-            related_routes = [
-                route for route in review_routes.values() if isinstance(route, str) and route
             ]
         mission = self._load_mission(mission_id)
         coverage_expectations = list(mission.acceptance_criteria) if mission is not None else []
@@ -805,7 +799,7 @@ class RoundOrchestrator:
             mode=mode,
             goal=goal,
             primary_routes=primary_routes,
-            related_routes=related_routes,
+            related_routes=[],
             coverage_expectations=coverage_expectations,
             filing_policy=filing_policy,
             exploration_budget=exploration_budget,
