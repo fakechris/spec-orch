@@ -2035,6 +2035,8 @@ def test_collect_artifacts_ignores_harness_telemetry_for_scope_proof(
     (telemetry_dir / "events.jsonl").write_text("{}\n", encoding="utf-8")
     (telemetry_dir / "incoming_events.jsonl").write_text("{}\n", encoding="utf-8")
     (telemetry_dir / "activity.log").write_text("[10:00] started\n", encoding="utf-8")
+    (workspace / "btw_context.md").write_text("Use the latest packet context.\n", encoding="utf-8")
+    (workspace / "task.spec.md").write_text("# Task Spec\n", encoding="utf-8")
     report_path = workspace / "builder_report.json"
     report_path.write_text("{}", encoding="utf-8")
 

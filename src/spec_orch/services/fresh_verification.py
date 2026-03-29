@@ -1,12 +1,24 @@
 from __future__ import annotations
 
+from pathlib import PurePosixPath
 from typing import Final
 
 _PYTHON_PREFIX: Final[list[str]] = ["{python}", "-c"]
 
 
 def _normalize_scope(files_in_scope: list[str]) -> list[str]:
-    return [str(path).strip() for path in files_in_scope if str(path).strip()]
+    normalized: list[str] = []
+    for raw_path in files_in_scope:
+        text = str(raw_path).strip().replace("\\", "/")
+        if not text:
+            continue
+        path = PurePosixPath(text)
+        if path.is_absolute() or ".." in path.parts:
+            raise ValueError(f"Invalid files_in_scope path: {raw_path!r}")
+        normalized_path = path.as_posix()
+        if normalized_path not in normalized:
+            normalized.append(normalized_path)
+    return normalized
 
 
 def _python_check(script: str) -> list[str]:

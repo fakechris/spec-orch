@@ -487,6 +487,7 @@ class RoundOrchestrator:
         allowed_set = set(allowed)
         excluded_paths = {report_path.resolve()}
         excluded_prefixes = ("telemetry/",)
+        excluded_filenames = {"btw_context.md", "task.spec.md"}
         realized_files: list[str] = []
         for path in workspace.rglob("*"):
             if not path.is_file():
@@ -498,7 +499,7 @@ class RoundOrchestrator:
             if resolved in excluded_paths:
                 continue
             relative_path = path.relative_to(workspace).as_posix()
-            if relative_path.startswith(excluded_prefixes):
+            if relative_path.startswith(excluded_prefixes) or relative_path in excluded_filenames:
                 continue
             realized_files.append(relative_path)
         realized_files = self._unique_preserve_order(realized_files)

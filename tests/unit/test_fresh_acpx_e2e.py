@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 
 def test_materialize_fresh_execution_artifacts_writes_proof_files(tmp_path: Path) -> None:
@@ -220,6 +220,7 @@ def test_run_fresh_launch_and_pickup_records_consistent_proof(
                 "mission_id": mission_id,
                 "background_runner_started": False,
                 "state": {"mission_id": mission_id, "phase": "executing"},
+                "launch": {"runner": {"status": "foreground_required"}},
             }
         ),
     )
@@ -240,6 +241,38 @@ def test_run_fresh_launch_and_pickup_records_consistent_proof(
     assert persisted["launch_result"]["state"]["phase"] == "executing"
     assert persisted["daemon_run"]["state"]["phase"] == "all_done"
     assert result["daemon_run"]["runner_status"] == "finished"
+
+
+def test_run_fresh_launch_and_pickup_skips_local_pickup_when_daemon_running(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from spec_orch.services.fresh_acpx_e2e import run_fresh_launch_and_pickup
+
+    operator_dir = tmp_path / "docs" / "specs" / "fresh-acpx-1" / "operator"
+    operator_dir.mkdir(parents=True, exist_ok=True)
+    pickup_attempts: list[str] = []
+
+    monkeypatch.setattr(
+        "spec_orch.dashboard.launcher._launch_mission",
+        lambda repo_root, mission_id, *, allow_background_runner=True: {
+            "mission_id": mission_id,
+            "background_runner_started": False,
+            "state": {"mission_id": mission_id, "phase": "executing"},
+            "launch": {"runner": {"status": "daemon_running"}},
+        },
+    )
+    monkeypatch.setattr(
+        "spec_orch.services.fresh_acpx_e2e.run_fresh_execution_once",
+        lambda *, repo_root, mission_id: pickup_attempts.append(mission_id),
+    )
+
+    result = run_fresh_launch_and_pickup(repo_root=tmp_path, mission_id="fresh-acpx-1")
+
+    persisted = json.loads((operator_dir / "launch_pickup.json").read_text(encoding="utf-8"))
+    assert pickup_attempts == []
+    assert persisted["daemon_run"] is None
+    assert result["daemon_run"] is None
 
 
 def test_wait_for_dashboard_ready_retries_until_probe_succeeds(monkeypatch) -> None:
@@ -278,6 +311,21 @@ def test_wait_for_dashboard_ready_times_out_with_last_error(monkeypatch) -> None
         assert "still starting" in str(exc)
     else:
         raise AssertionError("Expected readiness polling to time out")
+
+
+def test_wait_for_dashboard_ready_treats_http_error_status_as_ready(monkeypatch) -> None:
+    from spec_orch.services.fresh_acpx_e2e import wait_for_dashboard_ready
+
+    def fake_probe(url: str, timeout_seconds: float) -> dict[str, object]:
+        raise HTTPError(url, 404, "not found", hdrs=None, fp=None)
+
+    monkeypatch.setattr("spec_orch.services.fresh_acpx_e2e._probe_dashboard", fake_probe)
+    monkeypatch.setattr("spec_orch.services.fresh_acpx_e2e.time.sleep", lambda _: None)
+
+    result = wait_for_dashboard_ready("http://127.0.0.1:8426/", timeout_seconds=0.1)
+
+    assert result["ready"] is True
+    assert result["status"] == 404
 
 
 def test_assert_fresh_plan_budget_rejects_broad_plan() -> None:

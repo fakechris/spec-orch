@@ -4,6 +4,7 @@ import json
 import time
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError
 from urllib.request import urlopen
 
 from spec_orch.domain.models import AcceptanceReviewResult
@@ -30,10 +31,16 @@ def _build_execution_lifecycle_manager(repo_root: Path) -> Any:
 
 
 def _probe_dashboard(url: str, timeout_seconds: float) -> dict[str, Any]:
-    with urlopen(url, timeout=timeout_seconds) as response:
+    try:
+        with urlopen(url, timeout=timeout_seconds) as response:
+            return {
+                "url": url,
+                "status": getattr(response, "status", None),
+            }
+    except HTTPError as exc:
         return {
             "url": url,
-            "status": getattr(response, "status", None),
+            "status": exc.code,
         }
 
 
@@ -60,6 +67,16 @@ def wait_for_dashboard_ready(
                     "url": base_url,
                 }
             last_error = f"unexpected status={status}"
+        except HTTPError as exc:
+            status = int(exc.code)
+            if 200 <= status < 500:
+                return {
+                    "ready": True,
+                    "attempts": attempts,
+                    "status": status,
+                    "url": base_url,
+                }
+            last_error = f"unexpected status={status}"
         except Exception as exc:
             last_error = str(exc)
         if time.monotonic() >= deadline:
@@ -73,7 +90,10 @@ def run_fresh_launch_and_pickup(*, repo_root: Path, mission_id: str) -> dict[str
     operator_dir = repo_root / "docs" / "specs" / mission_id / "operator"
     operator_dir.mkdir(parents=True, exist_ok=True)
     launch_result = _launch_mission(repo_root, mission_id, allow_background_runner=False)
-    daemon_run = run_fresh_execution_once(repo_root=repo_root, mission_id=mission_id)
+    runner_status = str(launch_result.get("launch", {}).get("runner", {}).get("status", "")).strip()
+    daemon_run = None
+    if runner_status == "foreground_required":
+        daemon_run = run_fresh_execution_once(repo_root=repo_root, mission_id=mission_id)
     payload = {
         "mission_id": mission_id,
         "proof_type": "fresh_launch_pickup",
