@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError
+from urllib.request import urlopen
 
 from spec_orch.domain.models import AcceptanceReviewResult
 
@@ -25,6 +28,80 @@ def _build_execution_lifecycle_manager(repo_root: Path) -> Any:
     from spec_orch.dashboard.launcher import _build_execution_lifecycle_manager as _build_manager
 
     return _build_manager(repo_root)
+
+
+def _probe_dashboard(url: str, timeout_seconds: float) -> dict[str, Any]:
+    try:
+        with urlopen(url, timeout=timeout_seconds) as response:
+            return {
+                "url": url,
+                "status": getattr(response, "status", None),
+            }
+    except HTTPError as exc:
+        return {
+            "url": url,
+            "status": exc.code,
+        }
+
+
+def wait_for_dashboard_ready(
+    base_url: str,
+    *,
+    timeout_seconds: float = 20.0,
+    poll_interval_seconds: float = 0.5,
+    probe_timeout_seconds: float = 2.0,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_seconds
+    attempts = 0
+    last_error = ""
+    while True:
+        attempts += 1
+        try:
+            payload = _probe_dashboard(base_url, probe_timeout_seconds)
+            status = int(payload.get("status") or 0)
+            if 200 <= status < 500:
+                return {
+                    "ready": True,
+                    "attempts": attempts,
+                    "status": status,
+                    "url": base_url,
+                }
+            last_error = f"unexpected status={status}"
+        except HTTPError as exc:
+            status = int(exc.code)
+            if 200 <= status < 500:
+                return {
+                    "ready": True,
+                    "attempts": attempts,
+                    "status": status,
+                    "url": base_url,
+                }
+            last_error = f"unexpected status={status}"
+        except Exception as exc:
+            last_error = str(exc)
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"Dashboard never became ready at {base_url}: {last_error}")
+        time.sleep(poll_interval_seconds)
+
+
+def run_fresh_launch_and_pickup(*, repo_root: Path, mission_id: str) -> dict[str, Any]:
+    from spec_orch.dashboard.launcher import _launch_mission
+
+    operator_dir = repo_root / "docs" / "specs" / mission_id / "operator"
+    operator_dir.mkdir(parents=True, exist_ok=True)
+    launch_result = _launch_mission(repo_root, mission_id, allow_background_runner=False)
+    runner_status = str(launch_result.get("launch", {}).get("runner", {}).get("status", "")).strip()
+    daemon_run = None
+    if runner_status == "foreground_required":
+        daemon_run = run_fresh_execution_once(repo_root=repo_root, mission_id=mission_id)
+    payload = {
+        "mission_id": mission_id,
+        "proof_type": "fresh_launch_pickup",
+        "launch_result": launch_result,
+        "daemon_run": daemon_run,
+    }
+    _write_json(operator_dir / "launch_pickup.json", payload)
+    return payload
 
 
 def run_fresh_execution_once(*, repo_root: Path, mission_id: str) -> dict[str, Any]:
@@ -118,8 +195,12 @@ def write_fresh_acpx_mission_report(
     workflow_replay: dict[str, Any],
     acceptance_review: AcceptanceReviewResult,
 ) -> dict[str, Any]:
+    bootstrap = fresh_execution.get("mission_bootstrap", {})
+    metadata = bootstrap.get("metadata", {}) if isinstance(bootstrap, dict) else {}
+    variant = str(metadata.get("fresh_variant", "default")).strip() or "default"
     report_payload = {
         "mission_id": mission_id,
+        "variant": variant,
         "dashboard_url": dashboard_url,
         "fresh_execution": fresh_execution,
         "workflow_replay": workflow_replay,
@@ -137,6 +218,8 @@ def write_fresh_acpx_mission_report(
     markdown = "\n".join(
         [
             f"# Fresh Acpx Mission E2E Report: {mission_id}",
+            "",
+            f"- Variant: `{variant}`",
             "",
             "## Fresh Execution Proof",
             "",

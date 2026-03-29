@@ -171,6 +171,39 @@ def test_linear_acceptance_filer_records_failure_when_issue_identifier_missing()
     assert "identifier" in filed.issue_proposals[0].filing_error
 
 
+def test_linear_acceptance_filer_coerces_string_proposal_confidence_from_llm_payload() -> None:
+    from spec_orch.services.acceptance.linear_filing import LinearAcceptanceFiler
+
+    class StubLinearClient:
+        def create_issue(
+            self, *, team_key: str, title: str, description: str = ""
+        ) -> dict[str, str]:
+            raise AssertionError("low-confidence proposal should not be auto-filed")
+
+    filer = LinearAcceptanceFiler(client=StubLinearClient(), team_key="SON", min_confidence=0.8)
+    result = AcceptanceReviewResult.from_dict(
+        {
+            "status": "fail",
+            "summary": "Reject this run.",
+            "confidence": 0.2,
+            "evaluator": "acceptance_llm",
+            "issue_proposals": [
+                {
+                    "title": "Follow up on weak signal",
+                    "summary": "This proposal came back with string confidence.",
+                    "severity": "high",
+                    "confidence": "low",
+                }
+            ],
+        }
+    )
+
+    filed = filer.apply(result, mission_id="mission-1", round_id=1)
+
+    assert filed.issue_proposals[0].filing_status == "skipped"
+    assert "confidence below auto-file threshold" in filed.issue_proposals[0].filing_error
+
+
 def test_linear_acceptance_filer_holds_exploratory_high_severity_ux_findings_for_review() -> None:
     from spec_orch.services.acceptance.linear_filing import LinearAcceptanceFiler
 

@@ -180,6 +180,81 @@ Reject this run.
     assert result.campaign.mode is AcceptanceMode.IMPACT_SWEEP
 
 
+def test_acceptance_evaluator_prefers_deterministic_campaign_and_browser_routes(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "fail",
+  "summary": "Workflow replay was not executed.",
+  "confidence": 0.3,
+  "evaluator": "acceptance_llm",
+  "acceptance_mode": "feature_scoped",
+  "tested_routes": [],
+  "findings": [],
+  "issue_proposals": [],
+  "artifacts": {},
+  "campaign": {
+    "mode": "feature_scoped",
+    "goal": "Verify the declared feature and directly affected routes.",
+    "primary_routes": ["/"],
+    "related_routes": ["/transcript"]
+  }
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+    supplied_campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.WORKFLOW,
+        goal="Validate the post-run dashboard workflow for a fresh ACPX mission.",
+        primary_routes=["/", "/?mode=missions"],
+        related_routes=["/?mission=mission-9&mode=missions&tab=overview"],
+        coverage_expectations=["launcher", "mission inventory", "mission detail"],
+        filing_policy="auto_file_broken_flows_only",
+        exploration_budget="bounded",
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-9",
+        round_id=9,
+        round_dir=tmp_path / "docs/specs/mission-9/rounds/round-09",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={
+            "browser_evidence": {
+                "tested_routes": [
+                    "/",
+                    "/?mode=missions",
+                    "/?mission=mission-9&mode=missions&tab=overview",
+                ],
+                "page_errors": [],
+            }
+        },
+        repo_root=tmp_path,
+        campaign=supplied_campaign,
+    )
+
+    assert result.acceptance_mode == "workflow"
+    assert result.tested_routes == [
+        "/",
+        "/?mode=missions",
+        "/?mission=mission-9&mode=missions&tab=overview",
+    ]
+    assert result.coverage_status == "complete"
+    assert result.campaign is not None
+    assert result.campaign.mode is AcceptanceMode.WORKFLOW
+
+
 def test_acceptance_evaluator_degrades_safely_on_parse_error(tmp_path: Path) -> None:
     from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
         LiteLLMAcceptanceEvaluator,

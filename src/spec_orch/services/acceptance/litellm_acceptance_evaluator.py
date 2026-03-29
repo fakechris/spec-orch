@@ -162,6 +162,13 @@ class LiteLLMAcceptanceEvaluator:
         artifacts: dict[str, Any],
     ) -> AcceptanceReviewResult:
         browser_evidence = artifacts.get("browser_evidence", {})
+        normalized_tested_routes = list(result.tested_routes)
+        if not normalized_tested_routes and isinstance(browser_evidence, dict):
+            normalized_tested_routes = [
+                LiteLLMAcceptanceEvaluator._clean_text(route)
+                for route in browser_evidence.get("tested_routes", [])
+                if LiteLLMAcceptanceEvaluator._clean_text(route)
+            ]
         page_errors_by_route = LiteLLMAcceptanceEvaluator._page_errors_by_route(browser_evidence)
         fallback_route = LiteLLMAcceptanceEvaluator._fallback_route(result, browser_evidence)
 
@@ -190,6 +197,7 @@ class LiteLLMAcceptanceEvaluator:
                 normalized_artifacts[key] = value
         return replace(
             result,
+            tested_routes=normalized_tested_routes,
             findings=findings,
             issue_proposals=issue_proposals,
             artifacts=normalized_artifacts,
@@ -359,11 +367,11 @@ class LiteLLMAcceptanceEvaluator:
 
         return replace(
             result,
-            acceptance_mode=result.acceptance_mode or campaign.mode.value,
+            acceptance_mode=campaign.mode.value,
             coverage_status=coverage_status,
             untested_expected_routes=untested_expected_routes,
             recommended_next_step=recommended_next_step,
-            campaign=result.campaign or campaign,
+            campaign=campaign,
         )
 
     @staticmethod

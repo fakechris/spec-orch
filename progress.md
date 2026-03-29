@@ -258,6 +258,47 @@
 ### Verification — Dashboard Workflow Replay Quality Pass
 - `uv run pytest tests/unit/test_dashboard_package.py -q` → `22 passed`
 - `uv run mypy src/spec_orch/dashboard/app.py` → pass
+
+## Session: 2026-03-29
+
+### Fresh Acpx Mission E2E Hardening
+- **Status:** complete
+- Actions taken:
+  - Moved fresh mission and campaign templates into runtime-safe packaged resources and added a shared resource loader so fresh smoke no longer depends on `tests/fixtures` at runtime.
+  - Strengthened fresh verification from file-exists checks to explicit TypeScript contract/schema command generation, and wired those commands into launcher-generated fresh plans.
+  - Added packet scope proof to fresh gate artifacts so mergeability now depends on declared `files_in_scope`, not just whether the worker produced files.
+  - Hardened launch/pickup by forcing the smoke path through one foreground lifecycle, replaced dashboard fixed sleeps with readiness polling, and expanded the smoke harness to support named variants and lock-protected runs.
+  - Added fresh variants for `default`, `multi_packet`, and `linear_bound`, including real Linear-bound launch proof and post-run workflow replay reports.
+  - Fixed a real dashboard regression surfaced by the new Linear-bound replay: acceptance review payloads with string confidences like `"low"` no longer 500 mission detail or acceptance-review routes.
+- Files created/modified:
+  - `src/spec_orch/resources/__init__.py`
+  - `src/spec_orch/resources/fresh_acpx_mission_request.json`
+  - `src/spec_orch/resources/fresh_acpx_campaign.json`
+  - `src/spec_orch/resources/fresh_acpx_mission_request_multi_packet.json`
+  - `src/spec_orch/resources/fresh_acpx_mission_request_linear_bound.json`
+  - `src/spec_orch/services/resource_loader.py`
+  - `src/spec_orch/services/fresh_verification.py`
+  - `src/spec_orch/dashboard/launcher.py`
+  - `src/spec_orch/services/fresh_acpx_e2e.py`
+  - `src/spec_orch/services/round_orchestrator.py`
+  - `src/spec_orch/domain/models.py`
+  - `src/spec_orch/services/acceptance/litellm_acceptance_evaluator.py`
+  - `tests/e2e/fresh_acpx_mission_smoke.sh`
+  - `tests/unit/test_dashboard_api.py`
+  - `tests/unit/test_dashboard_launcher.py`
+  - `tests/unit/test_fresh_acpx_e2e.py`
+  - `tests/unit/test_fresh_verification.py`
+  - `tests/unit/test_round_orchestrator.py`
+  - `tests/unit/test_litellm_acceptance_evaluator.py`
+  - `docs/plans/2026-03-28-fresh-acpx-mission-e2e-design.md`
+  - `docs/plans/2026-03-29-fresh-acpx-hardening-implementation.md`
+  - `docs/guides/supervised-mission-e2e-playbook.md`
+
+### Verification — Fresh Acpx Mission E2E Hardening
+- `uv run pytest tests/unit/test_dashboard_api.py tests/unit/test_round_orchestrator.py tests/unit/test_fresh_acpx_e2e.py tests/unit/test_dashboard_launcher.py tests/unit/test_fresh_verification.py tests/unit/test_litellm_acceptance_evaluator.py -q` → `136 passed`
+- `bash tests/e2e/fresh_acpx_mission_smoke.sh --full --variant linear_bound` → pass
+- `bash tests/e2e/fresh_acpx_mission_smoke.sh --full --variant multi_packet` → pass
+- `bash tests/e2e/fresh_acpx_mission_smoke.sh --full --variant default` → pass
 - `uv run ruff check src/spec_orch/dashboard/app.py tests/unit/test_dashboard_package.py` → pass
 
 ### Workflow Replay E2E Skill Contract

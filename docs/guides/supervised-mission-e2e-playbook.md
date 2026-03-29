@@ -195,6 +195,27 @@ MINIMAX_API_KEY=$MINIMAX_API_KEY MINIMAX_ANTHROPIC_BASE_URL=$MINIMAX_ANTHROPIC_B
   ./tests/e2e/fresh_acpx_mission_smoke.sh --full
 ```
 
+现在这个 fresh smoke 脚本还支持 runtime-safe variants：
+
+```bash
+./tests/e2e/fresh_acpx_mission_smoke.sh --full --variant default
+./tests/e2e/fresh_acpx_mission_smoke.sh --full --variant multi_packet
+./tests/e2e/fresh_acpx_mission_smoke.sh --full --variant linear_bound
+```
+
+含义：
+
+- `default`
+  - 最窄的 fresh proof path
+  - 预算默认是 `1 wave / 2 packets`
+- `multi_packet`
+  - 仍然 bounded，但允许更宽一点的 packet 组合
+  - 用来避免只证明单一 packet shape
+- `linear_bound`
+  - 在 launch 前先绑定 Linear issue
+  - 用来证明第二条 launcher path
+  - 需要 Linear token 可用
+
 ---
 
 ## 4. CLI 回退流程：手动创建一个可试跑的 Mission

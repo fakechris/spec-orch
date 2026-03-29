@@ -53,6 +53,28 @@ def test_acceptance_issue_proposal_round_trip() -> None:
     assert restored == proposal
 
 
+def test_acceptance_confidence_coercion_rejects_non_finite_and_out_of_range_values() -> None:
+    result = AcceptanceReviewResult.from_dict(
+        {
+            "status": "pass",
+            "summary": "Looks good.",
+            "confidence": "NaN",
+            "evaluator": "acceptance_llm",
+        }
+    )
+    proposal = AcceptanceIssueProposal.from_dict(
+        {
+            "title": "Out of range confidence",
+            "summary": "Proposal confidence should not exceed 1.0.",
+            "severity": "medium",
+            "confidence": "2.0",
+        }
+    )
+
+    assert result.confidence == 0.0
+    assert proposal.confidence == 0.0
+
+
 def test_acceptance_review_result_round_trip() -> None:
     campaign = AcceptanceCampaign(
         mode=AcceptanceMode.IMPACT_SWEEP,

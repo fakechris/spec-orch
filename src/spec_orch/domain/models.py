@@ -1,11 +1,34 @@
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+
+def _coerce_confidence_score(value: Any, *, default: float = 0.0) -> float:
+    def _sanitize(number: float) -> float:
+        return number if math.isfinite(number) and 0.0 <= number <= 1.0 else default
+
+    if isinstance(value, bool):
+        return _sanitize(float(value))
+    if isinstance(value, (int, float)):
+        return _sanitize(float(value))
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if not normalized:
+            return default
+        mapped = {"high": 0.9, "medium": 0.7, "low": 0.3}.get(normalized)
+        if mapped is not None:
+            return _sanitize(mapped)
+        try:
+            return _sanitize(float(normalized))
+        except ValueError:
+            return default
+    return default
 
 
 class FlowType(StrEnum):
@@ -820,7 +843,7 @@ class AcceptanceIssueProposal:
             title=data.get("title", ""),
             summary=data.get("summary", ""),
             severity=data.get("severity", ""),
-            confidence=data.get("confidence", 0.0),
+            confidence=_coerce_confidence_score(data.get("confidence", 0.0)),
             repro_steps=data.get("repro_steps", []),
             expected=data.get("expected", ""),
             actual=data.get("actual", ""),
@@ -872,7 +895,7 @@ class AcceptanceReviewResult:
         return cls(
             status=data.get("status", ""),
             summary=data.get("summary", ""),
-            confidence=data.get("confidence", 0.0),
+            confidence=_coerce_confidence_score(data.get("confidence", 0.0)),
             evaluator=data.get("evaluator", ""),
             findings=[
                 AcceptanceFinding.from_dict(item)

@@ -9,16 +9,35 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from spec_orch.services.fresh_verification import build_fresh_verification_commands
 from spec_orch.services.lifecycle_manager import MissionLifecycleManager
 from spec_orch.services.linear_client import LinearClient, resolve_linear_token
 from spec_orch.services.litellm_profile import resolve_configured_or_fallback_env
 from spec_orch.services.mission_service import MissionService
 from spec_orch.services.promotion_service import load_plan
+from spec_orch.services.resource_loader import load_json_resource
 from spec_orch.services.round_orchestrator import build_fresh_acpx_post_run_campaign
 
 _RUNNER_LOCK = threading.Lock()
 _ACTIVE_RUNNERS: dict[str, threading.Thread] = {}
 _LAUNCH_META_LOCK = threading.Lock()
+_FRESH_ACPX_VARIANT_RESOURCES: dict[str, dict[str, Any]] = {
+    "default": {
+        "resource_name": "fresh_acpx_mission_request.json",
+        "launcher_path": "approve_plan_launch",
+        "requires_linear": False,
+    },
+    "multi_packet": {
+        "resource_name": "fresh_acpx_mission_request_multi_packet.json",
+        "launcher_path": "approve_plan_launch",
+        "requires_linear": False,
+    },
+    "linear_bound": {
+        "resource_name": "fresh_acpx_mission_request_linear_bound.json",
+        "launcher_path": "create_linear_issue_then_launch",
+        "requires_linear": True,
+    },
+}
 
 
 def _load_raw_config(repo_root: Path) -> dict[str, Any]:
@@ -100,11 +119,14 @@ def _build_spec_markdown(
 
 
 def _load_launcher_fixture(repo_root: Path, fixture_name: str) -> dict[str, Any]:
-    fixture_path = repo_root / "tests" / "fixtures" / fixture_name
-    data = json.loads(fixture_path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"Launcher fixture {fixture_name} must contain a JSON object")
-    return data
+    return load_json_resource(resource_name=fixture_name, repo_root=repo_root)
+
+
+def _resolve_fresh_acpx_variant(variant: str) -> dict[str, Any]:
+    key = str(variant).strip().lower() or "default"
+    if key not in _FRESH_ACPX_VARIANT_RESOURCES:
+        raise ValueError(f"Unsupported fresh ACPX variant: {variant}")
+    return {"variant": key, **_FRESH_ACPX_VARIANT_RESOURCES[key]}
 
 
 def _is_fresh_acpx_mission(repo_root: Path, mission_id: str) -> bool:
@@ -125,33 +147,6 @@ def _is_fresh_acpx_mission(repo_root: Path, mission_id: str) -> bool:
     return mission_id.startswith("fresh-acpx-")
 
 
-def _build_fresh_verification_commands(files_in_scope: list[str]) -> dict[str, list[str]]:
-    scoped_files = [str(path).strip() for path in files_in_scope if str(path).strip()]
-    if not scoped_files:
-        return {}
-    script = (
-        "from pathlib import Path\n"
-        "import sys\n"
-        f"paths = {scoped_files!r}\n"
-        "missing = []\n"
-        "invalid = []\n"
-        "for rel in paths:\n"
-        "    path = Path(rel)\n"
-        "    if not path.exists() or not path.is_file():\n"
-        "        missing.append(rel)\n"
-        "        continue\n"
-        "    text = path.read_text(encoding='utf-8')\n"
-        "    if not any(token in text for token in ('export ', 'interface ', 'type ', 'enum ')):\n"
-        "        invalid.append(rel)\n"
-        "if missing or invalid:\n"
-        "    sys.stderr.write(f'missing={missing} invalid={invalid}\\n')\n"
-        "    raise SystemExit(1)\n"
-    )
-    return {
-        "scaffold_exists": ["{python}", "-c", script],
-    }
-
-
 def _inject_fresh_plan_verification_commands(plan: dict[str, Any]) -> bool:
     changed = False
     for wave in plan.get("waves", []):
@@ -163,15 +158,20 @@ def _inject_fresh_plan_verification_commands(plan: dict[str, Any]) -> bool:
             current = packet.get("verification_commands", {})
             if isinstance(current, dict) and current:
                 continue
-            generated = _build_fresh_verification_commands(list(packet.get("files_in_scope", [])))
+            generated = build_fresh_verification_commands(list(packet.get("files_in_scope", [])))
             if generated:
                 packet["verification_commands"] = generated
                 changed = True
     return changed
 
 
-def _build_fresh_acpx_mission_request(repo_root: Path) -> dict[str, Any]:
-    payload = _load_launcher_fixture(repo_root, "fresh_acpx_mission_request.json")
+def _build_fresh_acpx_mission_request(
+    repo_root: Path,
+    *,
+    variant: str = "default",
+) -> dict[str, Any]:
+    variant_config = _resolve_fresh_acpx_variant(variant)
+    payload = _load_launcher_fixture(repo_root, str(variant_config["resource_name"]))
     mission_id_prefix = (
         str(payload.get("mission_id_prefix", "fresh-acpx-")).strip() or "fresh-acpx-"
     )
@@ -183,6 +183,9 @@ def _build_fresh_acpx_mission_request(repo_root: Path) -> dict[str, Any]:
             "fresh": True,
             "generated_at": datetime.now(UTC).isoformat(),
             "mission_id_prefix": mission_id_prefix,
+            "fresh_variant": variant_config["variant"],
+            "launcher_path": variant_config["launcher_path"],
+            "requires_linear": bool(variant_config["requires_linear"]),
         }
     )
     campaign = build_fresh_acpx_post_run_campaign(repo_root, mission_id)
@@ -486,7 +489,12 @@ def _bind_linear_issue_to_mission(
         client.close()
 
 
-def _launch_mission(repo_root: Path, mission_id: str) -> dict[str, Any]:
+def _launch_mission(
+    repo_root: Path,
+    mission_id: str,
+    *,
+    allow_background_runner: bool = True,
+) -> dict[str, Any]:
     readiness = _gather_launcher_readiness(repo_root)
     if not readiness.get("supervisor", {}).get("ready"):
         raise ValueError(
@@ -524,6 +532,8 @@ def _launch_mission(repo_root: Path, mission_id: str) -> dict[str, Any]:
     if state.to_dict().get("phase") == "executing":
         if _daemon_is_active(repo_root):
             runner_status = "daemon_running"
+        elif not allow_background_runner:
+            runner_status = "foreground_required"
         else:
             started_background = _start_background_mission_runner(repo_root, mission_id)
             runner_status = "running" if started_background else "already_running"
