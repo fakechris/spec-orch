@@ -212,6 +212,9 @@ def test_capture_page_snapshots_executes_interaction_plan(
         def click(self, timeout: int) -> None:
             self.log.append(("click", self.text))
 
+        def fill(self, value: str, timeout: int) -> None:
+            self.log.append(("fill", f"{self.text}={value}"))
+
         def wait_for(self, state: str, timeout: int) -> None:
             self.log.append(("wait_for", self.text))
 
@@ -301,6 +304,11 @@ def test_capture_page_snapshots_executes_interaction_plan(
         interaction_plans={
             "/?mission=mission-5&tab=overview": [
                 AcceptanceInteractionStep(
+                    action="fill_selector",
+                    target='[data-automation-target="launcher-field"][data-field-key="title"]',
+                    value="Mission 5 Workflow Smoke",
+                ),
+                AcceptanceInteractionStep(
                     action="click_selector",
                     target='[data-automation-target="mission-card"][data-mission-id="mission-5"]',
                 ),
@@ -316,6 +324,12 @@ def test_capture_page_snapshots_executes_interaction_plan(
     assert failures == []
     assert snapshots[0].interaction_log == [
         {
+            "action": "fill_selector",
+            "target": '[data-automation-target="launcher-field"][data-field-key="title"]',
+            "description": "",
+            "status": "passed",
+        },
+        {
             "action": "click_selector",
             "target": '[data-automation-target="mission-card"][data-mission-id="mission-5"]',
             "description": "",
@@ -324,6 +338,255 @@ def test_capture_page_snapshots_executes_interaction_plan(
         {"action": "click_text", "target": "Transcript", "description": "", "status": "passed"},
         {"action": "click_text", "target": "Overview", "description": "", "status": "passed"},
     ]
+    assert (
+        "fill",
+        '[data-automation-target="launcher-field"][data-field-key="title"]=Mission 5 Workflow Smoke',
+    ) in log
     assert ("click", '[data-automation-target="mission-card"][data-mission-id="mission-5"]') in log
     assert ("click", "Transcript") in log
     assert ("click", "Overview") in log
+
+
+def test_capture_page_snapshots_uses_step_specific_timeout(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from spec_orch.services.visual.playwright_visual_eval import (
+        VisualEvalRequest,
+        capture_page_snapshots,
+    )
+
+    class FakeLocator:
+        def __init__(self, selector: str, log: list[tuple[str, str, int]]) -> None:
+            self.selector = selector
+            self.log = log
+
+        def click(self, timeout: int) -> None:
+            self.log.append(("click", self.selector, timeout))
+
+        def fill(self, value: str, timeout: int) -> None:
+            self.log.append(("fill", f"{self.selector}={value}", timeout))
+
+    class FakePage:
+        def __init__(self, log: list[tuple[str, str, int]]) -> None:
+            self.log = log
+
+        def on(self, event: str, handler) -> None:
+            return None
+
+        def goto(self, url: str, wait_until: str, timeout: int) -> None:
+            self.log.append(("goto", url, timeout))
+
+        def wait_for_selector(self, selector: str, timeout: int) -> None:
+            self.log.append(("selector", selector, timeout))
+
+        def locator(self, selector: str) -> FakeLocator:
+            return FakeLocator(selector, self.log)
+
+        def wait_for_load_state(self, state: str, timeout: int) -> None:
+            self.log.append(("load_state", state, timeout))
+
+        def title(self) -> str:
+            return "Mission"
+
+        def screenshot(self, path: str, full_page: bool) -> None:
+            Path(path).write_text("png", encoding="utf-8")
+
+        def close(self) -> None:
+            return None
+
+    class FakeBrowser:
+        def __init__(self, log: list[tuple[str, str, int]]) -> None:
+            self.log = log
+
+        def new_page(self) -> FakePage:
+            return FakePage(self.log)
+
+        def close(self) -> None:
+            return None
+
+    class FakeLauncher:
+        def __init__(self, log: list[tuple[str, str, int]]) -> None:
+            self.log = log
+
+        def launch(self, *, headless: bool) -> FakeBrowser:
+            return FakeBrowser(self.log)
+
+    class FakePlaywright:
+        def __init__(self, log: list[tuple[str, str, int]]) -> None:
+            self.chromium = FakeLauncher(log)
+            self.firefox = FakeLauncher(log)
+            self.webkit = FakeLauncher(log)
+
+    class FakeManager:
+        def __init__(self, log: list[tuple[str, str, int]]) -> None:
+            self.log = log
+
+        def __enter__(self) -> FakePlaywright:
+            return FakePlaywright(self.log)
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+    log: list[tuple[str, str, int]] = []
+    monkeypatch.setitem(__import__("sys").modules, "playwright", SimpleNamespace())
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "playwright.sync_api",
+        SimpleNamespace(sync_playwright=lambda: FakeManager(log)),
+    )
+
+    request = VisualEvalRequest(
+        mission_id="mission-6",
+        round_id=1,
+        round_dir=tmp_path / "round-01",
+        base_url="http://127.0.0.1:4173",
+        paths=["/"],
+        interaction_plans={
+            "/": [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="launcher-action"][data-launcher-action="approve-plan"]',
+                    timeout_ms=90000,
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="launcher-status"][data-tone="success"]',
+                    timeout_ms=90000,
+                ),
+            ]
+        },
+        timeout_ms=5000,
+        browser="chromium",
+    )
+
+    snapshots, failures = capture_page_snapshots(request)
+
+    assert failures == []
+    assert snapshots[0].interaction_log[-1]["status"] == "passed"
+    assert (
+        "click",
+        '[data-automation-target="launcher-action"][data-launcher-action="approve-plan"]',
+        90000,
+    ) in log
+    assert (
+        "selector",
+        '[data-automation-target="launcher-status"][data-tone="success"]',
+        90000,
+    ) in log
+
+
+def test_capture_page_snapshots_preserves_zero_step_timeout(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from spec_orch.services.visual.playwright_visual_eval import (
+        VisualEvalRequest,
+        capture_page_snapshots,
+    )
+
+    class FakeLocator:
+        def __init__(self, selector: str, log: list[tuple[str, str, int]]) -> None:
+            self.selector = selector
+            self.log = log
+
+        def click(self, timeout: int) -> None:
+            self.log.append(("click", self.selector, timeout))
+
+    class FakePage:
+        def __init__(self, log: list[tuple[str, str, int]]) -> None:
+            self.log = log
+
+        def on(self, event: str, handler) -> None:
+            return None
+
+        def goto(self, url: str, wait_until: str, timeout: int) -> None:
+            self.log.append(("goto", url, timeout))
+
+        def wait_for_selector(self, selector: str, timeout: int) -> None:
+            self.log.append(("selector", selector, timeout))
+
+        def locator(self, selector: str) -> FakeLocator:
+            return FakeLocator(selector, self.log)
+
+        def wait_for_load_state(self, state: str, timeout: int) -> None:
+            self.log.append(("load_state", state, timeout))
+
+        def title(self) -> str:
+            return "Mission"
+
+        def screenshot(self, path: str, full_page: bool) -> None:
+            Path(path).write_text("png", encoding="utf-8")
+
+        def close(self) -> None:
+            return None
+
+    class FakeBrowser:
+        def __init__(self, log: list[tuple[str, str, int]]) -> None:
+            self.log = log
+
+        def new_page(self) -> FakePage:
+            return FakePage(self.log)
+
+        def close(self) -> None:
+            return None
+
+    class FakeLauncher:
+        def __init__(self, log: list[tuple[str, str, int]]) -> None:
+            self.log = log
+
+        def launch(self, *, headless: bool) -> FakeBrowser:
+            return FakeBrowser(self.log)
+
+    class FakePlaywright:
+        def __init__(self, log: list[tuple[str, str, int]]) -> None:
+            self.chromium = FakeLauncher(log)
+            self.firefox = FakeLauncher(log)
+            self.webkit = FakeLauncher(log)
+
+    class FakeManager:
+        def __init__(self, log: list[tuple[str, str, int]]) -> None:
+            self.log = log
+
+        def __enter__(self) -> FakePlaywright:
+            return FakePlaywright(self.log)
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+    log: list[tuple[str, str, int]] = []
+    monkeypatch.setitem(__import__("sys").modules, "playwright", SimpleNamespace())
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "playwright.sync_api",
+        SimpleNamespace(sync_playwright=lambda: FakeManager(log)),
+    )
+
+    request = VisualEvalRequest(
+        mission_id="mission-6",
+        round_id=1,
+        round_dir=tmp_path / "round-01",
+        base_url="http://127.0.0.1:4173",
+        paths=["/"],
+        interaction_plans={
+            "/": [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="launcher-action"][data-launcher-action="approve-plan"]',
+                    timeout_ms=0,
+                ),
+            ]
+        },
+        timeout_ms=5000,
+        browser="chromium",
+    )
+
+    snapshots, failures = capture_page_snapshots(request)
+
+    assert failures == []
+    assert snapshots[0].interaction_log[-1]["status"] == "passed"
+    assert (
+        "click",
+        '[data-automation-target="launcher-action"][data-launcher-action="approve-plan"]',
+        0,
+    ) in log

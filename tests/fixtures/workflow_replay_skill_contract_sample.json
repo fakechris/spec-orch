@@ -1,0 +1,29 @@
+{
+  "replay_type": "workflow_replay",
+  "target_url": "http://127.0.0.1:8485",
+  "mission_id": "operator-console-dogfood-smoke",
+  "round_id": 3,
+  "acceptance_mode": "workflow",
+  "filing_policy": "hold",
+  "artifact_dir": "docs/specs/operator-console-dogfood-smoke/operator/workflow-acceptance-quality/sample-run",
+  "routes": [
+    "/",
+    "/?mission=operator-console-dogfood-smoke&mode=missions&tab=overview"
+  ],
+  "interactions": {
+    "/": [
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"open-launcher\"]",
+        "description": "Open launcher"
+      }
+    ],
+    "/?mission=operator-console-dogfood-smoke&mode=missions&tab=overview": [
+      {
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"operator-console-dogfood-smoke\"]",
+        "description": "Mission detail loads"
+      }
+    ]
+  }
+}

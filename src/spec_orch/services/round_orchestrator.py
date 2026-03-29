@@ -829,7 +829,7 @@ class RoundOrchestrator:
         related_route_budget = {
             AcceptanceMode.FEATURE_SCOPED: 1,
             AcceptanceMode.IMPACT_SWEEP: 3,
-            AcceptanceMode.WORKFLOW: 2,
+            AcceptanceMode.WORKFLOW: 5,
             AcceptanceMode.EXPLORATORY: 5,
         }[mode]
         interaction_budget = {
@@ -846,10 +846,10 @@ class RoundOrchestrator:
             ],
             AcceptanceMode.WORKFLOW: [
                 "open launcher",
-                "switch to mission inventory",
+                "switch across operator modes",
                 "select the mission",
-                "open the transcript tab",
-                "confirm actionable review surfaces are reachable",
+                "open the core mission detail tabs",
+                "confirm workflow surfaces stay reachable end-to-end",
             ],
             AcceptanceMode.EXPLORATORY: [
                 "complete the intended operator task",
@@ -918,7 +918,7 @@ class RoundOrchestrator:
         budget = {
             AcceptanceMode.FEATURE_SCOPED: 1,
             AcceptanceMode.IMPACT_SWEEP: 3,
-            AcceptanceMode.WORKFLOW: 2,
+            AcceptanceMode.WORKFLOW: 5,
             AcceptanceMode.EXPLORATORY: 5,
         }[mode]
         candidates = [
@@ -1029,8 +1029,67 @@ class RoundOrchestrator:
                 ),
                 AcceptanceInteractionStep(
                     action="click_selector",
+                    target='[data-automation-target="launcher-action"][data-launcher-action="refresh-readiness"]',
+                    description=(
+                        "Refresh launcher readiness to confirm the launcher actions remain usable."
+                    ),
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="launcher-action"][data-launcher-action="refresh-readiness"].is-complete',
+                    description="Confirm launcher readiness refresh completed successfully.",
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
                     target='[data-automation-target="operator-mode"][data-mode-key="missions"]',
                     description="Switch mission control into the All Missions inventory.",
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="operator-mode"][data-mode-key="missions"][data-active="true"]',
+                    description="Confirm the mission inventory mode became active.",
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="operator-mode"][data-mode-key="approvals"]',
+                    description="Open the decision queue mode from mission control.",
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="operator-mode"][data-mode-key="approvals"][data-active="true"]',
+                    description="Confirm the decision queue mode became active.",
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="operator-mode"][data-mode-key="evidence"]',
+                    description="Open the deep evidence mode from mission control.",
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="operator-mode"][data-mode-key="evidence"][data-active="true"]',
+                    description="Confirm the deep evidence mode became active.",
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="operator-mode"][data-mode-key="inbox"]',
+                    description="Return to the Needs Attention mode from mission control.",
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="operator-mode"][data-mode-key="inbox"][data-active="true"]',
+                    description="Confirm the Needs Attention mode became active.",
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="operator-mode"][data-mode-key="missions"]',
+                    description=(
+                        "Return to the mission inventory before selecting the target mission."
+                    ),
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="operator-mode"][data-mode-key="missions"][data-active="true"]',
+                    description="Confirm the mission inventory mode became active again.",
                 ),
                 AcceptanceInteractionStep(
                     action="click_selector",
@@ -1042,8 +1101,11 @@ class RoundOrchestrator:
                 ),
                 AcceptanceInteractionStep(
                     action="wait_for_selector",
-                    target='[data-automation-target="mission-tab"][data-tab-key="overview"][data-active="true"]',
-                    description="Confirm the mission overview is active.",
+                    target=(
+                        '[data-automation-target="mission-detail-ready"]'
+                        f'[data-mission-id="{escaped_mission_id}"]'
+                    ),
+                    description="Confirm the selected mission detail surface finished loading.",
                 ),
             ]
         if "tab=overview" in route:
@@ -1070,6 +1132,36 @@ class RoundOrchestrator:
                 ),
                 AcceptanceInteractionStep(
                     action="click_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="visual-qa"]',
+                    description="Open the Visual QA tab from mission detail.",
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="visual-qa"][data-active="true"]',
+                    description="Confirm the Visual QA tab became active.",
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="acceptance"]',
+                    description="Open the Acceptance tab from mission detail.",
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="acceptance"][data-active="true"]',
+                    description="Confirm the Acceptance tab became active.",
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="costs"]',
+                    description="Open the Costs tab from mission detail.",
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="costs"][data-active="true"]',
+                    description="Confirm the Costs tab became active.",
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
                     target='[data-automation-target="mission-tab"][data-tab-key="overview"]',
                     description="Return to the overview tab after the workflow sweep.",
                 ),
@@ -1089,10 +1181,16 @@ class RoundOrchestrator:
     def _build_workflow_assertions() -> list[str]:
         return [
             "launcher panel can be opened from the header",
+            "needs attention mode can be selected from mission control",
             "missions mode can be selected from mission control",
+            "decision queue mode can be selected from mission control",
+            "deep evidence mode can be selected from mission control",
             "the target mission can be selected from the mission list",
             "the transcript tab can be opened from mission detail",
             "the approvals surface exposes actionable operator controls when present",
+            "the visual QA tab can be opened from mission detail",
+            "the acceptance tab can be opened from mission detail",
+            "the costs tab can be opened from mission detail",
         ]
 
     @staticmethod

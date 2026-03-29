@@ -28,6 +28,20 @@ def test_client_requires_token():
         LinearClient(token_env="NONEXISTENT_VAR")
 
 
+def test_client_falls_back_to_linear_token_alias(mock_httpx: MagicMock):
+    with patch("spec_orch.services.linear_client.httpx") as mock_httpx_module:
+        mock_httpx_module.Client.return_value = MagicMock()
+        with patch.dict(
+            "os.environ",
+            {"SPEC_ORCH_LINEAR_TOKEN": "", "LINEAR_TOKEN": "fallback-token"},
+            clear=False,
+        ):
+            LinearClient()
+
+    headers = mock_httpx_module.Client.call_args.kwargs["headers"]
+    assert headers["Authorization"] == "fallback-token"
+
+
 def test_get_issue(mock_httpx: MagicMock):
     client = _make_client(mock_httpx)
     mock_httpx.post.return_value = MagicMock(

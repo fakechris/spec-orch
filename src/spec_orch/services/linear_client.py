@@ -6,6 +6,24 @@ from typing import Any
 import httpx
 
 LINEAR_API_URL = "https://api.linear.app/graphql"
+LINEAR_TOKEN_FALLBACKS = ("LINEAR_TOKEN", "LINEAR_API_TOKEN")
+
+
+def resolve_linear_token(
+    *,
+    token: str | None = None,
+    token_env: str = "SPEC_ORCH_LINEAR_TOKEN",
+) -> str:
+    if token:
+        return token
+    configured = os.environ.get(token_env, "")
+    if configured:
+        return configured
+    for fallback in LINEAR_TOKEN_FALLBACKS:
+        value = os.environ.get(fallback, "")
+        if value:
+            return value
+    return ""
 
 
 class LinearClient:
@@ -15,10 +33,12 @@ class LinearClient:
         token: str | None = None,
         token_env: str = "SPEC_ORCH_LINEAR_TOKEN",
     ) -> None:
-        resolved = token or os.environ.get(token_env, "")
+        resolved = resolve_linear_token(token=token, token_env=token_env)
         if not resolved:
+            fallback_names = ", ".join(LINEAR_TOKEN_FALLBACKS)
             raise ValueError(
-                f"Linear API token required. Set {token_env} or pass token= explicitly."
+                "Linear API token required. "
+                f"Set {token_env}, {fallback_names}, or pass token= explicitly."
             )
         self._client = httpx.Client(
             base_url=LINEAR_API_URL,

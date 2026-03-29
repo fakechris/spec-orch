@@ -3361,7 +3361,7 @@ class TestDashboardAPI:
         assert 'id="packet-transcript-view"' in r.text
         assert 'id="card-${escAttr(m.mission_id)}"' in r.text
         assert 'data-mid="${escAttr(m.mission_id)}"' in r.text
-        assert 'onclick="selectMission(${safeJsArg(m.mission_id)})"' in r.text
+        assert "onclick='selectMission(${safeJsArg(m.mission_id)})'" in r.text
 
     def test_static_operator_console_assets(self, client):
         css = client.get("/static/operator-console.css")

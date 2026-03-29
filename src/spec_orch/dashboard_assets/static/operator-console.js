@@ -25,7 +25,7 @@
 
   function renderInternalRouteButton(route, label, escHtml) {
     if (!route) return '';
-    return `<button class="btn btn-sm" type="button" onclick="navigateOperatorRoute(${safeJsArg(route)})">${safeEsc(escHtml, label)}</button>`;
+    return `<button class="btn btn-sm" type="button" data-automation-target="internal-route" data-route-label="${escAttr(label)}" data-route-value="${escAttr(route)}" onclick='navigateOperatorRoute(${safeJsArg(route)})'>${safeEsc(escHtml, label)}</button>`;
   }
 
   function renderDetailValue(value, escHtml) {
@@ -185,16 +185,16 @@
   function renderActionButtons(actions, missionId, escHtml) {
     return (actions || []).map(action => {
       if (action === 'approve') {
-        return `<button class="btn btn-green btn-sm" type="button" data-automation-target="approval-action" data-action-key="approve" data-mission-id="${escAttr(missionId)}" onclick="approveGo(${safeJsArg(missionId)})">Approve</button>`
+        return `<button class="btn btn-green btn-sm" type="button" data-automation-target="approval-action" data-action-key="approve" data-mission-id="${escAttr(missionId)}" onclick='approveGo(${safeJsArg(missionId)})'>Approve</button>`
       }
       if (action === 'retry' || action === 'rerun') {
-        return `<button class="btn btn-red btn-sm" onclick="retryMission(${safeJsArg(missionId)})">${action}</button>`
+        return `<button class="btn btn-red btn-sm" onclick='retryMission(${safeJsArg(missionId)})'>${action}</button>`
       }
       if (action === 'resume') {
-        return `<button class="btn btn-sm" onclick="openDiscuss(${safeJsArg(missionId)})">Resume</button>`
+        return `<button class="btn btn-sm" onclick='openDiscuss(${safeJsArg(missionId)})'>Resume</button>`
       }
       if (action === 'inject_guidance') {
-        return `<button class="btn btn-primary btn-sm" onclick="openDiscuss(${safeJsArg(missionId)})">Inject guidance</button>`
+        return `<button class="btn btn-primary btn-sm" onclick='openDiscuss(${safeJsArg(missionId)})'>Inject guidance</button>`
       }
       return `<button class="btn btn-sm" type="button">${safeEsc(escHtml, action)}</button>`
     }).join('')
@@ -204,7 +204,7 @@
     const inScope = (packet?.files_in_scope || []).slice(0, 2).join(', ')
     const isSelected = packet?.packet_id === selectedPacketId
     return `
-      <button class="packet-row ${isSelected ? 'active' : ''}" type="button" onclick="selectPacket(${safeJsArg(packet?.packet_id)})">
+      <button class="packet-row ${isSelected ? 'active' : ''}" type="button" data-automation-target="packet-row" data-packet-id="${escAttr(packet?.packet_id)}" data-active="${isSelected ? 'true' : 'false'}" onclick='selectPacket(${safeJsArg(packet?.packet_id)})'>
         <div class="packet-row-header">
           <div class="packet-row-title">${safeEsc(escHtml, packet?.title)}</div>
           <span class="run-class">${safeEsc(escHtml, packet?.run_class || 'packet')}</span>
@@ -265,6 +265,7 @@
     approvalHistory,
     approvalState,
     missionId,
+    scope,
     escHtml,
   ) {
     const latestAction = approvalHistory && approvalHistory.length ? approvalHistory[0] : null
@@ -282,7 +283,7 @@
           <span>${safeEsc(escHtml, approvalRequest?.timestamp || '—')}</span>
         </div>
         ${stateStatus ? `
-          <div class="context-meta">
+          <div class="context-meta" data-automation-target="approval-state" data-approval-status="${escAttr(stateStatus)}" data-mission-id="${escAttr(missionId)}">
             <span class="detail-chip">${safeEsc(escHtml, stateStatus)}</span>
             ${stateSummary ? `<span>${safeEsc(escHtml, stateSummary)}</span>` : ''}
           </div>
@@ -312,17 +313,18 @@
               class="btn ${action.key === 'approve' ? 'btn-primary' : ''} btn-sm"
               type="button"
               data-automation-target="approval-action"
+              data-automation-scope="${escAttr(scope)}"
               data-action-key="${escAttr(action?.key || '')}"
               data-mission-id="${escAttr(missionId)}"
               ${pending ? 'disabled' : ''}
-              onclick="triggerApprovalAction(${safeJsArg(missionId)}, ${safeJsArg(action?.key || '')})"
+              onclick='triggerApprovalAction(${safeJsArg(missionId)}, ${safeJsArg(action?.key || '')})'
             >${safeEsc(escHtml, action?.label || action?.key || 'Action')}</button>
           `).join('')}
           <button
             class="btn btn-sm"
             type="button"
             ${pending ? 'disabled' : ''}
-            onclick="openDiscussPreset(${safeJsArg(missionId)}, ${safeJsArg((approvalRequest?.actions || [])[0]?.message || '')})"
+            onclick='openDiscussPreset(${safeJsArg(missionId)}, ${safeJsArg((approvalRequest?.actions || [])[0]?.message || '')})'
           >Open discuss</button>
           <button class="btn btn-sm" type="button" onclick="load()">Refresh state</button>
         </div>
@@ -396,27 +398,27 @@
         </div>
         <div class="queue-toolbar">
           <label class="queue-toggle">
-            <input type="checkbox" ${items.length && selected.size === items.length ? 'checked' : ''} onchange="toggleAllApprovalSelections(this.checked)"/>
+            <input type="checkbox" data-automation-target="approval-batch-toggle-all" ${items.length && selected.size === items.length ? 'checked' : ''} onchange="toggleAllApprovalSelections(this.checked)"/>
             <span>Select all</span>
           </label>
           <div class="queue-actions">
-            <button class="btn btn-primary btn-sm" type="button" ${disabled ? 'disabled' : ''} onclick="triggerApprovalBatchAction('approve')">Approve selected</button>
-            <button class="btn btn-sm" type="button" ${disabled ? 'disabled' : ''} onclick="triggerApprovalBatchAction('request_revision')">Request revision</button>
-            <button class="btn btn-sm" type="button" ${disabled ? 'disabled' : ''} onclick="triggerApprovalBatchAction('ask_followup')">Ask follow-up</button>
+            <button class="btn btn-primary btn-sm" type="button" data-automation-target="approval-batch-action" data-action-key="approve" ${disabled ? 'disabled' : ''} onclick="triggerApprovalBatchAction('approve')">Approve selected</button>
+            <button class="btn btn-sm" type="button" data-automation-target="approval-batch-action" data-action-key="request_revision" ${disabled ? 'disabled' : ''} onclick="triggerApprovalBatchAction('request_revision')">Request revision</button>
+            <button class="btn btn-sm" type="button" data-automation-target="approval-batch-action" data-action-key="ask_followup" ${disabled ? 'disabled' : ''} onclick="triggerApprovalBatchAction('ask_followup')">Ask follow-up</button>
           </div>
         </div>
         ${batchState?.summary ? `
-          <div class="context-card queue-summary">
+          <div class="context-card queue-summary" data-automation-target="approval-batch-status" data-state="${safeEsc(escHtml, batchState.pending ? 'pending' : 'complete')}">
             <div class="context-title">Batch status</div>
             <div class="context-meta">${safeEsc(escHtml, batchState.summary)}</div>
             ${batchState?.focusMissionId ? `
               <div class="context-meta">
-                <button class="btn btn-sm" type="button" onclick="focusMissionFromBatch(${safeJsArg(batchState.focusMissionId)})">Open affected mission</button>
+                <button class="btn btn-sm" type="button" onclick='focusMissionFromBatch(${safeJsArg(batchState.focusMissionId)})'>Open affected mission</button>
               </div>
             ` : ''}
             ${batchState?.nextPendingMissionId ? `
               <div class="context-meta">
-                <button class="btn btn-sm" type="button" onclick="focusMissionFromBatch(${safeJsArg(batchState.nextPendingMissionId)})">Open next pending mission</button>
+                <button class="btn btn-sm" type="button" onclick='focusMissionFromBatch(${safeJsArg(batchState.nextPendingMissionId)})'>Open next pending mission</button>
               </div>
             ` : ''}
             ${Array.isArray(batchState?.results) && batchState.results.length ? `
@@ -430,7 +432,7 @@
                     </div>
                     ${item?.result_summary ? `<div class="transcript-entry-body">${safeEsc(escHtml, item.result_summary)}</div>` : ''}
                     <div class="context-meta">
-                      <button class="btn btn-sm" type="button" onclick="focusMissionFromBatch(${safeJsArg(item?.mission_id || '')})">Open mission</button>
+                      <button class="btn btn-sm" type="button" onclick='focusMissionFromBatch(${safeJsArg(item?.mission_id || '')})'>Open mission</button>
                     </div>
                   </div>
                 `).join('')}
@@ -440,13 +442,13 @@
         ` : ''}
         <div class="context-list">
           ${items.map(item => `
-            <div class="context-card queue-card ${selected.has(item?.mission_id) ? 'active' : ''}">
+            <div class="context-card queue-card ${selected.has(item?.mission_id) ? 'active' : ''}" data-automation-target="approval-queue-item" data-mission-id="${escAttr(item?.mission_id || '')}">
               <div class="queue-card-header">
                 <label class="queue-toggle">
-                  <input type="checkbox" ${selected.has(item?.mission_id) ? 'checked' : ''} onchange="toggleApprovalSelection(${safeJsArg(item?.mission_id || '')}, this.checked)"/>
+                  <input type="checkbox" data-automation-target="approval-queue-selection" data-mission-id="${escAttr(item?.mission_id || '')}" ${selected.has(item?.mission_id) ? 'checked' : ''} onchange='toggleApprovalSelection(${safeJsArg(item?.mission_id || "")}, this.checked)'/>
                   <span class="context-title">${safeEsc(escHtml, item?.mission?.title || item?.title || 'Approval')}</span>
                 </label>
-                <span class="detail-chip">${safeEsc(escHtml, item?.urgency || item?.approval_state?.status || 'approval')}</span>
+                <span class="detail-chip" data-automation-target="approval-queue-state" data-approval-status="${escAttr(item?.approval_state?.status || 'approval')}">${safeEsc(escHtml, item?.urgency || item?.approval_state?.status || 'approval')}</span>
               </div>
               <div class="context-meta">
                 <span class="detail-chip">${safeEsc(escHtml, item?.approval_state?.status || 'approval')}</span>
@@ -461,7 +463,7 @@
               ${item?.blocking_question ? `<div class="transcript-entry-body">${safeEsc(escHtml, item.blocking_question)}</div>` : ''}
               ${item?.review_route ? `
                 <div class="context-meta">
-                  ${renderInternalRouteButton(item.review_route, 'Review mission', escHtml)}
+                  ${renderInternalRouteButton(item.review_route, 'Review mission', escHtml).replace('data-automation-target="internal-route"', 'data-automation-target="approval-queue-review-route"')}
                 </div>
               ` : ''}
             </div>
@@ -769,7 +771,10 @@
       <button
         class="mission-tab ${selectedTranscriptFilter === filter.key ? 'active' : ''}"
         type="button"
-        onclick="selectTranscriptFilter(${safeJsArg(filter.key)})"
+        data-automation-target="transcript-filter"
+        data-filter-key="${escAttr(filter.key)}"
+        data-active="${selectedTranscriptFilter === filter.key ? 'true' : 'false'}"
+        onclick='selectTranscriptFilter(${safeJsArg(filter.key)})'
       >${safeEsc(escHtml, filter.label)}</button>
     `).join('')
   }
@@ -820,7 +825,7 @@
               const blockIndex = blocks.indexOf(block)
               const active = blockIndex === selectedTranscriptBlockIndex
               return `
-                <button type="button" class="transcript-entry ${safeEsc(escHtml, block.block_type || 'event')} ${active ? 'active' : ''}" onclick="selectTranscriptBlock(${blockIndex})">
+                <button type="button" class="transcript-entry ${safeEsc(escHtml, block.block_type || 'event')} ${active ? 'active' : ''}" data-automation-target="transcript-block" data-block-index="${escAttr(String(blockIndex))}" data-block-type="${escAttr(block.block_type || 'event')}" data-active="${active ? 'true' : 'false'}" onclick="selectTranscriptBlock(${blockIndex})">
                   <div class="transcript-entry-header">
                     <div class="context-title">${safeEsc(escHtml, block.title || 'event')}</div>
                     <span class="run-class">${safeEsc(escHtml, block.block_type || 'event')}</span>
@@ -880,7 +885,7 @@
     const jumpTargets = Array.isArray(block.jump_targets) ? block.jump_targets : []
     const burstItems = Array.isArray(block.items) ? block.items : []
     return `
-        <div class="context-card">
+        <div class="context-card" data-automation-target="transcript-inspector" data-packet-id="${escAttr(selectedPacketId)}">
           <div class="context-title">${safeEsc(escHtml, block.title || 'Transcript evidence')}</div>
           <div class="context-meta">
             <span>${safeEsc(escHtml, block.block_type || 'event')}</span>
@@ -925,6 +930,7 @@
   window.SpecOrchOperatorConsole = {
     buildMissionSubtitle,
     escAttr,
+    renderInternalRouteButton,
     safeJsArg,
     renderActionButtons,
     renderAcceptancePanel,

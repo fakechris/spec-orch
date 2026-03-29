@@ -700,6 +700,7 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
             "transcript": "/?mission=mission-1&tab=transcript",
             "approvals": "/?mission=mission-1&tab=approvals",
             "visual_qa": "/?mission=mission-1&tab=visual",
+            "acceptance": "/?mission=mission-1&tab=acceptance",
             "costs": "/?mission=mission-1&tab=costs",
         },
     }
@@ -728,44 +729,121 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
         "/",
         "/?mission=mission-1&mode=missions&tab=overview",
     ]
-    assert workflow.related_route_budget == 2
+    assert workflow.related_route_budget == 5
     assert workflow.related_routes == [
         "/?mission=mission-1&tab=transcript",
         "/?mission=mission-1&tab=approvals",
+        "/?mission=mission-1&tab=acceptance",
+        "/?mission=mission-1&tab=visual",
+        "/?mission=mission-1&tab=costs",
     ]
     assert workflow.interaction_budget == "moderate"
     assert workflow.required_interactions == [
         "open launcher",
-        "switch to mission inventory",
+        "switch across operator modes",
         "select the mission",
-        "open the transcript tab",
-        "confirm actionable review surfaces are reachable",
+        "open the core mission detail tabs",
+        "confirm workflow surfaces stay reachable end-to-end",
     ]
     assert workflow.filing_policy == "auto_file_broken_flows_only"
     assert workflow.interaction_plans["/"][0].action == "click_selector"
     assert workflow.interaction_plans["/"][0].target == '[data-automation-target="open-launcher"]'
     assert (
         workflow.interaction_plans["/"][1].target
-        == '[data-automation-target="operator-mode"][data-mode-key="missions"]'
+        == '[data-automation-target="launcher-action"][data-launcher-action="refresh-readiness"]'
     )
     assert (
         workflow.interaction_plans["/"][2].target
+        == '[data-automation-target="launcher-action"][data-launcher-action="refresh-readiness"].is-complete'
+    )
+    assert (
+        workflow.interaction_plans["/"][3].target
+        == '[data-automation-target="operator-mode"][data-mode-key="missions"]'
+    )
+    assert (
+        workflow.interaction_plans["/"][4].target
+        == '[data-automation-target="operator-mode"][data-mode-key="missions"][data-active="true"]'
+    )
+    assert (
+        workflow.interaction_plans["/"][5].target
+        == '[data-automation-target="operator-mode"][data-mode-key="approvals"]'
+    )
+    assert (
+        workflow.interaction_plans["/"][6].target
+        == '[data-automation-target="operator-mode"][data-mode-key="approvals"][data-active="true"]'
+    )
+    assert (
+        workflow.interaction_plans["/"][7].target
+        == '[data-automation-target="operator-mode"][data-mode-key="evidence"]'
+    )
+    assert (
+        workflow.interaction_plans["/"][8].target
+        == '[data-automation-target="operator-mode"][data-mode-key="evidence"][data-active="true"]'
+    )
+    assert (
+        workflow.interaction_plans["/"][9].target
+        == '[data-automation-target="operator-mode"][data-mode-key="inbox"]'
+    )
+    assert (
+        workflow.interaction_plans["/"][10].target
+        == '[data-automation-target="operator-mode"][data-mode-key="inbox"][data-active="true"]'
+    )
+    assert (
+        workflow.interaction_plans["/"][11].target
+        == '[data-automation-target="operator-mode"][data-mode-key="missions"]'
+    )
+    assert (
+        workflow.interaction_plans["/"][12].target
+        == '[data-automation-target="operator-mode"][data-mode-key="missions"][data-active="true"]'
+    )
+    assert (
+        workflow.interaction_plans["/"][13].target
         == '[data-automation-target="mission-card"][data-mission-id="mission-1"]'
+    )
+    assert (
+        workflow.interaction_plans["/"][14].target
+        == '[data-automation-target="mission-detail-ready"][data-mission-id="mission-1"]'
     )
     assert (
         workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][0].target
         == '[data-automation-target="mission-tab"][data-tab-key="transcript"]'
     )
     assert (
+        workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][2].target
+        == '[data-automation-target="mission-tab"][data-tab-key="approvals"]'
+    )
+    assert (
+        workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][4].target
+        == '[data-automation-target="mission-tab"][data-tab-key="visual-qa"]'
+    )
+    assert (
+        workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][6].target
+        == '[data-automation-target="mission-tab"][data-tab-key="acceptance"]'
+    )
+    assert (
+        workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][8].target
+        == '[data-automation-target="mission-tab"][data-tab-key="costs"]'
+    )
+    assert (
+        workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][10].target
+        == '[data-automation-target="mission-tab"][data-tab-key="overview"]'
+    )
+    assert (
         workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][-1].target
         == '[data-automation-target="mission-tab"][data-tab-key="overview"][data-active="true"]'
     )
-    assert workflow.coverage_expectations[-5:] == [
+    assert workflow.coverage_expectations[-11:] == [
         "launcher panel can be opened from the header",
+        "needs attention mode can be selected from mission control",
         "missions mode can be selected from mission control",
+        "decision queue mode can be selected from mission control",
+        "deep evidence mode can be selected from mission control",
         "the target mission can be selected from the mission list",
         "the transcript tab can be opened from mission detail",
         "the approvals surface exposes actionable operator controls when present",
+        "the visual QA tab can be opened from mission detail",
+        "the acceptance tab can be opened from mission detail",
+        "the costs tab can be opened from mission detail",
     ]
 
     monkeypatch.setenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.EXPLORATORY.value)
@@ -818,7 +896,7 @@ def test_build_acceptance_campaign_escapes_mission_id_for_workflow_css_selector(
     )
 
     assert (
-        campaign.interaction_plans["/"][2].target
+        campaign.interaction_plans["/"][13].target
         == '[data-automation-target="mission-card"][data-mission-id="mission\\"with\\\\quotes"]'
     )
 
@@ -859,6 +937,33 @@ def test_build_acceptance_campaign_workflow_allows_single_env_primary_route(
 
     assert campaign.primary_routes == ["/"]
     assert campaign.min_primary_routes == 1
+
+
+def test_workflow_launcher_mutation_campaign_can_raise_approve_plan_wait_timeout() -> None:
+    from spec_orch.domain.models import AcceptanceCampaign, AcceptanceInteractionStep
+
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.WORKFLOW,
+        goal="Verify launcher mutation flow can create a draft and plan locally.",
+        primary_routes=["/"],
+        interaction_plans={
+            "/": [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="launcher-action"][data-launcher-action="approve-plan"]',
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="launcher-status"][data-tone="success"]',
+                    timeout_ms=90000,
+                ),
+            ]
+        },
+    )
+
+    restored = AcceptanceCampaign.from_dict(campaign.to_dict())
+
+    assert restored.interaction_plans["/"][1].timeout_ms == 90000
 
 
 def test_build_acceptance_campaign_uses_visual_eval_paths_env_for_primary_routes(

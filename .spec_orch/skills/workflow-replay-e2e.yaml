@@ -1,0 +1,60 @@
+schema_version: "1.0"
+id: workflow-replay-e2e
+name: Workflow Replay E2E
+kind: custom
+version: "0.1.0"
+description: >-
+  Use when validating an existing mission or dashboard surface through real browser
+  replay, especially when you need repeatable operator-flow evidence, selector-based
+  assertions, replay-backed debugging, or provider-swappable acceptance evaluation
+  without claiming fresh ACPX execution.
+author: spec-orch
+triggers:
+  - workflow.replay
+  - acceptance.workflow
+  - dashboard.dogfood
+  - browser.replay
+  - repair-loop.verify
+params:
+  replay_type: workflow_replay
+  required_layers:
+    - mission_boundary
+    - surface_contract
+    - campaign
+    - browser_runner
+    - evaluator
+    - repair_loop
+  artifact_contract:
+    browser_evidence: browser_evidence.json
+    acceptance_review: acceptance_review.json
+    visual_dir: visual/
+  input_contract:
+    required_fields:
+      - target_url
+      - mission_id
+      - acceptance_mode
+      - artifact_dir
+      - routes
+      - interactions
+    optional_fields:
+      - round_id
+      - filing_policy
+      - provider
+      - provider_config
+  evaluator_contract:
+    required_outputs:
+      - status
+      - coverage_status
+      - summary
+      - findings
+      - issue_proposals
+      - tested_routes
+      - untested_expected_routes
+  debugging_rules:
+    - Check replay preconditions before treating failures as product bugs.
+    - Prefer stable automation targets over visible-text selectors.
+    - Treat about:blank as browser startup noise unless tested_routes prove otherwise.
+    - Replay the same campaign after every fix before claiming success.
+  references:
+    method_doc: docs/plans/2026-03-28-workflow-replay-e2e-skill-contract.md
+    sample_payload: tests/fixtures/workflow_replay_skill_contract_sample.json

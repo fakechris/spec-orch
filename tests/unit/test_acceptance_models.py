@@ -60,6 +60,8 @@ def test_acceptance_review_result_round_trip() -> None:
                     action="click_text",
                     target="Transcript",
                     description="Open transcript from the launcher mission view.",
+                    value="",
+                    timeout_ms=12000,
                 )
             ]
         },
@@ -119,6 +121,8 @@ def test_acceptance_campaign_round_trip() -> None:
                     action="click_text",
                     target="All Missions",
                     description="Switch into the mission inventory view.",
+                    value="",
+                    timeout_ms=8000,
                 )
             ]
         },
@@ -164,6 +168,8 @@ def test_acceptance_campaign_round_trip_supports_workflow_mode() -> None:
                     action="click_selector",
                     target='[data-automation-target="mission-card"][data-mission-id="workflow-smoke"]',
                     description="Select the workflow smoke mission from the mission list.",
+                    value="",
+                    timeout_ms=4000,
                 )
             ]
         },
@@ -179,3 +185,29 @@ def test_acceptance_campaign_round_trip_supports_workflow_mode() -> None:
     restored = AcceptanceCampaign.from_dict(campaign.to_dict())
 
     assert restored == campaign
+
+
+def test_acceptance_interaction_step_round_trip_preserves_fill_value() -> None:
+    step = AcceptanceInteractionStep(
+        action="fill_selector",
+        target='[data-automation-target="launcher-field"][data-field-key="title"]',
+        description="Fill the launcher title field.",
+        value="Workflow Smoke Mission",
+        timeout_ms=15000,
+    )
+
+    restored = AcceptanceInteractionStep.from_dict(step.to_dict())
+
+    assert restored == step
+
+
+def test_acceptance_interaction_step_from_dict_coerces_invalid_timeout_to_zero() -> None:
+    restored = AcceptanceInteractionStep.from_dict(
+        {
+            "action": "wait_for_selector",
+            "target": '[data-automation-target="launcher-status"][data-tone="success"]',
+            "timeout_ms": "not-a-number",
+        }
+    )
+
+    assert restored.timeout_ms == 0

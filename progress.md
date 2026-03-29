@@ -241,6 +241,55 @@
 
 ## Session: 2026-03-28
 
+### Dashboard Workflow Replay Quality Pass
+- **Status:** in_progress
+- Actions taken:
+  - Fixed approval-action UI staleness where the page stayed on transient `applied` state after `request_revision` / `ask_followup` because `approvalActionStates` was cleared without rerendering the current mission detail.
+  - Re-ran real browser workflow replay for `revision_requested` and `followup_requested`, confirming both approval variants now settle on the final rendered approval state with zero page errors.
+  - Ran a consolidated same-version dashboard coverage sweep covering launcher Linear create/bind, root mission selection, mission tab transitions, transcript filtering, acceptance/cost jumps, budget inbox drill-down, visual QA transcript jump, and both approval variants.
+  - Updated the dashboard workflow judgment doc to distinguish fully proven `Workflow Replay E2E` dashboard coverage from still-unproven `Fresh Acpx Mission E2E` pipeline freshness.
+- Files created/modified:
+  - `src/spec_orch/dashboard/app.py`
+  - `tests/unit/test_dashboard_package.py`
+  - `docs/plans/2026-03-28-dashboard-workflow-acceptance-judgment.md`
+  - `task_plan.md`
+  - `progress.md`
+
+### Verification — Dashboard Workflow Replay Quality Pass
+- `uv run pytest tests/unit/test_dashboard_package.py -q` → `22 passed`
+- `uv run mypy src/spec_orch/dashboard/app.py` → pass
+- `uv run ruff check src/spec_orch/dashboard/app.py tests/unit/test_dashboard_package.py` → pass
+
+### Workflow Replay E2E Skill Contract
+- **Status:** complete
+- Actions taken:
+  - Wrote a dedicated design document that freezes the `Workflow Replay E2E` method as a reusable harness contract rather than a one-off dashboard runbook.
+  - Documented the six-layer architecture: mission boundary, surface contract, campaign, browser runner, evaluator, and repair loop.
+  - Captured the step-by-step runbook, provider portability boundaries, skill-level input/output contract, and the concrete failure modes already seen during dashboard replay.
+  - Added a repo-local `.spec_orch/skills/workflow-replay-e2e.yaml` scaffold so the current Skill Runtime/ContextAssembler path can discover a first-class Workflow Replay capability.
+  - Added a small sample campaign JSON fixture to make the expected replay payload concrete for future skill implementation.
+- Files created/modified:
+  - `.spec_orch/skills/workflow-replay-e2e.yaml`
+  - `docs/plans/2026-03-28-workflow-replay-e2e-skill-contract.md`
+  - `tests/fixtures/workflow_replay_skill_contract_sample.json`
+  - `task_plan.md`
+  - `progress.md`
+
+### Verification — Workflow Replay E2E Skill Contract
+- `uv run pytest tests/unit/test_skill_format.py -q` → `14 passed`
+- YAML scaffold parse check → pass
+
+### Fresh Acpx Mission E2E First-Path Plan
+- **Status:** complete
+- Actions taken:
+  - Wrote the first implementation plan for `Fresh Acpx Mission E2E`, explicitly separating fresh execution proof from replay-only dashboard proof.
+  - Defined the first artifact contract, proof checkpoints, fixture needs, bootstrap helper requirements, and the first local smoke-script path.
+  - Kept the scope narrow: one mission, one wave, one first ACPX execution path, followed by post-run workflow replay.
+- Files created/modified:
+  - `docs/plans/2026-03-28-fresh-acpx-mission-e2e-implementation.md`
+  - `task_plan.md`
+  - `progress.md`
+
 ### Acceptance Harness Phase 2 — Adversarial Rubric & Filing Policy
 - **Status:** complete
 - Actions taken:
@@ -258,6 +307,33 @@
 
 ### Verification
 - **pytest**: targeted acceptance/prompt/filing/orchestrator suite passed (`35 passed`)
+
+## Session: 2026-03-29
+
+### Dashboard Workflow Acceptance Quality Pass
+- **Status:** in_progress
+- Actions taken:
+  - Reproduced the approval replay failure and traced it to malformed helper-generated `onclick` attributes that embedded `safeJsArg(...)` inside double-quoted HTML attributes.
+  - Added a static regression test that forces helper buttons using `safeJsArg(...)` to use single-quoted handlers.
+  - Repaired the helper buttons and reran real browser replay until `approve` reached the dashboard approval endpoint and the approval state changed to `applied`.
+  - Re-ran launcher workflow replay to verify real browser mutations for `Create Draft`, `Approve & Plan`, and `Launch Mission`.
+  - Updated the workflow-acceptance judgment document to distinguish proven `Workflow Replay E2E` coverage from still-unproven `Fresh Acpx Mission E2E` coverage.
+- Files created/modified:
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `tests/unit/test_dashboard_package.py`
+  - `docs/plans/2026-03-28-dashboard-workflow-acceptance-judgment.md`
+  - `task_plan.md`
+  - `progress.md`
+
+### Verification — Dashboard Workflow Quality Pass
+- **pytest**: dashboard package suite passed (`16 passed`)
+- **real workflow replay**:
+  - launcher create draft / approve plan replay passed
+  - launcher launch replay passed
+  - approval action replay passed
+- **coverage judgment**:
+  - core non-destructive workflow navigation: `13/13`
+  - broader dashboard capability coverage: `17/22` (intermediate checkpoint) -> final workflow replay sweep: `25/25`
 - **ruff**: targeted acceptance/orchestrator checks passed
 - **mypy**: no issues found in touched acceptance/orchestrator files
 
@@ -688,6 +764,28 @@
 
 ## Session: 2026-03-28
 
+### Phase 24: Dashboard Workflow Quality Replay
+- **Status:** in_progress
+- Actions taken:
+  - Fixed a real workflow dogfood defect where the dashboard root route emitted `Unexpected end of input` because inline `selectMission(...)` handlers were rendered with broken quote nesting.
+  - Hardened acceptance finding normalization so replay output no longer preserves empty-shell findings or issue proposals without supporting evidence.
+  - Added a stable `mission-detail-ready` automation target and switched workflow replay to wait on that readiness signal instead of brittle tab-state inference.
+  - Expanded workflow replay coverage to include launcher readiness refresh, all four top-level operator modes, and the core mission-detail tab sweep (`Overview`, `Transcript`, `Approvals`, `Visual QA`, `Acceptance`, `Costs`).
+  - Re-ran real browser-based workflow acceptance replay against a live dashboard and produced a clean pass with complete coverage and zero findings:
+    - `docs/specs/operator-console-dogfood-smoke/operator/workflow-acceptance-quality/20260328T233446Z/acceptance_review.json`
+    - `docs/specs/operator-console-dogfood-smoke/operator/workflow-acceptance-quality/20260328T233446Z/browser_evidence.json`
+  - Wrote a judgment document that separates proven capabilities, unproven capabilities, and next validation targets before opening a PR.
+- Files created/modified:
+  - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/services/acceptance/litellm_acceptance_evaluator.py`
+  - `src/spec_orch/services/round_orchestrator.py`
+  - `tests/unit/test_dashboard_package.py`
+  - `tests/unit/test_litellm_acceptance_evaluator.py`
+  - `tests/unit/test_round_orchestrator.py`
+  - `docs/plans/2026-03-28-dashboard-workflow-acceptance-judgment.md`
+  - `task_plan.md`
+  - `progress.md`
+
 ### Phase 23: Workflow Acceptance Epic
 - **Status:** complete
 - Actions taken:
@@ -710,6 +808,28 @@
   - `tests/unit/test_dashboard_package.py`
   - `tests/unit/test_playwright_visual_eval.py`
   - `tests/unit/test_round_orchestrator.py`
+  - `task_plan.md`
+  - `progress.md`
+
+### Phase 24: Dashboard Workflow Quality Replay and Judgment
+- **Status:** in_progress
+- Actions taken:
+  - Fixed a real helper-bundle bug where `renderInternalRouteButton()` existed but was not exported, which had broken cold-load context-rail rendering during replay.
+  - Proved a deeper root-based workflow replay against live dashboard `:8485` covering packet selection, transcript filter switching, transcript-block activation, and an internal acceptance-review jump from the context rail.
+  - Added stable automation semantics for secondary mission actions (`Discuss` / `Refresh`) and replayed both successfully through the live dashboard.
+  - Added Linear token fallback support (`LINEAR_TOKEN` / `LINEAR_API_TOKEN`) so launcher readiness and real Linear browser mutations no longer depend on a single env name.
+  - Proved launcher `Create Linear Issue` and `Bind Existing Issue` through real browser replay, with `workflow-launcher-mutation-smoke/operator/launch.json` recording the created/bound issue.
+  - Proved a second context-rail route variant (`Open cost review`) through real browser replay.
+  - Updated the workflow judgment doc to distinguish proven `Workflow Replay E2E` coverage from still-unproven `Fresh Acpx Mission E2E`, raising conservative broader dashboard capability coverage to `20/22`.
+- Files created/modified:
+  - `src/spec_orch/dashboard/app.py`
+  - `src/spec_orch/dashboard/launcher.py`
+  - `src/spec_orch/dashboard_assets/static/operator-console.js`
+  - `src/spec_orch/services/linear_client.py`
+  - `tests/unit/test_dashboard_package.py`
+  - `tests/unit/test_dashboard_launcher.py`
+  - `tests/unit/test_linear_client.py`
+  - `docs/plans/2026-03-28-dashboard-workflow-acceptance-judgment.md`
   - `task_plan.md`
   - `progress.md`
 

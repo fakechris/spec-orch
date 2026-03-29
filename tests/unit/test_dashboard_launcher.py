@@ -43,6 +43,8 @@ adapter = "acpx_codex"
     )
 
     monkeypatch.delenv("SPEC_ORCH_LINEAR_TOKEN", raising=False)
+    monkeypatch.delenv("LINEAR_TOKEN", raising=False)
+    monkeypatch.delenv("LINEAR_API_TOKEN", raising=False)
     monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
     monkeypatch.delenv("MINIMAX_ANTHROPIC_BASE_URL", raising=False)
     missing = _gather_launcher_readiness(repo)
@@ -102,6 +104,48 @@ adapter = "acpx"
     readiness = _gather_launcher_readiness(repo)
     assert readiness["planner"]["ready"] is True
     assert readiness["supervisor"]["ready"] is True
+
+
+def test_launcher_readiness_falls_back_to_linear_token_alias(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import _gather_launcher_readiness
+
+    (repo / "spec-orch.toml").write_text(
+        """
+[linear]
+token_env = "SPEC_ORCH_LINEAR_TOKEN"
+
+[planner]
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "SPEC_ORCH_LLM_API_KEY"
+api_base_env = "SPEC_ORCH_LLM_API_BASE"
+
+[supervisor]
+adapter = "litellm"
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "SPEC_ORCH_LLM_API_KEY"
+api_base_env = "SPEC_ORCH_LLM_API_BASE"
+max_rounds = 12
+
+[builder]
+adapter = "acpx"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.delenv("SPEC_ORCH_LINEAR_TOKEN", raising=False)
+    monkeypatch.setenv("LINEAR_TOKEN", "lin-fallback")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+
+    readiness = _gather_launcher_readiness(repo)
+    assert readiness["linear"]["ready"] is True
+    assert readiness["linear"]["token_env"] == "SPEC_ORCH_LINEAR_TOKEN"
 
 
 def test_launcher_readiness_rejects_invalid_api_types(
