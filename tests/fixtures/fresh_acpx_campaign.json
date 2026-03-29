@@ -1,0 +1,58 @@
+{
+  "mode": "workflow",
+  "goal": "Validate the post-run dashboard workflow for a fresh ACPX mission.",
+  "primary_routes": [
+    "/",
+    "/?mode=missions",
+    "/?mission={mission_id}&mode=missions&tab=overview"
+  ],
+  "related_routes": [
+    "/?mission={mission_id}&mode=missions&tab=transcript",
+    "/?mission={mission_id}&mode=missions&tab=approvals",
+    "/?mission={mission_id}&mode=missions&tab=acceptance"
+  ],
+  "interaction_plans": {
+    "/": [
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"open-launcher\"]",
+        "description": "Open the launcher from the dashboard header."
+      },
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"operator-mode\"][data-mode-key=\"missions\"]",
+        "description": "Switch into the mission inventory."
+      }
+    ],
+    "/?mission={mission_id}&mode=missions&tab=overview": [
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
+        "description": "Open the transcript tab."
+      },
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"acceptance\"]",
+        "description": "Open the acceptance tab."
+      }
+    ]
+  },
+  "coverage_expectations": [
+    "launcher entry",
+    "mission inventory",
+    "fresh mission detail",
+    "post-run transcript",
+    "acceptance review"
+  ],
+  "required_interactions": [
+    "open launcher",
+    "switch into missions mode",
+    "inspect the fresh mission detail",
+    "open transcript and acceptance tabs"
+  ],
+  "min_primary_routes": 2,
+  "related_route_budget": 3,
+  "interaction_budget": "moderate",
+  "filing_policy": "auto_file_broken_flows_only",
+  "exploration_budget": "bounded"
+}

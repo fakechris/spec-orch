@@ -541,3 +541,72 @@ def test_acceptance_evaluator_fallback_route_requires_single_unambiguous_route()
     assert normalized.findings[0].actual == ""
     assert normalized.issue_proposals[0].title == "Investigate acceptance issue on tested route"
     assert normalized.issue_proposals[0].actual == ""
+
+
+def test_acceptance_evaluator_carries_proof_split_artifacts_forward(tmp_path: Path) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "pass",
+  "summary": "Fresh mission replay completed.",
+  "confidence": 0.91,
+  "evaluator": "acceptance_llm",
+  "tested_routes": ["/"],
+  "findings": [],
+  "issue_proposals": [],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-9",
+        round_id=9,
+        round_dir=tmp_path / "docs/specs/mission-9/rounds/round-09",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={
+            "proof_split": {
+                "fresh_execution": {"proof_type": "fresh_execution"},
+                "workflow_replay": {"proof_type": "workflow_replay"}
+            }
+        },
+        repo_root=tmp_path,
+    )
+
+    assert result.artifacts["proof_split"]["fresh_execution"]["proof_type"] == "fresh_execution"
+    assert result.artifacts["proof_split"]["workflow_replay"]["proof_type"] == "workflow_replay"
+
+
+def test_acceptance_evaluator_normalizes_non_mapping_artifacts(tmp_path: Path) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    result = AcceptanceReviewResult(
+        status="pass",
+        summary="ok",
+        confidence=0.9,
+        evaluator="acceptance_llm",
+        tested_routes=["/"],
+        findings=[],
+        issue_proposals=[],
+        artifacts="not-a-dict",  # type: ignore[arg-type]
+    )
+
+    normalized = LiteLLMAcceptanceEvaluator._normalize_result(
+        result,
+        artifacts={"proof_split": {"fresh_execution": {"proof_type": "fresh_execution"}}},
+    )
+
+    assert normalized.artifacts["proof_split"]["fresh_execution"]["proof_type"] == "fresh_execution"

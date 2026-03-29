@@ -16,6 +16,8 @@ This document defines the execution contract, artifact contract, debugging loop,
 Repo-local scaffold manifest:
 
 - `.spec_orch/skills/workflow-replay-e2e.yaml`
+- fresh-path companion design:
+  - `docs/plans/2026-03-28-fresh-acpx-mission-e2e-design.md`
 
 ## Definitions
 
@@ -44,6 +46,37 @@ Execute a brand-new mission end-to-end:
 
 `Workflow Replay E2E` proves operability of the control plane.
 `Fresh Acpx Mission E2E` proves freshness of the whole delivery pipeline.
+
+## Proof Boundary
+
+These two proofs must stay distinct.
+
+`Workflow Replay E2E` is sufficient to prove:
+
+- a live dashboard surface can be exercised through stable automation semantics
+- a defined operator workflow can be replayed against existing mission state
+- browser evidence and acceptance review can detect, isolate, and confirm UI-level fixes
+
+`Workflow Replay E2E` is not sufficient to prove:
+
+- a brand-new mission was created for this run
+- a fresh daemon pickup occurred for this run
+- a fresh ACPX builder execution occurred for this run
+- post-launch artifacts came from this run rather than pre-existing smoke data
+
+`Fresh Acpx Mission E2E` is required to prove:
+
+- a new mission bootstrap happened for this run
+- approve / plan / launch produced fresh lifecycle evidence
+- daemon or equivalent mission runner picked up this mission
+- at least one builder packet executed fresh work for this mission
+- post-run workflow replay validated the resulting dashboard surfaces
+
+Every final report must explicitly say whether it proves:
+
+- `Workflow Replay E2E` only
+- `Fresh Acpx Mission E2E`
+- or an incomplete subset of the fresh path
 
 ## Why This Exists
 

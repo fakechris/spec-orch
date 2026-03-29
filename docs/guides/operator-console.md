@@ -62,6 +62,24 @@ Current launcher capabilities:
 
 The CLI/file-edit flow still exists as a fallback, but it is no longer the recommended primary path for dogfooding.
 
+## Acceptance Ladders
+
+When dogfooding the operator console, keep these proof layers separate:
+
+- `Workflow Replay E2E`
+  - proves the current dashboard/operator workflow can be replayed against existing mission state
+  - best for UI repair loops and coverage expansion
+- `Fresh Acpx Mission E2E`
+  - proves a brand-new mission can be created, launched, executed by ACPX, and then validated through the dashboard
+  - best for full pipeline dogfooding
+
+The practical sequence is:
+
+1. stabilize the dashboard with `Workflow Replay E2E`
+2. then run `Fresh Acpx Mission E2E`
+
+Do not treat dashboard replay success as proof that ACPX executed fresh work.
+
 ## Top-Level Modes
 
 The left rail modes are work modes, not lifecycle states.

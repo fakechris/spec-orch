@@ -17,10 +17,12 @@ from spec_orch.domain.models import (
     AcceptanceReviewResult,
     BuilderResult,
     ExecutionPlan,
+    GateInput,
     Issue,
     IssueContext,
     Mission,
     PlanPatch,
+    ReviewSummary,
     RoundAction,
     RoundArtifacts,
     RoundDecision,
@@ -37,12 +39,46 @@ from spec_orch.domain.protocols import (
 )
 from spec_orch.services.acceptance.browser_evidence import collect_playwright_browser_evidence
 from spec_orch.services.event_bus import Event, EventBus, EventTopic
+from spec_orch.services.gate_service import GatePolicy, GateService
 from spec_orch.services.io import atomic_write_json
 from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.run_event_logger import RunEventLogger
 from spec_orch.services.telemetry_service import TelemetryService
+from spec_orch.services.verification_service import VerificationService
 
 logger = logging.getLogger(__name__)
+
+
+def _load_repo_fixture_json(repo_root: Path, fixture_name: str) -> dict[str, Any]:
+    fixture_path = Path(repo_root) / "tests" / "fixtures" / fixture_name
+    data = json.loads(fixture_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"Fixture {fixture_name} must contain a JSON object")
+    return data
+
+
+def _substitute_fresh_campaign_placeholders(value: Any, *, mission_id: str) -> Any:
+    if isinstance(value, str):
+        return value.replace("{mission_id}", mission_id)
+    if isinstance(value, list):
+        return [
+            _substitute_fresh_campaign_placeholders(item, mission_id=mission_id)
+            for item in value
+        ]
+    if isinstance(value, dict):
+        return {
+            _substitute_fresh_campaign_placeholders(key, mission_id=mission_id): (
+                _substitute_fresh_campaign_placeholders(item, mission_id=mission_id)
+            )
+            for key, item in value.items()
+        }
+    return value
+
+
+def build_fresh_acpx_post_run_campaign(repo_root: Path, mission_id: str) -> AcceptanceCampaign:
+    payload = _load_repo_fixture_json(repo_root, "fresh_acpx_campaign.json")
+    substituted = _substitute_fresh_campaign_placeholders(payload, mission_id=mission_id)
+    return AcceptanceCampaign.from_dict(substituted)
 
 
 @dataclass
@@ -351,6 +387,68 @@ class RoundOrchestrator:
             worker_results=worker_results,
             round_dir=round_dir,
         )
+        verification_outputs: list[dict[str, Any]] = []
+        gate_verdicts: list[dict[str, Any]] = []
+        manifest_paths: list[str] = []
+        verification_service = VerificationService()
+        gate_service = GateService(
+            policy=GatePolicy(required_conditions={"builder", "verification"})
+        )
+
+        for packet, result in worker_results:
+            workspace = self._packet_workspace(mission_id, packet)
+            if result.report_path.exists():
+                manifest_paths.append(str(result.report_path))
+            for file_path in packet.files_in_scope:
+                scoped_path = workspace / file_path
+                if scoped_path.exists():
+                    manifest_paths.append(str(scoped_path))
+            if not packet.verification_commands:
+                continue
+
+            verification = verification_service.run(
+                issue=Issue(
+                    issue_id=packet.packet_id,
+                    title=packet.title,
+                    summary=packet.title,
+                    verification_commands=dict(packet.verification_commands),
+                    context=IssueContext(),
+                    acceptance_criteria=list(packet.acceptance_criteria),
+                ),
+                workspace=workspace,
+            )
+            verification_outputs.append(
+                {
+                    "packet_id": packet.packet_id,
+                    "workspace": str(workspace),
+                    "all_passed": verification.all_passed,
+                    "step_results": dict(verification.step_results),
+                    "details": {
+                        step: {
+                            "command": detail.command,
+                            "exit_code": detail.exit_code,
+                            "stdout": detail.stdout,
+                            "stderr": detail.stderr,
+                        }
+                        for step, detail in verification.details.items()
+                    },
+                }
+            )
+            gate = gate_service.evaluate(
+                GateInput(
+                    builder_succeeded=result.succeeded,
+                    verification=verification,
+                    review=ReviewSummary(verdict="not_applicable"),
+                )
+            )
+            gate_verdicts.append(
+                {
+                    "packet_id": packet.packet_id,
+                    "mergeable": gate.mergeable,
+                    "failed_conditions": list(gate.failed_conditions),
+                }
+            )
+
         return RoundArtifacts(
             round_id=round_id,
             mission_id=mission_id,
@@ -364,6 +462,9 @@ class RoundOrchestrator:
                 }
                 for packet, result in worker_results
             ],
+            verification_outputs=verification_outputs,
+            gate_verdicts=gate_verdicts,
+            manifest_paths=self._unique_preserve_order(manifest_paths),
             worker_session_ids=[
                 f"mission-{mission_id}-{packet.packet_id}" for packet, _ in worker_results
             ],
@@ -729,6 +830,29 @@ class RoundOrchestrator:
         summary: RoundSummary,
     ) -> dict[str, Any]:
         mission = self._load_mission(mission_id)
+        fresh_execution = self._build_fresh_execution_evidence(
+            mission_id=mission_id,
+            round_id=round_id,
+            artifacts=artifacts,
+        )
+        workflow_replay = {
+            "proof_type": "workflow_replay",
+            "review_routes": {
+                "overview": f"/?mission={mission_id}&mode=missions&tab=overview",
+                "transcript": (
+                    f"/?mission={mission_id}&mode=missions&tab=transcript&round={round_id}"
+                ),
+                "approvals": (
+                    f"/?mission={mission_id}&mode=missions&tab=approvals&round={round_id}"
+                ),
+                "visual_qa": f"/?mission={mission_id}&mode=missions&tab=visual&round={round_id}",
+                "costs": f"/?mission={mission_id}&mode=missions&tab=costs&round={round_id}",
+                "acceptance": (
+                    f"/?mission={mission_id}&mode=missions&tab=acceptance&round={round_id}"
+                ),
+            },
+            "workflow_assertions": self._build_workflow_assertions(),
+        }
         return {
             "mission": {
                 "mission_id": mission_id,
@@ -752,22 +876,49 @@ class RoundOrchestrator:
                     else None
                 ),
             },
-            "review_routes": {
-                "overview": f"/?mission={mission_id}&mode=missions&tab=overview",
-                "transcript": (
-                    f"/?mission={mission_id}&mode=missions&tab=transcript&round={round_id}"
-                ),
-                "approvals": (
-                    f"/?mission={mission_id}&mode=missions&tab=approvals&round={round_id}"
-                ),
-                "visual_qa": f"/?mission={mission_id}&mode=missions&tab=visual&round={round_id}",
-                "costs": f"/?mission={mission_id}&mode=missions&tab=costs&round={round_id}",
-                "acceptance": (
-                    f"/?mission={mission_id}&mode=missions&tab=acceptance&round={round_id}"
-                ),
+            "fresh_execution": fresh_execution,
+            "workflow_replay": workflow_replay,
+            "proof_split": {
+                "fresh_execution": fresh_execution,
+                "workflow_replay": workflow_replay,
             },
-            "workflow_assertions": self._build_workflow_assertions(),
+            "review_routes": workflow_replay["review_routes"],
+            "workflow_assertions": workflow_replay["workflow_assertions"],
         }
+
+    def _build_fresh_execution_evidence(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        artifacts: RoundArtifacts,
+    ) -> dict[str, Any]:
+        round_dir = self._round_dir(mission_id, round_id)
+        mission_bootstrap = self._read_operator_json(mission_id, "mission_bootstrap.json")
+        launch = self._read_operator_json(mission_id, "launch.json")
+        daemon_run = self._read_operator_json(mission_id, "daemon_run.json")
+        builder_execution_summary = {
+            "builder_reports": artifacts.builder_reports,
+            "worker_session_ids": artifacts.worker_session_ids,
+        }
+        return {
+            "proof_type": "fresh_execution",
+            "mission_bootstrap": mission_bootstrap,
+            "launch": launch,
+            "daemon_run": daemon_run,
+            "fresh_round_path": str(round_dir),
+            "builder_execution_summary": builder_execution_summary,
+        }
+
+    def _read_operator_json(self, mission_id: str, filename: str) -> dict[str, Any]:
+        path = self._mission_dir(mission_id) / "operator" / filename
+        if not path.exists():
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return payload if isinstance(payload, dict) else {}
 
     def _build_acceptance_campaign(
         self,

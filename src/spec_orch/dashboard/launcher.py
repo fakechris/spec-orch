@@ -4,14 +4,17 @@ import importlib.util
 import json
 import threading
 import tomllib
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from spec_orch.services.lifecycle_manager import MissionLifecycleManager
 from spec_orch.services.linear_client import LinearClient, resolve_linear_token
 from spec_orch.services.litellm_profile import resolve_configured_or_fallback_env
 from spec_orch.services.mission_service import MissionService
 from spec_orch.services.promotion_service import load_plan
+from spec_orch.services.round_orchestrator import build_fresh_acpx_post_run_campaign
 
 _RUNNER_LOCK = threading.Lock()
 _ACTIVE_RUNNERS: dict[str, threading.Thread] = {}
@@ -94,6 +97,110 @@ def _build_spec_markdown(
         + "\n## Interface Contracts\n\n"
         "<!-- frozen APIs / schemas -->\n"
     )
+
+
+def _load_launcher_fixture(repo_root: Path, fixture_name: str) -> dict[str, Any]:
+    fixture_path = repo_root / "tests" / "fixtures" / fixture_name
+    data = json.loads(fixture_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"Launcher fixture {fixture_name} must contain a JSON object")
+    return data
+
+
+def _is_fresh_acpx_mission(repo_root: Path, mission_id: str) -> bool:
+    bootstrap_path = _operator_dir(repo_root, mission_id) / "mission_bootstrap.json"
+    if bootstrap_path.exists():
+        try:
+            payload = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        if isinstance(payload, dict):
+            if payload.get("execution_mode") == "fresh_acpx_mission":
+                return True
+            metadata = payload.get("metadata", {})
+            if isinstance(metadata, dict) and metadata.get("fresh") is True:
+                return True
+    return mission_id.startswith("fresh-")
+
+
+def _build_fresh_verification_commands(files_in_scope: list[str]) -> dict[str, list[str]]:
+    scoped_files = [str(path).strip() for path in files_in_scope if str(path).strip()]
+    if not scoped_files:
+        return {}
+    script = (
+        "from pathlib import Path\n"
+        "import sys\n"
+        f"paths = {scoped_files!r}\n"
+        "missing = []\n"
+        "invalid = []\n"
+        "for rel in paths:\n"
+        "    path = Path(rel)\n"
+        "    if not path.exists() or not path.is_file():\n"
+        "        missing.append(rel)\n"
+        "        continue\n"
+        "    text = path.read_text(encoding='utf-8')\n"
+        "    if not any(token in text for token in ('export ', 'interface ', 'type ', 'enum ')):\n"
+        "        invalid.append(rel)\n"
+        "if missing or invalid:\n"
+        "    sys.stderr.write(f'missing={missing} invalid={invalid}\\n')\n"
+        "    raise SystemExit(1)\n"
+    )
+    return {
+        "scaffold_exists": ["{python}", "-c", script],
+    }
+
+
+def _inject_fresh_plan_verification_commands(plan: dict[str, Any]) -> bool:
+    changed = False
+    for wave in plan.get("waves", []):
+        if not isinstance(wave, dict):
+            continue
+        for packet in wave.get("work_packets", []):
+            if not isinstance(packet, dict):
+                continue
+            current = packet.get("verification_commands", {})
+            if isinstance(current, dict) and current:
+                continue
+            generated = _build_fresh_verification_commands(
+                list(packet.get("files_in_scope", []))
+            )
+            if generated:
+                packet["verification_commands"] = generated
+                changed = True
+    return changed
+
+
+def _build_fresh_acpx_mission_request(repo_root: Path) -> dict[str, Any]:
+    payload = _load_launcher_fixture(repo_root, "fresh_acpx_mission_request.json")
+    mission_id_prefix = (
+        str(payload.get("mission_id_prefix", "fresh-acpx-")).strip() or "fresh-acpx-"
+    )
+    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+    mission_id = f"{mission_id_prefix}{timestamp}-{uuid4().hex[:6]}"
+    metadata = dict(payload.get("metadata", {}))
+    metadata.update(
+        {
+            "fresh": True,
+            "generated_at": datetime.now(UTC).isoformat(),
+            "mission_id_prefix": mission_id_prefix,
+        }
+    )
+    campaign = build_fresh_acpx_post_run_campaign(repo_root, mission_id)
+    return {
+        "mission_id": mission_id,
+        "title": str(payload.get("title", "Fresh ACPX Mission E2E Smoke")).strip()
+        or "Fresh ACPX Mission E2E Smoke",
+        "execution_mode": str(payload.get("execution_mode", "fresh_acpx_mission")).strip()
+        or "fresh_acpx_mission",
+        "local_only": bool(payload.get("local_only", True)),
+        "safe_cleanup": bool(payload.get("safe_cleanup", True)),
+        "intent": str(payload.get("intent", "Validate a brand-new ACPX mission path.")).strip()
+        or "Validate a brand-new ACPX mission path.",
+        "acceptance_criteria": list(payload.get("acceptance_criteria", [])),
+        "constraints": list(payload.get("constraints", [])),
+        "metadata": metadata,
+        "post_run_campaign": campaign.to_dict(),
+    }
 
 
 def _gather_launcher_readiness(repo_root: Path) -> dict[str, Any]:
@@ -230,6 +337,13 @@ def _approve_and_plan_mission(repo_root: Path, mission_id: str) -> dict[str, Any
     svc = MissionService(repo_root)
     mission = svc.approve_mission(mission_id)
     plan = _generate_plan_for_mission(repo_root, mission_id)
+    if _is_fresh_acpx_mission(repo_root, mission_id) and _inject_fresh_plan_verification_commands(
+        plan
+    ):
+        (repo_root / "docs" / "specs" / mission_id / "plan.json").write_text(
+            json.dumps(plan, indent=2) + "\n",
+            encoding="utf-8",
+        )
     return {
         "mission_id": mission.mission_id,
         "approved_at": mission.approved_at,

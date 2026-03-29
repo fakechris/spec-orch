@@ -158,6 +158,43 @@ http://127.0.0.1:8420
 
 这条路径是现在推荐的最小可视化 E2E。
 
+## Workflow Replay E2E vs Fresh Acpx Mission E2E
+
+这两条链路现在必须分开理解：
+
+- `Workflow Replay E2E`
+  - 基于已有 mission / round / artifacts
+  - 重点证明 dashboard/operator workflow 可稳定操作、可回放、可修复
+- `Fresh Acpx Mission E2E`
+  - 从一个全新 mission 开始
+  - 重点证明 fresh bootstrap -> approve/plan -> launch -> runner pickup -> fresh round -> post-run replay
+
+不要把 replay 成功误认为 fresh pipeline 已证明。
+
+### 什么时候跑 Workflow Replay E2E
+
+适合：
+
+- dashboard/operator console 新交互刚修完
+- acceptance harness 新 campaign 或 selector contract 刚改完
+- 想复验一个已知 mission surface 是否还能稳定通过
+
+### 什么时候跑 Fresh Acpx Mission E2E
+
+适合：
+
+- 想证明一条 brand-new mission 能真实跑通
+- 想验证 launcher / lifecycle / daemon / builder / post-run acceptance 的整链闭环
+- 准备把 workflow proof 提升成 pipeline freshness proof
+
+第一条可执行脚本：
+
+```bash
+./tests/e2e/fresh_acpx_mission_smoke.sh
+MINIMAX_API_KEY=$MINIMAX_API_KEY MINIMAX_ANTHROPIC_BASE_URL=$MINIMAX_ANTHROPIC_BASE_URL \
+  ./tests/e2e/fresh_acpx_mission_smoke.sh --full
+```
+
 ---
 
 ## 4. CLI 回退流程：手动创建一个可试跑的 Mission
