@@ -8,6 +8,7 @@ from pathlib import Path
 from spec_orch.services.skill_format import (
     SKILL_SCHEMA_VERSION,
     SkillManifest,
+    default_skills_dir,
     load_skills_from_dir,
     parse_skill_manifest,
     validate_skill_manifest,
@@ -125,3 +126,17 @@ def test_load_empty_dir(tmp_path: Path) -> None:
     manifests, warnings = load_skills_from_dir(d)
     assert manifests == []
     assert warnings == []
+
+
+def test_repo_includes_workflow_replay_skill_manifest() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    manifests, warnings = load_skills_from_dir(default_skills_dir(repo_root))
+
+    workflow = next((m for m in manifests if m.id == "workflow-replay-e2e"), None)
+    assert workflow is not None, warnings
+    assert workflow.kind == "custom"
+    assert "workflow.replay" in workflow.triggers
+    assert "acceptance.workflow" in workflow.triggers
+    assert workflow.params["replay_type"] == "workflow_replay"
+    assert workflow.params["artifact_contract"]["browser_evidence"] == "browser_evidence.json"
+    assert "surface_contract" in workflow.params["required_layers"]

@@ -336,38 +336,38 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
     </div>
     <div id="launcher-panel" class="sidebar-panel launcher-panel">
       <div id="launcher-readiness" class="launcher-readiness">Checking environment…</div>
-      <div id="launcher-status" class="launcher-status">Use this panel to create, plan, bind, and launch a mission.</div>
+      <div id="launcher-status" class="launcher-status" data-automation-target="launcher-status">Use this panel to create, plan, bind, and launch a mission.</div>
       <div class="launcher-section">
         <label for="launcher-title">Mission title</label>
-        <input id="launcher-title" class="launcher-input" placeholder="Operator Console Dogfood Smoke"/>
+        <input id="launcher-title" class="launcher-input" data-automation-target="launcher-field" data-field-key="title" placeholder="Operator Console Dogfood Smoke"/>
       </div>
       <div class="launcher-section">
         <label for="launcher-mission-id">Mission id (optional)</label>
-        <input id="launcher-mission-id" class="launcher-input" placeholder="operator-console-dogfood-smoke"/>
+        <input id="launcher-mission-id" class="launcher-input" data-automation-target="launcher-field" data-field-key="mission-id" placeholder="operator-console-dogfood-smoke"/>
       </div>
       <div class="launcher-section">
         <label for="launcher-intent">Intent</label>
-        <textarea id="launcher-intent" class="launcher-textarea" placeholder="Validate one real supervised mission through the operator console."></textarea>
+        <textarea id="launcher-intent" class="launcher-textarea" data-automation-target="launcher-field" data-field-key="intent" placeholder="Validate one real supervised mission through the operator console."></textarea>
       </div>
       <div class="launcher-section">
         <label for="launcher-acceptance">Acceptance criteria (one per line)</label>
-        <textarea id="launcher-acceptance" class="launcher-textarea" placeholder="daemon picks up this issue as a mission&#10;dashboard shows Mission Detail / Transcript / Approval / Visual QA / Costs"></textarea>
+        <textarea id="launcher-acceptance" class="launcher-textarea" data-automation-target="launcher-field" data-field-key="acceptance" placeholder="daemon picks up this issue as a mission&#10;dashboard shows Mission Detail / Transcript / Approval / Visual QA / Costs"></textarea>
       </div>
       <div class="launcher-section">
         <label for="launcher-constraints">Constraints (one per line)</label>
-        <textarea id="launcher-constraints" class="launcher-textarea" placeholder="Keep this run small&#10;Prefer 1 wave / 1-2 packets"></textarea>
+        <textarea id="launcher-constraints" class="launcher-textarea" data-automation-target="launcher-field" data-field-key="constraints" placeholder="Keep this run small&#10;Prefer 1 wave / 1-2 packets"></textarea>
       </div>
       <div class="launcher-section">
         <label for="launcher-linear-title">Linear title</label>
-        <input id="launcher-linear-title" class="launcher-input" placeholder="Real supervised mission dogfood"/>
+        <input id="launcher-linear-title" class="launcher-input" data-automation-target="launcher-field" data-field-key="linear-title" placeholder="Real supervised mission dogfood"/>
       </div>
       <div class="launcher-section">
         <label for="launcher-linear-description">Linear description</label>
-        <textarea id="launcher-linear-description" class="launcher-textarea" placeholder="Validate one real supervised mission through the operator console."></textarea>
+        <textarea id="launcher-linear-description" class="launcher-textarea" data-automation-target="launcher-field" data-field-key="linear-description" placeholder="Validate one real supervised mission through the operator console."></textarea>
       </div>
       <div class="launcher-section">
         <label for="launcher-linear-issue-id">Bind existing Linear issue (optional)</label>
-        <input id="launcher-linear-issue-id" class="launcher-input" placeholder="SON-241"/>
+        <input id="launcher-linear-issue-id" class="launcher-input" data-automation-target="launcher-field" data-field-key="linear-issue-id" placeholder="SON-241"/>
       </div>
       <div class="launcher-actions">
         <button class="btn" type="button" data-automation-target="launcher-action" data-launcher-action="create-draft" onclick="createMissionDraft()">Create Draft</button>
@@ -728,7 +728,7 @@ function renderMissions() {
     const items = approvalQueue?.items || [];
     root.innerHTML = items.length ? items.map(item => `
       <button class="mission-list-item ${selectedMissionId === item.mission_id ? 'active' : ''}"
-        type="button" onclick="selectMission(${safeJsArg(item.mission_id)})">
+        type="button" onclick='selectMission(${safeJsArg(item.mission_id)})'>
         <div class="mission-list-title">${escHtml(item.title)}</div>
         <div class="mission-list-meta">
           <span class="badge ${escHtml(item.phase || 'approval')}">${escHtml(item.approval_state?.status || 'awaiting_human')}</span>
@@ -759,7 +759,7 @@ function renderMissions() {
       data-mid="${escAttr(m.mission_id)}"
       data-mission-id="${escAttr(m.mission_id)}"
       data-automation-target="mission-card"
-      onclick="selectMission(${safeJsArg(m.mission_id)})">
+      onclick='selectMission(${safeJsArg(m.mission_id)})'>
       <div class="mission-list-title">${escHtml(m.title)}</div>
       <div class="mission-list-meta">
         <span class="badge ${phase}">${escHtml(phaseInfo.label)}</span>
@@ -798,7 +798,15 @@ function renderInboxSummary() {
     return;
   }
   list.innerHTML = items.map(item => `
-    <button class="mission-list-item" type="button" onclick="selectMission(${safeJsArg(item.mission_id)})">
+    <button
+      class="mission-list-item"
+      type="button"
+      data-automation-target="inbox-item"
+      data-mission-id="${escAttr(item.mission_id)}"
+      data-inbox-kind="${escAttr(item.kind || 'attention')}"
+      data-review-route="${escAttr(item.review_route || '')}"
+      onclick='openInboxItem(${safeJsArg(item.mission_id)}, ${safeJsArg(item.review_route || "")})'
+    >
       <div class="mission-list-title">${escHtml(item.title)}</div>
       <div class="mission-list-meta">
         <span class="badge ${escHtml(item.phase || item.kind || 'attention')}">${escHtml(item.kind)}</span>
@@ -827,6 +835,14 @@ function renderInboxSummary() {
       ` : ''}
     </button>
   `).join('');
+}
+
+async function openInboxItem(missionId, reviewRoute = '') {
+  if (reviewRoute) {
+    await navigateOperatorRoute(reviewRoute);
+    return;
+  }
+  await selectMission(missionId);
 }
 
 async function ensureMissionSelection() {
@@ -860,7 +876,7 @@ async function selectMission(missionId, options = {}) {
     const packetIds = (selectedMissionDetail.packets || []).map(packet => packet.packet_id);
     selectedPacketId = packetIds.includes(pendingRoutePacketId)
       ? pendingRoutePacketId
-      : (selectedMissionDetail.packets?.[0]?.packet_id || null);
+      : (selectedMissionDetail.packets?.[0]?.packet_id || pendingRoutePacketId || null);
     pendingRoutePacketId = null;
     selectedPacketTranscript = null;
     selectedTranscriptFilter = 'all';
@@ -953,7 +969,7 @@ function renderMissionDetail(detail) {
     primarySurface = `
       <section class="mission-section">
         <h3>Approval Workspace</h3>
-        ${approvalRequest ? renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, mission.mission_id || '') : '<div class="empty-panel">No active approval request.</div>'}
+        ${approvalRequest ? renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, mission.mission_id || '', 'mission-detail') : '<div class="empty-panel">No active approval request.</div>'}
       </section>
     `;
   } else if (activeTab === 'visual-qa') {
@@ -1012,7 +1028,7 @@ function renderMissionDetail(detail) {
   }
 
   view.innerHTML = `
-    <section class="mission-hero">
+    <section class="mission-hero" data-automation-target="mission-detail-ready" data-mission-id="${escAttr(mission.mission_id || '')}">
       <div class="mission-hero-copy">
         <div class="mission-kicker">Mission ${escHtml(mission.mission_id || '')}</div>
         <div class="mission-hero-title">${escHtml(mission.title || 'Untitled mission')}</div>
@@ -1041,8 +1057,8 @@ function renderMissionDetail(detail) {
           onclick="setMissionTab('${key}')"
         >${escHtml(label)}</button>
       `).join('')}
-      <button class="mission-tab" type="button" onclick="openDiscuss('${escHtml(mission.mission_id || '')}')">Discuss</button>
-      <button class="mission-tab" type="button" onclick="load()">Refresh</button>
+      <button class="mission-tab" type="button" data-automation-target="mission-secondary-action" data-action-key="discuss" onclick="openDiscuss('${escHtml(mission.mission_id || '')}')">Discuss</button>
+      <button class="mission-tab" type="button" data-automation-target="mission-secondary-action" data-action-key="refresh" onclick="load()">Refresh</button>
     </section>
     ${primarySurface}
   `;
@@ -1090,7 +1106,7 @@ function renderContextRail(detail) {
     <div class="mission-section">
       <h3>Approval workspace</h3>
       <div class="context-list">
-        ${approvalRequest ? renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, mission.mission_id || '') : '<div class="empty-panel">No active approval request.</div>'}
+        ${approvalRequest ? renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, mission.mission_id || '', 'context-rail') : '<div class="empty-panel">No active approval request.</div>'}
       </div>
     </div>
     <div class="mission-section">
@@ -1114,7 +1130,7 @@ function renderContextRail(detail) {
             <span>${escHtml(`${visualQa?.summary?.blocking_findings || 0} blocking`)}</span>
             <span>${escHtml(`${visualQa?.summary?.gallery_items || 0} gallery`)}</span>
           </div>
-          ${visualQa?.review_route ? `<div class="context-meta"><button class="btn btn-sm" type="button" onclick="navigateOperatorRoute('${escHtml(visualQa.review_route)}')">Open visual review</button></div>` : ''}
+          ${visualQa?.review_route ? `<div class="context-meta">${renderInternalRouteButton(visualQa.review_route, 'Open visual review')}</div>` : ''}
         </div>
         <div class="context-card">
           <div class="context-title">Acceptance</div>
@@ -1122,7 +1138,7 @@ function renderContextRail(detail) {
             <span class="detail-chip">${escHtml(acceptance?.latest_review?.status || 'pending')}</span>
             <span>${escHtml(String(acceptance?.summary?.filed_issues || 0))} filed</span>
           </div>
-          ${acceptance?.review_route ? `<div class="context-meta"><button class="btn btn-sm" type="button" onclick="navigateOperatorRoute('${escHtml(acceptance.review_route)}')">Open acceptance review</button></div>` : ''}
+          ${acceptance?.review_route ? `<div class="context-meta">${renderInternalRouteButton(acceptance.review_route, 'Open acceptance review')}</div>` : ''}
         </div>
         <div class="context-card">
           <div class="context-title">Costs</div>
@@ -1130,7 +1146,7 @@ function renderContextRail(detail) {
             <span class="detail-chip">${escHtml(costs?.summary?.budget_status || 'unconfigured')}</span>
             <span>${escHtml(String(costs?.summary?.cost_usd || 0))} USD</span>
           </div>
-          ${costs?.review_route ? `<div class="context-meta"><button class="btn btn-sm" type="button" onclick="navigateOperatorRoute('${escHtml(costs.review_route)}')">Open cost review</button>${costs?.highest_cost_worker?.transcript_route ? `<button class="btn btn-sm" type="button" onclick="navigateOperatorRoute('${escHtml(costs.highest_cost_worker.transcript_route)}')">Open top packet</button>` : ''}</div>` : ''}
+          ${costs?.review_route ? `<div class="context-meta">${renderInternalRouteButton(costs.review_route, 'Open cost review')}${costs?.highest_cost_worker?.transcript_route ? renderInternalRouteButton(costs.highest_cost_worker.transcript_route, 'Open top packet') : ''}</div>` : ''}
         </div>
       </div>
     </div>
@@ -1152,12 +1168,13 @@ function renderContextRail(detail) {
   `;
 }
 
-function renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, missionId) {
+function renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, missionId, scope) {
   return getOperatorConsoleHelpers().renderApprovalWorkspace(
     approvalRequest,
     approvalHistory,
     approvalState,
     missionId,
+    scope,
     escHtml,
   );
 }
@@ -1209,6 +1226,10 @@ function renderArtifactLinks(artifacts) {
 
 function renderRoundContext(round) {
   return getOperatorConsoleHelpers().renderRoundContext(round, escHtml);
+}
+
+function renderInternalRouteButton(route, label) {
+  return getOperatorConsoleHelpers().renderInternalRouteButton(route, label, escHtml);
 }
 
 function buildMissionSubtitle(detail) {
@@ -1467,6 +1488,10 @@ async function triggerApprovalAction(missionId, actionKey) {
     }
     await load();
     delete approvalActionStates[missionId];
+    if (selectedMissionDetail?.mission?.mission_id === missionId) {
+      renderMissionDetail(selectedMissionDetail);
+      renderContextRail(selectedMissionDetail);
+    }
   } catch (error) {
     approvalActionStates[missionId] = {
       status: 'failed',
@@ -1560,7 +1585,19 @@ function setLauncherActionState(actionKey, state, label = null) {
 }
 
 function launcherMissionId() {
-  return launcherState.missionId || (document.getElementById('launcher-mission-id')?.value || '').trim();
+  return launcherState.missionId
+    || (document.getElementById('launcher-mission-id')?.value || '').trim();
+}
+
+async function refreshLauncherMissionSelection(missionId) {
+  try {
+    await load();
+    await selectMission(missionId, {force:true});
+    return null;
+  } catch (error) {
+    console.warn('Launcher follow-up refresh failed', error);
+    return error;
+  }
 }
 
 function renderLauncherReadiness(data) {
@@ -1662,8 +1699,10 @@ async function createMissionDraft() {
     document.getElementById('launcher-mission-id').value = data.mission_id;
     setLauncherStatus(`Draft created: ${data.mission_id}`, 'success');
     setLauncherActionState('create-draft', 'success', 'Draft ready<span class="btn-meta">Mission files created</span>');
-    await load();
-    await selectMission(data.mission_id, {force:true});
+    const syncError = await refreshLauncherMissionSelection(data.mission_id);
+    if (syncError) {
+      addSystemMsg(`Draft created for ${data.mission_id}, but the workbench refresh needs a manual retry.`);
+    }
   } catch (error) {
     setLauncherStatus(error?.message || 'Mission draft creation failed', 'failed');
     setLauncherActionState('create-draft', 'failed', 'Try again<span class="btn-meta">Draft creation failed</span>');
@@ -1684,8 +1723,10 @@ async function approveAndPlanMission() {
     if (!res.ok) throw new Error(data.error || 'Approve & Plan failed');
     setLauncherStatus(`Approved and planned ${missionId}`, 'success');
     setLauncherActionState('approve-plan', 'success', 'Planned<span class="btn-meta">plan.json ready</span>');
-    await load();
-    await selectMission(missionId, {force:true});
+    const syncError = await refreshLauncherMissionSelection(missionId);
+    if (syncError) {
+      addSystemMsg(`Approve & Plan succeeded for ${missionId}, but the workbench refresh needs a manual retry.`);
+    }
   } catch (error) {
     setLauncherStatus(error?.message || 'Approve & Plan failed', 'failed');
     setLauncherActionState('approve-plan', 'failed', 'Retry plan<span class="btn-meta">Planner failed</span>');
@@ -1762,8 +1803,10 @@ async function launchMissionFromLauncher() {
     setLauncherStatus(`Mission launched: ${missionId}`, 'success');
     setLauncherActionState('launch', 'success', 'Live<span class="btn-meta">Mission executing</span>');
     selectedOperatorMode = 'missions';
-    await load();
-    await selectMission(missionId, {force:true});
+    const syncError = await refreshLauncherMissionSelection(missionId);
+    if (syncError) {
+      addSystemMsg(`Mission launched for ${missionId}, but the workbench refresh needs a manual retry.`);
+    }
     closeSidebar();
   } catch (error) {
     setLauncherStatus(error?.message || 'Mission launch failed', 'failed');
@@ -1827,8 +1870,11 @@ function connectWs() {
   };
 
   ws.onmessage = (ev) => {
+    const raw = typeof ev.data === 'string' ? ev.data.trim() : '';
+    if (!raw) return;
+    if (raw[0] !== '{' && raw[0] !== '[') return;
     try {
-      const evt = JSON.parse(ev.data);
+      const evt = JSON.parse(raw);
       handleEvent(evt);
     } catch(e) {}
   };

@@ -235,20 +235,23 @@ def _execute_interaction_plan(
             "target": step.target,
             "description": step.description,
         }
+        step_timeout_ms = step.timeout_ms or timeout_ms
         try:
             if step.action == "click_text":
-                page.get_by_text(step.target, exact=True).click(timeout=timeout_ms)
-                _wait_for_network_idle(page, timeout_ms=timeout_ms)
+                page.get_by_text(step.target, exact=True).click(timeout=step_timeout_ms)
+                _wait_for_network_idle(page, timeout_ms=step_timeout_ms)
             elif step.action == "click_selector":
-                page.locator(step.target).click(timeout=timeout_ms)
-                _wait_for_network_idle(page, timeout_ms=timeout_ms)
+                page.locator(step.target).click(timeout=step_timeout_ms)
+                _wait_for_network_idle(page, timeout_ms=step_timeout_ms)
+            elif step.action == "fill_selector":
+                page.locator(step.target).fill(step.value, timeout=step_timeout_ms)
             elif step.action == "wait_for_text":
                 page.get_by_text(step.target, exact=True).wait_for(
                     state="visible",
-                    timeout=timeout_ms,
+                    timeout=step_timeout_ms,
                 )
             elif step.action == "wait_for_selector":
-                page.wait_for_selector(step.target, timeout=timeout_ms)
+                page.wait_for_selector(step.target, timeout=step_timeout_ms)
             else:
                 raise ValueError(f"Unsupported interaction action: {step.action}")
         except Exception as exc:

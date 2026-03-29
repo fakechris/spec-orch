@@ -686,20 +686,31 @@ class AcceptanceInteractionStep:
     action: str
     target: str
     description: str = ""
+    value: str = ""
+    timeout_ms: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "action": self.action,
             "target": self.target,
             "description": self.description,
+            "value": self.value,
+            "timeout_ms": self.timeout_ms,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AcceptanceInteractionStep:
+        raw_timeout = data.get("timeout_ms", 0)
+        try:
+            timeout_ms = int(raw_timeout)
+        except (TypeError, ValueError):
+            timeout_ms = 0
         return cls(
             action=data.get("action", ""),
             target=data.get("target", ""),
             description=data.get("description", ""),
+            value=str(data.get("value", "") or ""),
+            timeout_ms=max(timeout_ms, 0),
         )
 
 

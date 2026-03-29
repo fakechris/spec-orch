@@ -11,6 +11,7 @@ from typing import Any
 from spec_orch.domain.models import (
     AcceptanceCampaign,
     AcceptanceFinding,
+    AcceptanceIssueProposal,
     AcceptanceReviewResult,
     BuilderResult,
     WorkPacket,
@@ -95,6 +96,7 @@ class LiteLLMAcceptanceEvaluator:
         )
         raw_output = self._call_model(prompt)
         _, result = self._parse_output(raw_output)
+        result = self._normalize_result(result, artifacts=artifacts)
         return self._apply_campaign_defaults(result, campaign=campaign)
 
     def _call_model(self, prompt: str) -> str:
@@ -152,6 +154,166 @@ class LiteLLMAcceptanceEvaluator:
                 ],
             )
             return raw_output.strip() or "Acceptance evaluator parsing failed.", fallback
+
+    @staticmethod
+    def _normalize_result(
+        result: AcceptanceReviewResult,
+        *,
+        artifacts: dict[str, Any],
+    ) -> AcceptanceReviewResult:
+        browser_evidence = artifacts.get("browser_evidence", {})
+        page_errors_by_route = LiteLLMAcceptanceEvaluator._page_errors_by_route(browser_evidence)
+        fallback_route = LiteLLMAcceptanceEvaluator._fallback_route(result, browser_evidence)
+
+        findings: list[AcceptanceFinding] = []
+        for finding in result.findings:
+            normalized_finding = LiteLLMAcceptanceEvaluator._normalize_finding(
+                finding,
+                fallback_route=fallback_route,
+                page_errors_by_route=page_errors_by_route,
+            )
+            if normalized_finding is not None:
+                findings.append(normalized_finding)
+        issue_proposals: list[AcceptanceIssueProposal] = []
+        for proposal in result.issue_proposals:
+            normalized_proposal = LiteLLMAcceptanceEvaluator._normalize_issue_proposal(
+                proposal,
+                fallback_route=fallback_route,
+                page_errors_by_route=page_errors_by_route,
+            )
+            if normalized_proposal is not None:
+                issue_proposals.append(normalized_proposal)
+        return replace(result, findings=findings, issue_proposals=issue_proposals)
+
+    @staticmethod
+    def _page_errors_by_route(browser_evidence: Any) -> dict[str, list[str]]:
+        if not isinstance(browser_evidence, dict):
+            return {}
+        grouped: dict[str, list[str]] = {}
+        for entry in browser_evidence.get("page_errors", []):
+            if not isinstance(entry, dict):
+                continue
+            route = str(entry.get("path", "")).strip()
+            message = str(entry.get("message", "")).strip()
+            if not route or not message:
+                continue
+            grouped.setdefault(route, []).append(message)
+        return grouped
+
+    @staticmethod
+    def _fallback_route(result: AcceptanceReviewResult, browser_evidence: Any) -> str:
+        for route in result.tested_routes:
+            cleaned = LiteLLMAcceptanceEvaluator._clean_text(route)
+            if cleaned:
+                return cleaned
+        if isinstance(browser_evidence, dict):
+            for route in browser_evidence.get("tested_routes", []):
+                cleaned = LiteLLMAcceptanceEvaluator._clean_text(route)
+                if cleaned:
+                    return cleaned
+        return ""
+
+    @staticmethod
+    def _clean_text(value: Any) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
+
+    @staticmethod
+    def _normalize_finding(
+        finding: AcceptanceFinding,
+        *,
+        fallback_route: str,
+        page_errors_by_route: dict[str, list[str]],
+    ) -> AcceptanceFinding | None:
+        route = LiteLLMAcceptanceEvaluator._clean_text(finding.route) or fallback_route
+        page_error = LiteLLMAcceptanceEvaluator._page_error_message(route, page_errors_by_route)
+        summary = LiteLLMAcceptanceEvaluator._clean_text(finding.summary)
+        details = LiteLLMAcceptanceEvaluator._clean_text(finding.details)
+        expected = LiteLLMAcceptanceEvaluator._clean_text(finding.expected)
+        actual = LiteLLMAcceptanceEvaluator._clean_text(finding.actual)
+        has_supporting_signal = any(
+            [
+                page_error,
+                summary,
+                details,
+                expected,
+                actual,
+                bool(finding.artifact_paths),
+            ]
+        )
+
+        if not has_supporting_signal:
+            return None
+
+        if page_error:
+            summary = summary or f"Browser page error on {route or 'tested route'}"
+            expected = expected or "Route should render without browser page errors."
+            actual = actual or f"Page error observed: {page_error}"
+            details = details or f"Browser evidence recorded a page error on {route}: {page_error}"
+        else:
+            summary = summary or f"Acceptance finding on {route or 'tested route'}"
+            details = details or actual or expected or summary
+
+        return replace(
+            finding,
+            summary=summary,
+            details=details,
+            expected=expected,
+            actual=actual,
+            route=route,
+        )
+
+    @staticmethod
+    def _normalize_issue_proposal(
+        proposal: AcceptanceIssueProposal,
+        *,
+        fallback_route: str,
+        page_errors_by_route: dict[str, list[str]],
+    ) -> AcceptanceIssueProposal | None:
+        route = LiteLLMAcceptanceEvaluator._clean_text(proposal.route) or fallback_route
+        page_error = LiteLLMAcceptanceEvaluator._page_error_message(route, page_errors_by_route)
+        title = LiteLLMAcceptanceEvaluator._clean_text(proposal.title)
+        summary = LiteLLMAcceptanceEvaluator._clean_text(proposal.summary)
+        expected = LiteLLMAcceptanceEvaluator._clean_text(proposal.expected)
+        actual = LiteLLMAcceptanceEvaluator._clean_text(proposal.actual)
+        has_supporting_signal = any(
+            [
+                page_error,
+                title,
+                summary,
+                expected,
+                actual,
+                bool(proposal.repro_steps),
+                bool(proposal.artifact_paths),
+            ]
+        )
+
+        if not has_supporting_signal:
+            return None
+
+        if page_error:
+            title = title or f"Investigate browser page error on {route or 'tested route'}"
+            summary = summary or f"Browser evidence recorded a page error on {route}: {page_error}."
+            expected = expected or "Route should render without browser page errors."
+            actual = actual or f"Page error observed: {page_error}"
+        else:
+            title = title or f"Investigate acceptance issue on {route or 'tested route'}"
+            summary = summary or actual or expected or title
+
+        return replace(
+            proposal,
+            title=title,
+            summary=summary,
+            expected=expected,
+            actual=actual,
+            route=route,
+        )
+
+    @staticmethod
+    def _page_error_message(route: str, page_errors_by_route: dict[str, list[str]]) -> str:
+        errors = page_errors_by_route.get(route, [])
+        return errors[0] if errors else ""
 
     @staticmethod
     def _apply_campaign_defaults(

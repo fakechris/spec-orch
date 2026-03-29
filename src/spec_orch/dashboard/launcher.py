@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import os
 import threading
 import tomllib
 from pathlib import Path
 from typing import Any
 
 from spec_orch.services.lifecycle_manager import MissionLifecycleManager
-from spec_orch.services.linear_client import LinearClient
+from spec_orch.services.linear_client import LinearClient, resolve_linear_token
 from spec_orch.services.litellm_profile import resolve_configured_or_fallback_env
 from spec_orch.services.mission_service import MissionService
 from spec_orch.services.promotion_service import load_plan
@@ -146,7 +145,7 @@ def _gather_launcher_readiness(repo_root: Path) -> dict[str, Any]:
         "config_present": (repo_root / "spec-orch.toml").exists(),
         "dashboard": {"ready": dashboard_deps},
         "linear": {
-            "ready": bool(os.environ.get(token_env, "")),
+            "ready": bool(resolve_linear_token(token_env=token_env)),
             "token_env": token_env,
         },
         "planner": {

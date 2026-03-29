@@ -289,6 +289,192 @@ def test_acceptance_evaluator_normalizes_model_and_falls_back_to_minimax_envs(
     assert captured_kwargs["api_base"] == "https://api.minimaxi.com/anthropic"
 
 
+def test_acceptance_evaluator_normalizes_low_signal_findings_and_issue_proposals(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "pass",
+  "summary": "Workflow passed with one advisory.",
+  "confidence": 0.92,
+  "evaluator": "specorch-acceptance-evaluator",
+  "tested_routes": ["/"],
+  "findings": [
+    {
+      "severity": "advisory",
+      "summary": "",
+      "details": "",
+      "expected": "",
+      "actual": "",
+      "route": "/"
+    }
+  ],
+  "issue_proposals": [
+    {
+      "title": "",
+      "summary": "",
+      "severity": "medium",
+      "confidence": 0.72,
+      "expected": "",
+      "actual": "",
+      "route": "/"
+    }
+  ],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-6",
+        round_id=6,
+        round_dir=tmp_path / "docs/specs/mission-6/rounds/round-06",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={
+            "browser_evidence": {
+                "tested_routes": ["/"],
+                "page_errors": [{"path": "/", "message": "Unexpected end of input"}],
+                "console_errors": [],
+                "interactions": {"/": []},
+            }
+        },
+        repo_root=tmp_path,
+    )
+
+    finding = result.findings[0]
+    proposal = result.issue_proposals[0]
+
+    assert finding.summary == "Browser page error on /"
+    assert "Unexpected end of input" in finding.details
+    assert finding.actual == "Page error observed: Unexpected end of input"
+    assert finding.expected == "Route should render without browser page errors."
+    assert proposal.title == "Investigate browser page error on /"
+    assert "Unexpected end of input" in proposal.summary
+    assert proposal.actual == "Page error observed: Unexpected end of input"
+    assert proposal.expected == "Route should render without browser page errors."
+
+
+def test_acceptance_evaluator_drops_empty_shell_findings_without_supporting_evidence(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "pass",
+  "summary": "Workflow passed.",
+  "confidence": 0.95,
+  "evaluator": "specorch-acceptance-evaluator",
+  "tested_routes": ["/"],
+  "findings": [
+    {
+      "severity": "info",
+      "summary": "",
+      "details": "",
+      "expected": "",
+      "actual": "",
+      "route": "/"
+    }
+  ],
+  "issue_proposals": [
+    {
+      "title": "",
+      "summary": "",
+      "severity": "low",
+      "confidence": 0.3,
+      "expected": "",
+      "actual": "",
+      "route": "/"
+    }
+  ],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-7",
+        round_id=7,
+        round_dir=tmp_path / "docs/specs/mission-7/rounds/round-07",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={"browser_evidence": {"tested_routes": ["/"], "page_errors": []}},
+        repo_root=tmp_path,
+    )
+
+    assert result.findings == []
+    assert result.issue_proposals == []
+
+
+def test_acceptance_evaluator_normalization_handles_null_route_fields(tmp_path: Path) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "warn",
+  "summary": "Null route output.",
+  "confidence": 0.5,
+  "evaluator": "specorch-acceptance-evaluator",
+  "tested_routes": ["/"],
+  "findings": [
+    {
+      "severity": "advisory",
+      "summary": "",
+      "details": "",
+      "expected": "",
+      "actual": "",
+      "route": null
+    }
+  ],
+  "issue_proposals": [],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-8",
+        round_id=8,
+        round_dir=tmp_path / "docs/specs/mission-8/rounds/round-08",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={"browser_evidence": {"tested_routes": ["/"], "page_errors": []}},
+        repo_root=tmp_path,
+    )
+
+    assert result.findings == []
+
+
 def test_acceptance_system_prompt_includes_constitution() -> None:
     from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
         _ACCEPTANCE_SYSTEM_PROMPT,

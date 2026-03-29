@@ -31,6 +31,9 @@
 | 21. Acceptance taxonomy and epic alignment | complete | Split acceptance into verification/workflow/exploratory/human layers, defined unified product semantics, and realigned roadmap/Epic structure before further implementation |
 | 22. Workflow automation semantics for dashboard operator targets | complete | Added stable automation targets for mission cards, mission tabs, approval actions, operator modes, launcher actions, and active-state semantics so workflow acceptance can select and assert key dashboard interactions without ambiguous text matching |
 | 23. Workflow acceptance campaigns and dogfood regression | complete | Added dedicated workflow acceptance mode, selector-based interaction plans, workflow-specific coverage/filing contracts, and a workflow dashboard repair-loop calibration fixture so the full Workflow Acceptance epic is regression-locked |
+| 24. Dashboard workflow quality replay and judgment | in_progress | Expanded real workflow dogfood replay into a consolidated same-version coverage sweep, fixed approval-state rerender drift, and now have `25/25` currently scoped dashboard workflow-replay capabilities proven while keeping `Fresh Acpx Mission E2E` explicitly out of scope until the next phase |
+| 25. Workflow Replay E2E skill contract | complete | Captured the replay methodology as a reusable design contract and added a repo-local `.spec_orch/skills/workflow-replay-e2e.yaml` scaffold plus sample payload so future skill work does not depend on operator memory |
+| 26. Fresh Acpx Mission E2E first-path plan | complete | Wrote the first implementation plan for a real fresh mission path, separating freshness proof from workflow replay proof and defining the first smoke script, fixtures, artifacts, and verification boundaries |
 
 ## Comparison Dimensions
 - User entry points and onboarding flow

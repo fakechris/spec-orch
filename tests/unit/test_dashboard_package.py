@@ -135,6 +135,12 @@ def test_dashboard_package_exposes_shell_template() -> None:
     assert "function setOperatorMode(mode)" in html
     assert "syncOperatorRoute();" in html
     assert "renderMissions();" in html
+    assert "const raw = typeof ev.data === 'string' ? ev.data.trim() : '';" in html
+    assert "if (!raw) return;" in html
+    assert "async function refreshLauncherMissionSelection(missionId)" in html
+    assert "console.warn('Launcher follow-up refresh failed'" in html
+    assert "const syncError = await refreshLauncherMissionSelection(data.mission_id);" in html
+    assert "const syncError = await refreshLauncherMissionSelection(missionId);" in html
 
 
 def test_operator_console_asset_surfaces_acceptance_coverage_labels() -> None:
@@ -157,6 +163,17 @@ def test_dashboard_mission_cards_expose_stable_automation_targets() -> None:
 
     assert 'data-automation-target="mission-card"' in source
     assert 'data-mission-id="${escAttr(m.mission_id)}"' in source
+    assert "onclick='selectMission(${safeJsArg(m.mission_id)})'" in source
+
+
+def test_dashboard_select_mission_handlers_use_safe_attribute_quotes() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert (
+        "onclick='openInboxItem(${safeJsArg(item.mission_id)}, ${safeJsArg(item.review_route || \"\")})'"
+        in source
+    )
 
 
 def test_dashboard_mission_tabs_expose_stable_automation_targets() -> None:
@@ -164,6 +181,7 @@ def test_dashboard_mission_tabs_expose_stable_automation_targets() -> None:
     source = app_path.read_text(encoding="utf-8")
 
     assert 'data-automation-target="mission-tab"' in source
+    assert 'data-automation-target="mission-detail-ready"' in source
     assert 'data-tab-key="${escAttr(key)}"' in source
     assert "data-active=\"${activeTab === key ? 'true' : 'false'}\"" in source
 
@@ -180,6 +198,11 @@ def test_dashboard_operator_modes_and_launcher_actions_expose_workflow_targets()
     assert 'data-mode-key="evidence"' in source
     assert "button.dataset.active = selectedOperatorMode === mode ? 'true' : 'false';" in source
     assert 'data-automation-target="launcher-action"' in source
+    assert 'data-automation-target="launcher-field"' in source
+    assert 'data-field-key="title"' in source
+    assert 'data-field-key="mission-id"' in source
+    assert 'data-field-key="acceptance"' in source
+    assert 'data-automation-target="launcher-status"' in source
 
 
 def test_operator_console_approval_actions_expose_stable_automation_targets() -> None:
@@ -188,11 +211,133 @@ def test_operator_console_approval_actions_expose_stable_automation_targets() ->
         / "src/spec_orch/dashboard_assets/static/operator-console.js"
     )
     source = asset_path.read_text(encoding="utf-8")
+    app_source = (Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py").read_text(
+        encoding="utf-8"
+    )
 
     assert 'data-automation-target="approval-action"' in source
+    assert 'data-automation-target="approval-state"' in source
+    assert 'data-automation-scope="${escAttr(scope)}"' in source
+    assert 'data-approval-status="${escAttr(stateStatus)}"' in source
     assert "data-action-key=\"${escAttr(action?.key || '')}\"" in source
     assert 'data-mission-id="${escAttr(missionId)}"' in source
+    assert (
+        "renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, mission.mission_id || '', 'mission-detail')"
+        in app_source
+    )
+    assert (
+        "renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, mission.mission_id || '', 'context-rail')"
+        in app_source
+    )
     assert (
         '<button class="btn btn-green btn-sm" type="button" data-automation-target="approval-action"'
         in source
     )
+    assert "delete approvalActionStates[missionId];" in app_source
+    assert "renderMissionDetail(selectedMissionDetail);" in app_source
+    assert "renderContextRail(selectedMissionDetail);" in app_source
+
+
+def test_operator_console_safe_js_args_use_single_quoted_handlers() -> None:
+    asset_path = (
+        Path(__file__).resolve().parents[2]
+        / "src/spec_orch/dashboard_assets/static/operator-console.js"
+    )
+    source = asset_path.read_text(encoding="utf-8")
+
+    assert (
+        "onclick='triggerApprovalAction(${safeJsArg(missionId)}, ${safeJsArg(action?.key || '')})'"
+        in source
+    )
+    assert (
+        "onclick='openDiscussPreset(${safeJsArg(missionId)}, ${safeJsArg((approvalRequest?.actions || [])[0]?.message || '')})'"
+        in source
+    )
+    assert "onclick='navigateOperatorRoute(${safeJsArg(route)})'" in source
+
+
+def test_operator_console_transcript_and_internal_route_targets_are_exposed() -> None:
+    asset_path = (
+        Path(__file__).resolve().parents[2]
+        / "src/spec_orch/dashboard_assets/static/operator-console.js"
+    )
+    source = asset_path.read_text(encoding="utf-8")
+
+    assert 'data-automation-target="packet-row"' in source
+
+
+def test_dashboard_inbox_and_approval_queue_expose_workflow_targets() -> None:
+    app_source = (Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py").read_text(
+        encoding="utf-8"
+    )
+    asset_source = (
+        Path(__file__).resolve().parents[2]
+        / "src/spec_orch/dashboard_assets/static/operator-console.js"
+    ).read_text(encoding="utf-8")
+
+    assert 'data-automation-target="inbox-item"' in app_source
+    assert "data-inbox-kind=\"${escAttr(item.kind || 'attention')}\"" in app_source
+    assert "data-review-route=\"${escAttr(item.review_route || '')}\"" in app_source
+    assert (
+        "onclick='openInboxItem(${safeJsArg(item.mission_id)}, ${safeJsArg(item.review_route || \"\")})'"
+        in app_source
+    )
+    assert 'data-automation-target="approval-queue-item"' in asset_source
+    assert 'data-automation-target="approval-queue-selection"' in asset_source
+    assert 'data-automation-target="approval-batch-toggle-all"' in asset_source
+    assert 'data-automation-target="approval-batch-action"' in asset_source
+    assert 'data-automation-target="approval-batch-status"' in asset_source
+    assert 'data-automation-target="approval-queue-review-route"' in asset_source
+    assert 'data-automation-target="approval-queue-state"' in asset_source
+    assert (
+        "onchange='toggleApprovalSelection(${safeJsArg(item?.mission_id || \"\")}, this.checked)'"
+        in asset_source
+    )
+    assert 'data-packet-id="${escAttr(packet?.packet_id)}"' in asset_source
+    assert 'data-automation-target="transcript-filter"' in asset_source
+    assert 'data-filter-key="${escAttr(filter.key)}"' in asset_source
+    assert 'data-automation-target="transcript-block"' in asset_source
+    assert 'data-block-index="${escAttr(String(blockIndex))}"' in asset_source
+    assert 'data-automation-target="transcript-inspector"' in asset_source
+    assert 'data-packet-id="${escAttr(selectedPacketId)}"' in asset_source
+    assert 'data-automation-target="internal-route"' in asset_source
+    assert 'data-route-label="${escAttr(label)}"' in asset_source
+
+
+def test_operator_console_exports_internal_route_helper() -> None:
+    asset_path = (
+        Path(__file__).resolve().parents[2]
+        / "src/spec_orch/dashboard_assets/static/operator-console.js"
+    )
+    source = asset_path.read_text(encoding="utf-8")
+
+    assert "window.SpecOrchOperatorConsole = {" in source
+    assert "renderInternalRouteButton," in source
+
+
+def test_dashboard_context_rail_review_buttons_use_internal_route_helper() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert "renderInternalRouteButton(visualQa.review_route, 'Open visual review')" in source
+    assert "renderInternalRouteButton(acceptance.review_route, 'Open acceptance review')" in source
+    assert "renderInternalRouteButton(costs.review_route, 'Open cost review')" in source
+
+
+def test_dashboard_secondary_mission_actions_expose_automation_targets() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert 'data-automation-target="mission-secondary-action"' in source
+    assert 'data-action-key="discuss"' in source
+    assert 'data-action-key="refresh"' in source
+
+
+def test_dashboard_inbox_review_routes_and_pending_packet_routes_are_preserved() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert "async function openInboxItem(missionId, reviewRoute = '')" in source
+    assert "if (reviewRoute) {" in source
+    assert "await navigateOperatorRoute(reviewRoute);" in source
+    assert "selectedMissionDetail.packets?.[0]?.packet_id || pendingRoutePacketId || null" in source
