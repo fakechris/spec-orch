@@ -1810,6 +1810,56 @@ def test_build_acceptance_artifacts_splits_fresh_and_replay_proof(tmp_path: Path
     assert payload["proof_split"]["workflow_replay"]["proof_type"] == "workflow_replay"
 
 
+def test_build_acceptance_artifacts_normalizes_nested_launch_state(tmp_path: Path) -> None:
+    from spec_orch.domain.models import RoundArtifacts, RoundSummary
+    from spec_orch.services.mission_service import MissionService
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    mission = MissionService(tmp_path).create_mission("Fresh Mission", mission_id="fresh-mission")
+    operator_dir = tmp_path / "docs" / "specs" / mission.mission_id / "operator"
+    operator_dir.mkdir(parents=True, exist_ok=True)
+    (operator_dir / "mission_bootstrap.json").write_text(
+        json.dumps({"mission_id": mission.mission_id, "fresh": True}) + "\n",
+        encoding="utf-8",
+    )
+    (operator_dir / "launch.json").write_text(
+        json.dumps(
+            {
+                "runner": {"status": "running"},
+                "last_launch": {"state": {"mission_id": mission.mission_id, "phase": "executing"}},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (operator_dir / "daemon_run.json").write_text(
+        json.dumps({"mission_id": mission.mission_id, "state": "picked_up"}) + "\n",
+        encoding="utf-8",
+    )
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    payload = orchestrator._build_acceptance_artifacts(
+        mission_id=mission.mission_id,
+        round_id=3,
+        artifacts=RoundArtifacts(
+            round_id=3,
+            mission_id=mission.mission_id,
+            builder_reports=[{"packet_id": "pkt-1", "succeeded": True}],
+            worker_session_ids=["worker-1"],
+        ),
+        summary=RoundSummary(round_id=3, wave_id=0, status=RoundStatus.REVIEWING),
+    )
+
+    assert payload["fresh_execution"]["launch"]["runner"]["status"] == "running"
+    assert payload["fresh_execution"]["launch"]["state"]["phase"] == "executing"
+    assert payload["fresh_execution"]["launch"]["state"]["mission_id"] == mission.mission_id
+
+
 def test_build_fresh_acpx_post_run_campaign_substitutes_interaction_plan_keys(
     tmp_path: Path,
 ) -> None:

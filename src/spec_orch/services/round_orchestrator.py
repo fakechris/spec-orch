@@ -895,6 +895,12 @@ class RoundOrchestrator:
         round_dir = self._round_dir(mission_id, round_id)
         mission_bootstrap = self._read_operator_json(mission_id, "mission_bootstrap.json")
         launch = self._read_operator_json(mission_id, "launch.json")
+        normalized_launch = dict(launch)
+        last_launch = normalized_launch.get("last_launch", {})
+        if isinstance(last_launch, dict):
+            state = last_launch.get("state")
+            if isinstance(state, dict) and "state" not in normalized_launch:
+                normalized_launch["state"] = dict(state)
         daemon_run = self._read_operator_json(mission_id, "daemon_run.json")
         builder_execution_summary = {
             "builder_reports": artifacts.builder_reports,
@@ -903,7 +909,7 @@ class RoundOrchestrator:
         return {
             "proof_type": "fresh_execution",
             "mission_bootstrap": mission_bootstrap,
-            "launch": launch,
+            "launch": normalized_launch,
             "daemon_run": daemon_run,
             "fresh_round_path": str(round_dir),
             "builder_execution_summary": builder_execution_summary,
