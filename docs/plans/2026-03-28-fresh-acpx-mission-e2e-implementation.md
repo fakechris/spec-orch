@@ -303,7 +303,3 @@ uv run ruff format --check src/ tests/
 ## Handoff
 
 Plan complete and saved to `docs/plans/2026-03-28-fresh-acpx-mission-e2e-implementation.md`.
-
-Recommended next execution mode:
-
-- Start with subagent-driven implementation only after this branch is cleaned for PR or split, because the current worktree still mixes workflow-quality code changes with local replay artifacts.

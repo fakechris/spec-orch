@@ -333,7 +333,7 @@
   - approval action replay passed
 - **coverage judgment**:
   - core non-destructive workflow navigation: `13/13`
-  - broader dashboard capability coverage: `17/22`
+  - broader dashboard capability coverage: `17/22` (intermediate checkpoint) -> final workflow replay sweep: `25/25`
 - **ruff**: targeted acceptance/orchestrator checks passed
 - **mypy**: no issues found in touched acceptance/orchestrator files
 

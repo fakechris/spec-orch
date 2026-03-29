@@ -485,7 +485,7 @@ function syncOperatorRoute() {
 
 async function navigateOperatorRoute(route) {
   const parsed = parseOperatorRoute(route);
-  if (!parsed) return;
+  if (!parsed) return false;
   if (parsed.mode) {
     selectedOperatorMode = parsed.mode;
   }
@@ -499,6 +499,7 @@ async function navigateOperatorRoute(route) {
   } else {
     await load();
   }
+  return true;
 }
 
 function hydrateInitialRoute() {
@@ -839,8 +840,15 @@ function renderInboxSummary() {
 
 async function openInboxItem(missionId, reviewRoute = '') {
   if (reviewRoute) {
-    await navigateOperatorRoute(reviewRoute);
-    return;
+    try {
+      const navigated = await navigateOperatorRoute(reviewRoute);
+      if (navigated) {
+        return;
+      }
+    } catch (error) {
+      console.warn('Failed to navigate inbox review route', reviewRoute, error);
+    }
+    console.warn('Failed to navigate inbox review route', reviewRoute);
   }
   await selectMission(missionId);
 }
@@ -1057,7 +1065,7 @@ function renderMissionDetail(detail) {
           onclick="setMissionTab('${key}')"
         >${escHtml(label)}</button>
       `).join('')}
-      <button class="mission-tab" type="button" data-automation-target="mission-secondary-action" data-action-key="discuss" onclick="openDiscuss('${escHtml(mission.mission_id || '')}')">Discuss</button>
+      <button class="mission-tab" type="button" data-automation-target="mission-secondary-action" data-action-key="discuss" onclick='openDiscuss(${safeJsArg(mission.mission_id || "")})'>Discuss</button>
       <button class="mission-tab" type="button" data-automation-target="mission-secondary-action" data-action-key="refresh" onclick="load()">Refresh</button>
     </section>
     ${primarySurface}

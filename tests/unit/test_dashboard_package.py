@@ -339,5 +339,18 @@ def test_dashboard_inbox_review_routes_and_pending_packet_routes_are_preserved()
 
     assert "async function openInboxItem(missionId, reviewRoute = '')" in source
     assert "if (reviewRoute) {" in source
-    assert "await navigateOperatorRoute(reviewRoute);" in source
+    assert "const navigated = await navigateOperatorRoute(reviewRoute);" in source
+    assert "if (navigated) {" in source
+    assert "console.warn('Failed to navigate inbox review route'" in source
+    assert "await selectMission(missionId);" in source
     assert "selectedMissionDetail.packets?.[0]?.packet_id || pendingRoutePacketId || null" in source
+    assert "if (!parsed) return false;" in source
+    assert "return true;" in source
+
+
+def test_dashboard_discuss_action_uses_js_safe_mission_id() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert 'data-action-key="discuss"' in source
+    assert "onclick='openDiscuss(${safeJsArg(mission.mission_id || \"\")})'" in source

@@ -35,8 +35,10 @@ class LinearClient:
     ) -> None:
         resolved = resolve_linear_token(token=token, token_env=token_env)
         if not resolved:
+            fallback_names = ", ".join(LINEAR_TOKEN_FALLBACKS)
             raise ValueError(
-                f"Linear API token required. Set {token_env} or pass token= explicitly."
+                "Linear API token required. "
+                f"Set {token_env}, {fallback_names}, or pass token= explicitly."
             )
         self._client = httpx.Client(
             base_url=LINEAR_API_URL,

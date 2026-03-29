@@ -4,6 +4,8 @@ from pathlib import Path
 
 from spec_orch.domain.models import (
     AcceptanceCampaign,
+    AcceptanceFinding,
+    AcceptanceIssueProposal,
     AcceptanceMode,
     AcceptanceReviewResult,
     BuilderResult,
@@ -486,3 +488,56 @@ def test_acceptance_system_prompt_includes_constitution() -> None:
     )
     assert "Be honest about missing coverage and uncertainty." in _ACCEPTANCE_SYSTEM_PROMPT
     assert "Do not inherit builder intent as proof of user value." in _ACCEPTANCE_SYSTEM_PROMPT
+
+
+def test_acceptance_evaluator_fallback_route_requires_single_unambiguous_route() -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    result = AcceptanceReviewResult(
+        status="warn",
+        summary="review",
+        confidence=0.5,
+        evaluator="acceptance_llm",
+        tested_routes=["/missions", "/approvals"],
+        findings=[
+            AcceptanceFinding(
+                severity="medium",
+                summary="",
+                details="Operator observed ambiguous routes.",
+                route="",
+            )
+        ],
+        issue_proposals=[
+            AcceptanceIssueProposal(
+                title="",
+                summary="Operator observed ambiguous routes.",
+                severity="medium",
+                confidence=0.5,
+                route="",
+            )
+        ],
+    )
+
+    normalized = LiteLLMAcceptanceEvaluator._normalize_result(
+        result,
+        artifacts={
+            "browser_evidence": {
+                "tested_routes": ["/missions", "/approvals"],
+                "page_errors": [
+                    {"path": "/missions", "message": "boom"},
+                    {"path": "/approvals", "message": "pow"},
+                ],
+            }
+        },
+    )
+
+    assert normalized.findings
+    assert normalized.issue_proposals
+    assert normalized.findings[0].route == ""
+    assert normalized.issue_proposals[0].route == ""
+    assert normalized.findings[0].summary == "Acceptance finding on tested route"
+    assert normalized.findings[0].actual == ""
+    assert normalized.issue_proposals[0].title == "Investigate acceptance issue on tested route"
+    assert normalized.issue_proposals[0].actual == ""

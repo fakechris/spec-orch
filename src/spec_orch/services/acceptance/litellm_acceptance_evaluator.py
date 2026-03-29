@@ -202,16 +202,17 @@ class LiteLLMAcceptanceEvaluator:
 
     @staticmethod
     def _fallback_route(result: AcceptanceReviewResult, browser_evidence: Any) -> str:
+        routes: list[str] = []
         for route in result.tested_routes:
             cleaned = LiteLLMAcceptanceEvaluator._clean_text(route)
-            if cleaned:
-                return cleaned
+            if cleaned and cleaned not in routes:
+                routes.append(cleaned)
         if isinstance(browser_evidence, dict):
             for route in browser_evidence.get("tested_routes", []):
                 cleaned = LiteLLMAcceptanceEvaluator._clean_text(route)
-                if cleaned:
-                    return cleaned
-        return ""
+                if cleaned and cleaned not in routes:
+                    routes.append(cleaned)
+        return routes[0] if len(routes) == 1 else ""
 
     @staticmethod
     def _clean_text(value: Any) -> str:

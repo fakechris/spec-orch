@@ -242,10 +242,8 @@ The next best validation steps should stay inside the dashboard before expanding
 
 Priority order:
 
-1. Prove follow-up / revision approval variants when present.
-2. Prove a visual QA gallery / diff interaction when live evidence is present.
-3. Prove a cost escalation or budget incident action flow when data is present.
-4. Run one fresh mission full lifecycle dogfood:
+1. Prove a live cost escalation or budget incident action flow against production-like data rather than synthetic smoke data.
+2. Run one fresh mission full lifecycle dogfood:
    - create
    - approve & plan
    - bind Linear
@@ -255,12 +253,6 @@ Priority order:
 
 ## Recommendation
 
-Do not open a PR yet for this quality pass until at least one of the following is also proven by replay:
+This document was written as the final checkpoint before opening the current PR. That checkpoint has now been passed: `SON-257` is functionally complete and the currently scoped dashboard workflow-replay capabilities are proven at `25 / 25`.
 
-- live budget-incident action flow
-- inbox triage interaction flow
-- fresh mission full lifecycle
-
-Reason:
-
-`SON-257` is already functionally complete and proven for the core workflow-navigation contract, and the richer dashboard story is now at `25 / 25` currently scoped workflow-replay capabilities. The next increment should move into `Fresh Acpx Mission E2E` rather than opening a PR that still conflates workflow replay coverage with fresh pipeline execution.
+The next increment should move into `Fresh Acpx Mission E2E`, keeping replay proof and fresh-pipeline proof explicitly separate.

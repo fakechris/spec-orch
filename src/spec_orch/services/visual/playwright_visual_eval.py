@@ -235,7 +235,7 @@ def _execute_interaction_plan(
             "target": step.target,
             "description": step.description,
         }
-        step_timeout_ms = step.timeout_ms or timeout_ms
+        step_timeout_ms = step.timeout_ms if step.timeout_ms is not None else timeout_ms
         try:
             if step.action == "click_text":
                 page.get_by_text(step.target, exact=True).click(timeout=step_timeout_ms)
