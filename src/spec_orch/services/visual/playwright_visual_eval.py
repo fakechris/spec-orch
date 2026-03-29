@@ -17,6 +17,7 @@ class VisualEvalRequest:
     round_dir: Path
     base_url: str
     paths: list[str]
+    proof_type: str = "workflow_replay"
     interaction_plans: dict[str, list[AcceptanceInteractionStep]] = field(default_factory=dict)
     wait_for_selector: str | None = None
     timeout_ms: int = 5000
@@ -141,6 +142,7 @@ def parse_request(input_path: Path) -> VisualEvalRequest:
         round_dir=round_dir,
         base_url=base_url.rstrip("/"),
         paths=paths,
+        proof_type=str(payload.get("proof_type", "workflow_replay")),
         interaction_plans={},
         wait_for_selector=wait_for_selector,
         timeout_ms=timeout_ms,
@@ -211,7 +213,15 @@ def run_playwright_visual_evaluation(request: VisualEvalRequest) -> VisualEvalua
         else f"Checked {attempted_pages} pages and found {total_errors} browser errors."
     )
     result.confidence = 0.9 if total_errors == 0 else 0.4
-    atomic_write_json(visual_dir / "playwright_result.json", result.to_dict())
+    atomic_write_json(
+        visual_dir / "playwright_result.json",
+        {
+            "proof_type": request.proof_type,
+            "mission_id": request.mission_id,
+            "round_id": request.round_id,
+            "result": result.to_dict(),
+        },
+    )
     return result
 
 

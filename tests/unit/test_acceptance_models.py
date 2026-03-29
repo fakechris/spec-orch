@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from spec_orch.domain.models import (
     AcceptanceCampaign,
     AcceptanceFinding,
@@ -8,6 +11,8 @@ from spec_orch.domain.models import (
     AcceptanceMode,
     AcceptanceReviewResult,
 )
+
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
 
 
 def test_acceptance_finding_round_trip() -> None:
@@ -211,3 +216,33 @@ def test_acceptance_interaction_step_from_dict_coerces_invalid_timeout_to_zero()
     )
 
     assert restored.timeout_ms == 0
+
+
+def test_fresh_acpx_mission_request_fixture_round_trip() -> None:
+    payload = json.loads(
+        (FIXTURES_DIR / "fresh_acpx_mission_request.json").read_text(encoding="utf-8")
+    )
+
+    mission_id = str(payload["mission_id"])
+
+    assert mission_id.startswith("fresh-acpx-")
+    assert payload["execution_mode"] == "fresh_acpx_mission"
+    assert payload["local_only"] is True
+    assert payload["safe_cleanup"] is True
+    assert isinstance(payload["acceptance_criteria"], list)
+    assert isinstance(payload["constraints"], list)
+
+
+def test_fresh_acpx_campaign_fixture_round_trip() -> None:
+    payload = json.loads((FIXTURES_DIR / "fresh_acpx_campaign.json").read_text(encoding="utf-8"))
+
+    campaign = AcceptanceCampaign.from_dict(payload)
+
+    assert campaign.mode is AcceptanceMode.WORKFLOW
+    assert campaign.goal
+    assert campaign.primary_routes
+    assert campaign.min_primary_routes >= 1
+    assert campaign.required_interactions
+    assert any(
+        "launcher" in step.target for steps in campaign.interaction_plans.values() for step in steps
+    )

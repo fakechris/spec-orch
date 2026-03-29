@@ -590,3 +590,77 @@ def test_capture_page_snapshots_preserves_zero_step_timeout(
         '[data-automation-target="launcher-action"][data-launcher-action="approve-plan"]',
         0,
     ) in log
+
+
+def test_run_playwright_visual_evaluation_persists_proof_type_metadata(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from spec_orch.services.visual.playwright_visual_eval import (
+        VisualEvalRequest,
+        run_playwright_visual_evaluation,
+    )
+
+    class FakePage:
+        def on(self, event: str, handler) -> None:
+            return None
+
+        def goto(self, url: str, wait_until: str, timeout: int) -> None:
+            return None
+
+        def title(self) -> str:
+            return "Mission"
+
+        def screenshot(self, path: str, full_page: bool) -> None:
+            Path(path).write_text("png", encoding="utf-8")
+
+        def close(self) -> None:
+            return None
+
+    class FakeBrowser:
+        def new_page(self) -> FakePage:
+            return FakePage()
+
+        def close(self) -> None:
+            return None
+
+    class FakeLauncher:
+        def launch(self, *, headless: bool) -> FakeBrowser:
+            return FakeBrowser()
+
+    class FakePlaywright:
+        chromium = FakeLauncher()
+        firefox = FakeLauncher()
+        webkit = FakeLauncher()
+
+    class FakeManager:
+        def __enter__(self) -> FakePlaywright:
+            return FakePlaywright()
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+    monkeypatch.setitem(__import__("sys").modules, "playwright", SimpleNamespace())
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "playwright.sync_api",
+        SimpleNamespace(sync_playwright=lambda: FakeManager()),
+    )
+
+    request = VisualEvalRequest(
+        mission_id="fresh-mission",
+        round_id=2,
+        round_dir=tmp_path / "round-02",
+        base_url="http://127.0.0.1:4173",
+        paths=["/"],
+        proof_type="fresh_post_run_replay",
+    )
+
+    run_playwright_visual_evaluation(request)
+
+    persisted = json.loads(
+        (tmp_path / "round-02" / "visual" / "playwright_result.json").read_text(encoding="utf-8")
+    )
+
+    assert persisted["proof_type"] == "fresh_post_run_replay"
+    assert persisted["result"]["summary"].startswith("Checked 1 pages")

@@ -5,11 +5,23 @@ from pathlib import Path
 
 import pytest
 
+SOURCE_FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
+
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     (tmp_path / "docs" / "specs").mkdir(parents=True)
     return tmp_path
+
+
+def _seed_fresh_acpx_fixtures(repo: Path) -> None:
+    fixture_dir = repo / "tests" / "fixtures"
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("fresh_acpx_mission_request.json", "fresh_acpx_campaign.json"):
+        fixture_dir.joinpath(name).write_text(
+            SOURCE_FIXTURES_DIR.joinpath(name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
 
 
 def test_launcher_readiness_reports_missing_and_present_config(
@@ -219,6 +231,38 @@ def test_create_mission_draft_writes_meta_and_spec(repo: Path) -> None:
     assert meta["constraints"] == ["Keep scope tiny."]
 
 
+def test_build_fresh_acpx_mission_request_generates_unique_local_bootstrap(repo: Path) -> None:
+    from spec_orch.dashboard.launcher import _build_fresh_acpx_mission_request
+
+    _seed_fresh_acpx_fixtures(repo)
+
+    first = _build_fresh_acpx_mission_request(repo)
+    second = _build_fresh_acpx_mission_request(repo)
+
+    assert first["execution_mode"] == "fresh_acpx_mission"
+    assert first["local_only"] is True
+    assert first["safe_cleanup"] is True
+    assert first["mission_id"].startswith("fresh-acpx-")
+    assert first["mission_id"] != second["mission_id"]
+    assert first["metadata"]["fresh"] is True
+    assert first["metadata"]["artifact_namespace"] == "fresh-acpx-mission-e2e"
+    assert first["metadata"]["max_waves"] == 1
+    assert first["metadata"]["max_packets"] == 2
+    assert first["post_run_campaign"]["mode"] == "workflow"
+    assert any("at most 2 work packets" in item for item in first["constraints"])
+    assert any(
+        first["mission_id"] in route for route in first["post_run_campaign"]["primary_routes"]
+    )
+
+
+def test_is_fresh_acpx_mission_requires_acpx_prefix_without_bootstrap(repo: Path) -> None:
+    from spec_orch.dashboard.launcher import _is_fresh_acpx_mission
+
+    assert _is_fresh_acpx_mission(repo, "fresh-acpx-smoke") is True
+    assert _is_fresh_acpx_mission(repo, "fresh-homepage") is False
+    assert (repo / "docs" / "specs" / "fresh-homepage" / "operator").exists() is False
+
+
 def test_create_mission_draft_rejects_null_title_and_treats_null_mission_id_as_absent(
     repo: Path,
 ) -> None:
@@ -288,6 +332,77 @@ def test_approve_and_plan_mission_writes_plan_json(
     assert result["mission_id"] == "plan-me"
     assert result["plan"]["plan_id"] == "plan-1"
     assert (repo / "docs" / "specs" / "plan-me" / "plan.json").exists()
+
+
+def test_approve_and_plan_mission_injects_fresh_verification_commands(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import _approve_and_plan_mission, _create_mission_draft
+
+    mission_id = "fresh-acpx-plan"
+
+    _create_mission_draft(
+        repo,
+        {
+            "title": "Fresh Plan",
+            "mission_id": mission_id,
+            "intent": "Generate a fresh-acpx smoke plan.",
+            "acceptance_criteria": [],
+            "constraints": [],
+        },
+    )
+
+    def fake_plan(root: Path, mission_id: str) -> dict:
+        assert root == repo
+        assert mission_id == "fresh-acpx-plan"
+        payload = {
+            "plan_id": "plan-fresh",
+            "mission_id": mission_id,
+            "status": "draft",
+            "waves": [
+                {
+                    "wave_number": 0,
+                    "description": "Fresh smoke",
+                    "work_packets": [
+                        {
+                            "packet_id": "pkt-a",
+                            "title": "Scaffold mission types",
+                            "files_in_scope": ["src/contracts/mission_types.ts"],
+                            "verification_commands": {},
+                        },
+                        {
+                            "packet_id": "pkt-b",
+                            "title": "Scaffold artifact types",
+                            "files_in_scope": ["src/contracts/artifact_types.ts"],
+                            "verification_commands": {},
+                        },
+                    ],
+                }
+            ],
+        }
+        (root / "docs" / "specs" / mission_id / "plan.json").write_text(
+            json.dumps(payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return payload
+
+    monkeypatch.setattr("spec_orch.dashboard.launcher._generate_plan_for_mission", fake_plan)
+
+    result = _approve_and_plan_mission(repo, mission_id)
+
+    packet_commands = [
+        packet["verification_commands"] for packet in result["plan"]["waves"][0]["work_packets"]
+    ]
+    assert all(commands for commands in packet_commands)
+    persisted = json.loads(
+        (repo / "docs" / "specs" / mission_id / "plan.json").read_text(encoding="utf-8")
+    )
+    persisted_commands = [
+        packet["verification_commands"] for packet in persisted["waves"][0]["work_packets"]
+    ]
+    assert packet_commands == persisted_commands
+    assert all("scaffold_exists" in commands for commands in packet_commands)
 
 
 def test_create_linear_issue_for_mission_records_launch_metadata(

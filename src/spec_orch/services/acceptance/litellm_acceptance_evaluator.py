@@ -183,7 +183,17 @@ class LiteLLMAcceptanceEvaluator:
             )
             if normalized_proposal is not None:
                 issue_proposals.append(normalized_proposal)
-        return replace(result, findings=findings, issue_proposals=issue_proposals)
+        normalized_artifacts = dict(result.artifacts) if isinstance(result.artifacts, dict) else {}
+        for key in ("proof_split", "fresh_execution", "workflow_replay"):
+            value = artifacts.get(key)
+            if value is not None and key not in normalized_artifacts:
+                normalized_artifacts[key] = value
+        return replace(
+            result,
+            findings=findings,
+            issue_proposals=issue_proposals,
+            artifacts=normalized_artifacts,
+        )
 
     @staticmethod
     def _page_errors_by_route(browser_evidence: Any) -> dict[str, list[str]]:
