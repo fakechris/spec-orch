@@ -839,7 +839,7 @@ class AcceptanceIssueProposal:
             title=data.get("title", ""),
             summary=data.get("summary", ""),
             severity=data.get("severity", ""),
-            confidence=data.get("confidence", 0.0),
+            confidence=_coerce_confidence_score(data.get("confidence", 0.0)),
             repro_steps=data.get("repro_steps", []),
             expected=data.get("expected", ""),
             actual=data.get("actual", ""),
