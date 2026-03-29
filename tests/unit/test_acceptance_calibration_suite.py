@@ -104,3 +104,30 @@ def test_acceptance_calibration_dogfood_fixture_builds_dashboard_summary(tmp_pat
     assert latest["acceptance_mode"] == payload["expected"]["latest_review"]["acceptance_mode"]
     assert data["reviews"][0]["round_id"] == 1
     assert data["reviews"][-1]["round_id"] == 3
+
+
+def test_exploratory_calibration_fixture_carries_bounded_exploration_contract() -> None:
+    payload = _load_fixture("exploratory_dashboard_ux_hold")
+    result = AcceptanceReviewResult.from_dict(payload["review"])
+
+    assert result.campaign is not None
+    assert result.campaign.mode.value == "exploratory"
+    assert result.campaign.seed_routes == [
+        "/",
+        "/?mission=operator-console&mode=missions&tab=overview",
+    ]
+    assert result.campaign.allowed_expansions == [
+        "/?mission=operator-console&mode=missions&tab=transcript",
+        "/?mission=operator-console&mode=missions&tab=acceptance",
+        "/?mission=operator-console&mode=missions&tab=costs",
+    ]
+    assert result.campaign.critique_focus == [
+        "information architecture confusion",
+        "ambiguous terminology",
+        "discoverability gaps",
+    ]
+    assert result.campaign.stop_conditions == [
+        "stop when the route budget is exhausted",
+        "stop when no adjacent surface adds new operator evidence",
+    ]
+    assert result.campaign.evidence_budget == "bounded"

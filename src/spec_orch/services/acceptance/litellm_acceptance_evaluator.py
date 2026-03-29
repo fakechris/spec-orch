@@ -97,7 +97,12 @@ class LiteLLMAcceptanceEvaluator:
         raw_output = self._call_model(prompt)
         _, result = self._parse_output(raw_output)
         result = self._normalize_result(result, artifacts=artifacts)
-        return self._apply_campaign_defaults(result, campaign=campaign)
+        result = self._apply_campaign_defaults(result, campaign=campaign)
+        return self._synthesize_exploratory_gap_candidates(
+            result,
+            artifacts=artifacts,
+            campaign=campaign,
+        )
 
     def _call_model(self, prompt: str) -> str:
         if self._chat_completion is not None:
@@ -372,6 +377,154 @@ class LiteLLMAcceptanceEvaluator:
             untested_expected_routes=untested_expected_routes,
             recommended_next_step=recommended_next_step,
             campaign=campaign,
+        )
+
+    @staticmethod
+    def _synthesize_exploratory_gap_candidates(
+        result: AcceptanceReviewResult,
+        *,
+        artifacts: dict[str, Any],
+        campaign: AcceptanceCampaign | None,
+    ) -> AcceptanceReviewResult:
+        if campaign is None or campaign.mode.value != "exploratory":
+            return result
+
+        browser_evidence = artifacts.get("browser_evidence", {})
+        if not isinstance(browser_evidence, dict):
+            return result
+        interactions = browser_evidence.get("interactions", {})
+        if not isinstance(interactions, dict):
+            return result
+
+        transcript_route = next(
+            (
+                route
+                for route in result.tested_routes
+                if isinstance(route, str) and "tab=transcript" in route
+            ),
+            "",
+        )
+        if not transcript_route:
+            return result
+        route_interactions = interactions.get(transcript_route, [])
+        if not isinstance(route_interactions, list) or not route_interactions:
+            return result
+
+        def _saw_success(target_fragment: str) -> bool:
+            for entry in route_interactions:
+                if not isinstance(entry, dict):
+                    continue
+                if entry.get("status") != "passed":
+                    continue
+                target = LiteLLMAcceptanceEvaluator._clean_text(entry.get("target"))
+                if target_fragment in target:
+                    return True
+            return False
+
+        saw_filter = _saw_success('data-automation-target="transcript-filter"')
+        saw_packet = _saw_success('data-automation-target="packet-row"')
+        saw_block = _saw_success('data-automation-target="transcript-block"')
+        if not saw_filter or (saw_packet and saw_block):
+            return result
+
+        def _is_low_signal_transcript_finding(finding: AcceptanceFinding) -> bool:
+            summary = LiteLLMAcceptanceEvaluator._clean_text(finding.summary)
+            return finding.route == transcript_route and summary.startswith(
+                "Browser page error on "
+            )
+
+        def _is_low_signal_transcript_proposal(proposal: AcceptanceIssueProposal) -> bool:
+            route = LiteLLMAcceptanceEvaluator._clean_text(proposal.route)
+            title = LiteLLMAcceptanceEvaluator._clean_text(proposal.title)
+            summary = LiteLLMAcceptanceEvaluator._clean_text(proposal.summary)
+            expected = LiteLLMAcceptanceEvaluator._clean_text(proposal.expected)
+            actual = LiteLLMAcceptanceEvaluator._clean_text(proposal.actual)
+            repro_steps = [
+                step
+                for step in proposal.repro_steps
+                if LiteLLMAcceptanceEvaluator._clean_text(step)
+            ]
+            if not route and not expected and not actual and not repro_steps:
+                return True
+            return (
+                route == transcript_route
+                and title.startswith("Investigate browser page error on ")
+                and "browser page error" in f"{title} {summary}".lower()
+            )
+
+        low_signal_findings = all(
+            _is_low_signal_transcript_finding(finding) for finding in result.findings
+        )
+        low_signal_proposals = all(
+            _is_low_signal_transcript_proposal(proposal) for proposal in result.issue_proposals
+        )
+        can_replace_existing = (not result.findings or low_signal_findings) and (
+            not result.issue_proposals or low_signal_proposals
+        )
+        if not can_replace_existing:
+            return result
+
+        finding = AcceptanceFinding(
+            severity="high",
+            summary="Transcript evidence entry is hard to discover",
+            details=(
+                "Exploratory replay reached the transcript surface, but the operator path "
+                "did not progress into packet-level transcript evidence within the bounded budget."
+            ),
+            expected=(
+                "A first-time operator can discover how to open packet-level transcript evidence "
+                "from the transcript tab without prior guidance."
+            ),
+            actual=(
+                "Replay could use the transcript filter, but packet selection and transcript-block "
+                "inspection did not both succeed."
+            ),
+            route=transcript_route,
+        )
+        proposal = AcceptanceIssueProposal(
+            title="Clarify transcript packet selection entry point",
+            summary=(
+                "Exploratory acceptance indicates the transcript surface needs a clearer "
+                "empty-state or packet-selection affordance so operators do not stall before "
+                "reaching concrete evidence."
+            ),
+            severity="high",
+            confidence=max(result.confidence, 0.82),
+            repro_steps=[
+                "Open the transcript tab for a mission.",
+                "Attempt to move from the transcript surface into packet-level evidence.",
+            ],
+            expected=(
+                "Packet selection and transcript evidence entry feel obvious without prior context."
+            ),
+            actual=(
+                "The bounded exploratory pass reached transcript filters but did not reliably "
+                "advance into packet-level evidence."
+            ),
+            route=transcript_route,
+        )
+        summary = result.summary.rstrip()
+        if summary:
+            summary = (
+                f"{summary} Exploratory evidence also suggests transcript packet selection is not "
+                "self-evident for a first-time operator."
+            )
+        else:
+            summary = (
+                "Exploratory evidence suggests transcript packet selection is not self-evident."
+            )
+
+        recommended_next_step = result.recommended_next_step or (
+            "Hold the transcript discoverability critique for operator review before auto-filing."
+        )
+
+        return replace(
+            result,
+            status="warn" if result.status == "pass" else result.status,
+            summary=summary,
+            findings=[finding],
+            issue_proposals=[proposal],
+            recommended_next_step=recommended_next_step,
         )
 
     @staticmethod

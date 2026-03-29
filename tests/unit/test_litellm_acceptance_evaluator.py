@@ -685,3 +685,308 @@ def test_acceptance_evaluator_normalizes_non_mapping_artifacts(tmp_path: Path) -
     )
 
     assert normalized.artifacts["proof_split"]["fresh_execution"]["proof_type"] == "fresh_execution"
+
+
+def test_acceptance_evaluator_synthesizes_exploratory_transcript_hold_candidate(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "pass",
+  "summary": "All exploratory routes rendered without blocking browser errors.",
+  "confidence": 0.88,
+  "evaluator": "acceptance_llm",
+  "tested_routes": [
+    "/",
+    "/?mission=mission-1&mode=missions&tab=transcript"
+  ],
+  "findings": [],
+  "issue_proposals": [],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.EXPLORATORY,
+        goal="Dogfood transcript discoverability from an operator perspective.",
+        primary_routes=["/"],
+        related_routes=["/?mission=mission-1&mode=missions&tab=transcript"],
+        filing_policy="hold_ux_concerns_for_operator_review",
+        exploration_budget="wide",
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-1",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/mission-1/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={
+            "browser_evidence": {
+                "tested_routes": [
+                    "/",
+                    "/?mission=mission-1&mode=missions&tab=transcript",
+                ],
+                "interactions": {
+                    "/?mission=mission-1&mode=missions&tab=transcript": [
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                            "status": "passed",
+                        },
+                        {
+                            "action": "wait_for_selector",
+                            "target": '[data-automation-target="transcript-filter"][data-filter-key="all"][data-active="true"]',
+                            "status": "passed",
+                        },
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="packet-row"]',
+                            "status": "failed",
+                            "message": "click_selector failed: strict mode violation",
+                        },
+                    ],
+                },
+                "page_errors": [],
+                "console_errors": [],
+            }
+        },
+        repo_root=tmp_path,
+        campaign=campaign,
+    )
+
+    assert result.status == "warn"
+    assert result.findings
+    assert result.issue_proposals
+    assert "Transcript evidence entry is hard to discover" in result.findings[0].summary
+    assert result.findings[0].route == "/?mission=mission-1&mode=missions&tab=transcript"
+    assert "empty-state" in result.issue_proposals[0].summary
+
+
+def test_acceptance_evaluator_replaces_low_signal_exploratory_transcript_gap_output(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "fail",
+  "summary": "Transcript tab renders zero packet rows.",
+  "confidence": 0.9,
+  "evaluator": "acceptance_llm",
+  "tested_routes": [
+    "/",
+    "/?mission=mission-1&mode=missions&tab=transcript"
+  ],
+  "findings": [
+    {
+      "severity": "informational",
+      "summary": "Browser page error on /?mission=mission-1&mode=missions&tab=transcript",
+      "details": "click_selector '[data-automation-target=\\\"packet-row\\\"]' failed",
+      "expected": "Route should render without browser page errors.",
+      "actual": "Page error observed",
+      "route": "/?mission=mission-1&mode=missions&tab=transcript"
+    }
+  ],
+  "issue_proposals": [
+    {
+      "title": "Transcript tab renders no packet rows for mission mission-1",
+      "summary": "Transcript tab renders no packet rows for mission mission-1",
+      "severity": "",
+      "confidence": 0.0,
+      "repro_steps": [],
+      "expected": "",
+      "actual": "",
+      "route": "",
+      "artifact_paths": {}
+    }
+  ],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.EXPLORATORY,
+        goal="Dogfood transcript discoverability from an operator perspective.",
+        primary_routes=["/"],
+        related_routes=["/?mission=mission-1&mode=missions&tab=transcript"],
+        filing_policy="hold_ux_concerns_for_operator_review",
+        exploration_budget="wide",
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-1",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/mission-1/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={
+            "browser_evidence": {
+                "tested_routes": [
+                    "/",
+                    "/?mission=mission-1&mode=missions&tab=transcript",
+                ],
+                "interactions": {
+                    "/?mission=mission-1&mode=missions&tab=transcript": [
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                            "status": "passed",
+                        },
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="packet-row"]',
+                            "status": "failed",
+                            "message": "click_selector failed: timeout",
+                        },
+                    ],
+                },
+                "page_errors": [
+                    {
+                        "path": "/?mission=mission-1&mode=missions&tab=transcript",
+                        "message": "click_selector '[data-automation-target=\"packet-row\"]' failed",
+                    }
+                ],
+                "console_errors": [],
+            }
+        },
+        repo_root=tmp_path,
+        campaign=campaign,
+    )
+
+    assert len(result.findings) == 1
+    assert result.findings[0].severity == "high"
+    assert result.findings[0].route == "/?mission=mission-1&mode=missions&tab=transcript"
+    assert "first-time operator" in result.findings[0].expected
+    assert len(result.issue_proposals) == 1
+    assert result.issue_proposals[0].route == "/?mission=mission-1&mode=missions&tab=transcript"
+    assert "empty-state" in result.issue_proposals[0].summary
+
+
+def test_acceptance_evaluator_replaces_generic_browser_error_proposal_on_transcript_gap(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "pass",
+  "summary": "Transcript interaction failed once.",
+  "confidence": 0.7,
+  "evaluator": "acceptance_llm",
+  "tested_routes": [
+    "/",
+    "/?mission=mission-1&mode=missions&tab=transcript"
+  ],
+  "findings": [
+    {
+      "severity": "blocking",
+      "summary": "Browser page error on /?mission=mission-1&mode=missions&tab=transcript",
+      "details": "click_selector '[data-automation-target=\\\"packet-row\\\"]' failed",
+      "expected": "Route should render without browser page errors.",
+      "actual": "Page error observed: click_selector failed",
+      "route": "/?mission=mission-1&mode=missions&tab=transcript"
+    }
+  ],
+  "issue_proposals": [
+    {
+      "title": "Investigate browser page error on /?mission=mission-1&mode=missions&tab=transcript",
+      "summary": "Browser evidence recorded a page error on transcript.",
+      "severity": "",
+      "confidence": 0.0,
+      "repro_steps": [],
+      "expected": "Route should render without browser page errors.",
+      "actual": "Page error observed",
+      "route": "/?mission=mission-1&mode=missions&tab=transcript",
+      "artifact_paths": {}
+    }
+  ],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.EXPLORATORY,
+        goal="Dogfood transcript discoverability from an operator perspective.",
+        primary_routes=["/"],
+        related_routes=["/?mission=mission-1&mode=missions&tab=transcript"],
+        filing_policy="hold_ux_concerns_for_operator_review",
+        exploration_budget="wide",
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-1",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/mission-1/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={
+            "browser_evidence": {
+                "tested_routes": [
+                    "/",
+                    "/?mission=mission-1&mode=missions&tab=transcript",
+                ],
+                "interactions": {
+                    "/?mission=mission-1&mode=missions&tab=transcript": [
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                            "status": "passed",
+                        },
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="packet-row"]',
+                            "status": "failed",
+                            "message": "click_selector failed: timeout",
+                        },
+                    ],
+                },
+                "page_errors": [
+                    {
+                        "path": "/?mission=mission-1&mode=missions&tab=transcript",
+                        "message": "click_selector '[data-automation-target=\"packet-row\"]' failed",
+                    }
+                ],
+                "console_errors": [],
+            }
+        },
+        repo_root=tmp_path,
+        campaign=campaign,
+    )
+
+    assert len(result.findings) == 1
+    assert result.findings[0].severity == "high"
+    assert len(result.issue_proposals) == 1
+    assert result.issue_proposals[0].title == "Clarify transcript packet selection entry point"

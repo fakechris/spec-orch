@@ -751,6 +751,11 @@ class AcceptanceCampaign:
     interaction_budget: str = ""
     filing_policy: str = ""
     exploration_budget: str = ""
+    seed_routes: list[str] = field(default_factory=list)
+    allowed_expansions: list[str] = field(default_factory=list)
+    critique_focus: list[str] = field(default_factory=list)
+    stop_conditions: list[str] = field(default_factory=list)
+    evidence_budget: str = ""
 
     @staticmethod
     def _safe_int(value: Any, default: int = 0) -> int:
@@ -778,6 +783,11 @@ class AcceptanceCampaign:
             "interaction_budget": self.interaction_budget,
             "filing_policy": self.filing_policy,
             "exploration_budget": self.exploration_budget,
+            "seed_routes": self.seed_routes,
+            "allowed_expansions": self.allowed_expansions,
+            "critique_focus": self.critique_focus,
+            "stop_conditions": self.stop_conditions,
+            "evidence_budget": self.evidence_budget,
         }
 
     @classmethod
@@ -803,6 +813,27 @@ class AcceptanceCampaign:
             interaction_budget=data.get("interaction_budget", ""),
             filing_policy=data.get("filing_policy", ""),
             exploration_budget=data.get("exploration_budget", ""),
+            seed_routes=[
+                str(route)
+                for route in data.get("seed_routes", [])
+                if isinstance(route, str) and route.strip()
+            ],
+            allowed_expansions=[
+                str(route)
+                for route in data.get("allowed_expansions", [])
+                if isinstance(route, str) and route.strip()
+            ],
+            critique_focus=[
+                str(item)
+                for item in data.get("critique_focus", [])
+                if isinstance(item, str) and item.strip()
+            ],
+            stop_conditions=[
+                str(item)
+                for item in data.get("stop_conditions", [])
+                if isinstance(item, str) and item.strip()
+            ],
+            evidence_budget=data.get("evidence_budget", ""),
         )
 
 

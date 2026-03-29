@@ -140,18 +140,30 @@ def test_acceptance_campaign_round_trip() -> None:
     campaign = AcceptanceCampaign(
         mode=AcceptanceMode.EXPLORATORY,
         goal="Dogfood the operator console like a first-principles operator.",
-        primary_routes=["/"],
-        related_routes=["/?mode=inbox"],
+        primary_routes=["/", "/?mission=operator-console&mode=missions&tab=overview"],
+        related_routes=[
+            "/?mission=operator-console&mode=missions&tab=transcript",
+            "/?mission=operator-console&mode=missions&tab=acceptance",
+        ],
         interaction_plans={
-            "/?mode=inbox": [
+            "/": [
                 AcceptanceInteractionStep(
-                    action="click_text",
-                    target="All Missions",
-                    description="Switch into the mission inventory view.",
+                    action="click_selector",
+                    target='[data-automation-target="open-launcher"]',
+                    description="Open the launcher from the operator shell.",
                     value="",
                     timeout_ms=8000,
                 )
-            ]
+            ],
+            "/?mission=operator-console&mode=missions&tab=transcript": [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                    description="Reset the transcript filter before scanning evidence.",
+                    value="",
+                    timeout_ms=8000,
+                )
+            ],
         },
         coverage_expectations=["Mission control", "Acceptance surface"],
         required_interactions=["switch work modes", "inspect mission detail"],
@@ -160,6 +172,23 @@ def test_acceptance_campaign_round_trip() -> None:
         interaction_budget="wide",
         filing_policy="hold_ux_concerns_for_operator_review",
         exploration_budget="wide",
+        seed_routes=["/", "/?mission=operator-console&mode=missions&tab=overview"],
+        allowed_expansions=[
+            "/?mission=operator-console&mode=missions&tab=transcript",
+            "/?mission=operator-console&mode=missions&tab=acceptance",
+            "/?mission=operator-console&mode=missions&tab=costs",
+        ],
+        critique_focus=[
+            "information architecture confusion",
+            "ambiguous terminology",
+            "discoverability gaps",
+        ],
+        stop_conditions=[
+            "stop when the route budget is exhausted",
+            "stop when no adjacent surface adds new operator evidence",
+            "stop after confirming a materially broken flow",
+        ],
+        evidence_budget="bounded",
     )
 
     restored = AcceptanceCampaign.from_dict(campaign.to_dict())

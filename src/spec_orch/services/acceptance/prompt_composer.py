@@ -59,6 +59,11 @@ _MODE_RUBRIC: dict[AcceptanceMode, list[str]] = {
         "Treat the current implementation and mission framing as falsifiable.",
         "Judge the product from an operator's task perspective, not from implementation intent.",
         "Separate materially broken flows from taste-level UX criticism.",
+        "Confusing but operable UX is still valid exploratory evidence.",
+        (
+            "When operator confusion is evidence-backed, prefer a held critique "
+            "candidate over a silent pass."
+        ),
     ],
 }
 
@@ -144,6 +149,32 @@ def compose_acceptance_prompt(
             f"- Required interactions: {required_interactions}\n"
             f"- Workflow assertions: {workflow_assertions}\n\n"
         )
+    exploratory_contract = ""
+    if active_campaign.mode is AcceptanceMode.EXPLORATORY:
+        seed_routes = ", ".join(active_campaign.seed_routes) or "none"
+        allowed_expansions = ", ".join(active_campaign.allowed_expansions) or "none"
+        critique_focus = ", ".join(active_campaign.critique_focus) or "none"
+        stop_conditions = ", ".join(active_campaign.stop_conditions) or "none"
+        evidence_budget = active_campaign.evidence_budget or "none"
+        exploratory_contract = (
+            "## Exploratory Contract\n"
+            f"- Seed routes: {seed_routes}\n"
+            f"- Allowed expansions: {allowed_expansions}\n"
+            f"- Critique focus: {critique_focus}\n"
+            f"- Stop conditions: {stop_conditions}\n"
+            f"- Evidence budget: {evidence_budget}\n\n"
+        )
+    exploratory_output_guidance = ""
+    if active_campaign.mode is AcceptanceMode.EXPLORATORY:
+        exploratory_output_guidance = (
+            "## Exploratory Output Contract\n"
+            "- Confusing but operable UX is still valid exploratory evidence.\n"
+            "- Prefer evidence-backed critique candidates when IA, terminology, "
+            "or discoverability feels confusing even if the flow still completes.\n"
+            "- If you return zero findings and zero issue proposals, the summary "
+            "must explain why no critique candidate cleared the evidence "
+            "threshold.\n\n"
+        )
     return (
         "## Acceptance Mode\n"
         f"Mode: {active_campaign.mode.value}\n"
@@ -157,6 +188,7 @@ def compose_acceptance_prompt(
         "- Prefer evidence-backed findings over speculative critique.\n"
         "- Report missing coverage explicitly when expected routes were not tested.\n"
         "- Recommend the next validation step when the current evidence is insufficient.\n\n"
+        f"{exploratory_output_guidance}"
         "## Coverage Budget\n"
         f"- Minimum primary routes to cover: {active_campaign.min_primary_routes}\n"
         f"- Related route budget: {active_campaign.related_route_budget}\n"
@@ -166,6 +198,7 @@ def compose_acceptance_prompt(
         f"- Policy: {active_campaign.filing_policy or 'unspecified'}\n"
         f"{filing_policy_guidance}\n\n"
         f"{workflow_contract}"
+        f"{exploratory_contract}"
         "## Evidence Payload\n"
         f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
     )

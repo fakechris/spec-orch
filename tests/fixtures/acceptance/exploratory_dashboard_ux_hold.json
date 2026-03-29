@@ -53,10 +53,13 @@
       "mode": "exploratory",
       "goal": "Dogfood the operator console as a first-time operator.",
       "primary_routes": [
-        "/"
+        "/",
+        "/?mission=operator-console&mode=missions&tab=overview"
       ],
       "related_routes": [
-        "/?mission=operator-console&mode=missions&tab=transcript"
+        "/?mission=operator-console&mode=missions&tab=transcript",
+        "/?mission=operator-console&mode=missions&tab=acceptance",
+        "/?mission=operator-console&mode=missions&tab=costs"
       ],
       "interaction_plans": {},
       "coverage_expectations": [
@@ -65,11 +68,30 @@
       "required_interactions": [
         "open transcript tab"
       ],
-      "min_primary_routes": 1,
-      "related_route_budget": 2,
+      "min_primary_routes": 2,
+      "related_route_budget": 3,
       "interaction_budget": "wide",
       "filing_policy": "hold_ux_concerns_for_operator_review",
-      "exploration_budget": "wide"
+      "exploration_budget": "wide",
+      "seed_routes": [
+        "/",
+        "/?mission=operator-console&mode=missions&tab=overview"
+      ],
+      "allowed_expansions": [
+        "/?mission=operator-console&mode=missions&tab=transcript",
+        "/?mission=operator-console&mode=missions&tab=acceptance",
+        "/?mission=operator-console&mode=missions&tab=costs"
+      ],
+      "critique_focus": [
+        "information architecture confusion",
+        "ambiguous terminology",
+        "discoverability gaps"
+      ],
+      "stop_conditions": [
+        "stop when the route budget is exhausted",
+        "stop when no adjacent surface adds new operator evidence"
+      ],
+      "evidence_budget": "bounded"
     }
   },
   "expected": {
