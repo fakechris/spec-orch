@@ -8,6 +8,25 @@ from pathlib import Path
 from typing import Any
 
 
+def _coerce_confidence_score(value: Any, *, default: float = 0.0) -> float:
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if not normalized:
+            return default
+        mapped = {"high": 0.9, "medium": 0.7, "low": 0.3}.get(normalized)
+        if mapped is not None:
+            return mapped
+        try:
+            return float(normalized)
+        except ValueError:
+            return default
+    return default
+
+
 class FlowType(StrEnum):
     """Supported workflow tiers aligned with change-management-policy."""
 
@@ -872,7 +891,7 @@ class AcceptanceReviewResult:
         return cls(
             status=data.get("status", ""),
             summary=data.get("summary", ""),
-            confidence=data.get("confidence", 0.0),
+            confidence=_coerce_confidence_score(data.get("confidence", 0.0)),
             evaluator=data.get("evaluator", ""),
             findings=[
                 AcceptanceFinding.from_dict(item)

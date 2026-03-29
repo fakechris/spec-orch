@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from urllib.error import URLError
 
 
 def test_materialize_fresh_execution_artifacts_writes_proof_files(tmp_path: Path) -> None:
@@ -134,7 +135,10 @@ def test_write_fresh_acpx_mission_report_separates_proof_layers(tmp_path: Path) 
         dashboard_url="http://127.0.0.1:8426/?mission=fresh-acpx-1&mode=missions&tab=overview",
         fresh_execution={
             "proof_type": "fresh_execution",
-            "mission_bootstrap": {"mission_id": "fresh-acpx-1"},
+            "mission_bootstrap": {
+                "mission_id": "fresh-acpx-1",
+                "metadata": {"fresh_variant": "multi_packet"},
+            },
             "launch": {"last_launch": {"state": {"phase": "executing"}}},
             "daemon_run": {"fresh_round_path": str(round_dir)},
             "builder_execution_summary": {"worker_results": [{"packet_id": "pkt-1"}]},
@@ -159,6 +163,7 @@ def test_write_fresh_acpx_mission_report_separates_proof_layers(tmp_path: Path) 
         (round_dir / "fresh_acpx_mission_e2e_report.json").read_text(encoding="utf-8")
     )
     assert report_json["mission_id"] == "fresh-acpx-1"
+    assert report_json["variant"] == "multi_packet"
     assert report_json["fresh_execution"]["daemon_run"]["fresh_round_path"] == str(round_dir)
     assert report_json["workflow_replay"]["review_routes"]["overview"].endswith("tab=overview")
     assert report_json["acceptance_review"]["status"] == "pass"
@@ -195,6 +200,84 @@ def test_run_fresh_execution_once_advances_lifecycle_and_records_daemon_run(
     assert daemon_run["runner_status"] == "finished"
     assert daemon_run["state"]["phase"] == "all_done"
     assert result["state"]["phase"] == "all_done"
+
+
+def test_run_fresh_launch_and_pickup_records_consistent_proof(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from spec_orch.services.fresh_acpx_e2e import run_fresh_launch_and_pickup
+
+    operator_dir = tmp_path / "docs" / "specs" / "fresh-acpx-1" / "operator"
+    operator_dir.mkdir(parents=True, exist_ok=True)
+    launch_calls: list[bool] = []
+
+    monkeypatch.setattr(
+        "spec_orch.dashboard.launcher._launch_mission",
+        lambda repo_root, mission_id, *, allow_background_runner=True: (
+            launch_calls.append(allow_background_runner)
+            or {
+                "mission_id": mission_id,
+                "background_runner_started": False,
+                "state": {"mission_id": mission_id, "phase": "executing"},
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        "spec_orch.services.fresh_acpx_e2e.run_fresh_execution_once",
+        lambda *, repo_root, mission_id: {
+            "mission_id": mission_id,
+            "runner_status": "finished",
+            "state": {"mission_id": mission_id, "phase": "all_done"},
+        },
+    )
+
+    result = run_fresh_launch_and_pickup(repo_root=tmp_path, mission_id="fresh-acpx-1")
+
+    persisted = json.loads((operator_dir / "launch_pickup.json").read_text(encoding="utf-8"))
+    assert launch_calls == [False]
+    assert persisted["mission_id"] == "fresh-acpx-1"
+    assert persisted["launch_result"]["state"]["phase"] == "executing"
+    assert persisted["daemon_run"]["state"]["phase"] == "all_done"
+    assert result["daemon_run"]["runner_status"] == "finished"
+
+
+def test_wait_for_dashboard_ready_retries_until_probe_succeeds(monkeypatch) -> None:
+    from spec_orch.services.fresh_acpx_e2e import wait_for_dashboard_ready
+
+    attempts: list[int] = []
+
+    def fake_probe(url: str, timeout_seconds: float) -> dict[str, object]:
+        attempts.append(1)
+        if len(attempts) < 3:
+            raise URLError("connection refused")
+        return {"status": 200, "url": url}
+
+    monkeypatch.setattr("spec_orch.services.fresh_acpx_e2e._probe_dashboard", fake_probe)
+    monkeypatch.setattr("spec_orch.services.fresh_acpx_e2e.time.sleep", lambda _: None)
+
+    result = wait_for_dashboard_ready("http://127.0.0.1:8426/", timeout_seconds=1.0)
+
+    assert result["ready"] is True
+    assert result["attempts"] == 3
+    assert result["status"] == 200
+
+
+def test_wait_for_dashboard_ready_times_out_with_last_error(monkeypatch) -> None:
+    from spec_orch.services.fresh_acpx_e2e import wait_for_dashboard_ready
+
+    monkeypatch.setattr(
+        "spec_orch.services.fresh_acpx_e2e._probe_dashboard",
+        lambda url, timeout_seconds: (_ for _ in ()).throw(URLError("still starting")),
+    )
+    monkeypatch.setattr("spec_orch.services.fresh_acpx_e2e.time.sleep", lambda _: None)
+
+    try:
+        wait_for_dashboard_ready("http://127.0.0.1:8426/", timeout_seconds=0.01)
+    except TimeoutError as exc:
+        assert "still starting" in str(exc)
+    else:
+        raise AssertionError("Expected readiness polling to time out")
 
 
 def test_assert_fresh_plan_budget_rejects_broad_plan() -> None:

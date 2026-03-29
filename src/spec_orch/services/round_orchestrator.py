@@ -42,6 +42,7 @@ from spec_orch.services.event_bus import Event, EventBus, EventTopic
 from spec_orch.services.gate_service import GatePolicy, GateService
 from spec_orch.services.io import atomic_write_json
 from spec_orch.services.node_context_registry import get_node_context_spec
+from spec_orch.services.resource_loader import load_json_resource
 from spec_orch.services.run_event_logger import RunEventLogger
 from spec_orch.services.telemetry_service import TelemetryService
 from spec_orch.services.verification_service import VerificationService
@@ -50,11 +51,7 @@ logger = logging.getLogger(__name__)
 
 
 def _load_repo_fixture_json(repo_root: Path, fixture_name: str) -> dict[str, Any]:
-    fixture_path = Path(repo_root) / "tests" / "fixtures" / fixture_name
-    data = json.loads(fixture_path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"Fixture {fixture_name} must contain a JSON object")
-    return data
+    return load_json_resource(resource_name=fixture_name, repo_root=repo_root)
 
 
 def _substitute_fresh_campaign_placeholders(value: Any, *, mission_id: str) -> Any:
@@ -433,6 +430,11 @@ class RoundOrchestrator:
                     },
                 }
             )
+            scope_proof = self._build_packet_scope_proof(
+                workspace=workspace,
+                packet=packet,
+                report_path=result.report_path,
+            )
             gate = gate_service.evaluate(
                 GateInput(
                     builder_succeeded=result.succeeded,
@@ -440,11 +442,15 @@ class RoundOrchestrator:
                     review=ReviewSummary(verdict="not_applicable"),
                 )
             )
+            failed_conditions = list(gate.failed_conditions)
+            if not scope_proof["all_in_scope"] and "scope" not in failed_conditions:
+                failed_conditions.append("scope")
             gate_verdicts.append(
                 {
                     "packet_id": packet.packet_id,
-                    "mergeable": gate.mergeable,
-                    "failed_conditions": list(gate.failed_conditions),
+                    "mergeable": gate.mergeable and scope_proof["all_in_scope"],
+                    "failed_conditions": failed_conditions,
+                    "scope": scope_proof,
                 }
             )
 
@@ -469,6 +475,40 @@ class RoundOrchestrator:
             ],
             visual_evaluation=visual_evaluation,
         )
+
+    def _build_packet_scope_proof(
+        self,
+        *,
+        workspace: Path,
+        packet: WorkPacket,
+        report_path: Path,
+    ) -> dict[str, Any]:
+        allowed = [str(path).strip() for path in packet.files_in_scope if str(path).strip()]
+        allowed_set = set(allowed)
+        excluded_paths = {report_path.resolve()}
+        excluded_prefixes = ("telemetry/",)
+        realized_files: list[str] = []
+        for path in workspace.rglob("*"):
+            if not path.is_file():
+                continue
+            try:
+                resolved = path.resolve()
+            except OSError:
+                resolved = path
+            if resolved in excluded_paths:
+                continue
+            relative_path = path.relative_to(workspace).as_posix()
+            if relative_path.startswith(excluded_prefixes):
+                continue
+            realized_files.append(relative_path)
+        realized_files = self._unique_preserve_order(realized_files)
+        out_of_scope_files = [path for path in realized_files if path not in allowed_set]
+        return {
+            "allowed_files": allowed,
+            "realized_files": realized_files,
+            "out_of_scope_files": out_of_scope_files,
+            "all_in_scope": not out_of_scope_files,
+        }
 
     def _load_history(self, mission_id: str, *, up_to_round: int) -> list[RoundSummary]:
         if up_to_round <= 0:

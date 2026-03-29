@@ -5,23 +5,11 @@ from pathlib import Path
 
 import pytest
 
-SOURCE_FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
-
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     (tmp_path / "docs" / "specs").mkdir(parents=True)
     return tmp_path
-
-
-def _seed_fresh_acpx_fixtures(repo: Path) -> None:
-    fixture_dir = repo / "tests" / "fixtures"
-    fixture_dir.mkdir(parents=True, exist_ok=True)
-    for name in ("fresh_acpx_mission_request.json", "fresh_acpx_campaign.json"):
-        fixture_dir.joinpath(name).write_text(
-            SOURCE_FIXTURES_DIR.joinpath(name).read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
 
 
 def test_launcher_readiness_reports_missing_and_present_config(
@@ -234,8 +222,6 @@ def test_create_mission_draft_writes_meta_and_spec(repo: Path) -> None:
 def test_build_fresh_acpx_mission_request_generates_unique_local_bootstrap(repo: Path) -> None:
     from spec_orch.dashboard.launcher import _build_fresh_acpx_mission_request
 
-    _seed_fresh_acpx_fixtures(repo)
-
     first = _build_fresh_acpx_mission_request(repo)
     second = _build_fresh_acpx_mission_request(repo)
 
@@ -245,6 +231,7 @@ def test_build_fresh_acpx_mission_request_generates_unique_local_bootstrap(repo:
     assert first["mission_id"].startswith("fresh-acpx-")
     assert first["mission_id"] != second["mission_id"]
     assert first["metadata"]["fresh"] is True
+    assert first["metadata"]["fresh_variant"] == "default"
     assert first["metadata"]["artifact_namespace"] == "fresh-acpx-mission-e2e"
     assert first["metadata"]["max_waves"] == 1
     assert first["metadata"]["max_packets"] == 2
@@ -253,6 +240,20 @@ def test_build_fresh_acpx_mission_request_generates_unique_local_bootstrap(repo:
     assert any(
         first["mission_id"] in route for route in first["post_run_campaign"]["primary_routes"]
     )
+
+
+def test_build_fresh_acpx_mission_request_supports_runtime_variants(repo: Path) -> None:
+    from spec_orch.dashboard.launcher import _build_fresh_acpx_mission_request
+
+    multi_packet = _build_fresh_acpx_mission_request(repo, variant="multi_packet")
+    linear_bound = _build_fresh_acpx_mission_request(repo, variant="linear_bound")
+
+    assert multi_packet["metadata"]["fresh_variant"] == "multi_packet"
+    assert multi_packet["metadata"]["max_packets"] == 3
+    assert multi_packet["metadata"]["launcher_path"] == "approve_plan_launch"
+    assert linear_bound["metadata"]["fresh_variant"] == "linear_bound"
+    assert linear_bound["metadata"]["launcher_path"] == "create_linear_issue_then_launch"
+    assert linear_bound["metadata"]["requires_linear"] is True
 
 
 def test_is_fresh_acpx_mission_requires_acpx_prefix_without_bootstrap(repo: Path) -> None:
@@ -402,7 +403,15 @@ def test_approve_and_plan_mission_injects_fresh_verification_commands(
         packet["verification_commands"] for packet in persisted["waves"][0]["work_packets"]
     ]
     assert packet_commands == persisted_commands
-    assert all("scaffold_exists" in commands for commands in packet_commands)
+    assert all(
+        set(commands)
+        >= {
+            "scaffold_exists",
+            "typescript_contract_tokens",
+            "typescript_schema_surface",
+        }
+        for commands in packet_commands
+    )
 
 
 def test_create_linear_issue_for_mission_records_launch_metadata(

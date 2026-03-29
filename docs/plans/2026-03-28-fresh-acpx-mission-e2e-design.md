@@ -39,6 +39,16 @@ The first implementation should stay intentionally small:
 
 The purpose of the first path is repeatability and proof clarity, not broad provider abstraction.
 
+After the first path proves out, hardening should extend it in controlled ways:
+
+- keep the default `default` variant as the narrow reference proof
+- add a `multi_packet` variant so proof is not tied to exactly one packet combination
+- add a `linear_bound` variant so at least one launcher path binds Linear issue context before launch
+- keep all variants on the same proof split:
+  - fresh execution proof
+  - post-run workflow replay proof
+  - remaining gaps
+
 ## Proof Checkpoints
 
 The run should be considered successful only when all checkpoints have evidence:
@@ -92,6 +102,8 @@ Every failed run should classify itself into one of these buckets:
    - a fresh round exists but ACPX execution did not complete usable work
 5. Post-run replay failure
    - the fresh mission ran, but dashboard workflow replay failed afterward
+6. Variant contract failure
+   - the selected fresh variant required launcher or budget behavior that the run did not satisfy
 
 ## Reporting Rule
 
