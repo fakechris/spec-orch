@@ -250,7 +250,17 @@ def test_build_fresh_acpx_mission_request_generates_unique_local_bootstrap(repo:
     assert first["metadata"]["max_packets"] == 2
     assert first["post_run_campaign"]["mode"] == "workflow"
     assert any("at most 2 work packets" in item for item in first["constraints"])
-    assert any(first["mission_id"] in route for route in first["post_run_campaign"]["primary_routes"])
+    assert any(
+        first["mission_id"] in route for route in first["post_run_campaign"]["primary_routes"]
+    )
+
+
+def test_is_fresh_acpx_mission_requires_acpx_prefix_without_bootstrap(repo: Path) -> None:
+    from spec_orch.dashboard.launcher import _is_fresh_acpx_mission
+
+    assert _is_fresh_acpx_mission(repo, "fresh-acpx-smoke") is True
+    assert _is_fresh_acpx_mission(repo, "fresh-homepage") is False
+    assert (repo / "docs" / "specs" / "fresh-homepage" / "operator").exists() is False
 
 
 def test_create_mission_draft_rejects_null_title_and_treats_null_mission_id_as_absent(
@@ -330,11 +340,13 @@ def test_approve_and_plan_mission_injects_fresh_verification_commands(
 ) -> None:
     from spec_orch.dashboard.launcher import _approve_and_plan_mission, _create_mission_draft
 
+    mission_id = "fresh-acpx-plan"
+
     _create_mission_draft(
         repo,
         {
             "title": "Fresh Plan",
-            "mission_id": "fresh-plan",
+            "mission_id": mission_id,
             "intent": "Generate a fresh-acpx smoke plan.",
             "acceptance_criteria": [],
             "constraints": [],
@@ -343,7 +355,7 @@ def test_approve_and_plan_mission_injects_fresh_verification_commands(
 
     def fake_plan(root: Path, mission_id: str) -> dict:
         assert root == repo
-        assert mission_id == "fresh-plan"
+        assert mission_id == "fresh-acpx-plan"
         payload = {
             "plan_id": "plan-fresh",
             "mission_id": mission_id,
@@ -377,19 +389,17 @@ def test_approve_and_plan_mission_injects_fresh_verification_commands(
 
     monkeypatch.setattr("spec_orch.dashboard.launcher._generate_plan_for_mission", fake_plan)
 
-    result = _approve_and_plan_mission(repo, "fresh-plan")
+    result = _approve_and_plan_mission(repo, mission_id)
 
     packet_commands = [
-        packet["verification_commands"]
-        for packet in result["plan"]["waves"][0]["work_packets"]
+        packet["verification_commands"] for packet in result["plan"]["waves"][0]["work_packets"]
     ]
     assert all(commands for commands in packet_commands)
     persisted = json.loads(
-        (repo / "docs" / "specs" / "fresh-plan" / "plan.json").read_text(encoding="utf-8")
+        (repo / "docs" / "specs" / mission_id / "plan.json").read_text(encoding="utf-8")
     )
     persisted_commands = [
-        packet["verification_commands"]
-        for packet in persisted["waves"][0]["work_packets"]
+        packet["verification_commands"] for packet in persisted["waves"][0]["work_packets"]
     ]
     assert packet_commands == persisted_commands
     assert all("scaffold_exists" in commands for commands in packet_commands)

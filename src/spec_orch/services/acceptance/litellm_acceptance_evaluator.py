@@ -183,9 +183,7 @@ class LiteLLMAcceptanceEvaluator:
             )
             if normalized_proposal is not None:
                 issue_proposals.append(normalized_proposal)
-        normalized_artifacts = (
-            dict(result.artifacts) if isinstance(result.artifacts, dict) else {}
-        )
+        normalized_artifacts = dict(result.artifacts) if isinstance(result.artifacts, dict) else {}
         for key in ("proof_split", "fresh_execution", "workflow_replay"):
             value = artifacts.get(key)
             if value is not None and key not in normalized_artifacts:

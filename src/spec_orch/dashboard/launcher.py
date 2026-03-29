@@ -108,7 +108,9 @@ def _load_launcher_fixture(repo_root: Path, fixture_name: str) -> dict[str, Any]
 
 
 def _is_fresh_acpx_mission(repo_root: Path, mission_id: str) -> bool:
-    bootstrap_path = _operator_dir(repo_root, mission_id) / "mission_bootstrap.json"
+    bootstrap_path = (
+        repo_root / "docs" / "specs" / mission_id / "operator" / "mission_bootstrap.json"
+    )
     if bootstrap_path.exists():
         try:
             payload = json.loads(bootstrap_path.read_text(encoding="utf-8"))
@@ -120,7 +122,7 @@ def _is_fresh_acpx_mission(repo_root: Path, mission_id: str) -> bool:
             metadata = payload.get("metadata", {})
             if isinstance(metadata, dict) and metadata.get("fresh") is True:
                 return True
-    return mission_id.startswith("fresh-")
+    return mission_id.startswith("fresh-acpx-")
 
 
 def _build_fresh_verification_commands(files_in_scope: list[str]) -> dict[str, list[str]]:
@@ -161,9 +163,7 @@ def _inject_fresh_plan_verification_commands(plan: dict[str, Any]) -> bool:
             current = packet.get("verification_commands", {})
             if isinstance(current, dict) and current:
                 continue
-            generated = _build_fresh_verification_commands(
-                list(packet.get("files_in_scope", []))
-            )
+            generated = _build_fresh_verification_commands(list(packet.get("files_in_scope", [])))
             if generated:
                 packet["verification_commands"] = generated
                 changed = True

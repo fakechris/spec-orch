@@ -10,7 +10,10 @@ from spec_orch.domain.models import AcceptanceReviewResult
 def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
-    data = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
     return data if isinstance(data, dict) else {}
 
 
@@ -47,9 +50,7 @@ def assert_fresh_plan_budget(
 ) -> dict[str, int]:
     waves = list(plan_payload.get("waves", []))
     packet_count = sum(
-        len(wave.get("work_packets", []))
-        for wave in waves
-        if isinstance(wave, dict)
+        len(wave.get("work_packets", [])) for wave in waves if isinstance(wave, dict)
     )
     summary = {
         "wave_count": len(waves),
@@ -90,9 +91,7 @@ def materialize_fresh_execution_artifacts(
             str(launch.get("runner", {}).get("status", "")).strip()
             or ("started" if launch_result.get("background_runner_started") else "unknown")
         ),
-        "launch_phase": str(
-            launch.get("last_launch", {}).get("state", {}).get("phase", "")
-        ).strip()
+        "launch_phase": str(launch.get("last_launch", {}).get("state", {}).get("phase", "")).strip()
         or str(launch_result.get("state", {}).get("phase", "")).strip(),
     }
 

@@ -1818,20 +1818,15 @@ def test_build_fresh_acpx_post_run_campaign_substitutes_interaction_plan_keys(
     fixture_dir = tmp_path / "tests" / "fixtures"
     fixture_dir.mkdir(parents=True, exist_ok=True)
     fixture_dir.joinpath("fresh_acpx_campaign.json").write_text(
-        (
-            Path(__file__).resolve().parents[1]
-            / "fixtures"
-            / "fresh_acpx_campaign.json"
-        ).read_text(encoding="utf-8"),
+        (Path(__file__).resolve().parents[1] / "fixtures" / "fresh_acpx_campaign.json").read_text(
+            encoding="utf-8"
+        ),
         encoding="utf-8",
     )
 
     campaign = build_fresh_acpx_post_run_campaign(tmp_path, "fresh-mission-123")
 
-    assert (
-        "/?mission=fresh-mission-123&mode=missions&tab=overview"
-        in campaign.interaction_plans
-    )
+    assert "/?mission=fresh-mission-123&mode=missions&tab=overview" in campaign.interaction_plans
     assert not any("{mission_id}" in route for route in campaign.interaction_plans)
 
 

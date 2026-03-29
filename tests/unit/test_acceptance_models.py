@@ -243,4 +243,6 @@ def test_fresh_acpx_campaign_fixture_round_trip() -> None:
     assert campaign.primary_routes
     assert campaign.min_primary_routes >= 1
     assert campaign.required_interactions
-    assert any("launcher" in step.target for steps in campaign.interaction_plans.values() for step in steps)
+    assert any(
+        "launcher" in step.target for steps in campaign.interaction_plans.values() for step in steps
+    )

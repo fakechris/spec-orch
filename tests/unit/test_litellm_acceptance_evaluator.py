@@ -578,7 +578,7 @@ def test_acceptance_evaluator_carries_proof_split_artifacts_forward(tmp_path: Pa
         artifacts={
             "proof_split": {
                 "fresh_execution": {"proof_type": "fresh_execution"},
-                "workflow_replay": {"proof_type": "workflow_replay"}
+                "workflow_replay": {"proof_type": "workflow_replay"},
             }
         },
         repo_root=tmp_path,

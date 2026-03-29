@@ -62,8 +62,7 @@ def _substitute_fresh_campaign_placeholders(value: Any, *, mission_id: str) -> A
         return value.replace("{mission_id}", mission_id)
     if isinstance(value, list):
         return [
-            _substitute_fresh_campaign_placeholders(item, mission_id=mission_id)
-            for item in value
+            _substitute_fresh_campaign_placeholders(item, mission_id=mission_id) for item in value
         ]
     if isinstance(value, dict):
         return {

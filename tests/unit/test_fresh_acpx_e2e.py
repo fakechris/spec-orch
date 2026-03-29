@@ -76,6 +76,37 @@ def test_materialize_fresh_execution_artifacts_writes_proof_files(tmp_path: Path
     assert proof["builder_execution_summary"]["worker_results"][0]["packet_id"] == "pkt-1"
 
 
+def test_materialize_fresh_execution_artifacts_tolerates_malformed_json(tmp_path: Path) -> None:
+    from spec_orch.services.fresh_acpx_e2e import materialize_fresh_execution_artifacts
+
+    repo_root = tmp_path
+    operator_dir = repo_root / "docs" / "specs" / "fresh-acpx-1" / "operator"
+    round_dir = repo_root / "docs" / "specs" / "fresh-acpx-1" / "rounds" / "round-01"
+    operator_dir.mkdir(parents=True, exist_ok=True)
+    round_dir.mkdir(parents=True, exist_ok=True)
+
+    (operator_dir / "mission_bootstrap.json").write_text("{not-json\n", encoding="utf-8")
+    (operator_dir / "launch.json").write_text("{not-json\n", encoding="utf-8")
+    (round_dir / "round_summary.json").write_text("{not-json\n", encoding="utf-8")
+
+    proof = materialize_fresh_execution_artifacts(
+        repo_root=repo_root,
+        mission_id="fresh-acpx-1",
+        round_dir=round_dir,
+        launch_result={
+            "background_runner_started": True,
+            "state": {"mission_id": "fresh-acpx-1", "phase": "executing"},
+        },
+    )
+
+    daemon_run = json.loads((operator_dir / "daemon_run.json").read_text(encoding="utf-8"))
+    assert daemon_run["runner_status"] == "started"
+    assert daemon_run["launch_phase"] == "executing"
+    assert proof["mission_bootstrap"] == {}
+    assert proof["launch"] == {}
+    assert proof["builder_execution_summary"]["worker_results"] == []
+
+
 def test_write_fresh_acpx_mission_report_separates_proof_layers(tmp_path: Path) -> None:
     from spec_orch.domain.models import AcceptanceCampaign, AcceptanceMode, AcceptanceReviewResult
     from spec_orch.services.fresh_acpx_e2e import write_fresh_acpx_mission_report
