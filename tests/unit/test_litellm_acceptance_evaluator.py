@@ -772,6 +772,11 @@ def test_acceptance_evaluator_synthesizes_exploratory_transcript_hold_candidate(
     assert result.issue_proposals
     assert "Transcript evidence entry is hard to discover" in result.findings[0].summary
     assert result.findings[0].route == "/?mission=mission-1&mode=missions&tab=transcript"
+    assert result.findings[0].critique_axis == "evidence_discoverability"
+    assert result.findings[0].operator_task == "open packet-level transcript evidence"
+    assert "Operators can stall" in result.findings[0].why_it_matters
+    assert result.issue_proposals[0].critique_axis == "evidence_discoverability"
+    assert result.issue_proposals[0].hold_reason
     assert "empty-state" in result.issue_proposals[0].summary
 
 
@@ -876,12 +881,16 @@ def test_acceptance_evaluator_replaces_low_signal_exploratory_transcript_gap_out
         campaign=campaign,
     )
 
+    assert result.status == "warn"
+    assert "packet selection is not self-evident" in result.summary
     assert len(result.findings) == 1
     assert result.findings[0].severity == "high"
     assert result.findings[0].route == "/?mission=mission-1&mode=missions&tab=transcript"
+    assert result.findings[0].critique_axis == "evidence_discoverability"
     assert "first-time operator" in result.findings[0].expected
     assert len(result.issue_proposals) == 1
     assert result.issue_proposals[0].route == "/?mission=mission-1&mode=missions&tab=transcript"
+    assert result.issue_proposals[0].hold_reason
     assert "empty-state" in result.issue_proposals[0].summary
 
 
@@ -986,7 +995,318 @@ def test_acceptance_evaluator_replaces_generic_browser_error_proposal_on_transcr
         campaign=campaign,
     )
 
+    assert result.status == "warn"
     assert len(result.findings) == 1
     assert result.findings[0].severity == "high"
     assert len(result.issue_proposals) == 1
     assert result.issue_proposals[0].title == "Clarify transcript packet selection entry point"
+    assert result.issue_proposals[0].critique_axis == "evidence_discoverability"
+    assert result.issue_proposals[0].hold_reason
+
+
+def test_acceptance_evaluator_explains_zero_finding_exploratory_runs_when_evidence_is_thin(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "pass",
+  "summary": "The exploratory pass completed without blocking failures.",
+  "confidence": 0.8,
+  "evaluator": "acceptance_llm",
+  "tested_routes": [
+    "/",
+    "/?mission=mission-2&mode=missions&tab=transcript"
+  ],
+  "findings": [],
+  "issue_proposals": [],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.EXPLORATORY,
+        goal="Dogfood transcript discoverability from an operator perspective.",
+        primary_routes=["/"],
+        related_routes=["/?mission=mission-2&mode=missions&tab=transcript"],
+        filing_policy="hold_ux_concerns_for_operator_review",
+        exploration_budget="wide",
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-2",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/mission-2/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={
+            "browser_evidence": {
+                "tested_routes": [
+                    "/",
+                    "/?mission=mission-2&mode=missions&tab=transcript",
+                ],
+                "interactions": {
+                    "/?mission=mission-2&mode=missions&tab=transcript": [
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                            "status": "failed",
+                            "message": "click_selector failed: timeout",
+                        }
+                    ]
+                },
+                "page_errors": [],
+                "console_errors": [],
+            }
+        },
+        repo_root=tmp_path,
+        campaign=campaign,
+    )
+
+    assert result.findings == []
+    assert result.issue_proposals == []
+    assert "did not clear the critique threshold" in result.summary.lower()
+    assert result.recommended_next_step
+
+
+def test_acceptance_evaluator_rewrites_transcript_empty_surface_into_operator_critique(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "warn",
+  "summary": "Surface navigation is functional across 5 of 6 routes. The transcript surface failed to render packet rows for a completed round, blocking deeper evidence inspection.",
+  "confidence": 0.84,
+  "evaluator": "acceptance_llm",
+  "tested_routes": [
+    "/",
+    "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1"
+  ],
+  "findings": [
+    {
+      "severity": "material",
+      "summary": "Browser page error on /?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1",
+      "details": "Browser evidence recorded a page error.",
+      "expected": "Route should render without browser page errors.",
+      "actual": "Page error observed",
+      "route": "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1"
+    }
+  ],
+  "issue_proposals": [
+    {
+      "title": "Transcript surface empty for completed round",
+      "summary": "Browser evidence recorded a page error on transcript.",
+      "severity": "",
+      "confidence": 0.0,
+      "repro_steps": [],
+      "expected": "Route should render without browser page errors.",
+      "actual": "Page error observed",
+      "route": "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1",
+      "artifact_paths": {}
+    }
+  ],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.EXPLORATORY,
+        goal="Dogfood transcript discoverability from an operator perspective.",
+        primary_routes=["/"],
+        related_routes=[
+            "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1"
+        ],
+        filing_policy="hold_ux_concerns_for_operator_review",
+        exploration_budget="wide",
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="operator-console-dogfood-smoke",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/operator-console-dogfood-smoke/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={
+            "browser_evidence": {
+                "tested_routes": [
+                    "/",
+                    "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1",
+                ],
+                "interactions": {
+                    "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1": [
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                            "status": "passed",
+                        },
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="packet-row"]',
+                            "status": "failed",
+                            "message": "click_selector failed: timeout",
+                        },
+                    ]
+                },
+                "page_errors": [
+                    {
+                        "path": "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1",
+                        "message": "click_selector '[data-automation-target=\"packet-row\"]' failed",
+                    }
+                ],
+                "console_errors": [],
+            }
+        },
+        repo_root=tmp_path,
+        campaign=campaign,
+    )
+
+    assert result.findings[0].critique_axis == "evidence_discoverability"
+    assert result.issue_proposals[0].critique_axis == "evidence_discoverability"
+    assert result.issue_proposals[0].hold_reason
+
+
+def test_acceptance_evaluator_rewrites_retry_backed_transcript_empty_state_into_task_continuity_critique(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "pass",
+  "summary": "Dashboard infrastructure is navigable and functional. All six routes load, tab switching works, launcher opens, and internal route affordances resolve. The transcript tab shows an empty state consistent with the mission's round-1 retry decision (contracts_not_defined). No blocking defects found. One held UX concern: the empty transcript state does not signal its cause to the operator.",
+  "confidence": 0.85,
+  "evaluator": "operator-console-dogfood-smoke/exploratory",
+  "tested_routes": [
+    "/",
+    "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1"
+  ],
+  "findings": [
+    {
+      "severity": "held",
+      "summary": "Browser page error on /?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1",
+      "details": "Browser evidence recorded a page error on transcript.",
+      "expected": "Route should render without browser page errors.",
+      "actual": "Page error observed",
+      "route": "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1"
+    }
+  ],
+  "issue_proposals": [
+    {
+      "title": "Transcript empty state should signal cause to operator",
+      "summary": "Browser evidence recorded a page error on transcript.",
+      "severity": "",
+      "confidence": 0.0,
+      "repro_steps": [],
+      "expected": "Route should render without browser page errors.",
+      "actual": "Page error observed",
+      "route": "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1",
+      "artifact_paths": {}
+    }
+  ],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.EXPLORATORY,
+        goal="Dogfood transcript empty-state continuity from an operator perspective.",
+        primary_routes=["/"],
+        related_routes=[
+            "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1"
+        ],
+        filing_policy="hold_ux_concerns_for_operator_review",
+        exploration_budget="wide",
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="operator-console-dogfood-smoke",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/operator-console-dogfood-smoke/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={
+            "round_summary": {
+                "round_id": 1,
+                "status": "decided",
+                "decision": {
+                    "action": "retry",
+                    "reason_code": "contracts_not_defined",
+                },
+            },
+            "browser_evidence": {
+                "tested_routes": [
+                    "/",
+                    "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1",
+                ],
+                "interactions": {
+                    "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1": [
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                            "status": "passed",
+                        },
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="packet-row"]',
+                            "status": "failed",
+                            "message": "click_selector failed: timeout",
+                        },
+                    ]
+                },
+                "page_errors": [
+                    {
+                        "path": "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1",
+                        "message": "click_selector '[data-automation-target=\"packet-row\"]' failed",
+                    }
+                ],
+                "console_errors": [],
+            },
+        },
+        repo_root=tmp_path,
+        campaign=campaign,
+    )
+
+    assert result.status == "warn"
+    assert "retried for contracts_not_defined" in result.summary
+    assert result.findings[0].summary == "Transcript empty state hides the retry cause"
+    assert result.findings[0].critique_axis == "task_continuity"
+    assert "retry" in result.findings[0].details.lower()
+    assert result.findings[0].operator_task == (
+        "understand why transcript evidence is unavailable and what to review next"
+    )
+    assert result.issue_proposals[0].title == "Explain retry-backed transcript empty states"
+    assert result.issue_proposals[0].critique_axis == "task_continuity"
+    assert result.issue_proposals[0].hold_reason

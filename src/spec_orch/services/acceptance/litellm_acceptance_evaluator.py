@@ -424,6 +424,55 @@ class LiteLLMAcceptanceEvaluator:
         saw_filter = _saw_success('data-automation-target="transcript-filter"')
         saw_packet = _saw_success('data-automation-target="packet-row"')
         saw_block = _saw_success('data-automation-target="transcript-block"')
+        round_summary = artifacts.get("round_summary", {})
+        retry_action = ""
+        retry_reason_code = ""
+        if isinstance(round_summary, dict):
+            decision = round_summary.get("decision", {})
+            if isinstance(decision, dict):
+                retry_action = LiteLLMAcceptanceEvaluator._clean_text(decision.get("action"))
+                retry_reason_code = LiteLLMAcceptanceEvaluator._clean_text(
+                    decision.get("reason_code")
+                )
+        if (
+            not saw_filter
+            and not result.findings
+            and not result.issue_proposals
+            and "did not clear the critique threshold" not in result.summary.lower()
+        ):
+            summary = result.summary.rstrip()
+            if summary:
+                summary = (
+                    f"{summary} Available exploratory evidence did not clear the critique "
+                    "threshold because replay did not advance beyond transcript entry controls."
+                )
+            else:
+                summary = (
+                    "Available exploratory evidence did not clear the critique threshold because "
+                    "replay did not advance beyond transcript entry controls."
+                )
+            recommended_next_step = result.recommended_next_step or (
+                "Capture one deeper transcript interaction before promoting a UX critique."
+            )
+            return replace(
+                result,
+                summary=summary,
+                recommended_next_step=recommended_next_step,
+            )
+
+        def _is_retry_backed_transcript_empty_state() -> bool:
+            if retry_action != "retry" or not retry_reason_code:
+                return False
+            if not saw_filter or saw_packet or saw_block:
+                return False
+            return any(
+                isinstance(entry, dict)
+                and LiteLLMAcceptanceEvaluator._clean_text(entry.get("target"))
+                == '[data-automation-target="packet-row"]'
+                and LiteLLMAcceptanceEvaluator._clean_text(entry.get("status")) == "failed"
+                for entry in route_interactions
+            )
+
         if not saw_filter or (saw_packet and saw_block):
             return result
 
@@ -439,6 +488,10 @@ class LiteLLMAcceptanceEvaluator:
             summary = LiteLLMAcceptanceEvaluator._clean_text(proposal.summary)
             expected = LiteLLMAcceptanceEvaluator._clean_text(proposal.expected)
             actual = LiteLLMAcceptanceEvaluator._clean_text(proposal.actual)
+            critique_axis = LiteLLMAcceptanceEvaluator._clean_text(proposal.critique_axis)
+            operator_task = LiteLLMAcceptanceEvaluator._clean_text(proposal.operator_task)
+            why_it_matters = LiteLLMAcceptanceEvaluator._clean_text(proposal.why_it_matters)
+            hold_reason = LiteLLMAcceptanceEvaluator._clean_text(proposal.hold_reason)
             repro_steps = [
                 step
                 for step in proposal.repro_steps
@@ -446,11 +499,135 @@ class LiteLLMAcceptanceEvaluator:
             ]
             if not route and not expected and not actual and not repro_steps:
                 return True
+            missing_critique_metadata = not any(
+                [critique_axis, operator_task, why_it_matters, hold_reason]
+            )
             return (
                 route == transcript_route
-                and title.startswith("Investigate browser page error on ")
-                and "browser page error" in f"{title} {summary}".lower()
+                and missing_critique_metadata
+                and (
+                    (
+                        title.startswith("Investigate browser page error on ")
+                        and "browser page error" in f"{title} {summary}".lower()
+                    )
+                    or (
+                        "transcript surface empty" in title.lower() and "browser" in summary.lower()
+                    )
+                )
             )
+
+        def _is_low_signal_retry_backed_proposal(proposal: AcceptanceIssueProposal) -> bool:
+            route = LiteLLMAcceptanceEvaluator._clean_text(proposal.route)
+            title = LiteLLMAcceptanceEvaluator._clean_text(proposal.title).lower()
+            summary = LiteLLMAcceptanceEvaluator._clean_text(proposal.summary).lower()
+            critique_axis = LiteLLMAcceptanceEvaluator._clean_text(proposal.critique_axis)
+            operator_task = LiteLLMAcceptanceEvaluator._clean_text(proposal.operator_task)
+            why_it_matters = LiteLLMAcceptanceEvaluator._clean_text(proposal.why_it_matters)
+            hold_reason = LiteLLMAcceptanceEvaluator._clean_text(proposal.hold_reason)
+            missing_critique_metadata = not any(
+                [critique_axis, operator_task, why_it_matters, hold_reason]
+            )
+            return (
+                route == transcript_route
+                and missing_critique_metadata
+                and "empty state" in title
+                and ("signal cause" in title or "operator" in title or "browser" in summary)
+            )
+
+        if _is_retry_backed_transcript_empty_state():
+            low_signal_findings = all(
+                _is_low_signal_transcript_finding(finding) for finding in result.findings
+            )
+            low_signal_proposals = all(
+                _is_low_signal_retry_backed_proposal(proposal)
+                or _is_low_signal_transcript_proposal(proposal)
+                for proposal in result.issue_proposals
+            )
+            can_replace_existing = (not result.findings or low_signal_findings) and (
+                not result.issue_proposals or low_signal_proposals
+            )
+            if can_replace_existing:
+                finding = AcceptanceFinding(
+                    severity="held",
+                    summary="Transcript empty state hides the retry cause",
+                    details=(
+                        "Exploratory replay reached the transcript surface after a retry decision, "
+                        f"but the empty state did not explain that round evidence is unavailable "
+                        f"because the mission is currently marked {retry_reason_code}."
+                    ),
+                    expected=(
+                        "When transcript evidence is unavailable because a round was retried, the "
+                        "surface should explain the retry cause and point the operator to the next "
+                        "review surface."
+                    ),
+                    actual=(
+                        "The operator sees no packet rows and must infer from surrounding context "
+                        "why transcript evidence is missing."
+                    ),
+                    route=transcript_route,
+                    critique_axis="task_continuity",
+                    operator_task=(
+                        "understand why transcript evidence is unavailable and what to review next"
+                    ),
+                    why_it_matters=(
+                        "Without the retry cause in the empty state, operators can mistake missing "
+                        "evidence for a dashboard failure and lose review continuity."
+                    ),
+                )
+                proposal = AcceptanceIssueProposal(
+                    title="Explain retry-backed transcript empty states",
+                    summary=(
+                        "Exploratory acceptance indicates the transcript empty state should "
+                        "explain "
+                        f"that the round was retried for {retry_reason_code} and direct the "
+                        "operator back to the relevant decision or acceptance context."
+                    ),
+                    severity="medium",
+                    confidence=max(result.confidence, 0.82),
+                    repro_steps=[
+                        "Open the transcript tab for a mission with a retried round.",
+                        "Try to determine why transcript evidence is unavailable from the "
+                        "transcript surface alone.",
+                    ],
+                    expected=(
+                        "The transcript empty state names the retry cause and suggests where the "
+                        "operator should continue review."
+                    ),
+                    actual=(
+                        "The surface only appears empty, so the operator must reconstruct the "
+                        "retry reason from other panes."
+                    ),
+                    route=transcript_route,
+                    critique_axis="task_continuity",
+                    operator_task=(
+                        "understand why transcript evidence is unavailable and what to review next"
+                    ),
+                    why_it_matters=(
+                        "Operators should not have to reverse-engineer retry state before deciding "
+                        "which surface to inspect next."
+                    ),
+                    hold_reason=(
+                        "Exploratory UX critique should be reviewed before automatic filing."
+                    ),
+                )
+                summary = (
+                    "Operator navigation remains usable, but the transcript empty state does not "
+                    f"explain that evidence is missing because round 1 was retried for "
+                    f"{retry_reason_code}. A first-time operator can reach the surface but not "
+                    "understand what happened or where to continue review."
+                )
+                recommended_next_step = result.recommended_next_step or (
+                    "Hold the transcript continuity critique for operator review before "
+                    "auto-filing."
+                )
+                return replace(
+                    result,
+                    status="warn",
+                    summary=summary,
+                    findings=[finding],
+                    issue_proposals=[proposal],
+                    recommended_next_step=recommended_next_step,
+                )
 
         low_signal_findings = all(
             _is_low_signal_transcript_finding(finding) for finding in result.findings
@@ -480,6 +657,11 @@ class LiteLLMAcceptanceEvaluator:
                 "inspection did not both succeed."
             ),
             route=transcript_route,
+            critique_axis="evidence_discoverability",
+            operator_task="open packet-level transcript evidence",
+            why_it_matters=(
+                "Operators can stall before reaching the most important evidence for a mission."
+            ),
         )
         proposal = AcceptanceIssueProposal(
             title="Clarify transcript packet selection entry point",
@@ -502,17 +684,19 @@ class LiteLLMAcceptanceEvaluator:
                 "advance into packet-level evidence."
             ),
             route=transcript_route,
+            critique_axis="evidence_discoverability",
+            operator_task="open packet-level transcript evidence",
+            why_it_matters=(
+                "Operators should reach packet evidence without relying on prior dashboard context."
+            ),
+            hold_reason="Exploratory UX critique should be reviewed before automatic filing.",
         )
-        summary = result.summary.rstrip()
-        if summary:
-            summary = (
-                f"{summary} Exploratory evidence also suggests transcript packet selection is not "
-                "self-evident for a first-time operator."
-            )
-        else:
-            summary = (
-                "Exploratory evidence suggests transcript packet selection is not self-evident."
-            )
+        summary = (
+            "Navigation surfaces are functional, but transcript packet selection is not "
+            "self-evident for a first-time operator. Exploratory replay reached transcript "
+            "filters yet did not reliably progress into packet-level evidence within the bounded "
+            "budget."
+        )
 
         recommended_next_step = result.recommended_next_step or (
             "Hold the transcript discoverability critique for operator review before auto-filing."
@@ -520,7 +704,7 @@ class LiteLLMAcceptanceEvaluator:
 
         return replace(
             result,
-            status="warn" if result.status == "pass" else result.status,
+            status="warn",
             summary=summary,
             findings=[finding],
             issue_proposals=[proposal],

@@ -672,6 +672,9 @@ class AcceptanceFinding:
     actual: str = ""
     route: str = ""
     artifact_paths: dict[str, str] = field(default_factory=dict)
+    critique_axis: str = ""
+    operator_task: str = ""
+    why_it_matters: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -682,6 +685,9 @@ class AcceptanceFinding:
             "actual": self.actual,
             "route": self.route,
             "artifact_paths": self.artifact_paths,
+            "critique_axis": self.critique_axis,
+            "operator_task": self.operator_task,
+            "why_it_matters": self.why_it_matters,
         }
 
     @classmethod
@@ -694,6 +700,9 @@ class AcceptanceFinding:
             actual=data.get("actual", ""),
             route=data.get("route", ""),
             artifact_paths=data.get("artifact_paths", {}),
+            critique_axis=data.get("critique_axis", ""),
+            operator_task=data.get("operator_task", ""),
+            why_it_matters=data.get("why_it_matters", ""),
         )
 
 
@@ -848,6 +857,10 @@ class AcceptanceIssueProposal:
     actual: str = ""
     route: str = ""
     artifact_paths: dict[str, str] = field(default_factory=dict)
+    critique_axis: str = ""
+    operator_task: str = ""
+    why_it_matters: str = ""
+    hold_reason: str = ""
     linear_issue_id: str = ""
     filing_status: str = ""
     filing_error: str = ""
@@ -863,6 +876,10 @@ class AcceptanceIssueProposal:
             "actual": self.actual,
             "route": self.route,
             "artifact_paths": self.artifact_paths,
+            "critique_axis": self.critique_axis,
+            "operator_task": self.operator_task,
+            "why_it_matters": self.why_it_matters,
+            "hold_reason": self.hold_reason,
             "linear_issue_id": self.linear_issue_id,
             "filing_status": self.filing_status,
             "filing_error": self.filing_error,
@@ -880,6 +897,10 @@ class AcceptanceIssueProposal:
             actual=data.get("actual", ""),
             route=data.get("route", ""),
             artifact_paths=data.get("artifact_paths", {}),
+            critique_axis=data.get("critique_axis", ""),
+            operator_task=data.get("operator_task", ""),
+            why_it_matters=data.get("why_it_matters", ""),
+            hold_reason=data.get("hold_reason", ""),
             linear_issue_id=data.get("linear_issue_id", ""),
             filing_status=data.get("filing_status", ""),
             filing_error=data.get("filing_error", ""),

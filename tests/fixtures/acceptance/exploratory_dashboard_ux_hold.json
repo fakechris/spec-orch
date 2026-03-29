@@ -20,6 +20,9 @@
         "expected": "A first-time operator can discover transcript controls without guidance.",
         "actual": "The operator must infer which tab and packet selection state matters.",
         "route": "/?mission=operator-console&mode=missions&tab=transcript",
+        "critique_axis": "evidence_discoverability",
+        "operator_task": "open packet-level transcript evidence",
+        "why_it_matters": "Operators can stall before reaching the most important mission evidence.",
         "artifact_paths": {
           "screenshot": "rounds/round-03/visual/transcript.png"
         }
@@ -38,6 +41,10 @@
         "expected": "Transcript controls feel self-explanatory.",
         "actual": "Operator must infer the intended flow.",
         "route": "/?mission=operator-console&mode=missions&tab=transcript",
+        "critique_axis": "evidence_discoverability",
+        "operator_task": "open packet-level transcript evidence",
+        "why_it_matters": "The first useful evidence step should be obvious to a first-time operator.",
+        "hold_reason": "Exploratory UX critique should be reviewed before filing.",
         "artifact_paths": {
           "screenshot": "rounds/round-03/visual/transcript.png"
         },

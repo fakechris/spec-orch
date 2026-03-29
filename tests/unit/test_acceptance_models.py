@@ -24,6 +24,9 @@ def test_acceptance_finding_round_trip() -> None:
         actual="No primary CTA is visible in the hero section.",
         route="/",
         artifact_paths={"screenshot": "rounds/round-01/acceptance/home.png"},
+        critique_axis="evidence_discoverability",
+        operator_task="open packet-level transcript evidence",
+        why_it_matters="Operators may stop before reaching the most important evidence.",
     )
 
     restored = AcceptanceFinding.from_dict(finding.to_dict())
@@ -46,6 +49,10 @@ def test_acceptance_issue_proposal_round_trip() -> None:
         actual="No primary CTA is visible in the hero section.",
         route="/",
         artifact_paths={"screenshot": "rounds/round-01/acceptance/home.png"},
+        critique_axis="surface_orientation",
+        operator_task="establish current dashboard context",
+        why_it_matters="Operators need to understand which surface they are reviewing.",
+        hold_reason="Needs operator confirmation before filing as UX work.",
     )
 
     restored = AcceptanceIssueProposal.from_dict(proposal.to_dict())
@@ -115,6 +122,8 @@ def test_acceptance_review_result_round_trip() -> None:
                 severity="high",
                 summary="Settings save action fails.",
                 route="/settings",
+                critique_axis="task_continuity",
+                operator_task="save settings and continue review",
             )
         ],
         issue_proposals=[
@@ -122,6 +131,9 @@ def test_acceptance_review_result_round_trip() -> None:
                 title="Fix settings save action",
                 summary="Save action fails on the settings page.",
                 severity="high",
+                critique_axis="task_continuity",
+                operator_task="save settings and continue review",
+                why_it_matters="Interrupted tasks break operator continuity.",
             )
         ],
         artifacts={
@@ -134,6 +146,33 @@ def test_acceptance_review_result_round_trip() -> None:
     restored = AcceptanceReviewResult.from_dict(result.to_dict())
 
     assert restored == result
+
+
+def test_acceptance_dashboard_critique_metadata_round_trip() -> None:
+    finding = AcceptanceFinding(
+        severity="medium",
+        summary="Transcript packet selection is not self-evident.",
+        route="/?mission=op-1&mode=missions&tab=transcript",
+        critique_axis="evidence_discoverability",
+        operator_task="open packet-level transcript evidence",
+        why_it_matters="Operators can stall before reviewing the most important evidence.",
+    )
+    proposal = AcceptanceIssueProposal(
+        title="Clarify transcript packet entry point",
+        summary="Make the first evidence step easier to find.",
+        severity="medium",
+        route="/?mission=op-1&mode=missions&tab=transcript",
+        critique_axis="evidence_discoverability",
+        operator_task="open packet-level transcript evidence",
+        why_it_matters="The operator should not need prior context to find packet evidence.",
+        hold_reason="Exploratory UX critique should be reviewed before filing.",
+    )
+
+    restored_finding = AcceptanceFinding.from_dict(finding.to_dict())
+    restored_proposal = AcceptanceIssueProposal.from_dict(proposal.to_dict())
+
+    assert restored_finding == finding
+    assert restored_proposal == proposal
 
 
 def test_acceptance_campaign_round_trip() -> None:

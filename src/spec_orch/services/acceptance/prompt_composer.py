@@ -169,6 +169,12 @@ def compose_acceptance_prompt(
         exploratory_output_guidance = (
             "## Exploratory Output Contract\n"
             "- Confusing but operable UX is still valid exploratory evidence.\n"
+            "- Evaluate the dashboard through these critique axes: surface orientation, "
+            "evidence discoverability, terminology clarity, task continuity, and "
+            "operator confidence / trust signaling.\n"
+            "- Treat inherited workflow proof artifacts as prior context, not as contradictions "
+            "to the current exploratory replay, unless the current replay directly breaks the "
+            "workflow contract they claim.\n"
             "- Prefer evidence-backed critique candidates when IA, terminology, "
             "or discoverability feels confusing even if the flow still completes.\n"
             "- If you return zero findings and zero issue proposals, the summary "

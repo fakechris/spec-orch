@@ -139,6 +139,15 @@ def test_compose_acceptance_prompt_marks_exploratory_runs_as_user_perspective(
     )
     assert "Evidence budget: bounded" in prompt
     assert "Confusing but operable UX is still valid exploratory evidence." in prompt
+    assert "surface orientation" in prompt
+    assert "evidence discoverability" in prompt
+    assert "terminology clarity" in prompt
+    assert "task continuity" in prompt
+    assert "operator confidence / trust signaling" in prompt
+    assert (
+        "Treat inherited workflow proof artifacts as prior context, not as contradictions to the current exploratory replay"
+        in prompt
+    )
     assert (
         "If you return zero findings and zero issue proposals, the summary must explain why no critique candidate cleared the evidence threshold."
         in prompt
