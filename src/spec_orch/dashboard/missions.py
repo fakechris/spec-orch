@@ -5,10 +5,10 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from spec_orch.services.execution_semantics_reader import read_round_supervision_cycle
 from spec_orch.services.mission_service import MissionService
 from spec_orch.services.pipeline_checker import check_pipeline
 from spec_orch.services.promotion_service import load_plan
-from spec_orch.services.execution_semantics_reader import read_round_supervision_cycle
 
 from .approvals import _gather_latest_approval_request, _load_approval_history
 

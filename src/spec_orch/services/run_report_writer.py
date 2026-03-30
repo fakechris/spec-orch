@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.compliance import default_turn_contract_compliance
-from spec_orch.runtime_core.paths import normalized_issue_live_path, normalized_issue_manifest_path
 from spec_orch.domain.models import (
     ArtifactManifest,
     BuilderResult,
@@ -19,6 +18,7 @@ from spec_orch.domain.models import (
     VerificationDetail,
     VerificationSummary,
 )
+from spec_orch.runtime_core.paths import normalized_issue_live_path, normalized_issue_manifest_path
 from spec_orch.services.io import atomic_write_json
 
 logger = logging.getLogger(__name__)

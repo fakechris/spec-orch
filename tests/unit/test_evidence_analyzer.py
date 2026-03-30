@@ -7,6 +7,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+from spec_orch.cli import app
 from spec_orch.domain.execution_semantics import (
     ContinuityKind,
     ExecutionAttempt,
@@ -16,7 +17,6 @@ from spec_orch.domain.execution_semantics import (
     ExecutionStatus,
     ExecutionUnitKind,
 )
-from spec_orch.cli import app
 from spec_orch.services.evidence_analyzer import EvidenceAnalyzer, PatternSummary
 
 

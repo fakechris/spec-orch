@@ -3647,7 +3647,9 @@ class TestDashboardAPI:
         assert r.status_code == 200
         assert isinstance(r.json(), list)
 
-    def test_runs_endpoint_prefers_normalized_execution_attempt(self, client, repo: Path, monkeypatch):
+    def test_runs_endpoint_prefers_normalized_execution_attempt(
+        self, client, repo: Path, monkeypatch
+    ):
         ws = repo / ".spec_orch_runs" / "R2"
         ws.mkdir(parents=True)
 
@@ -3678,7 +3680,9 @@ class TestDashboardAPI:
 
         assert r.status_code == 200
         runs = r.json()
-        assert any(item["issue_id"] == "SON-R2" and item["builder_adapter"] == "codex" for item in runs)
+        assert any(
+            item["issue_id"] == "SON-R2" and item["builder_adapter"] == "codex" for item in runs
+        )
 
     def test_events_endpoint(self, client):
         bus = get_event_bus()

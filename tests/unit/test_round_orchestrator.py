@@ -195,9 +195,9 @@ def test_run_supervised_pauses_on_ask_human(tmp_path: Path) -> None:
     assert result.last_decision.action is RoundAction.ASK_HUMAN
     intervention_history = [
         json.loads(line)
-        for line in (
-            tmp_path / "docs" / "specs" / "mission-1" / "operator" / "interventions.jsonl"
-        ).read_text(encoding="utf-8").splitlines()
+        for line in (tmp_path / "docs" / "specs" / "mission-1" / "operator" / "interventions.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
         if line.strip()
     ]
     assert intervention_history == [
@@ -2131,12 +2131,13 @@ def test_collect_artifacts_records_verification_gate_and_manifest_paths(tmp_path
     assert str(report_path) in artifacts.manifest_paths
     assert any(path.endswith("src/contracts/mission_types.ts") for path in artifacts.manifest_paths)
 
+
 def test_persist_round_delegates_normalized_supervision_payload_write(tmp_path: Path) -> None:
     from spec_orch.domain.models import (
         RoundAction,
         RoundDecision,
-        RoundSummary,
         RoundStatus,
+        RoundSummary,
         SessionOps,
     )
     from spec_orch.services.round_orchestrator import RoundOrchestrator

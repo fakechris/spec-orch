@@ -24,8 +24,8 @@ from spec_orch.runtime_core.paths import (
     normalized_issue_manifest_path,
     normalized_issue_root,
     normalized_round_decision_path,
-    normalized_round_summary_path,
     normalized_round_root,
+    normalized_round_summary_path,
     normalized_worker_builder_report_path,
 )
 
@@ -106,8 +106,8 @@ def _mission_id_from_round_dir(round_dir: Path) -> str:
     return round_dir.parent.parent.name
 
 
-def read_issue_artifacts(workspace: Path) -> dict[str, ArtifactRef]:
-    artifacts: dict[str, ArtifactRef] = {
+def read_issue_artifacts(workspace: Path) -> dict[str, ArtifactRef | None]:
+    artifacts: dict[str, ArtifactRef | None] = {
         "workspace_root": _artifact(
             key="workspace_root",
             scope=ArtifactScope.LEAF,
@@ -142,7 +142,9 @@ def read_issue_artifacts(workspace: Path) -> dict[str, ArtifactRef]:
         )
 
     builder_path = manifest_artifacts.get("builder_report")
-    builder_report_path = Path(builder_path) if isinstance(builder_path, str) else workspace / "builder_report.json"
+    builder_report_path = (
+        Path(builder_path) if isinstance(builder_path, str) else workspace / "builder_report.json"
+    )
     if builder_report_path.exists():
         artifacts["builder_report"] = _artifact(
             key="builder_report",
@@ -164,7 +166,11 @@ def read_issue_artifacts(workspace: Path) -> dict[str, ArtifactRef]:
                 scope=ArtifactScope.LEAF,
                 producer_kind="activity_logger",
                 subject_kind=SubjectKind.ISSUE,
-                carrier_kind=ArtifactCarrierKind.JSONL if candidate.suffix == ".jsonl" else ArtifactCarrierKind.FILE,
+                carrier_kind=(
+                    ArtifactCarrierKind.JSONL
+                    if candidate.suffix == ".jsonl"
+                    else ArtifactCarrierKind.FILE
+                ),
                 path=candidate,
             )
             break
@@ -280,9 +286,11 @@ def read_worker_execution_attempt(
         return None
 
     session_name = builder_report.get("session_name")
-    continuity_kind = ContinuityKind.WORKER_SESSION if session_name else ContinuityKind.ONESHOT_WORKER
+    continuity_kind = (
+        ContinuityKind.WORKER_SESSION if session_name else ContinuityKind.ONESHOT_WORKER
+    )
 
-    artifacts: dict[str, ArtifactRef] = {
+    artifacts: dict[str, ArtifactRef | None] = {
         "workspace_root": _artifact(
             key="workspace_root",
             scope=ArtifactScope.LEAF,
@@ -310,7 +318,11 @@ def read_worker_execution_attempt(
                 scope=ArtifactScope.LEAF,
                 producer_kind="worker_handle",
                 subject_kind=SubjectKind.WORK_PACKET,
-                carrier_kind=ArtifactCarrierKind.JSONL if candidate.suffix == ".jsonl" else ArtifactCarrierKind.FILE,
+                carrier_kind=(
+                    ArtifactCarrierKind.JSONL
+                    if candidate.suffix == ".jsonl"
+                    else ArtifactCarrierKind.FILE
+                ),
                 path=candidate,
             )
             break
@@ -362,7 +374,7 @@ def read_round_supervision_cycle(round_dir: Path) -> dict[str, Any] | None:
         packet_ids=packet_ids,
     )
 
-    artifacts: dict[str, ArtifactRef] = {
+    artifacts: dict[str, ArtifactRef | None] = {
         "workspace_root": _artifact(
             key="workspace_root",
             scope=ArtifactScope.ROUND,

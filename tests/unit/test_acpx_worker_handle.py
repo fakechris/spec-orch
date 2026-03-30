@@ -207,6 +207,7 @@ def test_acpx_worker_handle_send_delegates_builder_report_write(
     mock_ensure_session.assert_called_once()
     assert delegated["worker_dir"] == tmp_path
     assert isinstance(delegated["builder_report"], dict)
-    assert json.loads((tmp_path / "builder_report.json").read_text(encoding="utf-8"))[
-        "session_name"
-    ] == "mission-m1-pkt1"
+    assert (
+        json.loads((tmp_path / "builder_report.json").read_text(encoding="utf-8"))["session_name"]
+        == "mission-m1-pkt1"
+    )

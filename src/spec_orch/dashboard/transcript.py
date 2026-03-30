@@ -520,10 +520,14 @@ def _gather_round_evidence_blocks(
         if not summary_path.exists():
             continue
         try:
-            legacy_summary = RoundSummary.from_dict(json.loads(summary_path.read_text(encoding="utf-8")))
+            legacy_summary = RoundSummary.from_dict(
+                json.loads(summary_path.read_text(encoding="utf-8"))
+            )
         except (OSError, ValueError, json.JSONDecodeError):
             continue
-        if not any(result.get("packet_id") == packet_id for result in legacy_summary.worker_results):
+        if not any(
+            result.get("packet_id") == packet_id for result in legacy_summary.worker_results
+        ):
             continue
 
         timestamp = legacy_summary.completed_at or legacy_summary.started_at or ""

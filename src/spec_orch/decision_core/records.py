@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from spec_orch.domain.models import RoundDecision
 from spec_orch.decision_core.models import (
     DecisionAuthority,
     DecisionPoint,
     DecisionRecord,
 )
+from spec_orch.domain.models import RoundDecision
 
 MISSION_ROUND_REVIEW_POINT = DecisionPoint(
     key="mission.round.review",

@@ -98,9 +98,9 @@ def test_record_approval_action_appends_decision_core_response_metadata(tmp_path
     assert payload["effect"] == "approval_granted"
     history = [
         json.loads(line)
-        for line in (operator_dir / "intervention_responses.jsonl").read_text(
-            encoding="utf-8"
-        ).splitlines()
+        for line in (operator_dir / "intervention_responses.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
         if line.strip()
     ]
     assert history == [

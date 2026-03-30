@@ -8,6 +8,8 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
+from spec_orch.decision_core.records import build_round_review_decision_record
+from spec_orch.decision_core.review_queue import write_round_decision_record
 from spec_orch.domain.models import (
     ExecutionPlan,
     RoundAction,
@@ -15,8 +17,6 @@ from spec_orch.domain.models import (
     RoundDecision,
     RoundSummary,
 )
-from spec_orch.decision_core.records import build_round_review_decision_record
-from spec_orch.decision_core.review_queue import write_round_decision_record
 from spec_orch.services.constitutions import (
     SUPERVISOR_CONSTITUTION,
     build_role_system_prompt,

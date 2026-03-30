@@ -56,7 +56,9 @@ def test_read_issue_execution_attempt_prefers_unified_artifacts(tmp_path: Path) 
             },
         },
     )
-    (workspace / "run_artifact" / "events.jsonl").write_text('{"type":"result"}\n', encoding="utf-8")
+    (workspace / "run_artifact" / "events.jsonl").write_text(
+        '{"type":"result"}\n', encoding="utf-8"
+    )
     (workspace / "builder_report.json").write_text("{}", encoding="utf-8")
     (workspace / "review_report.json").write_text("{}", encoding="utf-8")
     (workspace / "acceptance.json").write_text("{}", encoding="utf-8")

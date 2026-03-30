@@ -164,9 +164,21 @@ class EvidenceAnalyzer:
 
     def read_report(self, run_dir: Path) -> dict | None:
         """Read run result from unified artifacts or legacy report.json."""
+        legacy_report: dict | None = None
+        report_path = run_dir / "report.json"
+        if report_path.exists():
+            try:
+                data = json.loads(report_path.read_text())
+                if isinstance(data, dict):
+                    legacy_report = data
+                else:
+                    logger.warning("Skipping non-object report %s", report_path)
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.warning("Skipping malformed report %s: %s", report_path, exc)
+
         normalized = read_issue_execution_attempt(run_dir)
         if normalized is not None:
-            return {
+            merged = {
                 "run_id": normalized.attempt_id,
                 "issue_id": normalized.unit_id,
                 "mergeable": bool((normalized.outcome.gate or {}).get("mergeable", False)),
@@ -179,6 +191,11 @@ class EvidenceAnalyzer:
                 "builder": normalized.outcome.build or {},
                 "review": normalized.outcome.review or {},
             }
+            if legacy_report:
+                for key in ("metadata", "summary", "issue", "deviations_path"):
+                    if key in legacy_report:
+                        merged[key] = legacy_report[key]
+            return merged
 
         conclusion_path = run_dir / "run_artifact" / "conclusion.json"
         live_path = run_dir / "run_artifact" / "live.json"
@@ -200,18 +217,7 @@ class EvidenceAnalyzer:
                 logger.warning("Skipping malformed unified artifacts under %s: %s", run_dir, exc)
                 return None
 
-        report_path = run_dir / "report.json"
-        if not report_path.exists():
-            return None
-        try:
-            data = json.loads(report_path.read_text())
-            if not isinstance(data, dict):
-                logger.warning("Skipping non-object report %s", report_path)
-                return None
-            return data
-        except (json.JSONDecodeError, OSError) as exc:
-            logger.warning("Skipping malformed report %s: %s", report_path, exc)
-            return None
+        return legacy_report
 
     def read_deviations(self, run_dir: Path) -> list[dict]:
         """Read and parse deviations.jsonl from a run directory."""

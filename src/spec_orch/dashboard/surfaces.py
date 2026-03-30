@@ -237,7 +237,10 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
             try:
                 round_id = int(summary_payload.get("round_id") or round_dir.name.split("-")[-1])
             except (TypeError, ValueError, IndexError):
-                logger.warning("Skipping visual QA directory with invalid round suffix: %s", round_dir)
+                logger.warning(
+                    "Skipping visual QA directory with invalid round suffix: %s",
+                    round_dir,
+                )
                 continue
             worker_results = summary_payload.get("worker_results", [])
             transcript_routes = [
@@ -262,9 +265,12 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
             try:
                 round_id = int(round_dir.name.split("-")[-1])
             except (TypeError, ValueError, IndexError):
-                logger.warning("Skipping visual QA directory with invalid round suffix: %s", round_dir)
+                logger.warning(
+                    "Skipping visual QA directory with invalid round suffix: %s",
+                    round_dir,
+                )
                 continue
-            transcript_routes: list[str] = []
+            transcript_routes = []
             summary_path = round_dir / "round_summary.json"
             if summary_path.exists():
                 try:
@@ -272,7 +278,10 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
                 except (OSError, ValueError, json.JSONDecodeError):
                     summary_payload = {}
                 if not isinstance(summary_payload, dict):
-                    logger.warning("Ignoring malformed round summary for visual QA: %s", summary_path)
+                    logger.warning(
+                        "Ignoring malformed round summary for visual QA: %s",
+                        summary_path,
+                    )
                     summary_payload = {}
                 worker_results = summary_payload.get("worker_results", [])
                 if isinstance(worker_results, list):
@@ -483,8 +492,10 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
         if normalized is not None:
             payload = normalized.outcome.build or {}
             report_artifact = normalized.outcome.artifacts.get("builder_report")
-            report_path = Path(report_artifact.path) if report_artifact is not None else (
-                worker_dir / "builder_report.json"
+            report_path = (
+                Path(report_artifact.path)
+                if report_artifact is not None
+                else (worker_dir / "builder_report.json")
             )
             if not isinstance(payload, dict):
                 continue

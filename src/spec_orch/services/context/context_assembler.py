@@ -408,7 +408,9 @@ class ContextAssembler:
                 )
             if normalized.outcome.gate is not None:
                 ctx.gate_report = self._parse_gate(normalized.outcome.gate)
-            if normalized.outcome.review is not None and isinstance(normalized.outcome.review, dict):
+            if normalized.outcome.review is not None and isinstance(
+                normalized.outcome.review, dict
+            ):
                 ctx.review_summary = ReviewSummary(
                     verdict=normalized.outcome.review.get("verdict", "pending"),
                     reviewed_by=normalized.outcome.review.get("reviewed_by"),
@@ -444,7 +446,11 @@ class ContextAssembler:
                 except (json.JSONDecodeError, KeyError):
                     pass
 
-        if ctx.builder_events_summary is None and manifest and "builder_events" in manifest.artifacts:
+        if (
+            ctx.builder_events_summary is None
+            and manifest
+            and "builder_events" in manifest.artifacts
+        ):
             events_path = Path(manifest.artifacts["builder_events"])
             if events_path.exists():
                 raw = events_path.read_text()

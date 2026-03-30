@@ -20,7 +20,10 @@ def test_issue_paths_use_run_artifact_directory() -> None:
 
     assert normalized_issue_root(workspace) == workspace / "run_artifact"
     assert normalized_issue_live_path(workspace) == workspace / "run_artifact" / "live.json"
-    assert normalized_issue_conclusion_path(workspace) == workspace / "run_artifact" / "conclusion.json"
+    assert (
+        normalized_issue_conclusion_path(workspace)
+        == workspace / "run_artifact" / "conclusion.json"
+    )
     assert normalized_issue_manifest_path(workspace) == workspace / "run_artifact" / "manifest.json"
 
 
