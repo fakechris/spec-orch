@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -35,13 +35,16 @@ async def test_subprocess_packet_executor_delegates_attempt_payload_shaping() ->
         delegated["owner_kind"] = owner_kind
         return {"packet_id": packet.packet_id}
 
+    mock_build_packet_attempt_payload = MagicMock(side_effect=fake_build_packet_attempt_payload)
+
     with patch(
         "spec_orch.services.packet_executor.build_packet_attempt_payload",
-        fake_build_packet_attempt_payload,
+        mock_build_packet_attempt_payload,
     ):
         result = await executor.execute_packet(packet, wave_id=0, cancel_event=cancel)
 
     assert result.packet_id == "p1"
+    mock_build_packet_attempt_payload.assert_called_once()
     assert delegated["packet"] is packet
     assert delegated["wave_id"] == 0
     assert delegated["result"] is result
@@ -93,13 +96,16 @@ async def test_full_pipeline_packet_executor_delegates_attempt_payload_shaping(
         delegated["owner_kind"] = owner_kind
         return {"packet_id": packet.packet_id}
 
+    mock_build_packet_attempt_payload = MagicMock(side_effect=fake_build_packet_attempt_payload)
+
     with patch(
         "spec_orch.services.packet_executor.build_packet_attempt_payload",
-        fake_build_packet_attempt_payload,
+        mock_build_packet_attempt_payload,
     ):
         result = await executor.execute_packet(packet, wave_id=1, cancel_event=cancel)
 
     assert result.packet_id == "p2"
+    mock_build_packet_attempt_payload.assert_called_once()
     assert delegated["packet"] is packet
     assert delegated["wave_id"] == 1
     assert delegated["result"] is result
