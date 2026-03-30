@@ -7,7 +7,8 @@ from pathlib import Path
 def test_mission_evidence_counts_prefers_decision_core_approval_history(tmp_path: Path) -> None:
     from spec_orch.dashboard.missions import _mission_evidence_counts
 
-    specs_dir = tmp_path / "docs" / "specs" / "mission-evidence"
+    repo_root = tmp_path
+    specs_dir = repo_root / "docs" / "specs" / "mission-evidence"
     rounds_dir = specs_dir / "rounds"
     operator_dir = specs_dir / "operator"
     (rounds_dir / "round-01").mkdir(parents=True)
@@ -32,7 +33,7 @@ def test_mission_evidence_counts_prefers_decision_core_approval_history(tmp_path
         encoding="utf-8",
     )
 
-    counts = _mission_evidence_counts(specs_dir)
+    counts = _mission_evidence_counts(repo_root, specs_dir)
 
     assert counts == {
         "round_count": 1,

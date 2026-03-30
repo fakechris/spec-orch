@@ -89,7 +89,7 @@ def _mission_phase_rank(phase: str) -> int:
     return 4
 
 
-def _mission_evidence_counts(specs_dir: Path) -> dict[str, int]:
+def _mission_evidence_counts(repo_root: Path, specs_dir: Path) -> dict[str, int]:
     rounds_dir = specs_dir / "rounds"
     operator_dir = specs_dir / "operator"
     if not rounds_dir.exists() and not operator_dir.exists():
@@ -110,7 +110,7 @@ def _mission_evidence_counts(specs_dir: Path) -> dict[str, int]:
             if (round_dir / "visual_evaluation.json").exists():
                 visual_round_count += 1
 
-    approval_action_count = len(_load_approval_history(specs_dir.parents[2], specs_dir.name))
+    approval_action_count = len(_load_approval_history(repo_root, specs_dir.name))
 
     return {
         "round_count": round_count,
@@ -182,7 +182,7 @@ def _gather_missions(repo_root: Path) -> list[dict[str, Any]]:
             or str(mission.approved_at or "")
             or str(mission.created_at or "")
         )
-        evidence = _mission_evidence_counts(specs_dir)
+        evidence = _mission_evidence_counts(repo_root, specs_dir)
 
         results.append(
             {

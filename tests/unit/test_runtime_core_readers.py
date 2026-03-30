@@ -42,3 +42,37 @@ def test_runtime_core_round_reader_supports_embedded_decision(tmp_path: Path) ->
         "action": "ask_human",
         "summary": "Need approval before continue.",
     }
+
+
+def test_read_issue_execution_attempt_preserves_gate_state(tmp_path: Path) -> None:
+    workspace = tmp_path / "run-123"
+    _write_json(
+        workspace / "run_artifact" / "live.json",
+        {
+            "run_id": "run-123",
+            "issue_id": "SON-123",
+            "builder": {"adapter": "acpx_codex", "succeeded": True},
+            "verification": {"passed": 2, "total": 2},
+        },
+    )
+    _write_json(
+        workspace / "run_artifact" / "conclusion.json",
+        {
+            "run_id": "run-123",
+            "issue_id": "SON-123",
+            "state": "verified",
+            "verdict": "pass",
+            "mergeable": True,
+            "failed_conditions": [],
+        },
+    )
+
+    attempt = read_issue_execution_attempt(workspace)
+
+    assert attempt is not None
+    assert attempt.outcome.gate == {
+        "state": "verified",
+        "verdict": "pass",
+        "mergeable": True,
+        "failed_conditions": [],
+    }

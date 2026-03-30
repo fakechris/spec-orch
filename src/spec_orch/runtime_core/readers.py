@@ -246,6 +246,7 @@ def read_issue_execution_attempt(workspace: Path) -> ExecutionAttempt | None:
         verification=live_data.get("verification"),
         review=live_data.get("review"),
         gate={
+            "state": data.get("state"),
             "verdict": data.get("verdict"),
             "mergeable": data.get("mergeable"),
             "failed_conditions": data.get("failed_conditions", []),
