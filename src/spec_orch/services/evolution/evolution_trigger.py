@@ -19,6 +19,8 @@ from spec_orch.domain.models import Issue, IssueContext
 from spec_orch.domain.protocols import LifecycleEvolver
 from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.evolution.evolution_policy import EvolutionPolicy
+from spec_orch.services.evolution.promotion_registry import PromotionRegistry
+from spec_orch.services.evolution.signal_bridge import build_evolution_signal_snapshot
 from spec_orch.services.harness_synthesizer import HarnessSynthesizer, RuleValidator
 from spec_orch.services.node_context_registry import get_node_context_spec
 
@@ -95,6 +97,7 @@ class EvolutionTrigger:
         self._counter_path = repo_root / ".spec_orch_evolution" / "run_counter.json"
         self._context_assembler = ContextAssembler()
         self._policy = policy or EvolutionPolicy(global_min_runs=config.trigger_after_n_runs)
+        self._promotion_registry = PromotionRegistry(repo_root)
 
     def _read_counter(self) -> int:
         if not self._counter_path.exists():
@@ -266,6 +269,8 @@ class EvolutionTrigger:
         """Execute the four-phase lifecycle for a single evolver."""
         name = evolver.EVOLVER_NAME
         context = self._assemble_evolver_context(name)
+        signal_snapshot = build_evolution_signal_snapshot(context)
+        signal_payload = signal_snapshot.to_dict()
         run_dirs = self._collect_run_dirs()
         try:
             evidence = evolver.observe(run_dirs, context=context)
@@ -273,14 +278,14 @@ class EvolutionTrigger:
                 self._write_journal_entry(
                     evolver_name=name,
                     stage="observe",
-                    payload={"evidence_count": 0, "skipped": True},
+                    payload={"evidence_count": 0, "skipped": True, **signal_payload},
                 )
                 logger.debug("%s: no evidence collected, skipping", name)
                 return
             self._write_journal_entry(
                 evolver_name=name,
                 stage="observe",
-                payload={"evidence_count": len(evidence)},
+                payload={"evidence_count": len(evidence), **signal_payload},
             )
 
             proposals = evolver.propose(evidence, context=context)
@@ -288,14 +293,14 @@ class EvolutionTrigger:
                 self._write_journal_entry(
                     evolver_name=name,
                     stage="propose",
-                    payload={"proposal_count": 0, "skipped": True},
+                    payload={"proposal_count": 0, "skipped": True, **signal_payload},
                 )
                 logger.debug("%s: no proposals generated", name)
                 return
             self._write_journal_entry(
                 evolver_name=name,
                 stage="propose",
-                payload={"proposal_count": len(proposals)},
+                payload={"proposal_count": len(proposals), **signal_payload},
             )
 
             promoted_any = False
@@ -312,6 +317,7 @@ class EvolutionTrigger:
                         "validation_method": outcome.validation_method.value,
                         "reason": outcome.reason,
                         "metrics": outcome.metrics,
+                        **signal_payload,
                     },
                 )
                 if outcome.accepted:
@@ -323,13 +329,44 @@ class EvolutionTrigger:
                             proposal.proposal_id,
                         )
                         continue
-                    ok = evolver.promote(proposal)
-                    if ok:
-                        promoted_any = True
+                    gate = self._promotion_registry.evaluate_gate(
+                        proposal,
+                        reviewed_evidence_count=signal_snapshot.reviewed_evidence_count,
+                        signal_origins=signal_snapshot.signal_origins,
+                    )
+                    if not gate.allowed:
                         self._write_journal_entry(
                             evolver_name=name,
                             stage="promote",
-                            payload={"proposal_id": proposal.proposal_id, "promoted": True},
+                            payload={
+                                "proposal_id": proposal.proposal_id,
+                                "promotion_blocked": True,
+                                "reason": gate.reason,
+                                "promotion_origin": gate.origin.value,
+                                "reviewed_evidence_count": gate.reviewed_evidence_count,
+                                "signal_origins": gate.signal_origins,
+                            },
+                        )
+                        continue
+                    ok = evolver.promote(proposal)
+                    if ok:
+                        promoted_any = True
+                        promotion_record = self._promotion_registry.record_promotion(
+                            proposal,
+                            origin=gate.origin,
+                            reviewed_evidence_count=gate.reviewed_evidence_count,
+                            signal_origins=gate.signal_origins,
+                        )
+                        self._write_journal_entry(
+                            evolver_name=name,
+                            stage="promote",
+                            payload={
+                                "proposal_id": proposal.proposal_id,
+                                "promoted": True,
+                                "promotion_id": promotion_record.promotion_id,
+                                "promotion_origin": gate.origin.value,
+                                **signal_payload,
+                            },
                         )
                         logger.info(
                             "%s: promoted proposal %s",
