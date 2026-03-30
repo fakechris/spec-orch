@@ -1,0 +1,111 @@
+{
+  "review": {
+    "status": "warn",
+    "summary": "Exploratory review found that mission surfaces change state without giving enough orientation to a first-time operator.",
+    "confidence": 0.87,
+    "evaluator": "acceptance_llm",
+    "acceptance_mode": "exploratory",
+    "coverage_status": "complete",
+    "tested_routes": [
+      "/",
+      "/?mission=operator-console&mode=missions&tab=overview",
+      "/?mission=operator-console&mode=missions&tab=acceptance"
+    ],
+    "untested_expected_routes": [],
+    "recommended_next_step": "Hold orientation critique for operator review before filing.",
+    "findings": [
+      {
+        "severity": "medium",
+        "summary": "Mission surface orientation is easy to lose during review",
+        "details": "The operator can switch surfaces, but the main pane does not strongly reinforce what changed or why that surface matters next.",
+        "expected": "A first-time operator can immediately tell what surface they are on and what the next review action should be.",
+        "actual": "Surface changes succeed, but the operator must infer the new review context from surrounding clues.",
+        "route": "/?mission=operator-console&mode=missions&tab=acceptance",
+        "critique_axis": "surface_orientation",
+        "operator_task": "re-establish mission review context after switching surfaces",
+        "why_it_matters": "Weak orientation increases the risk of reviewing the wrong evidence or missing the next action.",
+        "artifact_paths": {
+          "screenshot": "rounds/round-05/visual/acceptance.png"
+        }
+      }
+    ],
+    "issue_proposals": [
+      {
+        "title": "Strengthen surface orientation cues in mission review panes",
+        "summary": "Exploratory acceptance found that review surfaces need clearer context cues so operators understand where they are and why the surface matters.",
+        "severity": "medium",
+        "confidence": 0.87,
+        "repro_steps": [
+          "Open a mission overview.",
+          "Switch into the acceptance tab.",
+          "Try to explain the new review context without using route or prior knowledge."
+        ],
+        "expected": "The new surface clearly explains the current review context and likely next action.",
+        "actual": "The operator must infer the context from surrounding layout and labels.",
+        "route": "/?mission=operator-console&mode=missions&tab=acceptance",
+        "critique_axis": "surface_orientation",
+        "operator_task": "re-establish mission review context after switching surfaces",
+        "why_it_matters": "Operators should not have to reconstruct context every time they switch tabs.",
+        "hold_reason": "Exploratory UX critique should be reviewed before filing.",
+        "artifact_paths": {
+          "screenshot": "rounds/round-05/visual/acceptance.png"
+        },
+        "linear_issue_id": "",
+        "filing_status": "",
+        "filing_error": ""
+      }
+    ],
+    "artifacts": {
+      "acceptance_review": "rounds/round-05/acceptance_review.json"
+    },
+    "campaign": {
+      "mode": "exploratory",
+      "goal": "Dogfood mission surface orientation as a first-time operator.",
+      "primary_routes": [
+        "/",
+        "/?mission=operator-console&mode=missions&tab=overview"
+      ],
+      "related_routes": [
+        "/?mission=operator-console&mode=missions&tab=acceptance"
+      ],
+      "interaction_plans": {},
+      "coverage_expectations": [
+        "operator can preserve mission context while switching surfaces"
+      ],
+      "required_interactions": [
+        "open mission overview",
+        "switch into a deeper review surface"
+      ],
+      "min_primary_routes": 2,
+      "related_route_budget": 2,
+      "interaction_budget": "wide",
+      "filing_policy": "hold_ux_concerns_for_operator_review",
+      "exploration_budget": "wide",
+      "seed_routes": [
+        "/",
+        "/?mission=operator-console&mode=missions&tab=overview"
+      ],
+      "allowed_expansions": [
+        "/?mission=operator-console&mode=missions&tab=acceptance"
+      ],
+      "critique_focus": [
+        "information architecture confusion",
+        "operator comprehension",
+        "task continuity"
+      ],
+      "stop_conditions": [
+        "stop when the route budget is exhausted",
+        "stop when no adjacent surface adds new operator evidence"
+      ],
+      "evidence_budget": "bounded"
+    }
+  },
+  "expected": {
+    "filed_statuses": [
+      "skipped"
+    ],
+    "linear_calls": 0,
+    "acceptance_mode": "exploratory",
+    "coverage_status": "complete"
+  }
+}

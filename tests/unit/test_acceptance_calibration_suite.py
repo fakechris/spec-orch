@@ -42,6 +42,7 @@ class _StubLinearClient:
         ("feature_scoped_launcher_regression", "launcher-smoke", 2),
         ("workflow_dashboard_repair_loop", "workflow-smoke", 4),
         ("exploratory_dashboard_ux_hold", "operator-console-smoke", 3),
+        ("exploratory_dashboard_orientation_hold", "operator-console-smoke", 5),
     ],
 )
 def test_acceptance_calibration_fixture_round_trips_and_applies_filing_policy(
@@ -104,3 +105,45 @@ def test_acceptance_calibration_dogfood_fixture_builds_dashboard_summary(tmp_pat
     assert latest["acceptance_mode"] == payload["expected"]["latest_review"]["acceptance_mode"]
     assert data["reviews"][0]["round_id"] == 1
     assert data["reviews"][-1]["round_id"] == 3
+
+
+def test_exploratory_calibration_fixture_carries_bounded_exploration_contract() -> None:
+    payload = _load_fixture("exploratory_dashboard_ux_hold")
+    result = AcceptanceReviewResult.from_dict(payload["review"])
+
+    assert result.campaign is not None
+    assert result.campaign.mode.value == "exploratory"
+    assert result.campaign.seed_routes == [
+        "/",
+        "/?mission=operator-console&mode=missions&tab=overview",
+    ]
+    assert result.campaign.allowed_expansions == [
+        "/?mission=operator-console&mode=missions&tab=transcript",
+        "/?mission=operator-console&mode=missions&tab=acceptance",
+        "/?mission=operator-console&mode=missions&tab=costs",
+    ]
+    assert result.campaign.critique_focus == [
+        "information architecture confusion",
+        "ambiguous terminology",
+        "discoverability gaps",
+    ]
+    assert result.campaign.stop_conditions == [
+        "stop when the route budget is exhausted",
+        "stop when no adjacent surface adds new operator evidence",
+    ]
+    assert result.campaign.evidence_budget == "bounded"
+
+
+def test_exploratory_dashboard_calibration_fixtures_capture_dashboard_critique_axes() -> None:
+    transcript_payload = _load_fixture("exploratory_dashboard_ux_hold")
+    transcript_result = AcceptanceReviewResult.from_dict(transcript_payload["review"])
+    orientation_payload = _load_fixture("exploratory_dashboard_orientation_hold")
+    orientation_result = AcceptanceReviewResult.from_dict(orientation_payload["review"])
+
+    assert transcript_result.findings[0].critique_axis == "evidence_discoverability"
+    assert transcript_result.issue_proposals[0].hold_reason
+    assert orientation_result.findings[0].critique_axis in {
+        "surface_orientation",
+        "task_continuity",
+    }
+    assert orientation_result.issue_proposals[0].why_it_matters

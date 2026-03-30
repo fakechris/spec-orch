@@ -672,6 +672,9 @@ class AcceptanceFinding:
     actual: str = ""
     route: str = ""
     artifact_paths: dict[str, str] = field(default_factory=dict)
+    critique_axis: str = ""
+    operator_task: str = ""
+    why_it_matters: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -682,6 +685,9 @@ class AcceptanceFinding:
             "actual": self.actual,
             "route": self.route,
             "artifact_paths": self.artifact_paths,
+            "critique_axis": self.critique_axis,
+            "operator_task": self.operator_task,
+            "why_it_matters": self.why_it_matters,
         }
 
     @classmethod
@@ -694,6 +700,9 @@ class AcceptanceFinding:
             actual=data.get("actual", ""),
             route=data.get("route", ""),
             artifact_paths=data.get("artifact_paths", {}),
+            critique_axis=data.get("critique_axis", ""),
+            operator_task=data.get("operator_task", ""),
+            why_it_matters=data.get("why_it_matters", ""),
         )
 
 
@@ -751,6 +760,11 @@ class AcceptanceCampaign:
     interaction_budget: str = ""
     filing_policy: str = ""
     exploration_budget: str = ""
+    seed_routes: list[str] = field(default_factory=list)
+    allowed_expansions: list[str] = field(default_factory=list)
+    critique_focus: list[str] = field(default_factory=list)
+    stop_conditions: list[str] = field(default_factory=list)
+    evidence_budget: str = ""
 
     @staticmethod
     def _safe_int(value: Any, default: int = 0) -> int:
@@ -778,10 +792,23 @@ class AcceptanceCampaign:
             "interaction_budget": self.interaction_budget,
             "filing_policy": self.filing_policy,
             "exploration_budget": self.exploration_budget,
+            "seed_routes": self.seed_routes,
+            "allowed_expansions": self.allowed_expansions,
+            "critique_focus": self.critique_focus,
+            "stop_conditions": self.stop_conditions,
+            "evidence_budget": self.evidence_budget,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AcceptanceCampaign:
+        def _coerce_str_list(value: Any) -> list[str]:
+            if isinstance(value, str):
+                stripped = value.strip()
+                return [stripped] if stripped else []
+            if not isinstance(value, list):
+                return []
+            return [str(item) for item in value if isinstance(item, str) and item.strip()]
+
         return cls(
             mode=AcceptanceMode(data.get("mode", AcceptanceMode.EXPLORATORY.value)),
             goal=data.get("goal", ""),
@@ -803,6 +830,11 @@ class AcceptanceCampaign:
             interaction_budget=data.get("interaction_budget", ""),
             filing_policy=data.get("filing_policy", ""),
             exploration_budget=data.get("exploration_budget", ""),
+            seed_routes=_coerce_str_list(data.get("seed_routes", [])),
+            allowed_expansions=_coerce_str_list(data.get("allowed_expansions", [])),
+            critique_focus=_coerce_str_list(data.get("critique_focus", [])),
+            stop_conditions=_coerce_str_list(data.get("stop_conditions", [])),
+            evidence_budget=data.get("evidence_budget", ""),
         )
 
 
@@ -817,6 +849,10 @@ class AcceptanceIssueProposal:
     actual: str = ""
     route: str = ""
     artifact_paths: dict[str, str] = field(default_factory=dict)
+    critique_axis: str = ""
+    operator_task: str = ""
+    why_it_matters: str = ""
+    hold_reason: str = ""
     linear_issue_id: str = ""
     filing_status: str = ""
     filing_error: str = ""
@@ -832,6 +868,10 @@ class AcceptanceIssueProposal:
             "actual": self.actual,
             "route": self.route,
             "artifact_paths": self.artifact_paths,
+            "critique_axis": self.critique_axis,
+            "operator_task": self.operator_task,
+            "why_it_matters": self.why_it_matters,
+            "hold_reason": self.hold_reason,
             "linear_issue_id": self.linear_issue_id,
             "filing_status": self.filing_status,
             "filing_error": self.filing_error,
@@ -849,6 +889,10 @@ class AcceptanceIssueProposal:
             actual=data.get("actual", ""),
             route=data.get("route", ""),
             artifact_paths=data.get("artifact_paths", {}),
+            critique_axis=data.get("critique_axis", ""),
+            operator_task=data.get("operator_task", ""),
+            why_it_matters=data.get("why_it_matters", ""),
+            hold_reason=data.get("hold_reason", ""),
             linear_issue_id=data.get("linear_issue_id", ""),
             filing_status=data.get("filing_status", ""),
             filing_error=data.get("filing_error", ""),

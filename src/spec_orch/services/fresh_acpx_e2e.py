@@ -186,6 +186,49 @@ def materialize_fresh_execution_artifacts(
     }
 
 
+def build_fresh_exploratory_artifacts(
+    *,
+    repo_root: Path,
+    mission_id: str,
+    round_dir: Path,
+    mission_payload: dict[str, Any],
+    browser_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    artifacts: dict[str, Any] = {
+        "mission": dict(mission_payload),
+        "browser_evidence": dict(browser_evidence),
+    }
+    report_payload = _read_json(round_dir / "fresh_acpx_mission_e2e_report.json")
+    if report_payload:
+        artifacts["fresh_acpx_mission_e2e_report"] = report_payload
+        fresh_execution = report_payload.get("fresh_execution")
+        workflow_replay = report_payload.get("workflow_replay")
+        if isinstance(fresh_execution, dict) and fresh_execution:
+            artifacts["fresh_execution"] = fresh_execution
+        if isinstance(workflow_replay, dict) and workflow_replay:
+            artifacts["workflow_replay"] = workflow_replay
+            review_routes = workflow_replay.get("review_routes")
+            if isinstance(review_routes, dict) and review_routes:
+                artifacts["review_routes"] = review_routes
+            workflow_assertions = workflow_replay.get("workflow_assertions")
+            if isinstance(workflow_assertions, list) and workflow_assertions:
+                artifacts["workflow_assertions"] = workflow_assertions
+        if "fresh_execution" in artifacts and "workflow_replay" in artifacts:
+            artifacts["proof_split"] = {
+                "fresh_execution": artifacts["fresh_execution"],
+                "workflow_replay": artifacts["workflow_replay"],
+            }
+
+    prior_acceptance = _read_json(round_dir / "acceptance_review.json")
+    if prior_acceptance:
+        artifacts["workflow_acceptance_review"] = prior_acceptance
+    round_summary = _read_json(round_dir / "round_summary.json")
+    if round_summary:
+        artifacts["round_summary"] = round_summary
+
+    return artifacts
+
+
 def write_fresh_acpx_mission_report(
     *,
     round_dir: Path,

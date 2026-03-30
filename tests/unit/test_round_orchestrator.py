@@ -850,15 +850,191 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     exploratory = orchestrator._build_acceptance_campaign(
         mission_id="mission-1", artifacts=artifacts
     )
-    assert exploratory.min_primary_routes == 1
-    assert exploratory.related_route_budget == 5
+    assert exploratory.primary_routes == [
+        "/",
+        "/?mission=mission-1&tab=overview",
+    ]
+    assert exploratory.seed_routes == [
+        "/",
+        "/?mission=mission-1&tab=overview",
+    ]
+    assert exploratory.min_primary_routes == 2
+    assert exploratory.related_route_budget == 4
+    assert exploratory.related_routes == [
+        "/?mission=mission-1&tab=transcript",
+        "/?mission=mission-1&tab=acceptance",
+        "/?mission=mission-1&tab=costs",
+        "/?mission=mission-1&tab=visual",
+    ]
+    assert exploratory.allowed_expansions == [
+        "/?mission=mission-1&tab=transcript",
+        "/?mission=mission-1&tab=acceptance",
+        "/?mission=mission-1&tab=costs",
+        "/?mission=mission-1&tab=visual",
+    ]
     assert exploratory.interaction_budget == "wide"
+    assert exploratory.evidence_budget == "bounded"
     assert exploratory.required_interactions == [
         "complete the intended operator task",
         "switch into adjacent surfaces when the task suggests it",
     ]
-    assert exploratory.interaction_plans["/?mission=mission-1&tab=costs"][0].target == "Transcript"
-    assert exploratory.interaction_plans["/?mission=mission-1&tab=costs"][-1].target == "Costs"
+    assert exploratory.coverage_expectations == [
+        "operator can establish launcher context",
+        "operator can inspect mission detail from the overview surface",
+        "operator can expand into adjacent mission surfaces",
+        "operator can inspect at least one deeper evidence surface",
+    ]
+    assert exploratory.critique_focus == [
+        "information architecture confusion",
+        "ambiguous terminology",
+        "discoverability gaps",
+        "context switching friction",
+    ]
+    assert exploratory.stop_conditions == [
+        "stop when the route budget is exhausted",
+        "stop when no adjacent surface adds new operator evidence",
+        "stop after confirming a materially broken flow",
+    ]
+    assert (
+        exploratory.interaction_plans["/"][0].target == '[data-automation-target="open-launcher"]'
+    )
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=overview"][0].target
+        == '[data-automation-target="mission-detail-ready"][data-mission-id="mission-1"]'
+    )
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=overview"][1].target
+        == '[data-automation-target="mission-tab"][data-tab-key="transcript"]'
+    )
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][0].target
+        == '[data-automation-target="transcript-filter"][data-filter-key="all"]'
+    )
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][2].target
+        == '[data-automation-target="packet-row"]'
+    )
+    assert exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][2].timeout_ms == 1500
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][4].target
+        == '[data-automation-target="transcript-block"]'
+    )
+    assert exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][4].timeout_ms == 1500
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=acceptance"][0].target
+        == '[data-automation-target="internal-route"][data-route-label="Open acceptance review"]'
+    )
+    assert exploratory.interaction_plans["/?mission=mission-1&tab=acceptance"][0].timeout_ms == 1500
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=visual"][0].target
+        == '[data-automation-target="internal-route"][data-route-label="Open visual review"]'
+    )
+    assert exploratory.interaction_plans["/?mission=mission-1&tab=visual"][0].timeout_ms == 1500
+
+
+def test_build_acceptance_campaign_honors_explicit_mode_override(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from spec_orch.domain.models import AcceptanceMode
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    mission_dir = tmp_path / "docs/specs/mission-1"
+    mission_dir.mkdir(parents=True)
+    (mission_dir / "mission.json").write_text(
+        json.dumps(
+            {
+                "mission_id": "mission-1",
+                "title": "Mission 1",
+                "acceptance_criteria": ["launcher works"],
+                "constraints": [],
+                "approved": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    artifacts = {
+        "review_routes": {
+            "overview": "/?mission=mission-1&tab=overview",
+            "transcript": "/?mission=mission-1&tab=transcript",
+            "acceptance": "/?mission=mission-1&tab=acceptance",
+            "costs": "/?mission=mission-1&tab=costs",
+        },
+    }
+
+    monkeypatch.delenv("SPEC_ORCH_ACCEPTANCE_MODE", raising=False)
+
+    campaign = orchestrator._build_acceptance_campaign(
+        mission_id="mission-1",
+        artifacts=artifacts,
+        mode_override=AcceptanceMode.EXPLORATORY,
+    )
+
+    assert campaign.mode is AcceptanceMode.EXPLORATORY
+    assert campaign.seed_routes == ["/", "/?mission=mission-1&tab=overview"]
+    assert campaign.critique_focus == [
+        "information architecture confusion",
+        "ambiguous terminology",
+        "discoverability gaps",
+        "context switching friction",
+    ]
+    assert (
+        campaign.interaction_plans["/?mission=mission-1&tab=costs"][0].target
+        == '[data-automation-target="internal-route"][data-route-label="Open cost review"]'
+    )
+
+
+def test_build_acceptance_campaign_uses_default_dashboard_review_routes_for_exploratory(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from spec_orch.domain.models import AcceptanceMode
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    mission_dir = tmp_path / "docs/specs/mission-2"
+    mission_dir.mkdir(parents=True)
+    (mission_dir / "mission.json").write_text(
+        json.dumps(
+            {
+                "mission_id": "mission-2",
+                "title": "Mission 2",
+                "acceptance_criteria": ["dashboard is usable"],
+                "constraints": [],
+                "approved": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    monkeypatch.delenv("SPEC_ORCH_ACCEPTANCE_MODE", raising=False)
+
+    campaign = orchestrator._build_acceptance_campaign(
+        mission_id="mission-2",
+        artifacts={},
+        mode_override=AcceptanceMode.EXPLORATORY,
+    )
+
+    assert campaign.primary_routes == [
+        "/",
+        "/?mission=mission-2&mode=missions&tab=overview",
+    ]
+    assert campaign.related_routes == [
+        "/?mission=mission-2&mode=missions&tab=transcript",
+        "/?mission=mission-2&mode=missions&tab=acceptance",
+        "/?mission=mission-2&mode=missions&tab=costs",
+        "/?mission=mission-2&mode=missions&tab=visual",
+    ]
 
 
 def test_build_acceptance_campaign_escapes_mission_id_for_workflow_css_selector(
