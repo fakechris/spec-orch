@@ -34,6 +34,7 @@ from spec_orch.services.context.context_ranker import (
     RankedSection,
     _detect_chars_per_token,
 )
+from spec_orch.services.execution_semantics_reader import read_issue_execution_attempt
 from spec_orch.services.skill_format import SkillManifest
 
 logger = logging.getLogger(__name__)
@@ -392,6 +393,7 @@ class ContextAssembler:
         exclude_framework_events: bool = True,
     ) -> ExecutionContext:
         ctx = ExecutionContext()
+        normalized = read_issue_execution_attempt(workspace)
 
         if "file_tree" in required:
             ctx.file_tree = _truncate(self._read_file_tree(workspace), budget // 4)
@@ -399,7 +401,29 @@ class ContextAssembler:
         if "git_diff" in required:
             ctx.git_diff = _truncate(self._read_git_diff(workspace), budget // 3)
 
-        if manifest and "report" in manifest.artifacts:
+        if normalized is not None:
+            if normalized.outcome.verification is not None:
+                ctx.verification_results = self._parse_verification(
+                    {"verification": normalized.outcome.verification}
+                )
+            if normalized.outcome.gate is not None:
+                ctx.gate_report = self._parse_gate(normalized.outcome.gate)
+            if normalized.outcome.review is not None and isinstance(normalized.outcome.review, dict):
+                ctx.review_summary = ReviewSummary(
+                    verdict=normalized.outcome.review.get("verdict", "pending"),
+                    reviewed_by=normalized.outcome.review.get("reviewed_by"),
+                    report_path=None,
+                )
+            event_artifact = normalized.outcome.artifacts.get("event_log")
+            if event_artifact is not None:
+                events_path = Path(event_artifact.path)
+                if events_path.exists():
+                    raw = events_path.read_text()
+                    if exclude_framework_events:
+                        raw = self._filter_framework_events(raw)
+                    ctx.builder_events_summary = _truncate(raw, budget // 6)
+
+        if ctx.gate_report is None and manifest and "report" in manifest.artifacts:
             report_path = Path(manifest.artifacts["report"])
             if report_path.exists():
                 try:
@@ -409,7 +433,7 @@ class ContextAssembler:
                         ctx.gate_report = self._parse_gate(report)
                 except (json.JSONDecodeError, KeyError):
                     pass
-        elif manifest and "live" in manifest.artifacts:
+        elif ctx.gate_report is None and manifest and "live" in manifest.artifacts:
             live_path = Path(manifest.artifacts["live"])
             if live_path.exists():
                 try:
@@ -420,14 +444,14 @@ class ContextAssembler:
                 except (json.JSONDecodeError, KeyError):
                     pass
 
-        if manifest and "builder_events" in manifest.artifacts:
+        if ctx.builder_events_summary is None and manifest and "builder_events" in manifest.artifacts:
             events_path = Path(manifest.artifacts["builder_events"])
             if events_path.exists():
                 raw = events_path.read_text()
                 if exclude_framework_events:
                     raw = self._filter_framework_events(raw)
                 ctx.builder_events_summary = _truncate(raw, budget // 6)
-        elif manifest and "events" in manifest.artifacts:
+        elif ctx.builder_events_summary is None and manifest and "events" in manifest.artifacts:
             events_path = Path(manifest.artifacts["events"])
             if events_path.exists():
                 raw = events_path.read_text()
@@ -435,7 +459,7 @@ class ContextAssembler:
                     raw = self._filter_framework_events(raw)
                 ctx.builder_events_summary = _truncate(raw, budget // 6)
 
-        if manifest and "review_report" in manifest.artifacts:
+        if ctx.review_summary is None and manifest and "review_report" in manifest.artifacts:
             rr_path = Path(manifest.artifacts["review_report"])
             if rr_path.exists():
                 try:

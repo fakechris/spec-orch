@@ -8,6 +8,7 @@ from typing import Any
 from spec_orch.services.mission_service import MissionService
 from spec_orch.services.pipeline_checker import check_pipeline
 from spec_orch.services.promotion_service import load_plan
+from spec_orch.services.execution_semantics_reader import read_round_supervision_cycle
 
 from .approvals import _gather_latest_approval_request, _load_approval_history
 
@@ -109,15 +110,7 @@ def _mission_evidence_counts(specs_dir: Path) -> dict[str, int]:
             if (round_dir / "visual_evaluation.json").exists():
                 visual_round_count += 1
 
-    approval_action_count = 0
-    approval_path = operator_dir / "approval_actions.jsonl"
-    if approval_path.exists():
-        try:
-            approval_action_count = sum(
-                1 for line in approval_path.read_text(encoding="utf-8").splitlines() if line.strip()
-            )
-        except OSError:
-            approval_action_count = 0
+    approval_action_count = len(_load_approval_history(specs_dir.parents[2], specs_dir.name))
 
     return {
         "round_count": round_count,
@@ -346,23 +339,59 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
     round_summaries: list[dict[str, Any]] = []
     current_round = 0
     if rounds_dir.exists():
-        from spec_orch.domain.models import RoundSummary
-
         for round_dir in sorted(rounds_dir.glob("round-*")):
+            normalized = read_round_supervision_cycle(round_dir)
+            if normalized is not None:
+                summary_payload = normalized.get("summary", {})
+                if not isinstance(summary_payload, dict):
+                    summary_payload = {}
+                round_id = summary_payload.get("round_id")
+                if not isinstance(round_id, int):
+                    try:
+                        round_id = int(round_dir.name.split("-")[-1])
+                    except (TypeError, ValueError, IndexError):
+                        round_id = 0
+                current_round = max(current_round, round_id)
+                review_artifact = normalized.get("artifacts", {}).get("review_report")
+                visual_artifact = normalized.get("artifacts", {}).get("visual_report")
+                payload = dict(summary_payload)
+                payload["paths"] = {
+                    "round_dir": str(round_dir.relative_to(repo_root)),
+                    "review_memo": (
+                        str(Path(review_artifact.path).relative_to(repo_root))
+                        if review_artifact is not None
+                        else None
+                    ),
+                    "visual_evaluation": (
+                        str(Path(visual_artifact.path).relative_to(repo_root))
+                        if visual_artifact is not None
+                        else None
+                    ),
+                }
+                round_summaries.append(payload)
+                continue
+
             summary_path = round_dir / "round_summary.json"
             if not summary_path.exists():
                 continue
             try:
-                summary = RoundSummary.from_dict(
-                    json.loads(summary_path.read_text(encoding="utf-8"))
-                )
+                summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
             except (OSError, ValueError, json.JSONDecodeError):
                 logger.warning("Skipping malformed round summary: %s", summary_path)
                 continue
-            current_round = max(current_round, summary.round_id)
+            if not isinstance(summary_payload, dict):
+                logger.warning("Skipping non-object round summary: %s", summary_path)
+                continue
+            round_id = summary_payload.get("round_id")
+            if not isinstance(round_id, int):
+                try:
+                    round_id = int(round_dir.name.split("-")[-1])
+                except (TypeError, ValueError, IndexError):
+                    round_id = 0
+            current_round = max(current_round, round_id)
             review_path = round_dir / "supervisor_review.md"
             visual_path = round_dir / "visual_evaluation.json"
-            payload = summary.to_dict()
+            payload = dict(summary_payload)
             payload["paths"] = {
                 "round_dir": str(round_dir.relative_to(repo_root)),
                 "review_memo": (

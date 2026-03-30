@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -192,6 +193,27 @@ def test_run_supervised_pauses_on_ask_human(tmp_path: Path) -> None:
     assert len(result.rounds) == 1
     assert result.last_decision is not None
     assert result.last_decision.action is RoundAction.ASK_HUMAN
+    intervention_history = [
+        json.loads(line)
+        for line in (
+            tmp_path / "docs" / "specs" / "mission-1" / "operator" / "interventions.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert intervention_history == [
+        {
+            "intervention_id": "mission-1-round-1-approval",
+            "decision_record_id": "mission-1-round-1-review",
+            "point_key": "mission.round.review",
+            "mission_id": "mission-1",
+            "round_id": 1,
+            "summary": "Need a human decision.",
+            "questions": ["Should packet 2 be dropped?"],
+            "status": "open",
+            "created_at": intervention_history[0]["created_at"],
+            "review_route": "/?mission=mission-1&mode=missions&tab=approvals&round=1",
+        }
+    ]
 
 
 def test_run_supervised_enriches_supervisor_context_and_persists_visual_eval(
@@ -1939,3 +1961,62 @@ def test_collect_artifacts_records_verification_gate_and_manifest_paths(tmp_path
     assert artifacts.gate_verdicts[0]["mergeable"] is True
     assert str(report_path) in artifacts.manifest_paths
     assert any(path.endswith("src/contracts/mission_types.ts") for path in artifacts.manifest_paths)
+
+
+def test_persist_round_delegates_normalized_supervision_payload_write(tmp_path: Path) -> None:
+    from spec_orch.domain.models import (
+        RoundAction,
+        RoundDecision,
+        RoundSummary,
+        RoundStatus,
+        SessionOps,
+    )
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    round_dir = tmp_path / "docs" / "specs" / "mission-1" / "rounds" / "round-01"
+    summary = RoundSummary(round_id=1, wave_id=0, status=RoundStatus.DECIDED)
+    summary.decision = RoundDecision(
+        action=RoundAction.ASK_HUMAN,
+        summary="Need approval.",
+        reason_code="needs_review",
+        confidence=0.7,
+        session_ops=SessionOps(reuse=[], spawn=[], cancel=[]),
+        blocking_questions=["Approve?"],
+    )
+
+    delegated: dict[str, object] = {}
+
+    def fake_write_round_supervision_payloads(
+        round_dir_arg: Path,
+        *,
+        summary: dict,
+        decision: dict | None,
+    ) -> dict[str, Path]:
+        delegated["round_dir"] = round_dir_arg
+        delegated["summary"] = summary
+        delegated["decision"] = decision
+        round_dir_arg.mkdir(parents=True, exist_ok=True)
+        summary_path = round_dir_arg / "round_summary.json"
+        summary_path.write_text(json.dumps(summary), encoding="utf-8")
+        written = {"summary": summary_path}
+        if decision is not None:
+            decision_path = round_dir_arg / "round_decision.json"
+            decision_path.write_text(json.dumps(decision), encoding="utf-8")
+            written["decision"] = decision_path
+        return written
+
+    with patch(
+        "spec_orch.services.round_orchestrator.write_round_supervision_payloads",
+        fake_write_round_supervision_payloads,
+    ):
+        orchestrator._persist_round(round_dir, summary)
+
+    assert delegated["round_dir"] == round_dir
+    assert isinstance(delegated["summary"], dict)
+    assert isinstance(delegated["decision"], dict)

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.compliance import default_turn_contract_compliance
+from spec_orch.runtime_core.paths import normalized_issue_live_path, normalized_issue_manifest_path
 from spec_orch.domain.models import (
     ArtifactManifest,
     BuilderResult,
@@ -34,7 +35,7 @@ class RunReportWriter:
         1) run_artifact/live.json
         2) report.json
         """
-        live_path = workspace / "run_artifact" / "live.json"
+        live_path = normalized_issue_live_path(workspace)
         report_path = workspace / "report.json"
 
         live_data = RunReportWriter.read_json_dict(live_path)
@@ -154,7 +155,7 @@ class RunReportWriter:
             artifacts=artifacts,
             metadata={
                 "compatibility_mode": "legacy_manifest_bridge",
-                "canonical_manifest": str(workspace / "run_artifact" / "manifest.json"),
+                "canonical_manifest": str(normalized_issue_manifest_path(workspace)),
             },
         )
         manifest_path = workspace / "artifact_manifest.json"

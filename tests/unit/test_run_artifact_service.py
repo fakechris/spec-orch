@@ -51,3 +51,63 @@ def test_write_from_run_creates_unified_artifacts(tmp_path: Path) -> None:
     assert "report" in manifest["artifacts"]
     assert "builder_events" in manifest["artifacts"]
     assert manifest["artifacts"]["report"].endswith("run_artifact/live.json")
+
+
+def test_write_from_run_delegates_normalized_issue_payloads(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    workspace = tmp_path / "run-2"
+    workspace.mkdir()
+    report_path = workspace / "report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "state": "gate_evaluated",
+                "mergeable": False,
+                "failed_conditions": ["tests"],
+                "builder": {"adapter": "codex_exec", "succeeded": False},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    delegated: dict[str, object] = {}
+
+    def fake_write_issue_execution_payloads(
+        workspace_arg: Path,
+        *,
+        live: dict,
+        conclusion: dict,
+        manifest: dict,
+    ) -> dict[str, Path]:
+        delegated["workspace"] = workspace_arg
+        delegated["live"] = live
+        delegated["conclusion"] = conclusion
+        delegated["manifest"] = manifest
+        artifact_dir = workspace_arg / "run_artifact"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        return {
+            "live": artifact_dir / "live.json",
+            "conclusion": artifact_dir / "conclusion.json",
+            "manifest": artifact_dir / "manifest.json",
+        }
+
+    monkeypatch.setattr(
+        "spec_orch.services.run_artifact_service.write_issue_execution_payloads",
+        fake_write_issue_execution_payloads,
+    )
+
+    manifest_path = RunArtifactService().write_from_run(
+        workspace=workspace,
+        run_id="run-2",
+        issue_id="SON-2",
+        report_path=report_path,
+        explain_path=None,
+    )
+
+    assert manifest_path == workspace / "run_artifact" / "manifest.json"
+    assert delegated["workspace"] == workspace
+    assert isinstance(delegated["live"], dict)
+    assert isinstance(delegated["conclusion"], dict)
+    assert isinstance(delegated["manifest"], dict)

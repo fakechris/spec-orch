@@ -7,6 +7,8 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from spec_orch.services.execution_semantics_reader import read_issue_execution_attempt
+
 logger = logging.getLogger(__name__)
 
 RUN_DIRS = (".spec_orch_runs", ".worktrees")
@@ -162,6 +164,22 @@ class EvidenceAnalyzer:
 
     def read_report(self, run_dir: Path) -> dict | None:
         """Read run result from unified artifacts or legacy report.json."""
+        normalized = read_issue_execution_attempt(run_dir)
+        if normalized is not None:
+            return {
+                "run_id": normalized.attempt_id,
+                "issue_id": normalized.unit_id,
+                "mergeable": bool((normalized.outcome.gate or {}).get("mergeable", False)),
+                "verdict": (normalized.outcome.gate or {}).get("verdict"),
+                "state": (normalized.outcome.gate or {}).get("state"),
+                "failed_conditions": list(
+                    (normalized.outcome.gate or {}).get("failed_conditions", [])
+                ),
+                "verification": normalized.outcome.verification or {},
+                "builder": normalized.outcome.build or {},
+                "review": normalized.outcome.review or {},
+            }
+
         conclusion_path = run_dir / "run_artifact" / "conclusion.json"
         live_path = run_dir / "run_artifact" / "live.json"
         if conclusion_path.exists():

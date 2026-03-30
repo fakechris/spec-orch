@@ -7,6 +7,15 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+from spec_orch.domain.execution_semantics import (
+    ContinuityKind,
+    ExecutionAttempt,
+    ExecutionAttemptState,
+    ExecutionOutcome,
+    ExecutionOwnerKind,
+    ExecutionStatus,
+    ExecutionUnitKind,
+)
 from spec_orch.cli import app
 from spec_orch.services.evidence_analyzer import EvidenceAnalyzer, PatternSummary
 
@@ -125,6 +134,43 @@ def test_unified_artifacts_scanned_without_legacy_report(tmp_path: Path) -> None
     assert summary.successful_runs == 0
     assert summary.top_failure_reasons[0] == ("verification", 1)
     assert summary.average_verification_pass_rate == 0.0
+
+
+def test_analyzer_prefers_normalized_execution_attempt_reader(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    run_dir = tmp_path / ".spec_orch_runs" / "normalized-only"
+    run_dir.mkdir(parents=True)
+
+    normalized = ExecutionAttempt(
+        attempt_id="run-normalized",
+        unit_kind=ExecutionUnitKind.ISSUE,
+        unit_id="ISSUE-N",
+        owner_kind=ExecutionOwnerKind.RUN_CONTROLLER,
+        continuity_kind=ContinuityKind.FILE_BACKED_RUN,
+        workspace_root=str(run_dir),
+        attempt_state=ExecutionAttemptState.COMPLETED,
+        outcome=ExecutionOutcome(
+            unit_kind=ExecutionUnitKind.ISSUE,
+            owner_kind=ExecutionOwnerKind.RUN_CONTROLLER,
+            status=ExecutionStatus.FAILED,
+            build={"adapter": "codex"},
+            verification={"pytest": {"exit_code": 1, "command": "pytest"}},
+            gate={"mergeable": False, "failed_conditions": ["verification"]},
+            artifacts={},
+        ),
+    )
+
+    monkeypatch.setattr(
+        "spec_orch.services.evidence_analyzer.read_issue_execution_attempt",
+        lambda _: normalized,
+    )
+
+    summary = EvidenceAnalyzer(tmp_path).analyze()
+    assert summary.total_runs == 1
+    assert summary.failed_runs == 1
+    assert summary.top_failure_reasons[0] == ("verification", 1)
 
 
 def test_both_dirs_combined(tmp_path: Path) -> None:

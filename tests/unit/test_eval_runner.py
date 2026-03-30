@@ -5,6 +5,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from spec_orch.domain.execution_semantics import (
+    ContinuityKind,
+    ExecutionAttempt,
+    ExecutionAttemptState,
+    ExecutionOutcome,
+    ExecutionOwnerKind,
+    ExecutionStatus,
+    ExecutionUnitKind,
+)
 from spec_orch.services.eval_runner import EvalRunner
 
 
@@ -176,6 +185,43 @@ def test_eval_legacy_report_fallback(tmp_path: Path) -> None:
     assert report.total == 1
     assert report.passed == 1
     assert report.run_scores[0].builder_adapter == "claude"
+
+
+def test_eval_prefers_normalized_execution_attempt_reader(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    run_dir = tmp_path / ".spec_orch_runs" / "normalized-only"
+    run_dir.mkdir(parents=True)
+
+    normalized = ExecutionAttempt(
+        attempt_id="r-normalized",
+        unit_kind=ExecutionUnitKind.ISSUE,
+        unit_id="issue-normalized",
+        owner_kind=ExecutionOwnerKind.RUN_CONTROLLER,
+        continuity_kind=ContinuityKind.FILE_BACKED_RUN,
+        workspace_root=str(run_dir),
+        attempt_state=ExecutionAttemptState.COMPLETED,
+        outcome=ExecutionOutcome(
+            unit_kind=ExecutionUnitKind.ISSUE,
+            owner_kind=ExecutionOwnerKind.RUN_CONTROLLER,
+            status=ExecutionStatus.SUCCEEDED,
+            build={"adapter": "codex"},
+            verification={"test": {"exit_code": 0}},
+            gate={"mergeable": True, "verdict": "pass", "failed_conditions": []},
+            artifacts={},
+        ),
+    )
+
+    monkeypatch.setattr(
+        "spec_orch.services.eval_runner.read_issue_execution_attempt",
+        lambda _: normalized,
+    )
+
+    report = EvalRunner(tmp_path).evaluate()
+    assert report.total == 1
+    assert report.passed == 1
+    assert report.run_scores[0].builder_adapter == "codex"
 
 
 def test_eval_adapter_breakdown(tmp_path: Path) -> None:

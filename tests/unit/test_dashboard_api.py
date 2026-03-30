@@ -9,6 +9,15 @@ from pathlib import Path
 
 import pytest
 
+from spec_orch.domain.execution_semantics import (
+    ContinuityKind,
+    ExecutionAttempt,
+    ExecutionAttemptState,
+    ExecutionOutcome,
+    ExecutionOwnerKind,
+    ExecutionStatus,
+    ExecutionUnitKind,
+)
 from spec_orch.services.event_bus import Event, EventTopic, get_event_bus
 
 try:
@@ -659,6 +668,117 @@ class TestDashboardAPI:
         assert data["items"][0]["approval_state"] == {
             "status": "revision_requested",
             "summary": "Operator requested revision",
+        }
+
+    def test_inbox_endpoint_surfaces_latest_operator_action_from_decision_core_response_history(
+        self,
+        client,
+        repo: Path,
+    ):
+        mission_id = "mission-approval-history-core"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-01"
+        operator_dir = specs / "operator"
+        specs.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
+        operator_dir.mkdir(parents=True)
+
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Approval History Core",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "approved_at": "2026-03-25T00:05:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Approval History Core\n", encoding="utf-8")
+        (round_dir / "round_summary.json").write_text(
+            json.dumps(
+                {
+                    "round_id": 1,
+                    "wave_id": 0,
+                    "status": "decided",
+                    "started_at": "2026-03-25T00:10:00+00:00",
+                    "completed_at": "2026-03-25T00:11:00+00:00",
+                    "worker_results": [],
+                    "decision": {
+                        "action": "ask_human",
+                        "reason_code": "needs_approval",
+                        "summary": "Need operator approval before rollout.",
+                        "confidence": 0.8,
+                        "affected_workers": [],
+                        "artifacts": {},
+                        "session_ops": {"reuse": [], "spawn": [], "cancel": []},
+                        "blocking_questions": ["Approve this rollout?"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (operator_dir / "intervention_responses.jsonl").write_text(
+            json.dumps(
+                {
+                    "timestamp": "2026-03-25T00:20:00+00:00",
+                    "intervention_id": "int-1",
+                    "decision_record_id": "mission-approval-history-core-round-1-review",
+                    "action_key": "approve",
+                    "label": "Approve",
+                    "message": "@approve Approve this rollout?",
+                    "channel": "web-dashboard",
+                    "status": "applied",
+                    "effect": "approval_granted",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (repo / ".spec_orch_runs" / "lifecycle_state.json").write_text(
+            json.dumps(
+                {
+                    mission_id: {
+                        "mission_id": mission_id,
+                        "phase": "executing",
+                        "issue_ids": ["SON-9003"],
+                        "completed_issues": [],
+                        "error": None,
+                        "updated_at": "2026-03-25T00:21:00+00:00",
+                        "current_round": 1,
+                        "round_orchestrator_state": {
+                            "paused": True,
+                            "blocking_questions": ["Approve this rollout?"],
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        response = client.get("/api/inbox")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["items"][0]["latest_operator_action"] == {
+            "timestamp": "2026-03-25T00:20:00+00:00",
+            "intervention_id": "int-1",
+            "decision_record_id": "mission-approval-history-core-round-1-review",
+            "action_key": "approve",
+            "label": "Approve",
+            "message": "@approve Approve this rollout?",
+            "channel": "web-dashboard",
+            "status": "applied",
+            "effect": "approval_granted",
+        }
+        assert data["items"][0]["approval_state"] == {
+            "status": "approval_granted",
+            "summary": "Operator approved this round",
         }
 
     def test_approvals_endpoint_returns_dedicated_queue(self, client, repo: Path, monkeypatch):
@@ -3477,6 +3597,39 @@ class TestDashboardAPI:
         r = client.get("/api/runs")
         assert r.status_code == 200
         assert isinstance(r.json(), list)
+
+    def test_runs_endpoint_prefers_normalized_execution_attempt(self, client, repo: Path, monkeypatch):
+        ws = repo / ".spec_orch_runs" / "R2"
+        ws.mkdir(parents=True)
+
+        normalized = ExecutionAttempt(
+            attempt_id="run-r2",
+            unit_kind=ExecutionUnitKind.ISSUE,
+            unit_id="SON-R2",
+            owner_kind=ExecutionOwnerKind.RUN_CONTROLLER,
+            continuity_kind=ContinuityKind.FILE_BACKED_RUN,
+            continuity_id="run-r2",
+            workspace_root=str(ws),
+            attempt_state=ExecutionAttemptState.COMPLETED,
+            outcome=ExecutionOutcome(
+                unit_kind=ExecutionUnitKind.ISSUE,
+                owner_kind=ExecutionOwnerKind.RUN_CONTROLLER,
+                status=ExecutionStatus.SUCCEEDED,
+                build={"adapter": "codex", "succeeded": True},
+                gate={"mergeable": True, "state": "merged", "failed_conditions": []},
+                artifacts={},
+            ),
+        )
+        monkeypatch.setattr(
+            "spec_orch.dashboard.control.read_issue_execution_attempt",
+            lambda path: normalized if path == ws else None,
+        )
+
+        r = client.get("/api/runs")
+
+        assert r.status_code == 200
+        runs = r.json()
+        assert any(item["issue_id"] == "SON-R2" and item["builder_adapter"] == "codex" for item in runs)
 
     def test_events_endpoint(self, client):
         bus = get_event_bus()

@@ -15,6 +15,8 @@ from spec_orch.domain.models import (
     RoundDecision,
     RoundSummary,
 )
+from spec_orch.decision_core.records import build_round_review_decision_record
+from spec_orch.decision_core.review_queue import write_round_decision_record
 from spec_orch.services.constitutions import (
     SUPERVISOR_CONSTITUTION,
     build_role_system_prompt,
@@ -87,8 +89,23 @@ class LiteLLMSupervisorAdapter:
         review_text, decision = self._parse_output(raw_output)
 
         round_dir = self._round_dir(round_artifacts.mission_id, round_artifacts.round_id)
-        atomic_write_text(round_dir / "supervisor_review.md", review_text)
-        atomic_write_json(round_dir / "round_decision.json", decision.to_dict())
+        review_path = round_dir / "supervisor_review.md"
+        decision_path = round_dir / "round_decision.json"
+        atomic_write_text(review_path, review_text)
+        atomic_write_json(decision_path, decision.to_dict())
+        write_round_decision_record(
+            round_dir,
+            build_round_review_decision_record(
+                mission_id=round_artifacts.mission_id,
+                round_id=round_artifacts.round_id,
+                owner="litellm_supervisor_adapter",
+                decision=decision,
+                context_artifacts=[
+                    str(review_path.relative_to(self.repo_root)),
+                    str(decision_path.relative_to(self.repo_root)),
+                ],
+            ),
+        )
         return decision
 
     def _call_model(self, prompt: str) -> str:

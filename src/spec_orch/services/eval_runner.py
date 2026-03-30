@@ -17,6 +17,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.services.execution_semantics_reader import read_issue_execution_attempt
+
 logger = logging.getLogger(__name__)
 
 
@@ -166,6 +168,51 @@ class EvalRunner:
         return dirs
 
     def _score_run(self, run_dir: Path) -> RunScore | None:
+        normalized = read_issue_execution_attempt(run_dir)
+        if normalized is not None:
+            gate = normalized.outcome.gate or {}
+            raw_verdict = str(gate.get("verdict", "fail" if not gate.get("mergeable") else "pass"))
+            try:
+                verdict = Verdict(raw_verdict)
+            except ValueError:
+                verdict = Verdict.FAIL
+            mergeable = bool(gate.get("mergeable", False))
+            failed_conditions = gate.get("failed_conditions", [])
+            if not isinstance(failed_conditions, list):
+                failed_conditions = []
+
+            vr = self._verification_rate(normalized.outcome.verification)
+            dev_count = self._count_deviations(run_dir)
+            builder = normalized.outcome.build or {}
+            adapter = str(builder.get("adapter", "")) if isinstance(builder, dict) else ""
+            has_retro = (run_dir / "run_artifact" / "retro.json").exists() or (
+                run_dir / "retrospective.md"
+            ).exists()
+
+            conclusion = {
+                "state": gate.get("state"),
+                "mergeable": mergeable,
+                "verdict": raw_verdict,
+                "failed_conditions": failed_conditions,
+            }
+            live_data = {"builder": builder}
+            tags = self._extract_tags(conclusion, live_data)
+            outcome_checks = self._run_outcome_checks(run_dir, conclusion)
+
+            return RunScore(
+                run_id=normalized.attempt_id,
+                issue_id=normalized.unit_id,
+                verdict=verdict,
+                mergeable=mergeable,
+                failed_conditions=[str(f) for f in failed_conditions],
+                verification_pass_rate=vr,
+                deviation_count=dev_count,
+                builder_adapter=adapter,
+                has_retro=has_retro,
+                tags=tags,
+                outcome_checks=outcome_checks,
+            )
+
         conclusion = self._read_json(run_dir / "run_artifact" / "conclusion.json")
         live = self._read_json(run_dir / "run_artifact" / "live.json")
         report = self._read_json(run_dir / "report.json")

@@ -5,6 +5,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from spec_orch.services.execution_semantics_reader import read_round_supervision_cycle
+
 logger = logging.getLogger(__name__)
 
 
@@ -423,41 +425,128 @@ def _gather_round_evidence_blocks(
     if not rounds_dir.exists():
         return []
 
-    from spec_orch.domain.models import RoundSummary, VisualEvaluationResult
-
     blocks: list[dict[str, Any]] = []
     for round_dir in sorted(rounds_dir.glob("round-*")):
+        normalized = read_round_supervision_cycle(round_dir)
+        if normalized is not None:
+            summary = normalized.get("summary", {})
+            if not isinstance(summary, dict):
+                continue
+            worker_results = summary.get("worker_results", [])
+            if not isinstance(worker_results, list):
+                worker_results = []
+            if not any(
+                isinstance(result, dict) and result.get("packet_id") == packet_id
+                for result in worker_results
+            ):
+                continue
+            decision = normalized.get("decision", {})
+            if not isinstance(decision, dict):
+                decision = {}
+            artifacts = normalized.get("artifacts", {})
+
+            timestamp = str(summary.get("completed_at") or summary.get("started_at") or "")
+            if decision:
+                review_artifact = artifacts.get("review_report")
+                artifact_path = (
+                    str(Path(review_artifact.path).relative_to(repo_root))
+                    if review_artifact is not None
+                    else str((round_dir / "supervisor_review.md").relative_to(repo_root))
+                )
+                round_id = summary.get("round_id")
+                blocks.append(
+                    {
+                        "block_type": "supervisor",
+                        "emphasis": _block_emphasis("supervisor"),
+                        "timestamp": timestamp,
+                        "title": decision.get("summary") or "Supervisor decision",
+                        "body": decision.get("action", ""),
+                        "artifact_path": artifact_path,
+                        "review_route": _mission_route(
+                            mission_id,
+                            tab="approvals",
+                            round_id=round_id if isinstance(round_id, int) else None,
+                        ),
+                        "details": {
+                            "reason_code": decision.get("reason_code"),
+                            "confidence": decision.get("confidence"),
+                            "blocking_questions": decision.get("blocking_questions", []),
+                        },
+                        "jump_targets": _jump_targets_for_block(
+                            artifact_path=artifact_path,
+                        ),
+                    }
+                )
+
+            visual_artifact = artifacts.get("visual_report")
+            if visual_artifact is not None:
+                visual_path = Path(visual_artifact.path)
+                try:
+                    payload = json.loads(visual_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError, json.JSONDecodeError):
+                    continue
+                if not isinstance(payload, dict):
+                    continue
+                round_id = summary.get("round_id")
+                blocks.append(
+                    {
+                        "block_type": "visual_finding",
+                        "emphasis": _block_emphasis("visual_finding"),
+                        "timestamp": timestamp,
+                        "title": payload.get("summary") or "Visual evaluation result",
+                        "body": payload.get("evaluator", ""),
+                        "artifact_path": str(visual_path.relative_to(repo_root)),
+                        "review_route": _mission_route(
+                            mission_id,
+                            tab="visual",
+                            round_id=round_id if isinstance(round_id, int) else None,
+                        ),
+                        "details": {
+                            "confidence": payload.get("confidence"),
+                            "findings": payload.get("findings"),
+                            "artifacts": payload.get("artifacts"),
+                        },
+                        "jump_targets": _jump_targets_for_block(
+                            artifact_path=str(visual_path.relative_to(repo_root)),
+                            details={"artifacts": payload.get("artifacts")},
+                        ),
+                    }
+                )
+            continue
+
+        from spec_orch.domain.models import RoundSummary, VisualEvaluationResult
+
         summary_path = round_dir / "round_summary.json"
         if not summary_path.exists():
             continue
         try:
-            summary = RoundSummary.from_dict(json.loads(summary_path.read_text(encoding="utf-8")))
+            legacy_summary = RoundSummary.from_dict(json.loads(summary_path.read_text(encoding="utf-8")))
         except (OSError, ValueError, json.JSONDecodeError):
             continue
-        if not any(result.get("packet_id") == packet_id for result in summary.worker_results):
+        if not any(result.get("packet_id") == packet_id for result in legacy_summary.worker_results):
             continue
 
-        timestamp = summary.completed_at or summary.started_at or ""
-        if summary.decision is not None:
+        timestamp = legacy_summary.completed_at or legacy_summary.started_at or ""
+        if legacy_summary.decision is not None:
             blocks.append(
                 {
                     "block_type": "supervisor",
                     "emphasis": _block_emphasis("supervisor"),
                     "timestamp": timestamp,
-                    "title": summary.decision.summary or "Supervisor decision",
-                    "body": summary.decision.action.value,
+                    "title": legacy_summary.decision.summary or "Supervisor decision",
+                    "body": legacy_summary.decision.action.value,
                     "artifact_path": str(
                         (round_dir / "supervisor_review.md").relative_to(repo_root)
                     ),
                     "review_route": _mission_route(
                         mission_id,
                         tab="approvals",
-                        round_id=summary.round_id,
+                        round_id=legacy_summary.round_id,
                     ),
                     "details": {
-                        "reason_code": summary.decision.reason_code,
-                        "confidence": summary.decision.confidence,
-                        "blocking_questions": summary.decision.blocking_questions,
+                        "reason_code": legacy_summary.decision.reason_code,
+                        "confidence": legacy_summary.decision.confidence,
+                        "blocking_questions": legacy_summary.decision.blocking_questions,
                     },
                     "jump_targets": _jump_targets_for_block(
                         artifact_path=str(
@@ -486,7 +575,7 @@ def _gather_round_evidence_blocks(
                     "review_route": _mission_route(
                         mission_id,
                         tab="visual",
-                        round_id=summary.round_id,
+                        round_id=legacy_summary.round_id,
                     ),
                     "details": {
                         "confidence": visual.confidence,

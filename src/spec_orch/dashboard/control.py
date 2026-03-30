@@ -5,6 +5,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from spec_orch.services.execution_semantics_reader import read_issue_execution_attempt
+
 logger = logging.getLogger(__name__)
 
 
@@ -107,6 +109,18 @@ def _load_run_trend(repo_root: Path, metrics: dict[str, Any]) -> None:
 
 
 def _read_run_summary(run_dir: Path) -> dict[str, Any] | None:
+    normalized = read_issue_execution_attempt(run_dir)
+    if normalized is not None:
+        gate = normalized.outcome.gate or {}
+        return {
+            "run_id": normalized.attempt_id,
+            "issue_id": normalized.unit_id,
+            "state": gate.get("state", "unknown"),
+            "mergeable": gate.get("mergeable", False),
+            "failed_conditions": gate.get("failed_conditions", []),
+            "builder": normalized.outcome.build or {},
+        }
+
     for file_path, _kind in (
         (run_dir / "run_artifact" / "conclusion.json", "conclusion"),
         (run_dir / "report.json", "report"),
@@ -259,6 +273,27 @@ def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
         if not base.exists():
             continue
         for ws in sorted(base.iterdir()):
+            normalized = read_issue_execution_attempt(ws)
+            if normalized is not None:
+                gate = normalized.outcome.gate or {}
+                builder = normalized.outcome.build or {}
+                runs.append(
+                    {
+                        "issue_id": normalized.unit_id,
+                        "title": ws.name,
+                        "state": gate.get("state", "unknown"),
+                        "mergeable": gate.get("mergeable", False),
+                        "failed_conditions": gate.get("failed_conditions", []),
+                        "builder_adapter": builder.get("adapter", "")
+                        if isinstance(builder, dict)
+                        else "",
+                        "builder_succeeded": builder.get("succeeded", False)
+                        if isinstance(builder, dict)
+                        else False,
+                    }
+                )
+                continue
+
             report = ws / "report.json"
             conclusion = ws / "run_artifact" / "conclusion.json"
             try:
