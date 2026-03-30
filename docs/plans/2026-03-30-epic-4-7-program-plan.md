@@ -1,7 +1,7 @@
 # Epic 4-7 Program Plan After Epic 2-3 Merge
 
 **Date:** 2026-03-30  
-**Status:** Epic 4 semantic rebase landed; Epic 5 baseline aligned; Epic 6-7 pending  
+**Status:** Epic 4 semantic baseline landed but completion tranche remains; Epic 5 baseline aligned; Epic 6-7 pending  
 **Prerequisite baseline:** PR #163 merged (`runtime_core` + `decision_core` extraction complete for Epics 2-3)
 
 ## 1. Purpose
@@ -145,6 +145,11 @@ Current status:
 
 Epic 4 is now a stronger semantic baseline for the later epics rather than only
 a thin acceptance seam.
+
+However, Epic 4 is not yet "design-complete" against the three canonical
+references. The remaining gaps are tracked in:
+
+- `docs/plans/2026-03-30-epic-4-semantic-completion-tranche.md`
 
 ## 3.2 Epic 5: Memory and Learning Linkage
 
