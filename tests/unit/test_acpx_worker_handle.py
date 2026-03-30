@@ -161,3 +161,53 @@ def test_acpx_worker_handle_factory_reuses_existing_handles(tmp_path: Path) -> N
 
     assert handle1 is handle2
     assert factory.get("mission-m1-pkt1") is handle1
+
+
+@patch("spec_orch.services.workers.acpx_worker_handle.ensure_acpx_session")
+@patch("spec_orch.services.workers.acpx_worker_handle.subprocess.Popen")
+def test_acpx_worker_handle_send_delegates_builder_report_write(
+    mock_popen: MagicMock,
+    mock_ensure_session: MagicMock,
+    tmp_path: Path,
+) -> None:
+    mock_process = MagicMock()
+    mock_process.stdout = iter(['{"type": "result", "params": {"text": "done"}}\n'])
+    mock_process.stderr = iter([])
+    mock_process.returncode = 0
+    mock_process.wait.return_value = 0
+    mock_popen.return_value = mock_process
+
+    delegated: dict[str, object] = {}
+
+    def fake_write_worker_execution_payloads(
+        worker_dir: Path,
+        *,
+        builder_report: dict,
+    ) -> dict[str, Path]:
+        delegated["worker_dir"] = worker_dir
+        delegated["builder_report"] = builder_report
+        target = worker_dir / "builder_report.json"
+        target.write_text(json.dumps(builder_report), encoding="utf-8")
+        return {"builder_report": target}
+
+    handle = AcpxWorkerHandle(
+        session_id="mission-m1-pkt1",
+        agent="codex",
+        executable="npx",
+        acpx_package="acpx",
+    )
+
+    with patch(
+        "spec_orch.services.workers.acpx_worker_handle.write_worker_execution_payloads",
+        fake_write_worker_execution_payloads,
+    ):
+        result = handle.send(prompt="Continue.", workspace=tmp_path)
+
+    assert result.succeeded is True
+    mock_ensure_session.assert_called_once()
+    assert delegated["worker_dir"] == tmp_path
+    assert isinstance(delegated["builder_report"], dict)
+    assert (
+        json.loads((tmp_path / "builder_report.json").read_text(encoding="utf-8"))["session_name"]
+        == "mission-m1-pkt1"
+    )

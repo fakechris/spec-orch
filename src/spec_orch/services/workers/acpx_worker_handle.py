@@ -10,7 +10,7 @@ from typing import Any
 
 from spec_orch.domain.compliance import default_turn_contract_compliance
 from spec_orch.domain.models import BuilderResult
-from spec_orch.services.io import atomic_write_json
+from spec_orch.runtime_core.writers import write_worker_execution_payloads
 from spec_orch.services.workers._acpx_utils import (
     build_acpx_command,
     build_acpx_env,
@@ -189,9 +189,9 @@ class AcpxWorkerHandle:
             )
 
         succeeded = process.returncode == 0
-        atomic_write_json(
-            report_path,
-            {
+        write_worker_execution_payloads(
+            workspace,
+            builder_report={
                 "adapter": "acpx_worker",
                 "agent": self.agent,
                 "model": self.model,

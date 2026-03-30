@@ -7,6 +7,8 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from spec_orch.services.execution_semantics_reader import read_issue_execution_attempt
+
 logger = logging.getLogger(__name__)
 
 RUN_DIRS = (".spec_orch_runs", ".worktrees")
@@ -162,6 +164,39 @@ class EvidenceAnalyzer:
 
     def read_report(self, run_dir: Path) -> dict | None:
         """Read run result from unified artifacts or legacy report.json."""
+        legacy_report: dict | None = None
+        report_path = run_dir / "report.json"
+        if report_path.exists():
+            try:
+                data = json.loads(report_path.read_text())
+                if isinstance(data, dict):
+                    legacy_report = data
+                else:
+                    logger.warning("Skipping non-object report %s", report_path)
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.warning("Skipping malformed report %s: %s", report_path, exc)
+
+        normalized = read_issue_execution_attempt(run_dir)
+        if normalized is not None:
+            merged = {
+                "run_id": normalized.attempt_id,
+                "issue_id": normalized.unit_id,
+                "mergeable": bool((normalized.outcome.gate or {}).get("mergeable", False)),
+                "verdict": (normalized.outcome.gate or {}).get("verdict"),
+                "state": (normalized.outcome.gate or {}).get("state"),
+                "failed_conditions": list(
+                    (normalized.outcome.gate or {}).get("failed_conditions", [])
+                ),
+                "verification": normalized.outcome.verification or {},
+                "builder": normalized.outcome.build or {},
+                "review": normalized.outcome.review or {},
+            }
+            if legacy_report:
+                for key in ("metadata", "summary", "issue", "deviations_path"):
+                    if key in legacy_report:
+                        merged[key] = legacy_report[key]
+            return merged
+
         conclusion_path = run_dir / "run_artifact" / "conclusion.json"
         live_path = run_dir / "run_artifact" / "live.json"
         if conclusion_path.exists():
@@ -182,18 +217,7 @@ class EvidenceAnalyzer:
                 logger.warning("Skipping malformed unified artifacts under %s: %s", run_dir, exc)
                 return None
 
-        report_path = run_dir / "report.json"
-        if not report_path.exists():
-            return None
-        try:
-            data = json.loads(report_path.read_text())
-            if not isinstance(data, dict):
-                logger.warning("Skipping non-object report %s", report_path)
-                return None
-            return data
-        except (json.JSONDecodeError, OSError) as exc:
-            logger.warning("Skipping malformed report %s: %s", report_path, exc)
-            return None
+        return legacy_report
 
     def read_deviations(self, run_dir: Path) -> list[dict]:
         """Read and parse deviations.jsonl from a run directory."""

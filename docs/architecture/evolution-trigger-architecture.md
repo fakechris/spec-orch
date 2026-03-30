@@ -66,6 +66,29 @@
 2. **`Conductor.classify_intent()`** 使用 `planner.chat_completion()`，同样未实现，退回到纯规则分类。
 3. **`record_flow_transition()`** 是 stub 函数（空函数），Flow Evolver 无法获取升降级数据。
 
+## 一点五、当前决策点 authority inventory
+
+为了后续接入 `decision_core`，当前决策点先按 authority 分三类：
+
+### rule_owned
+
+- flow router 的静态降级与分类回退
+- gate / verification 的规则判定
+- readiness / config / environment 类确定性检查
+
+### llm_owned
+
+- supervisor round review 与 `RoundDecision`
+- scoper / planner / review adapter 等模型裁量节点
+- evolver 分析与蒸馏节点
+
+### human_required
+
+- `ask_human` 触发的 approvals queue
+- 需要 operator 明确批准或澄清的 launch / rollout 决策
+
+这一步的目的不是重新设计整个系统，而是先把“谁在做决定”从运行日志和对象边界上分清。
+
 ## 二、外部框架对比
 
 ### ClawHub / OpenClaw 的模型："个体 Agent 的自我改善"

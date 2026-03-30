@@ -10,6 +10,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
 
+from spec_orch.decision_core.interventions import build_intervention_from_record
+from spec_orch.decision_core.records import build_round_review_decision_record
+from spec_orch.decision_core.review_queue import append_intervention
 from spec_orch.domain.models import (
     AcceptanceCampaign,
     AcceptanceInteractionStep,
@@ -37,6 +40,7 @@ from spec_orch.domain.protocols import (
     VisualEvaluatorAdapter,
     WorkerHandleFactory,
 )
+from spec_orch.runtime_core.writers import write_round_supervision_payloads
 from spec_orch.services.acceptance.browser_evidence import collect_playwright_browser_evidence
 from spec_orch.services.event_bus import Event, EventBus, EventTopic
 from spec_orch.services.gate_service import GatePolicy, GateService
@@ -243,6 +247,11 @@ class RoundOrchestrator:
                     )
                 continue
             if decision.action is RoundAction.ASK_HUMAN:
+                self._create_human_intervention(
+                    mission_id=mission_id,
+                    round_id=round_id,
+                    decision=decision,
+                )
                 self._emit_round_paused(mission_id, round_id, decision)
                 return RoundOrchestratorResult(
                     completed=False,
@@ -628,9 +637,11 @@ class RoundOrchestrator:
         )
 
     def _persist_round(self, round_dir: Path, summary: RoundSummary) -> None:
-        atomic_write_json(round_dir / "round_summary.json", summary.to_dict())
-        if summary.decision is not None:
-            atomic_write_json(round_dir / "round_decision.json", summary.decision.to_dict())
+        write_round_supervision_payloads(
+            round_dir,
+            summary=summary.to_dict(),
+            decision=summary.decision.to_dict() if summary.decision is not None else None,
+        )
 
     def _apply_session_ops(self, mission_id: str, decision: RoundDecision) -> None:
         mission_workspace = self._mission_dir(mission_id)
@@ -656,6 +667,31 @@ class RoundOrchestrator:
                 },
                 source="round_orchestrator",
             )
+        )
+
+    def _create_human_intervention(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        decision: RoundDecision,
+    ) -> None:
+        record = build_round_review_decision_record(
+            mission_id=mission_id,
+            round_id=round_id,
+            owner="round_orchestrator",
+            decision=decision,
+        )
+        intervention = build_intervention_from_record(
+            record,
+            intervention_id=f"{mission_id}-round-{round_id}-approval",
+        )
+        append_intervention(
+            self.repo_root,
+            mission_id,
+            round_id=round_id,
+            intervention=intervention,
+            decision_record_id=record.record_id,
         )
 
     def _build_initial_prompt(self, packet: WorkPacket) -> str:

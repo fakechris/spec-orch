@@ -48,9 +48,26 @@ Wave looks healthy. Continue to the next step.
     assert decision.summary == "Wave completed successfully."
     review_path = tmp_path / "docs/specs/mission-1/rounds/round-01/supervisor_review.md"
     decision_path = tmp_path / "docs/specs/mission-1/rounds/round-01/round_decision.json"
+    record_path = tmp_path / "docs/specs/mission-1/rounds/round-01/decision_record.json"
     assert review_path.exists()
     assert "Wave looks healthy" in review_path.read_text(encoding="utf-8")
     assert json.loads(decision_path.read_text(encoding="utf-8"))["action"] == "continue"
+    assert json.loads(record_path.read_text(encoding="utf-8")) == {
+        "record_id": "mission-1-round-1-review",
+        "point_key": "mission.round.review",
+        "authority": "llm_owned",
+        "owner": "litellm_supervisor_adapter",
+        "selected_action": "continue",
+        "summary": "Wave completed successfully.",
+        "rationale": "",
+        "confidence": 0.91,
+        "context_artifacts": [
+            "docs/specs/mission-1/rounds/round-01/supervisor_review.md",
+            "docs/specs/mission-1/rounds/round-01/round_decision.json",
+        ],
+        "blocking_questions": [],
+        "created_at": json.loads(record_path.read_text(encoding="utf-8"))["created_at"],
+    }
 
 
 def test_supervisor_adapter_falls_back_to_ask_human_on_parse_error(tmp_path: Path) -> None:
@@ -74,8 +91,14 @@ def test_supervisor_adapter_falls_back_to_ask_human_on_parse_error(tmp_path: Pat
     assert decision.action is RoundAction.ASK_HUMAN
     assert decision.reason_code == "parse_error"
     decision_path = tmp_path / "docs/specs/mission-2/rounds/round-02/round_decision.json"
+    record_path = tmp_path / "docs/specs/mission-2/rounds/round-02/decision_record.json"
     saved = json.loads(decision_path.read_text(encoding="utf-8"))
     assert saved["action"] == "ask_human"
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    assert record["selected_action"] == "ask_human"
+    assert record["blocking_questions"] == [
+        "Review the supervisor output and decide the next action."
+    ]
 
 
 def test_supervisor_prompt_includes_visual_evaluation_and_wave_context(tmp_path: Path) -> None:

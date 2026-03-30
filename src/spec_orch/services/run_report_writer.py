@@ -18,6 +18,7 @@ from spec_orch.domain.models import (
     VerificationDetail,
     VerificationSummary,
 )
+from spec_orch.runtime_core.paths import normalized_issue_live_path, normalized_issue_manifest_path
 from spec_orch.services.io import atomic_write_json
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class RunReportWriter:
         1) run_artifact/live.json
         2) report.json
         """
-        live_path = workspace / "run_artifact" / "live.json"
+        live_path = normalized_issue_live_path(workspace)
         report_path = workspace / "report.json"
 
         live_data = RunReportWriter.read_json_dict(live_path)
@@ -154,7 +155,7 @@ class RunReportWriter:
             artifacts=artifacts,
             metadata={
                 "compatibility_mode": "legacy_manifest_bridge",
-                "canonical_manifest": str(workspace / "run_artifact" / "manifest.json"),
+                "canonical_manifest": str(normalized_issue_manifest_path(workspace)),
             },
         )
         manifest_path = workspace / "artifact_manifest.json"

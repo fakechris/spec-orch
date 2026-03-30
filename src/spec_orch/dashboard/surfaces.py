@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.models import AcceptanceReviewResult, VisualEvaluationResult
+from spec_orch.services.execution_semantics_reader import (
+    read_round_supervision_cycle,
+    read_worker_execution_attempt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -221,41 +225,81 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
 
     visual_rounds: list[dict[str, Any]] = []
     for round_dir in sorted(rounds_dir.glob("round-*")):
-        visual_path = round_dir / "visual_evaluation.json"
-        if not visual_path.exists():
-            continue
-        try:
-            round_id = int(round_dir.name.split("-")[-1])
-        except (TypeError, ValueError, IndexError):
-            logger.warning("Skipping visual QA directory with invalid round suffix: %s", round_dir)
-            continue
-        transcript_routes: list[str] = []
-        summary_path = round_dir / "round_summary.json"
-        if summary_path.exists():
-            try:
-                summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
-            except (OSError, ValueError, json.JSONDecodeError):
-                summary_payload = {}
+        normalized = read_round_supervision_cycle(round_dir)
+        if normalized is not None:
+            summary_payload = normalized.get("summary", {})
             if not isinstance(summary_payload, dict):
-                logger.warning("Ignoring malformed round summary for visual QA: %s", summary_path)
                 summary_payload = {}
-            worker_results = summary_payload.get("worker_results", [])
-            if isinstance(worker_results, list):
-                transcript_routes = [
-                    f"/?mission={mission_id}&mode=missions&tab=transcript&packet={packet_id}"
-                    for item in worker_results
-                    if isinstance(item, dict)
-                    for packet_id in [item.get("packet_id")]
-                    if isinstance(packet_id, str) and packet_id
-                ]
-        try:
-            payload = json.loads(visual_path.read_text(encoding="utf-8"))
-            if not isinstance(payload, dict):
-                logger.warning("Ignoring malformed visual evaluation payload: %s", visual_path)
+            visual_artifact = normalized.get("artifacts", {}).get("visual_report")
+            if visual_artifact is None:
                 continue
-            visual = VisualEvaluationResult.from_dict(payload)
-        except (OSError, ValueError, json.JSONDecodeError):
-            continue
+            visual_path = Path(visual_artifact.path)
+            try:
+                round_id = int(summary_payload.get("round_id") or round_dir.name.split("-")[-1])
+            except (TypeError, ValueError, IndexError):
+                logger.warning(
+                    "Skipping visual QA directory with invalid round suffix: %s",
+                    round_dir,
+                )
+                continue
+            worker_results = summary_payload.get("worker_results", [])
+            transcript_routes = [
+                f"/?mission={mission_id}&mode=missions&tab=transcript&packet={packet_id}"
+                for item in worker_results
+                if isinstance(item, dict)
+                for packet_id in [item.get("packet_id")]
+                if isinstance(packet_id, str) and packet_id
+            ]
+            try:
+                payload = json.loads(visual_path.read_text(encoding="utf-8"))
+                if not isinstance(payload, dict):
+                    logger.warning("Ignoring malformed visual evaluation payload: %s", visual_path)
+                    continue
+                visual = VisualEvaluationResult.from_dict(payload)
+            except (OSError, ValueError, json.JSONDecodeError):
+                continue
+        else:
+            visual_path = round_dir / "visual_evaluation.json"
+            if not visual_path.exists():
+                continue
+            try:
+                round_id = int(round_dir.name.split("-")[-1])
+            except (TypeError, ValueError, IndexError):
+                logger.warning(
+                    "Skipping visual QA directory with invalid round suffix: %s",
+                    round_dir,
+                )
+                continue
+            transcript_routes = []
+            summary_path = round_dir / "round_summary.json"
+            if summary_path.exists():
+                try:
+                    summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError, json.JSONDecodeError):
+                    summary_payload = {}
+                if not isinstance(summary_payload, dict):
+                    logger.warning(
+                        "Ignoring malformed round summary for visual QA: %s",
+                        summary_path,
+                    )
+                    summary_payload = {}
+                worker_results = summary_payload.get("worker_results", [])
+                if isinstance(worker_results, list):
+                    transcript_routes = [
+                        f"/?mission={mission_id}&mode=missions&tab=transcript&packet={packet_id}"
+                        for item in worker_results
+                        if isinstance(item, dict)
+                        for packet_id in [item.get("packet_id")]
+                        if isinstance(packet_id, str) and packet_id
+                    ]
+            try:
+                payload = json.loads(visual_path.read_text(encoding="utf-8"))
+                if not isinstance(payload, dict):
+                    logger.warning("Ignoring malformed visual evaluation payload: %s", visual_path)
+                    continue
+                visual = VisualEvaluationResult.from_dict(payload)
+            except (OSError, ValueError, json.JSONDecodeError):
+                continue
         findings = [finding for finding in (visual.findings or []) if isinstance(finding, dict)]
         artifacts = visual.artifacts if isinstance(visual.artifacts, dict) else {}
         severities = {str(finding.get("severity", "")).lower() for finding in findings}
@@ -440,16 +484,32 @@ def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
     total_output = 0
     total_cost = 0.0
     for worker_dir in sorted(path for path in workers_dir.iterdir() if path.is_dir()):
-        report_path = worker_dir / "builder_report.json"
-        if not report_path.exists():
-            continue
-        try:
-            payload = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError, json.JSONDecodeError):
-            continue
-        if not isinstance(payload, dict):
-            logger.warning("Ignoring malformed builder report payload: %s", report_path)
-            continue
+        normalized = read_worker_execution_attempt(
+            worker_dir,
+            mission_id=mission_id,
+            packet_id=worker_dir.name,
+        )
+        if normalized is not None:
+            payload = normalized.outcome.build or {}
+            report_artifact = normalized.outcome.artifacts.get("builder_report")
+            report_path = (
+                Path(report_artifact.path)
+                if report_artifact is not None
+                else (worker_dir / "builder_report.json")
+            )
+            if not isinstance(payload, dict):
+                continue
+        else:
+            report_path = worker_dir / "builder_report.json"
+            if not report_path.exists():
+                continue
+            try:
+                payload = json.loads(report_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, json.JSONDecodeError):
+                continue
+            if not isinstance(payload, dict):
+                logger.warning("Ignoring malformed builder report payload: %s", report_path)
+                continue
         metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
         usage = metadata.get("usage", {}) if isinstance(metadata, dict) else {}
         input_tokens = _safe_int(

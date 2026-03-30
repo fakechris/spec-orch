@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.runtime_core.writers import write_issue_execution_payloads
 from spec_orch.services.io import atomic_write_json
 
 
@@ -37,7 +38,6 @@ class RunArtifactService:
         live = self._build_live_snapshot(
             run_id=run_id, issue_id=issue_id, report=report, events=events
         )
-        self._write_json(artifact_dir / "live.json", live)
 
         conclusion = self._build_conclusion(
             run_id=run_id,
@@ -45,7 +45,6 @@ class RunArtifactService:
             report=report,
             explain_path=explain_path,
         )
-        self._write_json(artifact_dir / "conclusion.json", conclusion)
 
         retro = self._build_retro(report=report)
         self._write_json(artifact_dir / "retro.json", retro)
@@ -57,8 +56,13 @@ class RunArtifactService:
             events_count=len(events),
             artifact_dir=artifact_dir,
         )
-        self._write_json(artifact_dir / "manifest.json", manifest)
-        return artifact_dir / "manifest.json"
+        written = write_issue_execution_payloads(
+            workspace,
+            live=live,
+            conclusion=conclusion,
+            manifest=manifest,
+        )
+        return written["manifest"]
 
     @staticmethod
     def _load_json(path: Path) -> dict[str, Any]:

@@ -1,0 +1,243 @@
+diff --git a/src/spec_orch/services/acceptance/litellm_acceptance_evaluator.py b/src/spec_orch/services/acceptance/litellm_acceptance_evaluator.py
+index 111d7fe..005e5e3 100644
+--- a/src/spec_orch/services/acceptance/litellm_acceptance_evaluator.py
++++ b/src/spec_orch/services/acceptance/litellm_acceptance_evaluator.py
+@@ -16,16 +16,21 @@ from spec_orch.domain.models import (
+     WorkPacket,
+ )
+ from spec_orch.services.acceptance.prompt_composer import compose_acceptance_prompt
++from spec_orch.services.constitutions import (
++    ACCEPTANCE_EVALUATOR_CONSTITUTION,
++    build_role_system_prompt,
++)
+ from spec_orch.services.litellm_profile import (
+     normalize_litellm_model,
+     resolve_litellm_api_base,
+     resolve_litellm_api_key,
+ )
+ 
+-_ACCEPTANCE_SYSTEM_PROMPT = """\
+-You are the independent Acceptance Evaluator for SpecOrch.
+-Judge whether the mission output actually meets the intended result.
+-
++_ACCEPTANCE_SYSTEM_PROMPT = build_role_system_prompt(
++    role_intro="You are the independent Acceptance Evaluator for SpecOrch.",
++    task_summary="Judge whether the mission output actually meets the intended result.",
++    constitution=ACCEPTANCE_EVALUATOR_CONSTITUTION,
++    response_contract="""\
+ Return two parts in this order:
+ 1. A short markdown acceptance review
+ 2. A JSON object in a ```json fenced block
+@@ -39,7 +44,8 @@ The JSON must include:
+ - findings
+ - issue_proposals
+ - artifacts
+-"""
++""",
++)
+ 
+ 
+ class LiteLLMAcceptanceEvaluator:
+diff --git a/src/spec_orch/services/evolution/intent_evolver.py b/src/spec_orch/services/evolution/intent_evolver.py
+index 666e533..7851d7b 100644
+--- a/src/spec_orch/services/evolution/intent_evolver.py
++++ b/src/spec_orch/services/evolution/intent_evolver.py
+@@ -22,6 +22,7 @@ from spec_orch.domain.models import (
+     EvolutionProposal,
+     EvolutionValidationMethod,
+ )
++from spec_orch.services.constitutions import EVOLVER_CONSTITUTION, build_role_system_prompt
+ from spec_orch.services.io import atomic_write_json
+ 
+ logger = logging.getLogger(__name__)
+@@ -29,13 +30,15 @@ logger = logging.getLogger(__name__)
+ _HISTORY_FILE = "classifier_prompt_history.json"
+ _EVOLUTION_DIR = ".spec_orch_evolution"
+ 
+-_EVOLVE_SYSTEM_PROMPT = """\
+-You are a prompt-engineering specialist for an AI intent classifier.
+-
++_EVOLVE_SYSTEM_PROMPT = build_role_system_prompt(
++    role_intro="You are a prompt-engineering specialist for an AI intent classifier.",
++    task_summary="""\
+ Given the current classifier prompt, misclassification statistics, and
+ promotion/demotion event correlations, propose an improved prompt that
+ reduces the observed error patterns.
+-
++""",
++    constitution=EVOLVER_CONSTITUTION,
++    response_contract="""\
+ Requirements:
+ - Keep the same output JSON schema (category, confidence, summary, reasoning).
+ - Focus changes on disambiguation rules for the most frequent errors.
+@@ -48,7 +51,8 @@ Respond with ONLY a JSON object:
+   "rationale": "brief explanation",
+   "target_improvements": ["list of expected improvements"]
+ }
+-"""
++""",
++)
+ 
+ 
+ @dataclass
+diff --git a/src/spec_orch/services/evolution/prompt_evolver.py b/src/spec_orch/services/evolution/prompt_evolver.py
+index 8a58f65..781858a 100644
+--- a/src/spec_orch/services/evolution/prompt_evolver.py
++++ b/src/spec_orch/services/evolution/prompt_evolver.py
+@@ -22,17 +22,20 @@ from spec_orch.domain.models import (
+     EvolutionProposal,
+     EvolutionValidationMethod,
+ )
++from spec_orch.services.constitutions import EVOLVER_CONSTITUTION, build_role_system_prompt
+ from spec_orch.services.io import atomic_write_json
+ 
+ logger = logging.getLogger(__name__)
+ 
+ _PROMPT_HISTORY_FILE = "prompt_history.json"
+-_EVOLVE_SYSTEM_PROMPT = """\
+-You are a prompt-engineering specialist for an AI coding-agent orchestrator.
+-
++_EVOLVE_SYSTEM_PROMPT = build_role_system_prompt(
++    role_intro="You are a prompt-engineering specialist for an AI coding-agent orchestrator.",
++    task_summary="""\
+ Given the current builder prompt and performance statistics from recent runs,
+ propose an improved prompt variant that addresses observed failure patterns.
+-
++""",
++    constitution=EVOLVER_CONSTITUTION,
++    response_contract="""\
+ Requirements:
+ - Keep the same general structure as the current prompt.
+ - Focus changes on areas that correlate with failures (e.g., narration issues,
+@@ -47,7 +50,8 @@ Respond with ONLY a JSON object:
+   "rationale": "brief explanation of what changed and why",
+   "target_improvements": ["list of expected improvements"]
+ }
+-"""
++""",
++)
+ 
+ 
+ @dataclass
+diff --git a/src/spec_orch/services/litellm_supervisor_adapter.py b/src/spec_orch/services/litellm_supervisor_adapter.py
+index a2c859c..5e75ef8 100644
+--- a/src/spec_orch/services/litellm_supervisor_adapter.py
++++ b/src/spec_orch/services/litellm_supervisor_adapter.py
+@@ -15,6 +15,10 @@ from spec_orch.domain.models import (
+     RoundDecision,
+     RoundSummary,
+ )
++from spec_orch.services.constitutions import (
++    SUPERVISOR_CONSTITUTION,
++    build_role_system_prompt,
++)
+ from spec_orch.services.io import atomic_write_json, atomic_write_text
+ from spec_orch.services.litellm_profile import (
+     normalize_litellm_model,
+@@ -22,10 +26,11 @@ from spec_orch.services.litellm_profile import (
+     resolve_litellm_api_key,
+ )
+ 
+-_SUPERVISOR_SYSTEM_PROMPT = """\
+-You are Mission Supervisor for SpecOrch.
+-Review one mission round and decide the next orchestration action.
+-
++_SUPERVISOR_SYSTEM_PROMPT = build_role_system_prompt(
++    role_intro="You are Mission Supervisor for SpecOrch.",
++    task_summary="Review one mission round and decide the next orchestration action.",
++    constitution=SUPERVISOR_CONSTITUTION,
++    response_contract="""\
+ Return two parts in this order:
+ 1. A short markdown review
+ 2. A JSON object in a ```json fenced block
+@@ -35,7 +40,8 @@ The JSON must include:
+ - reason_code
+ - summary
+ - confidence
+-"""
++""",
++)
+ 
+ 
+ class LiteLLMSupervisorAdapter:
+diff --git a/tests/unit/test_litellm_acceptance_evaluator.py b/tests/unit/test_litellm_acceptance_evaluator.py
+index da6f304..ccb7101 100644
+--- a/tests/unit/test_litellm_acceptance_evaluator.py
++++ b/tests/unit/test_litellm_acceptance_evaluator.py
+@@ -287,3 +287,16 @@ def test_acceptance_evaluator_normalizes_model_and_falls_back_to_minimax_envs(
+     assert captured_kwargs["model"] == "anthropic/MiniMax-M2.7-highspeed"
+     assert captured_kwargs["api_key"] == "sk-minimax"
+     assert captured_kwargs["api_base"] == "https://api.minimaxi.com/anthropic"
++
++
++def test_acceptance_system_prompt_includes_constitution() -> None:
++    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
++        _ACCEPTANCE_SYSTEM_PROMPT,
++    )
++
++    assert "## Constitution" in _ACCEPTANCE_SYSTEM_PROMPT
++    assert (
++        "Treat the implementation and mission framing as falsifiable." in _ACCEPTANCE_SYSTEM_PROMPT
++    )
++    assert "Be honest about missing coverage and uncertainty." in _ACCEPTANCE_SYSTEM_PROMPT
++    assert "Do not inherit builder intent as proof of user value." in _ACCEPTANCE_SYSTEM_PROMPT
+diff --git a/tests/unit/test_litellm_supervisor_adapter.py b/tests/unit/test_litellm_supervisor_adapter.py
+index 1b9c623..3b25c69 100644
+--- a/tests/unit/test_litellm_supervisor_adapter.py
++++ b/tests/unit/test_litellm_supervisor_adapter.py
+@@ -182,3 +182,12 @@ def test_supervisor_adapter_normalizes_model_and_falls_back_to_minimax_envs(
+     assert captured_kwargs["model"] == "anthropic/MiniMax-M2.7-highspeed"
+     assert captured_kwargs["api_key"] == "sk-minimax"
+     assert captured_kwargs["api_base"] == "https://api.minimaxi.com/anthropic"
++
++
++def test_supervisor_system_prompt_includes_constitution() -> None:
++    from spec_orch.services.litellm_supervisor_adapter import _SUPERVISOR_SYSTEM_PROMPT
++
++    assert "## Constitution" in _SUPERVISOR_SYSTEM_PROMPT
++    assert "Prefer evidence over optimism." in _SUPERVISOR_SYSTEM_PROMPT
++    assert "Escalate with explicit blocking questions" in _SUPERVISOR_SYSTEM_PROMPT
++    assert "Do not silently approve ambiguous outcomes" in _SUPERVISOR_SYSTEM_PROMPT
+diff --git a/tests/unit/test_muscle_evolvers.py b/tests/unit/test_muscle_evolvers.py
+index 5d9ff4a..639ba3d 100644
+--- a/tests/unit/test_muscle_evolvers.py
++++ b/tests/unit/test_muscle_evolvers.py
+@@ -139,6 +139,18 @@ class TestEvolverProtocol:
+ 
+ 
+ class TestIntentEvolver:
++    def test_system_prompt_includes_constitution(self):
++        from spec_orch.services.evolution.intent_evolver import _EVOLVE_SYSTEM_PROMPT
++
++        assert "## Constitution" in _EVOLVE_SYSTEM_PROMPT
++        assert "Prefer narrow, evidence-backed prompt changes." in _EVOLVE_SYSTEM_PROMPT
++        assert (
++            "Do not widen change scope beyond the observed failure modes." in _EVOLVE_SYSTEM_PROMPT
++        )
++        assert (
++            "Do not claim improvements that the evidence does not support." in _EVOLVE_SYSTEM_PROMPT
++        )
++
+     def test_empty_history(self, tmp_path: Path):
+         e = IntentEvolver(tmp_path)
+         assert e.load_history() == []
+diff --git a/tests/unit/test_prompt_evolver.py b/tests/unit/test_prompt_evolver.py
+index a5557e4..5687bdf 100644
+--- a/tests/unit/test_prompt_evolver.py
++++ b/tests/unit/test_prompt_evolver.py
+@@ -142,6 +142,15 @@ def test_evolve_with_mock_planner(tmp_path: Path) -> None:
+     assert "prompt-engineering specialist" in messages[0]["content"]
+ 
+ 
++def test_prompt_evolver_system_prompt_includes_constitution() -> None:
++    from spec_orch.services.evolution.prompt_evolver import _EVOLVE_SYSTEM_PROMPT
++
++    assert "## Constitution" in _EVOLVE_SYSTEM_PROMPT
++    assert "Prefer narrow, evidence-backed prompt changes." in _EVOLVE_SYSTEM_PROMPT
++    assert "Do not widen change scope beyond the observed failure modes." in _EVOLVE_SYSTEM_PROMPT
++    assert "Do not claim improvements that the evidence does not support." in _EVOLVE_SYSTEM_PROMPT
++
++
+ def test_evolve_non_string_response(tmp_path: Path) -> None:
+     planner = MagicMock()
+     planner.brainstorm.return_value = None
