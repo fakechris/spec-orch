@@ -1,12 +1,35 @@
 # Epic 2 and Epic 3 Completion Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> 状态: completed on 2026-03-30
 
 **Goal:** Finish `Epic 2: Runtime Core Extraction` and `Epic 3: Decision Core Extraction` from the current post-PR-162 baseline, so `runtime_core` and `decision_core` stop being partial scaffolds and become the canonical seams for runtime shaping and supervision state.
 
 **Architecture:** `Epic 1` is already landed: shared execution semantics exist, normalized read/write carriers exist, and the first `runtime_core` / `decision_core` seams are live. The remaining work is not another semantic design pass. It is extraction completion: finish owner delegation into `runtime_core`, finish consumer cutover away from service-local shims, then expand `decision_core` from mission-round-only adoption into a repo-wide decision inventory plus review schema.
 
 **Tech Stack:** Python 3.13, dataclasses, JSON/JSONL/Markdown carriers, existing `src/spec_orch` services/dashboard layout, pytest, ruff, incremental refactor with compatibility shims retained only where still necessary.
+
+## Completion Summary
+
+This plan is now complete.
+
+Delivered:
+
+- `runtime_core.adapters` as a real owner-facing seam
+- mission leaf delegation for one-shot workers and packet executors
+- consumer cutover from service-local execution shims to `runtime_core.readers`
+- structural guard tests for runtime / decision core boundaries
+- runtime-core boundary audit and updated migration matrix
+- repo-wide `decision_core` inventory covering mission review, flow routing, conductor intent classification, and issue review verdicts
+- `DecisionReview` plus file-backed review state in `decision_core.review_queue`
+
+Verification completed with:
+
+```bash
+uv run --python 3.13 python -m pytest tests/unit/test_runtime_core_imports.py tests/unit/test_runtime_core_paths.py tests/unit/test_runtime_core_readers.py tests/unit/test_runtime_core_writers.py tests/unit/test_runtime_core_structure.py tests/unit/test_decision_core_imports.py tests/unit/test_decision_core_models.py tests/unit/test_decision_core_records.py tests/unit/test_decision_core_inventory.py tests/unit/test_decision_core_review_queue.py tests/unit/test_run_controller.py tests/unit/test_run_controller_flow.py tests/unit/test_round_orchestrator.py tests/unit/test_litellm_supervisor_adapter.py tests/unit/test_dashboard_api.py tests/unit/test_dashboard_missions.py tests/unit/test_dashboard_approvals.py tests/unit/test_context_assembler.py tests/unit/test_evidence_analyzer.py tests/unit/test_eval_runner.py -v
+```
+
+Result: `231 passed`
 
 ## Current Baseline
 
