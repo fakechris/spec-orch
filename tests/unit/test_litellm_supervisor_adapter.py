@@ -81,6 +81,9 @@ Wave looks healthy. Continue to the next step.
     assert memory_entry.metadata["mission_id"] == "mission-1"
     assert memory_entry.metadata["round_id"] == 1
     assert memory_entry.metadata["provenance"] == "unreviewed"
+    assert (
+        memory_entry.created_at == json.loads(record_path.read_text(encoding="utf-8"))["created_at"]
+    )
 
 
 def test_supervisor_adapter_falls_back_to_ask_human_on_parse_error(tmp_path: Path) -> None:

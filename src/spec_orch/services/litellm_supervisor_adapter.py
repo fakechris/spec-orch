@@ -96,34 +96,23 @@ class LiteLLMSupervisorAdapter:
         decision_path = round_dir / "round_decision.json"
         atomic_write_text(review_path, review_text)
         atomic_write_json(decision_path, decision.to_dict())
-        write_round_decision_record(
-            round_dir,
-            build_round_review_decision_record(
-                mission_id=round_artifacts.mission_id,
-                round_id=round_artifacts.round_id,
-                owner="litellm_supervisor_adapter",
-                decision=decision,
-                context_artifacts=[
-                    str(review_path.relative_to(self.repo_root)),
-                    str(decision_path.relative_to(self.repo_root)),
-                ],
-            ),
+        record = build_round_review_decision_record(
+            mission_id=round_artifacts.mission_id,
+            round_id=round_artifacts.round_id,
+            owner="litellm_supervisor_adapter",
+            decision=decision,
+            context_artifacts=[
+                str(review_path.relative_to(self.repo_root)),
+                str(decision_path.relative_to(self.repo_root)),
+            ],
         )
+        write_round_decision_record(round_dir, record)
         try:
             from spec_orch.services.memory.service import get_memory_service
 
             memory = get_memory_service(repo_root=self.repo_root)
             memory.record_decision_record(
-                record=build_round_review_decision_record(
-                    mission_id=round_artifacts.mission_id,
-                    round_id=round_artifacts.round_id,
-                    owner="litellm_supervisor_adapter",
-                    decision=decision,
-                    context_artifacts=[
-                        str(review_path.relative_to(self.repo_root)),
-                        str(decision_path.relative_to(self.repo_root)),
-                    ],
-                ),
+                record=record,
                 mission_id=round_artifacts.mission_id,
                 round_id=round_artifacts.round_id,
             )
