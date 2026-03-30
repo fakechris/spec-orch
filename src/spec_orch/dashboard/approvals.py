@@ -16,18 +16,56 @@ def _approval_history_path(repo_root: Path, mission_id: str) -> Path:
     return repo_root / "docs" / "specs" / mission_id / "operator" / "approval_actions.jsonl"
 
 
+def _latest_round_id_seen(repo_root: Path, mission_id: str) -> int:
+    rounds_dir = repo_root / "docs" / "specs" / mission_id / "rounds"
+    if not rounds_dir.exists():
+        return -1
+
+    latest_round_id_seen = -1
+    for round_dir in sorted(rounds_dir.glob("round-*")):
+        summary_path = round_dir / "round_summary.json"
+        if not summary_path.exists():
+            continue
+        try:
+            payload = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        try:
+            latest_round_id_seen = max(latest_round_id_seen, int(payload.get("round_id", -1)))
+        except (TypeError, ValueError):
+            continue
+    return latest_round_id_seen
+
+
 def _gather_latest_approval_request(repo_root: Path, mission_id: str) -> dict[str, Any] | None:
     intervention = load_latest_intervention(repo_root, mission_id)
     if intervention is not None:
+        intervention_id = str(intervention.get("intervention_id") or "")
+        response_history = load_intervention_response_history(repo_root, mission_id)
+        if intervention_id and any(
+            str(item.get("intervention_id") or "") == intervention_id for item in response_history
+        ):
+            return None
+
+        try:
+            intervention_round_id = int(intervention.get("round_id", 0))
+        except (TypeError, ValueError):
+            intervention_round_id = 0
+
+        latest_round_id = _latest_round_id_seen(repo_root, mission_id)
+        if latest_round_id > intervention_round_id:
+            return None
+
         questions = intervention.get("questions", [])
         blocking_question = questions[0] if questions else None
-        round_id = int(intervention.get("round_id", 0))
         review_route = str(
             intervention.get("review_route")
-            or f"/?mission={mission_id}&mode=missions&tab=approvals&round={round_id}"
+            or f"/?mission={mission_id}&mode=missions&tab=approvals&round={intervention_round_id}"
         )
         return {
-            "round_id": round_id,
+            "round_id": intervention_round_id,
             "timestamp": str(intervention.get("created_at", "")),
             "summary": str(intervention.get("summary") or "Human approval required."),
             "blocking_question": blocking_question,
