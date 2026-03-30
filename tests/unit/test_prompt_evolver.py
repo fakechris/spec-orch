@@ -186,6 +186,30 @@ def test_render_context_for_prompt_includes_reviewed_decisions_and_acceptance() 
     assert "Reviewed acceptance findings:" in rendered
 
 
+def test_render_context_for_prompt_ignores_malformed_reviewed_entries() -> None:
+    from spec_orch.domain.context import ContextBundle, LearningContext, TaskContext
+    from spec_orch.domain.models import Issue
+    from spec_orch.services.evolution.prompt_evolver import PromptEvolver
+
+    ctx = ContextBundle(
+        task=TaskContext(
+            issue=Issue(issue_id="SON-602", title="prompt evidence", summary=""),
+            constraints=["keep scope narrow"],
+        ),
+        learning=LearningContext(
+            reviewed_decision_failures=["bad-entry", {"record_id": "dr-1", "summary": "useful"}],
+            reviewed_decision_recipes=[None, {"record_id": "dr-2", "summary": "recipe"}],
+            reviewed_acceptance_findings=[42, {"finding_id": "af-1", "summary": "finding"}],
+        ),
+    )
+
+    rendered = PromptEvolver._render_context_for_prompt(ctx)
+
+    assert "dr-1" in rendered
+    assert "dr-2" in rendered
+    assert "af-1" in rendered
+
+
 def test_evolve_non_string_response(tmp_path: Path) -> None:
     planner = MagicMock()
     planner.brainstorm.return_value = None

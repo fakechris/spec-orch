@@ -326,18 +326,21 @@ class PromptEvolver:
             failure_lines = [
                 f"- {s.get('record_id', '?')}: {s.get('summary', '')[:180]}"
                 for s in learning.reviewed_decision_failures[:3]
+                if isinstance(s, dict)
             ]
             parts.append("Reviewed decision failures:\n" + "\n".join(failure_lines))
         if learning and getattr(learning, "reviewed_decision_recipes", []):
             recipe_lines = [
                 f"- {s.get('record_id', '?')}: {s.get('summary', '')[:180]}"
                 for s in learning.reviewed_decision_recipes[:3]
+                if isinstance(s, dict)
             ]
             parts.append("Reviewed decision recipes:\n" + "\n".join(recipe_lines))
         if learning and getattr(learning, "reviewed_acceptance_findings", []):
             finding_lines = [
                 f"- {s.get('finding_id', '?')}: {s.get('summary', '')[:180]}"
                 for s in learning.reviewed_acceptance_findings[:3]
+                if isinstance(s, dict)
             ]
             parts.append("Reviewed acceptance findings:\n" + "\n".join(finding_lines))
 
