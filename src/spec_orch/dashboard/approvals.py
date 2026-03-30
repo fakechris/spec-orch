@@ -269,7 +269,7 @@ def _record_approval_action(
                     mission_id,
                     review=review,
                 )
-            except OSError:
+            except (OSError, ValueError, TypeError):
                 logger.warning(
                     "decision review append failed",
                     extra={
