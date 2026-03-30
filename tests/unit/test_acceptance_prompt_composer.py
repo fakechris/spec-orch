@@ -83,10 +83,13 @@ def test_compose_acceptance_prompt_marks_exploratory_runs_as_user_perspective(
         campaign=AcceptanceCampaign(
             mode=AcceptanceMode.EXPLORATORY,
             goal="Dogfood the operator console from a real operator perspective.",
-            primary_routes=["/"],
-            related_routes=["/?mode=inbox"],
+            primary_routes=["/", "/?mission=mission-2&mode=missions&tab=overview"],
+            related_routes=[
+                "/?mission=mission-2&mode=missions&tab=transcript",
+                "/?mission=mission-2&mode=missions&tab=acceptance",
+            ],
             interaction_plans={
-                "/?mode=inbox": [
+                "/?mission=mission-2&mode=missions&tab=transcript": [
                     AcceptanceInteractionStep(action="click_text", target="All Missions")
                 ]
             },
@@ -97,6 +100,22 @@ def test_compose_acceptance_prompt_marks_exploratory_runs_as_user_perspective(
             interaction_budget="wide",
             filing_policy="auto_file_broken_flows_only",
             exploration_budget="wide",
+            seed_routes=["/", "/?mission=mission-2&mode=missions&tab=overview"],
+            allowed_expansions=[
+                "/?mission=mission-2&mode=missions&tab=transcript",
+                "/?mission=mission-2&mode=missions&tab=acceptance",
+                "/?mission=mission-2&mode=missions&tab=costs",
+            ],
+            critique_focus=[
+                "information architecture confusion",
+                "ambiguous terminology",
+                "discoverability gaps",
+            ],
+            stop_conditions=[
+                "stop when the route budget is exhausted",
+                "stop when no adjacent surface adds new operator evidence",
+            ],
+            evidence_budget="bounded",
         ),
     )
 
@@ -108,6 +127,31 @@ def test_compose_acceptance_prompt_marks_exploratory_runs_as_user_perspective(
     assert "## Adversarial Rubric" in prompt
     assert "Treat the current implementation and mission framing as falsifiable." in prompt
     assert "Do not auto-file broad UX criticism unless the flow is materially broken." in prompt
+    assert "## Exploratory Contract" in prompt
+    assert "Seed routes: /, /?mission=mission-2&mode=missions&tab=overview" in prompt
+    assert (
+        "Allowed expansions: /?mission=mission-2&mode=missions&tab=transcript, /?mission=mission-2&mode=missions&tab=acceptance, /?mission=mission-2&mode=missions&tab=costs"
+        in prompt
+    )
+    assert (
+        "Critique focus: information architecture confusion, ambiguous terminology, discoverability gaps"
+        in prompt
+    )
+    assert "Evidence budget: bounded" in prompt
+    assert "Confusing but operable UX is still valid exploratory evidence." in prompt
+    assert "surface orientation" in prompt
+    assert "evidence discoverability" in prompt
+    assert "terminology clarity" in prompt
+    assert "task continuity" in prompt
+    assert "operator confidence / trust signaling" in prompt
+    assert (
+        "Treat inherited workflow proof artifacts as prior context, not as contradictions to the current exploratory replay"
+        in prompt
+    )
+    assert (
+        "If you return zero findings and zero issue proposals, the summary must explain why no critique candidate cleared the evidence threshold."
+        in prompt
+    )
 
 
 def test_compose_acceptance_prompt_embeds_structured_payload(tmp_path: Path) -> None:

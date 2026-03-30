@@ -24,6 +24,9 @@ def test_acceptance_finding_round_trip() -> None:
         actual="No primary CTA is visible in the hero section.",
         route="/",
         artifact_paths={"screenshot": "rounds/round-01/acceptance/home.png"},
+        critique_axis="evidence_discoverability",
+        operator_task="open packet-level transcript evidence",
+        why_it_matters="Operators may stop before reaching the most important evidence.",
     )
 
     restored = AcceptanceFinding.from_dict(finding.to_dict())
@@ -46,11 +49,37 @@ def test_acceptance_issue_proposal_round_trip() -> None:
         actual="No primary CTA is visible in the hero section.",
         route="/",
         artifact_paths={"screenshot": "rounds/round-01/acceptance/home.png"},
+        critique_axis="surface_orientation",
+        operator_task="establish current dashboard context",
+        why_it_matters="Operators need to understand which surface they are reviewing.",
+        hold_reason="Needs operator confirmation before filing as UX work.",
     )
 
     restored = AcceptanceIssueProposal.from_dict(proposal.to_dict())
 
     assert restored == proposal
+
+
+def test_acceptance_confidence_coercion_rejects_non_finite_and_out_of_range_values() -> None:
+    result = AcceptanceReviewResult.from_dict(
+        {
+            "status": "pass",
+            "summary": "Looks good.",
+            "confidence": "NaN",
+            "evaluator": "acceptance_llm",
+        }
+    )
+    proposal = AcceptanceIssueProposal.from_dict(
+        {
+            "title": "Out of range confidence",
+            "summary": "Proposal confidence should not exceed 1.0.",
+            "severity": "medium",
+            "confidence": "2.0",
+        }
+    )
+
+    assert result.confidence == 0.0
+    assert proposal.confidence == 0.0
 
 
 def test_acceptance_review_result_round_trip() -> None:
@@ -93,6 +122,8 @@ def test_acceptance_review_result_round_trip() -> None:
                 severity="high",
                 summary="Settings save action fails.",
                 route="/settings",
+                critique_axis="task_continuity",
+                operator_task="save settings and continue review",
             )
         ],
         issue_proposals=[
@@ -100,6 +131,9 @@ def test_acceptance_review_result_round_trip() -> None:
                 title="Fix settings save action",
                 summary="Save action fails on the settings page.",
                 severity="high",
+                critique_axis="task_continuity",
+                operator_task="save settings and continue review",
+                why_it_matters="Interrupted tasks break operator continuity.",
             )
         ],
         artifacts={
@@ -114,22 +148,79 @@ def test_acceptance_review_result_round_trip() -> None:
     assert restored == result
 
 
+def test_acceptance_dashboard_critique_metadata_round_trip() -> None:
+    finding = AcceptanceFinding(
+        severity="medium",
+        summary="Transcript packet selection is not self-evident.",
+        route="/?mission=op-1&mode=missions&tab=transcript",
+        critique_axis="evidence_discoverability",
+        operator_task="open packet-level transcript evidence",
+        why_it_matters="Operators can stall before reviewing the most important evidence.",
+    )
+    proposal = AcceptanceIssueProposal(
+        title="Clarify transcript packet entry point",
+        summary="Make the first evidence step easier to find.",
+        severity="medium",
+        route="/?mission=op-1&mode=missions&tab=transcript",
+        critique_axis="evidence_discoverability",
+        operator_task="open packet-level transcript evidence",
+        why_it_matters="The operator should not need prior context to find packet evidence.",
+        hold_reason="Exploratory UX critique should be reviewed before filing.",
+    )
+
+    restored_finding = AcceptanceFinding.from_dict(finding.to_dict())
+    restored_proposal = AcceptanceIssueProposal.from_dict(proposal.to_dict())
+
+    assert restored_finding == finding
+    assert restored_proposal == proposal
+
+
+def test_acceptance_campaign_from_dict_treats_scalar_contract_values_as_single_items() -> None:
+    restored = AcceptanceCampaign.from_dict(
+        {
+            "mode": "exploratory",
+            "goal": "Dogfood the dashboard.",
+            "seed_routes": "/",
+            "allowed_expansions": "/?mission=demo&tab=overview",
+            "critique_focus": "task continuity",
+            "stop_conditions": "stop when route budget is exhausted",
+        }
+    )
+
+    assert restored.seed_routes == ["/"]
+    assert restored.allowed_expansions == ["/?mission=demo&tab=overview"]
+    assert restored.critique_focus == ["task continuity"]
+    assert restored.stop_conditions == ["stop when route budget is exhausted"]
+
+
 def test_acceptance_campaign_round_trip() -> None:
     campaign = AcceptanceCampaign(
         mode=AcceptanceMode.EXPLORATORY,
         goal="Dogfood the operator console like a first-principles operator.",
-        primary_routes=["/"],
-        related_routes=["/?mode=inbox"],
+        primary_routes=["/", "/?mission=operator-console&mode=missions&tab=overview"],
+        related_routes=[
+            "/?mission=operator-console&mode=missions&tab=transcript",
+            "/?mission=operator-console&mode=missions&tab=acceptance",
+        ],
         interaction_plans={
-            "/?mode=inbox": [
+            "/": [
                 AcceptanceInteractionStep(
-                    action="click_text",
-                    target="All Missions",
-                    description="Switch into the mission inventory view.",
+                    action="click_selector",
+                    target='[data-automation-target="open-launcher"]',
+                    description="Open the launcher from the operator shell.",
                     value="",
                     timeout_ms=8000,
                 )
-            ]
+            ],
+            "/?mission=operator-console&mode=missions&tab=transcript": [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                    description="Reset the transcript filter before scanning evidence.",
+                    value="",
+                    timeout_ms=8000,
+                )
+            ],
         },
         coverage_expectations=["Mission control", "Acceptance surface"],
         required_interactions=["switch work modes", "inspect mission detail"],
@@ -138,6 +229,23 @@ def test_acceptance_campaign_round_trip() -> None:
         interaction_budget="wide",
         filing_policy="hold_ux_concerns_for_operator_review",
         exploration_budget="wide",
+        seed_routes=["/", "/?mission=operator-console&mode=missions&tab=overview"],
+        allowed_expansions=[
+            "/?mission=operator-console&mode=missions&tab=transcript",
+            "/?mission=operator-console&mode=missions&tab=acceptance",
+            "/?mission=operator-console&mode=missions&tab=costs",
+        ],
+        critique_focus=[
+            "information architecture confusion",
+            "ambiguous terminology",
+            "discoverability gaps",
+        ],
+        stop_conditions=[
+            "stop when the route budget is exhausted",
+            "stop when no adjacent surface adds new operator evidence",
+            "stop after confirming a materially broken flow",
+        ],
+        evidence_budget="bounded",
     )
 
     restored = AcceptanceCampaign.from_dict(campaign.to_dict())

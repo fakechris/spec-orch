@@ -84,6 +84,7 @@ spec_orch = [
   "py.typed",
   "dashboard_assets/static/*.css",
   "dashboard_assets/static/*.js",
+  "resources/*.json",
 ]
 
 [tool.pytest.ini_options]

@@ -23,12 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FULL_MODE=false
 DASHBOARD_PORT="${SPEC_ORCH_DASHBOARD_PORT:-8426}"
-
-for arg in "$@"; do
-  case "$arg" in
-    --full) FULL_MODE=true ;;
-  esac
-done
+FRESH_VARIANT="${SPEC_ORCH_FRESH_VARIANT:-default}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -39,6 +34,18 @@ step() { echo -e "\n${GREEN}▶ STEP: $1${NC}"; }
 fail() { echo -e "${RED}✗ FAIL: $1${NC}" >&2; exit 1; }
 ok()   { echo -e "${GREEN}✓ $1${NC}"; }
 warn() { echo -e "${YELLOW}⚠ $1${NC}"; }
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --full) FULL_MODE=true ;;
+    --variant)
+      shift
+      [ "$#" -gt 0 ] || fail "--variant requires a value"
+      FRESH_VARIANT="$1"
+      ;;
+  esac
+  shift
+done
 
 command -v python3 >/dev/null || fail "python3 not found"
 command -v git >/dev/null || fail "git not found"
@@ -97,24 +104,35 @@ ok "runtime dependencies present"
 
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 META_FILE=".spec_orch/fresh_acpx_run_meta_${RUN_ID}.json"
+LOCK_DIR=".spec_orch/fresh_acpx_mission_smoke.lock"
 mkdir -p .spec_orch
+
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  fail "fresh_acpx_mission_smoke.sh is already running in this worktree; wait for the active run to finish"
+fi
+
+RUN_ID="${RUN_ID}-$$"
+META_FILE=".spec_orch/fresh_acpx_run_meta_${RUN_ID}.json"
 
 cleanup() {
   if [ -n "${DASHBOARD_PID:-}" ]; then
     kill "$DASHBOARD_PID" >/dev/null 2>&1 || true
   fi
+  rmdir "$LOCK_DIR" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
 step "Bootstrap a fresh mission request"
-uv run --python 3.13 python - <<'PY' > "$META_FILE"
+uv run --python 3.13 python - <<'PY' "$FRESH_VARIANT" > "$META_FILE"
 import json
+import sys
 from pathlib import Path
 
 from spec_orch.dashboard.launcher import _build_fresh_acpx_mission_request, _create_mission_draft
 
 repo_root = Path(".").resolve()
-payload = _build_fresh_acpx_mission_request(repo_root)
+variant = sys.argv[1]
+payload = _build_fresh_acpx_mission_request(repo_root, variant=variant)
 draft = _create_mission_draft(repo_root, payload)
 mission_id = draft["mission_id"]
 operator_dir = repo_root / "docs" / "specs" / mission_id / "operator"
@@ -123,7 +141,17 @@ operator_dir.mkdir(parents=True, exist_ok=True)
     json.dumps(payload, indent=2) + "\n",
     encoding="utf-8",
 )
-print(json.dumps({"mission_id": mission_id, "title": draft["title"]}))
+metadata = payload.get("metadata", {})
+print(
+    json.dumps(
+        {
+            "mission_id": mission_id,
+            "title": draft["title"],
+            "variant": metadata.get("fresh_variant", variant),
+            "requires_linear": bool(metadata.get("requires_linear", False)),
+        }
+    )
+)
 PY
 
 MISSION_ID="$(python3 - <<'PY' "$META_FILE"
@@ -133,7 +161,17 @@ PY
 )"
 SPEC_DIR="docs/specs/${MISSION_ID}"
 ROUND_GLOB="${SPEC_DIR}/rounds/round-*"
-ok "fresh mission created: ${MISSION_ID}"
+RUN_VARIANT="$(python3 - <<'PY' "$META_FILE"
+import json, pathlib, sys
+print(json.loads(pathlib.Path(sys.argv[1]).read_text())["variant"])
+PY
+)"
+REQUIRES_LINEAR="$(python3 - <<'PY' "$META_FILE"
+import json, pathlib, sys
+print("true" if json.loads(pathlib.Path(sys.argv[1]).read_text())["requires_linear"] else "false")
+PY
+)"
+ok "fresh mission created: ${MISSION_ID} (variant=${RUN_VARIANT})"
 
 step "Approve and plan the mission"
 uv run --python 3.13 python - <<'PY' "$MISSION_ID"
@@ -166,41 +204,54 @@ result["plan_budget"] = budget
 PY
 ok "plan.json generated"
 
-step "Launch the mission"
+if [ "$REQUIRES_LINEAR" = "true" ]; then
+  step "Bind Linear issue before launch"
+  [ -n "${SPEC_ORCH_LINEAR_TOKEN:-${LINEAR_TOKEN:-${LINEAR_API_TOKEN:-}}}" ] || fail "Linear-bound variant requires SPEC_ORCH_LINEAR_TOKEN or LINEAR_TOKEN"
+  uv run --python 3.13 python - <<'PY' "$MISSION_ID"
+import json
+import sys
+from pathlib import Path
+
+from spec_orch.dashboard.launcher import _create_linear_issue_for_mission
+
+repo_root = Path(".").resolve()
+mission_id = sys.argv[1]
+bootstrap = json.loads(
+    (repo_root / "docs" / "specs" / mission_id / "operator" / "mission_bootstrap.json").read_text(
+        encoding="utf-8"
+    )
+)
+result = _create_linear_issue_for_mission(
+    repo_root,
+    mission_id,
+    title=f"{bootstrap.get('title', mission_id)} [fresh-acpx]",
+    description=str(bootstrap.get("intent", "")).strip() or f"mission: {mission_id}",
+)
+(repo_root / "docs" / "specs" / mission_id / "operator" / "linear_issue.json").write_text(
+    json.dumps(result, indent=2) + "\n",
+    encoding="utf-8",
+)
+PY
+  ok "linear issue bound"
+fi
+
+step "Launch and pick up the mission"
 uv run --python 3.13 python - <<'PY' "$MISSION_ID"
 import json
 import sys
 from pathlib import Path
 
-from spec_orch.dashboard.launcher import _launch_mission
+from spec_orch.services.fresh_acpx_e2e import run_fresh_launch_and_pickup
 
 repo_root = Path(".").resolve()
 mission_id = sys.argv[1]
-result = _launch_mission(repo_root, mission_id)
-(repo_root / "docs" / "specs" / mission_id / "operator" / "launch_result.json").write_text(
+result = run_fresh_launch_and_pickup(repo_root=repo_root, mission_id=mission_id)
+(repo_root / "docs" / "specs" / mission_id / "operator" / "launch_pickup.json").write_text(
     json.dumps(result, indent=2) + "\n",
     encoding="utf-8",
 )
 PY
-ok "mission launch path invoked"
-
-step "Run the fresh execution pickup path"
-uv run --python 3.13 python - <<'PY' "$MISSION_ID"
-import json
-import sys
-from pathlib import Path
-
-from spec_orch.services.fresh_acpx_e2e import run_fresh_execution_once
-
-repo_root = Path(".").resolve()
-mission_id = sys.argv[1]
-result = run_fresh_execution_once(repo_root=repo_root, mission_id=mission_id)
-(repo_root / "docs" / "specs" / mission_id / "operator" / "daemon_run.json").write_text(
-    json.dumps(result, indent=2) + "\n",
-    encoding="utf-8",
-)
-PY
-ok "fresh execution pickup completed"
+ok "mission launch/pickup path completed"
 
 step "Locate the fresh round directory"
 ROUND_DIR=""
@@ -217,7 +268,20 @@ ok "fresh round detected: ${ROUND_DIR}"
 step "Start dashboard for post-run workflow replay"
 uv run --python 3.13 spec-orch dashboard --port "$DASHBOARD_PORT" >/tmp/spec_orch_fresh_dashboard.log 2>&1 &
 DASHBOARD_PID=$!
-sleep 3
+if ! uv run --python 3.13 python - <<'PY' "$DASHBOARD_PORT"
+import sys
+
+from spec_orch.services.fresh_acpx_e2e import wait_for_dashboard_ready
+
+port = sys.argv[1]
+result = wait_for_dashboard_ready(f"http://127.0.0.1:{port}/", timeout_seconds=20.0)
+print(result)
+PY
+then
+  cat /tmp/spec_orch_fresh_dashboard.log >&2 || true
+  kill "$DASHBOARD_PID" >/dev/null 2>&1 || true
+  fail "dashboard never became ready"
+fi
 ok "dashboard started at http://127.0.0.1:${DASHBOARD_PORT}"
 
 step "Run post-run workflow replay and acceptance review"
@@ -321,5 +385,6 @@ ok "fresh mission workflow replay completed"
 echo ""
 echo -e "${GREEN}Fresh Acpx Mission E2E completed${NC}"
 echo "Mission: ${MISSION_ID}"
+echo "Variant: ${RUN_VARIANT}"
 echo "Round:   ${ROUND_DIR}"
 echo "Report:  ${ROUND_DIR}/fresh_acpx_mission_e2e_report.md"

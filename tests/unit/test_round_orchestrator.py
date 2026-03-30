@@ -872,15 +872,191 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     exploratory = orchestrator._build_acceptance_campaign(
         mission_id="mission-1", artifacts=artifacts
     )
-    assert exploratory.min_primary_routes == 1
-    assert exploratory.related_route_budget == 5
+    assert exploratory.primary_routes == [
+        "/",
+        "/?mission=mission-1&tab=overview",
+    ]
+    assert exploratory.seed_routes == [
+        "/",
+        "/?mission=mission-1&tab=overview",
+    ]
+    assert exploratory.min_primary_routes == 2
+    assert exploratory.related_route_budget == 4
+    assert exploratory.related_routes == [
+        "/?mission=mission-1&tab=transcript",
+        "/?mission=mission-1&tab=acceptance",
+        "/?mission=mission-1&tab=costs",
+        "/?mission=mission-1&tab=visual",
+    ]
+    assert exploratory.allowed_expansions == [
+        "/?mission=mission-1&tab=transcript",
+        "/?mission=mission-1&tab=acceptance",
+        "/?mission=mission-1&tab=costs",
+        "/?mission=mission-1&tab=visual",
+    ]
     assert exploratory.interaction_budget == "wide"
+    assert exploratory.evidence_budget == "bounded"
     assert exploratory.required_interactions == [
         "complete the intended operator task",
         "switch into adjacent surfaces when the task suggests it",
     ]
-    assert exploratory.interaction_plans["/?mission=mission-1&tab=costs"][0].target == "Transcript"
-    assert exploratory.interaction_plans["/?mission=mission-1&tab=costs"][-1].target == "Costs"
+    assert exploratory.coverage_expectations == [
+        "operator can establish launcher context",
+        "operator can inspect mission detail from the overview surface",
+        "operator can expand into adjacent mission surfaces",
+        "operator can inspect at least one deeper evidence surface",
+    ]
+    assert exploratory.critique_focus == [
+        "information architecture confusion",
+        "ambiguous terminology",
+        "discoverability gaps",
+        "context switching friction",
+    ]
+    assert exploratory.stop_conditions == [
+        "stop when the route budget is exhausted",
+        "stop when no adjacent surface adds new operator evidence",
+        "stop after confirming a materially broken flow",
+    ]
+    assert (
+        exploratory.interaction_plans["/"][0].target == '[data-automation-target="open-launcher"]'
+    )
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=overview"][0].target
+        == '[data-automation-target="mission-detail-ready"][data-mission-id="mission-1"]'
+    )
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=overview"][1].target
+        == '[data-automation-target="mission-tab"][data-tab-key="transcript"]'
+    )
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][0].target
+        == '[data-automation-target="transcript-filter"][data-filter-key="all"]'
+    )
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][2].target
+        == '[data-automation-target="packet-row"]'
+    )
+    assert exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][2].timeout_ms == 1500
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][4].target
+        == '[data-automation-target="transcript-block"]'
+    )
+    assert exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][4].timeout_ms == 1500
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=acceptance"][0].target
+        == '[data-automation-target="internal-route"][data-route-label="Open acceptance review"]'
+    )
+    assert exploratory.interaction_plans["/?mission=mission-1&tab=acceptance"][0].timeout_ms == 1500
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=visual"][0].target
+        == '[data-automation-target="internal-route"][data-route-label="Open visual review"]'
+    )
+    assert exploratory.interaction_plans["/?mission=mission-1&tab=visual"][0].timeout_ms == 1500
+
+
+def test_build_acceptance_campaign_honors_explicit_mode_override(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from spec_orch.domain.models import AcceptanceMode
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    mission_dir = tmp_path / "docs/specs/mission-1"
+    mission_dir.mkdir(parents=True)
+    (mission_dir / "mission.json").write_text(
+        json.dumps(
+            {
+                "mission_id": "mission-1",
+                "title": "Mission 1",
+                "acceptance_criteria": ["launcher works"],
+                "constraints": [],
+                "approved": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    artifacts = {
+        "review_routes": {
+            "overview": "/?mission=mission-1&tab=overview",
+            "transcript": "/?mission=mission-1&tab=transcript",
+            "acceptance": "/?mission=mission-1&tab=acceptance",
+            "costs": "/?mission=mission-1&tab=costs",
+        },
+    }
+
+    monkeypatch.delenv("SPEC_ORCH_ACCEPTANCE_MODE", raising=False)
+
+    campaign = orchestrator._build_acceptance_campaign(
+        mission_id="mission-1",
+        artifacts=artifacts,
+        mode_override=AcceptanceMode.EXPLORATORY,
+    )
+
+    assert campaign.mode is AcceptanceMode.EXPLORATORY
+    assert campaign.seed_routes == ["/", "/?mission=mission-1&tab=overview"]
+    assert campaign.critique_focus == [
+        "information architecture confusion",
+        "ambiguous terminology",
+        "discoverability gaps",
+        "context switching friction",
+    ]
+    assert (
+        campaign.interaction_plans["/?mission=mission-1&tab=costs"][0].target
+        == '[data-automation-target="internal-route"][data-route-label="Open cost review"]'
+    )
+
+
+def test_build_acceptance_campaign_uses_default_dashboard_review_routes_for_exploratory(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from spec_orch.domain.models import AcceptanceMode
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    mission_dir = tmp_path / "docs/specs/mission-2"
+    mission_dir.mkdir(parents=True)
+    (mission_dir / "mission.json").write_text(
+        json.dumps(
+            {
+                "mission_id": "mission-2",
+                "title": "Mission 2",
+                "acceptance_criteria": ["dashboard is usable"],
+                "constraints": [],
+                "approved": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    monkeypatch.delenv("SPEC_ORCH_ACCEPTANCE_MODE", raising=False)
+
+    campaign = orchestrator._build_acceptance_campaign(
+        mission_id="mission-2",
+        artifacts={},
+        mode_override=AcceptanceMode.EXPLORATORY,
+    )
+
+    assert campaign.primary_routes == [
+        "/",
+        "/?mission=mission-2&mode=missions&tab=overview",
+    ]
+    assert campaign.related_routes == [
+        "/?mission=mission-2&mode=missions&tab=transcript",
+        "/?mission=mission-2&mode=missions&tab=acceptance",
+        "/?mission=mission-2&mode=missions&tab=costs",
+        "/?mission=mission-2&mode=missions&tab=visual",
+    ]
 
 
 def test_build_acceptance_campaign_escapes_mission_id_for_workflow_css_selector(
@@ -1887,15 +2063,6 @@ def test_build_fresh_acpx_post_run_campaign_substitutes_interaction_plan_keys(
 ) -> None:
     from spec_orch.services.round_orchestrator import build_fresh_acpx_post_run_campaign
 
-    fixture_dir = tmp_path / "tests" / "fixtures"
-    fixture_dir.mkdir(parents=True, exist_ok=True)
-    fixture_dir.joinpath("fresh_acpx_campaign.json").write_text(
-        (Path(__file__).resolve().parents[1] / "fixtures" / "fresh_acpx_campaign.json").read_text(
-            encoding="utf-8"
-        ),
-        encoding="utf-8",
-    )
-
     campaign = build_fresh_acpx_post_run_campaign(tmp_path, "fresh-mission-123")
 
     assert "/?mission=fresh-mission-123&mode=missions&tab=overview" in campaign.interaction_plans
@@ -1959,9 +2126,10 @@ def test_collect_artifacts_records_verification_gate_and_manifest_paths(tmp_path
     assert artifacts.gate_verdicts
     assert artifacts.gate_verdicts[0]["packet_id"] == "pkt-1"
     assert artifacts.gate_verdicts[0]["mergeable"] is True
+    assert artifacts.gate_verdicts[0]["scope"]["all_in_scope"] is True
+    assert artifacts.gate_verdicts[0]["scope"]["out_of_scope_files"] == []
     assert str(report_path) in artifacts.manifest_paths
     assert any(path.endswith("src/contracts/mission_types.ts") for path in artifacts.manifest_paths)
-
 
 def test_persist_round_delegates_normalized_supervision_payload_write(tmp_path: Path) -> None:
     from spec_orch.domain.models import (
@@ -2020,3 +2188,135 @@ def test_persist_round_delegates_normalized_supervision_payload_write(tmp_path: 
     assert delegated["round_dir"] == round_dir
     assert isinstance(delegated["summary"], dict)
     assert isinstance(delegated["decision"], dict)
+
+
+def test_collect_artifacts_marks_out_of_scope_workspace_files_as_non_mergeable(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.domain.models import BuilderResult, Wave, WorkPacket
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    packet = WorkPacket(
+        packet_id="pkt-1",
+        title="Scaffold contract",
+        files_in_scope=["src/contracts/mission_types.ts"],
+        verification_commands={
+            "scaffold_exists": [
+                "{python}",
+                "-c",
+                "from pathlib import Path; raise SystemExit(0 if Path('src/contracts/mission_types.ts').exists() else 1)",
+            ]
+        },
+    )
+    workspace = orchestrator._packet_workspace("mission-1", packet)
+    (workspace / "src" / "contracts").mkdir(parents=True, exist_ok=True)
+    (workspace / "src" / "contracts" / "mission_types.ts").write_text(
+        "export interface MissionType {}\n",
+        encoding="utf-8",
+    )
+    (workspace / "src" / "contracts" / "rogue_types.ts").write_text(
+        "export interface RogueType {}\n",
+        encoding="utf-8",
+    )
+    report_path = workspace / "builder_report.json"
+    report_path.write_text("{}", encoding="utf-8")
+
+    artifacts = orchestrator._collect_artifacts(
+        mission_id="mission-1",
+        round_id=1,
+        wave=Wave(wave_number=0, work_packets=[packet]),
+        worker_results=[
+            (
+                packet,
+                BuilderResult(
+                    succeeded=True,
+                    command=["builder"],
+                    stdout="ok",
+                    stderr="",
+                    report_path=report_path,
+                    adapter="stub",
+                    agent="stub",
+                ),
+            )
+        ],
+        round_dir=tmp_path / "docs" / "specs" / "mission-1" / "rounds" / "round-01",
+    )
+
+    assert artifacts.gate_verdicts[0]["mergeable"] is False
+    assert "scope" in artifacts.gate_verdicts[0]["failed_conditions"]
+    assert artifacts.gate_verdicts[0]["scope"]["all_in_scope"] is False
+    assert artifacts.gate_verdicts[0]["scope"]["out_of_scope_files"] == [
+        "src/contracts/rogue_types.ts"
+    ]
+
+
+def test_collect_artifacts_ignores_harness_telemetry_for_scope_proof(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.domain.models import BuilderResult, Wave, WorkPacket
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    packet = WorkPacket(
+        packet_id="pkt-1",
+        title="Scaffold contract",
+        files_in_scope=["src/contracts/mission_types.ts"],
+        verification_commands={
+            "scaffold_exists": [
+                "{python}",
+                "-c",
+                "from pathlib import Path; raise SystemExit(0 if Path('src/contracts/mission_types.ts').exists() else 1)",
+            ]
+        },
+    )
+    workspace = orchestrator._packet_workspace("mission-1", packet)
+    (workspace / "src" / "contracts").mkdir(parents=True, exist_ok=True)
+    (workspace / "src" / "contracts" / "mission_types.ts").write_text(
+        "export interface MissionType {}\n",
+        encoding="utf-8",
+    )
+    telemetry_dir = workspace / "telemetry"
+    telemetry_dir.mkdir(parents=True, exist_ok=True)
+    (telemetry_dir / "events.jsonl").write_text("{}\n", encoding="utf-8")
+    (telemetry_dir / "incoming_events.jsonl").write_text("{}\n", encoding="utf-8")
+    (telemetry_dir / "activity.log").write_text("[10:00] started\n", encoding="utf-8")
+    (workspace / "btw_context.md").write_text("Use the latest packet context.\n", encoding="utf-8")
+    (workspace / "task.spec.md").write_text("# Task Spec\n", encoding="utf-8")
+    report_path = workspace / "builder_report.json"
+    report_path.write_text("{}", encoding="utf-8")
+
+    artifacts = orchestrator._collect_artifacts(
+        mission_id="mission-1",
+        round_id=1,
+        wave=Wave(wave_number=0, work_packets=[packet]),
+        worker_results=[
+            (
+                packet,
+                BuilderResult(
+                    succeeded=True,
+                    command=["builder"],
+                    stdout="ok",
+                    stderr="",
+                    report_path=report_path,
+                    adapter="stub",
+                    agent="stub",
+                ),
+            )
+        ],
+        round_dir=tmp_path / "docs" / "specs" / "mission-1" / "rounds" / "round-01",
+    )
+
+    assert artifacts.gate_verdicts[0]["mergeable"] is True
+    assert artifacts.gate_verdicts[0]["scope"]["all_in_scope"] is True
+    assert artifacts.gate_verdicts[0]["scope"]["out_of_scope_files"] == []

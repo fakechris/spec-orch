@@ -8,7 +8,10 @@
     "coverage_status": "complete",
     "tested_routes": [
       "/",
-      "/?mission=operator-console&mode=missions&tab=transcript"
+      "/?mission=operator-console&mode=missions&tab=overview",
+      "/?mission=operator-console&mode=missions&tab=transcript",
+      "/?mission=operator-console&mode=missions&tab=acceptance",
+      "/?mission=operator-console&mode=missions&tab=costs"
     ],
     "untested_expected_routes": [],
     "recommended_next_step": "Hold broad UX concerns for operator review before filing.",
@@ -20,6 +23,9 @@
         "expected": "A first-time operator can discover transcript controls without guidance.",
         "actual": "The operator must infer which tab and packet selection state matters.",
         "route": "/?mission=operator-console&mode=missions&tab=transcript",
+        "critique_axis": "evidence_discoverability",
+        "operator_task": "open packet-level transcript evidence",
+        "why_it_matters": "Operators can stall before reaching the most important mission evidence.",
         "artifact_paths": {
           "screenshot": "rounds/round-03/visual/transcript.png"
         }
@@ -38,6 +44,10 @@
         "expected": "Transcript controls feel self-explanatory.",
         "actual": "Operator must infer the intended flow.",
         "route": "/?mission=operator-console&mode=missions&tab=transcript",
+        "critique_axis": "evidence_discoverability",
+        "operator_task": "open packet-level transcript evidence",
+        "why_it_matters": "The first useful evidence step should be obvious to a first-time operator.",
+        "hold_reason": "Exploratory UX critique should be reviewed before filing.",
         "artifact_paths": {
           "screenshot": "rounds/round-03/visual/transcript.png"
         },
@@ -53,10 +63,13 @@
       "mode": "exploratory",
       "goal": "Dogfood the operator console as a first-time operator.",
       "primary_routes": [
-        "/"
+        "/",
+        "/?mission=operator-console&mode=missions&tab=overview"
       ],
       "related_routes": [
-        "/?mission=operator-console&mode=missions&tab=transcript"
+        "/?mission=operator-console&mode=missions&tab=transcript",
+        "/?mission=operator-console&mode=missions&tab=acceptance",
+        "/?mission=operator-console&mode=missions&tab=costs"
       ],
       "interaction_plans": {},
       "coverage_expectations": [
@@ -65,11 +78,30 @@
       "required_interactions": [
         "open transcript tab"
       ],
-      "min_primary_routes": 1,
-      "related_route_budget": 2,
+      "min_primary_routes": 2,
+      "related_route_budget": 3,
       "interaction_budget": "wide",
       "filing_policy": "hold_ux_concerns_for_operator_review",
-      "exploration_budget": "wide"
+      "exploration_budget": "wide",
+      "seed_routes": [
+        "/",
+        "/?mission=operator-console&mode=missions&tab=overview"
+      ],
+      "allowed_expansions": [
+        "/?mission=operator-console&mode=missions&tab=transcript",
+        "/?mission=operator-console&mode=missions&tab=acceptance",
+        "/?mission=operator-console&mode=missions&tab=costs"
+      ],
+      "critique_focus": [
+        "information architecture confusion",
+        "ambiguous terminology",
+        "discoverability gaps"
+      ],
+      "stop_conditions": [
+        "stop when the route budget is exhausted",
+        "stop when no adjacent surface adds new operator evidence"
+      ],
+      "evidence_budget": "bounded"
     }
   },
   "expected": {

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError
+from urllib.request import urlopen
 
 from spec_orch.domain.models import AcceptanceReviewResult
 
@@ -25,6 +28,80 @@ def _build_execution_lifecycle_manager(repo_root: Path) -> Any:
     from spec_orch.dashboard.launcher import _build_execution_lifecycle_manager as _build_manager
 
     return _build_manager(repo_root)
+
+
+def _probe_dashboard(url: str, timeout_seconds: float) -> dict[str, Any]:
+    try:
+        with urlopen(url, timeout=timeout_seconds) as response:
+            return {
+                "url": url,
+                "status": getattr(response, "status", None),
+            }
+    except HTTPError as exc:
+        return {
+            "url": url,
+            "status": exc.code,
+        }
+
+
+def wait_for_dashboard_ready(
+    base_url: str,
+    *,
+    timeout_seconds: float = 20.0,
+    poll_interval_seconds: float = 0.5,
+    probe_timeout_seconds: float = 2.0,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_seconds
+    attempts = 0
+    last_error = ""
+    while True:
+        attempts += 1
+        try:
+            payload = _probe_dashboard(base_url, probe_timeout_seconds)
+            status = int(payload.get("status") or 0)
+            if 200 <= status < 500:
+                return {
+                    "ready": True,
+                    "attempts": attempts,
+                    "status": status,
+                    "url": base_url,
+                }
+            last_error = f"unexpected status={status}"
+        except HTTPError as exc:
+            status = int(exc.code)
+            if 200 <= status < 500:
+                return {
+                    "ready": True,
+                    "attempts": attempts,
+                    "status": status,
+                    "url": base_url,
+                }
+            last_error = f"unexpected status={status}"
+        except Exception as exc:
+            last_error = str(exc)
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"Dashboard never became ready at {base_url}: {last_error}")
+        time.sleep(poll_interval_seconds)
+
+
+def run_fresh_launch_and_pickup(*, repo_root: Path, mission_id: str) -> dict[str, Any]:
+    from spec_orch.dashboard.launcher import _launch_mission
+
+    operator_dir = repo_root / "docs" / "specs" / mission_id / "operator"
+    operator_dir.mkdir(parents=True, exist_ok=True)
+    launch_result = _launch_mission(repo_root, mission_id, allow_background_runner=False)
+    runner_status = str(launch_result.get("launch", {}).get("runner", {}).get("status", "")).strip()
+    daemon_run = None
+    if runner_status == "foreground_required":
+        daemon_run = run_fresh_execution_once(repo_root=repo_root, mission_id=mission_id)
+    payload = {
+        "mission_id": mission_id,
+        "proof_type": "fresh_launch_pickup",
+        "launch_result": launch_result,
+        "daemon_run": daemon_run,
+    }
+    _write_json(operator_dir / "launch_pickup.json", payload)
+    return payload
 
 
 def run_fresh_execution_once(*, repo_root: Path, mission_id: str) -> dict[str, Any]:
@@ -109,6 +186,49 @@ def materialize_fresh_execution_artifacts(
     }
 
 
+def build_fresh_exploratory_artifacts(
+    *,
+    repo_root: Path,
+    mission_id: str,
+    round_dir: Path,
+    mission_payload: dict[str, Any],
+    browser_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    artifacts: dict[str, Any] = {
+        "mission": dict(mission_payload),
+        "browser_evidence": dict(browser_evidence),
+    }
+    report_payload = _read_json(round_dir / "fresh_acpx_mission_e2e_report.json")
+    if report_payload:
+        artifacts["fresh_acpx_mission_e2e_report"] = report_payload
+        fresh_execution = report_payload.get("fresh_execution")
+        workflow_replay = report_payload.get("workflow_replay")
+        if isinstance(fresh_execution, dict) and fresh_execution:
+            artifacts["fresh_execution"] = fresh_execution
+        if isinstance(workflow_replay, dict) and workflow_replay:
+            artifacts["workflow_replay"] = workflow_replay
+            review_routes = workflow_replay.get("review_routes")
+            if isinstance(review_routes, dict) and review_routes:
+                artifacts["review_routes"] = review_routes
+            workflow_assertions = workflow_replay.get("workflow_assertions")
+            if isinstance(workflow_assertions, list) and workflow_assertions:
+                artifacts["workflow_assertions"] = workflow_assertions
+        if "fresh_execution" in artifacts and "workflow_replay" in artifacts:
+            artifacts["proof_split"] = {
+                "fresh_execution": artifacts["fresh_execution"],
+                "workflow_replay": artifacts["workflow_replay"],
+            }
+
+    prior_acceptance = _read_json(round_dir / "acceptance_review.json")
+    if prior_acceptance:
+        artifacts["workflow_acceptance_review"] = prior_acceptance
+    round_summary = _read_json(round_dir / "round_summary.json")
+    if round_summary:
+        artifacts["round_summary"] = round_summary
+
+    return artifacts
+
+
 def write_fresh_acpx_mission_report(
     *,
     round_dir: Path,
@@ -118,8 +238,12 @@ def write_fresh_acpx_mission_report(
     workflow_replay: dict[str, Any],
     acceptance_review: AcceptanceReviewResult,
 ) -> dict[str, Any]:
+    bootstrap = fresh_execution.get("mission_bootstrap", {})
+    metadata = bootstrap.get("metadata", {}) if isinstance(bootstrap, dict) else {}
+    variant = str(metadata.get("fresh_variant", "default")).strip() or "default"
     report_payload = {
         "mission_id": mission_id,
+        "variant": variant,
         "dashboard_url": dashboard_url,
         "fresh_execution": fresh_execution,
         "workflow_replay": workflow_replay,
@@ -137,6 +261,8 @@ def write_fresh_acpx_mission_report(
     markdown = "\n".join(
         [
             f"# Fresh Acpx Mission E2E Report: {mission_id}",
+            "",
+            f"- Variant: `{variant}`",
             "",
             "## Fresh Execution Proof",
             "",

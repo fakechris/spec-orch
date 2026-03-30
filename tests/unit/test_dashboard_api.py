@@ -350,6 +350,55 @@ class TestDashboardAPI:
             f"/?mission={mission_id}&mode=missions&tab=acceptance"
         )
 
+    def test_acceptance_review_handles_string_confidence_without_500(self, client, repo: Path):
+        mission_id = "mission-acceptance-string-confidence"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-01"
+        round_dir.mkdir(parents=True)
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Acceptance String Confidence Mission",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-27T00:00:00+00:00",
+                    "approved_at": "2026-03-27T00:10:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Acceptance String Confidence Mission\n", encoding="utf-8")
+        (round_dir / "acceptance_review.json").write_text(
+            json.dumps(
+                {
+                    "status": "fail",
+                    "summary": "Workflow replay did not execute.",
+                    "confidence": "low",
+                    "evaluator": "acceptance_llm",
+                    "tested_routes": [],
+                    "findings": [],
+                    "issue_proposals": [],
+                    "artifacts": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        detail_response = client.get(f"/api/missions/{mission_id}/detail")
+        assert detail_response.status_code == 200
+        detail_data = detail_response.json()
+        assert detail_data["acceptance_review"]["summary"]["latest_confidence"] == 0.3
+
+        review_response = client.get(f"/api/missions/{mission_id}/acceptance-review")
+        assert review_response.status_code == 200
+        review_data = review_response.json()
+        assert review_data["summary"]["latest_confidence"] == 0.3
+
     def test_health(self, client):
         r = client.get("/api/health")
         assert r.status_code == 200

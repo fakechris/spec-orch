@@ -46,6 +46,7 @@ from spec_orch.services.gate_service import GatePolicy, GateService
 from spec_orch.services.io import atomic_write_json
 from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.runtime_core.writers import write_round_supervision_payloads
+from spec_orch.services.resource_loader import load_json_resource
 from spec_orch.services.run_event_logger import RunEventLogger
 from spec_orch.services.telemetry_service import TelemetryService
 from spec_orch.services.verification_service import VerificationService
@@ -54,11 +55,7 @@ logger = logging.getLogger(__name__)
 
 
 def _load_repo_fixture_json(repo_root: Path, fixture_name: str) -> dict[str, Any]:
-    fixture_path = Path(repo_root) / "tests" / "fixtures" / fixture_name
-    data = json.loads(fixture_path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"Fixture {fixture_name} must contain a JSON object")
-    return data
+    return load_json_resource(resource_name=fixture_name, repo_root=repo_root)
 
 
 def _substitute_fresh_campaign_placeholders(value: Any, *, mission_id: str) -> Any:
@@ -442,6 +439,11 @@ class RoundOrchestrator:
                     },
                 }
             )
+            scope_proof = self._build_packet_scope_proof(
+                workspace=workspace,
+                packet=packet,
+                report_path=result.report_path,
+            )
             gate = gate_service.evaluate(
                 GateInput(
                     builder_succeeded=result.succeeded,
@@ -449,11 +451,15 @@ class RoundOrchestrator:
                     review=ReviewSummary(verdict="not_applicable"),
                 )
             )
+            failed_conditions = list(gate.failed_conditions)
+            if not scope_proof["all_in_scope"] and "scope" not in failed_conditions:
+                failed_conditions.append("scope")
             gate_verdicts.append(
                 {
                     "packet_id": packet.packet_id,
-                    "mergeable": gate.mergeable,
-                    "failed_conditions": list(gate.failed_conditions),
+                    "mergeable": gate.mergeable and scope_proof["all_in_scope"],
+                    "failed_conditions": failed_conditions,
+                    "scope": scope_proof,
                 }
             )
 
@@ -478,6 +484,41 @@ class RoundOrchestrator:
             ],
             visual_evaluation=visual_evaluation,
         )
+
+    def _build_packet_scope_proof(
+        self,
+        *,
+        workspace: Path,
+        packet: WorkPacket,
+        report_path: Path,
+    ) -> dict[str, Any]:
+        allowed = [str(path).strip() for path in packet.files_in_scope if str(path).strip()]
+        allowed_set = set(allowed)
+        excluded_paths = {report_path.resolve()}
+        excluded_prefixes = ("telemetry/",)
+        excluded_filenames = {"btw_context.md", "task.spec.md"}
+        realized_files: list[str] = []
+        for path in workspace.rglob("*"):
+            if not path.is_file():
+                continue
+            try:
+                resolved = path.resolve()
+            except OSError:
+                resolved = path
+            if resolved in excluded_paths:
+                continue
+            relative_path = path.relative_to(workspace).as_posix()
+            if relative_path.startswith(excluded_prefixes) or relative_path in excluded_filenames:
+                continue
+            realized_files.append(relative_path)
+        realized_files = self._unique_preserve_order(realized_files)
+        out_of_scope_files = [path for path in realized_files if path not in allowed_set]
+        return {
+            "allowed_files": allowed,
+            "realized_files": realized_files,
+            "out_of_scope_files": out_of_scope_files,
+            "all_in_scope": not out_of_scope_files,
+        }
 
     def _load_history(self, mission_id: str, *, up_to_round: int) -> list[RoundSummary]:
         if up_to_round <= 0:
@@ -966,12 +1007,22 @@ class RoundOrchestrator:
         *,
         mission_id: str,
         artifacts: dict[str, Any],
+        mode_override: AcceptanceMode | None = None,
     ) -> AcceptanceCampaign:
-        mode = self._resolve_acceptance_mode()
+        mode = self._resolve_acceptance_mode(mode_override=mode_override)
         review_routes = artifacts.get("review_routes", {})
+        if mode is AcceptanceMode.EXPLORATORY and not isinstance(review_routes, dict):
+            review_routes = {}
+        if mode is AcceptanceMode.EXPLORATORY and not review_routes:
+            review_routes = self._default_dashboard_review_routes(mission_id)
+        effective_artifacts = (
+            {**artifacts, "review_routes": review_routes}
+            if isinstance(review_routes, dict) and review_routes
+            else artifacts
+        )
         primary_routes = self._acceptance_primary_routes(
             mission_id=mission_id,
-            artifacts=artifacts,
+            artifacts=effective_artifacts,
             mode=mode,
         )
         mission = self._load_mission(mission_id)
@@ -981,6 +1032,13 @@ class RoundOrchestrator:
             mode=mode,
         )
         coverage_expectations = list(mission.acceptance_criteria) if mission is not None else []
+        if mode is AcceptanceMode.EXPLORATORY:
+            coverage_expectations = [
+                "operator can establish launcher context",
+                "operator can inspect mission detail from the overview surface",
+                "operator can expand into adjacent mission surfaces",
+                "operator can inspect at least one deeper evidence surface",
+            ]
         workflow_assertions = [
             str(assertion)
             for assertion in artifacts.get("workflow_assertions", [])
@@ -1016,13 +1074,13 @@ class RoundOrchestrator:
             AcceptanceMode.FEATURE_SCOPED: max(1, len(primary_routes)),
             AcceptanceMode.IMPACT_SWEEP: max(1, len(primary_routes)),
             AcceptanceMode.WORKFLOW: max(1, len(primary_routes)),
-            AcceptanceMode.EXPLORATORY: 1,
+            AcceptanceMode.EXPLORATORY: max(1, len(primary_routes)),
         }[mode]
         related_route_budget = {
             AcceptanceMode.FEATURE_SCOPED: 1,
             AcceptanceMode.IMPACT_SWEEP: 3,
             AcceptanceMode.WORKFLOW: 5,
-            AcceptanceMode.EXPLORATORY: 5,
+            AcceptanceMode.EXPLORATORY: 4,
         }[mode]
         interaction_budget = {
             AcceptanceMode.FEATURE_SCOPED: "tight",
@@ -1048,6 +1106,28 @@ class RoundOrchestrator:
                 "switch into adjacent surfaces when the task suggests it",
             ],
         }[mode]
+        seed_routes = primary_routes if mode is AcceptanceMode.EXPLORATORY else []
+        allowed_expansions = related_routes if mode is AcceptanceMode.EXPLORATORY else []
+        critique_focus = (
+            [
+                "information architecture confusion",
+                "ambiguous terminology",
+                "discoverability gaps",
+                "context switching friction",
+            ]
+            if mode is AcceptanceMode.EXPLORATORY
+            else []
+        )
+        stop_conditions = (
+            [
+                "stop when the route budget is exhausted",
+                "stop when no adjacent surface adds new operator evidence",
+                "stop after confirming a materially broken flow",
+            ]
+            if mode is AcceptanceMode.EXPLORATORY
+            else []
+        )
+        evidence_budget = "bounded" if mode is AcceptanceMode.EXPLORATORY else ""
         interaction_plans = self._build_acceptance_interaction_plans(
             mode=mode,
             primary_routes=primary_routes,
@@ -1067,10 +1147,17 @@ class RoundOrchestrator:
             interaction_budget=interaction_budget,
             filing_policy=filing_policy,
             exploration_budget=exploration_budget,
+            seed_routes=seed_routes,
+            allowed_expansions=allowed_expansions,
+            critique_focus=critique_focus,
+            stop_conditions=stop_conditions,
+            evidence_budget=evidence_budget,
         )
 
     @staticmethod
-    def _resolve_acceptance_mode() -> AcceptanceMode:
+    def _resolve_acceptance_mode(mode_override: AcceptanceMode | None = None) -> AcceptanceMode:
+        if mode_override is not None:
+            return mode_override
         raw_mode = os.getenv("SPEC_ORCH_ACCEPTANCE_MODE", AcceptanceMode.FEATURE_SCOPED.value)
         try:
             return AcceptanceMode(raw_mode.strip().lower())
@@ -1093,11 +1180,24 @@ class RoundOrchestrator:
             env_routes = [part.strip() for part in paths_env.split(",") if part.strip()]
             if env_routes:
                 return self._unique_preserve_order(env_routes)
+        review_routes = artifacts.get("review_routes", {})
+        overview_route = ""
+        if isinstance(review_routes, dict):
+            raw_overview = review_routes.get("overview")
+            if isinstance(raw_overview, str):
+                overview_route = raw_overview.strip()
         if mode is AcceptanceMode.WORKFLOW:
             return [
                 "/",
                 f"/?mission={mission_id}&mode=missions&tab=overview",
             ]
+        if mode is AcceptanceMode.EXPLORATORY:
+            return self._unique_preserve_order(
+                [
+                    "/",
+                    overview_route or f"/?mission={mission_id}&mode=missions&tab=overview",
+                ]
+            )
         return ["/"]
 
     def _acceptance_related_routes(
@@ -1111,7 +1211,7 @@ class RoundOrchestrator:
             AcceptanceMode.FEATURE_SCOPED: 1,
             AcceptanceMode.IMPACT_SWEEP: 3,
             AcceptanceMode.WORKFLOW: 5,
-            AcceptanceMode.EXPLORATORY: 5,
+            AcceptanceMode.EXPLORATORY: 4,
         }[mode]
         candidates = [
             route
@@ -1124,6 +1224,18 @@ class RoundOrchestrator:
             key=lambda route: (priority.get(self._route_tab_key(route), 99), route),
         )
         return candidates[:budget]
+
+    @staticmethod
+    def _default_dashboard_review_routes(mission_id: str) -> dict[str, str]:
+        base = f"/?mission={mission_id}&mode=missions&tab="
+        return {
+            "overview": f"{base}overview",
+            "transcript": f"{base}transcript",
+            "approvals": f"{base}approvals",
+            "acceptance": f"{base}acceptance",
+            "visual_qa": f"{base}visual",
+            "costs": f"{base}costs",
+        }
 
     @staticmethod
     def _acceptance_route_priority(mode: AcceptanceMode) -> dict[str, int]:
@@ -1143,6 +1255,15 @@ class RoundOrchestrator:
                 "costs": 2,
                 "approvals": 3,
                 "acceptance": 4,
+                "overview": 5,
+            }
+        if mode is AcceptanceMode.EXPLORATORY:
+            return {
+                "transcript": 0,
+                "acceptance": 1,
+                "costs": 2,
+                "visual": 3,
+                "approvals": 4,
                 "overview": 5,
             }
         return {
@@ -1178,6 +1299,8 @@ class RoundOrchestrator:
     ) -> list[AcceptanceInteractionStep]:
         if mode is AcceptanceMode.WORKFLOW:
             return self._workflow_interaction_plan_for_route(route, mission_id=mission_id)
+        if mode is AcceptanceMode.EXPLORATORY:
+            return self._exploratory_interaction_plan_for_route(route, mission_id=mission_id)
         if "mission=" not in route:
             return []
         restore_label = self._route_tab_label(route)
@@ -1204,6 +1327,130 @@ class RoundOrchestrator:
                 )
             )
         return steps
+
+    def _exploratory_interaction_plan_for_route(
+        self,
+        route: str,
+        *,
+        mission_id: str,
+    ) -> list[AcceptanceInteractionStep]:
+        escaped_mission_id = self._css_attr_escape(mission_id)
+        if route == "/":
+            return [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="open-launcher"]',
+                    description="Open the launcher to establish operator context.",
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="launcher-action"][data-launcher-action="refresh-readiness"]',
+                    description=(
+                        "Confirm launcher actions are visible before exploring mission surfaces."
+                    ),
+                ),
+            ]
+        if "tab=overview" in route:
+            return [
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target=(
+                        '[data-automation-target="mission-detail-ready"]'
+                        f'[data-mission-id="{escaped_mission_id}"]'
+                    ),
+                    description=(
+                        "Confirm mission detail is ready before branching into adjacent surfaces."
+                    ),
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="transcript"]',
+                    description="Probe the transcript surface from the overview entry point.",
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="mission-tab"][data-tab-key="transcript"][data-active="true"]',
+                    description="Confirm the transcript branch became active.",
+                ),
+            ]
+        if "tab=transcript" in route:
+            return [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                    description="Reset transcript filters before judging discoverability.",
+                    timeout_ms=1500,
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="transcript-filter"][data-filter-key="all"][data-active="true"]',
+                    description="Confirm transcript evidence is shown in the broadest view.",
+                    timeout_ms=1500,
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="packet-row"]',
+                    description=(
+                        "Open the first visible packet to inspect concrete operator evidence."
+                    ),
+                    timeout_ms=1500,
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="packet-row"][data-active="true"]',
+                    description="Confirm a packet was selected before judging transcript clarity.",
+                    timeout_ms=1500,
+                ),
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target='[data-automation-target="transcript-block"]',
+                    description=(
+                        "Inspect the first visible transcript block for context continuity."
+                    ),
+                    timeout_ms=1500,
+                ),
+            ]
+        if "tab=acceptance" in route:
+            return [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target=(
+                        '[data-automation-target="internal-route"]'
+                        '[data-route-label="Open acceptance review"]'
+                    ),
+                    description=(
+                        "Follow the acceptance affordance exposed by the mission context rail."
+                    ),
+                    timeout_ms=1500,
+                )
+            ]
+        if "tab=costs" in route:
+            return [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target=(
+                        '[data-automation-target="internal-route"]'
+                        '[data-route-label="Open cost review"]'
+                    ),
+                    description="Follow the costs affordance exposed by the mission context rail.",
+                    timeout_ms=1500,
+                )
+            ]
+        if "tab=visual" in route:
+            return [
+                AcceptanceInteractionStep(
+                    action="click_selector",
+                    target=(
+                        '[data-automation-target="internal-route"]'
+                        '[data-route-label="Open visual review"]'
+                    ),
+                    description=(
+                        "Open the visual review affordance to inspect deeper visual evidence."
+                    ),
+                    timeout_ms=1500,
+                )
+            ]
+        return []
 
     def _workflow_interaction_plan_for_route(
         self,
