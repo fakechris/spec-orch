@@ -396,12 +396,15 @@ class LiteLLMAcceptanceEvaluator:
         if not isinstance(interactions, dict):
             return result
 
+        transcript_candidates: list[str] = []
+        for route in result.tested_routes:
+            if isinstance(route, str) and route not in transcript_candidates:
+                transcript_candidates.append(route)
+        for route in interactions:
+            if isinstance(route, str) and route not in transcript_candidates:
+                transcript_candidates.append(route)
         transcript_route = next(
-            (
-                route
-                for route in result.tested_routes
-                if isinstance(route, str) and "tab=transcript" in route
-            ),
+            (route for route in transcript_candidates if "tab=transcript" in route),
             "",
         )
         if not transcript_route:
@@ -427,7 +430,9 @@ class LiteLLMAcceptanceEvaluator:
         round_summary = artifacts.get("round_summary", {})
         retry_action = ""
         retry_reason_code = ""
+        retry_round_id = 0
         if isinstance(round_summary, dict):
+            retry_round_id = int(round_summary.get("round_id", 0) or 0)
             decision = round_summary.get("decision", {})
             if isinstance(decision, dict):
                 retry_action = LiteLLMAcceptanceEvaluator._clean_text(decision.get("action"))
@@ -612,7 +617,8 @@ class LiteLLMAcceptanceEvaluator:
                 )
                 summary = (
                     "Operator navigation remains usable, but the transcript empty state does not "
-                    f"explain that evidence is missing because round 1 was retried for "
+                    f"explain that evidence is missing because round {retry_round_id or '?'} "
+                    f"was retried for "
                     f"{retry_reason_code}. A first-time operator can reach the surface but not "
                     "understand what happened or where to continue review."
                 )

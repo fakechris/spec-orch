@@ -175,6 +175,24 @@ def test_acceptance_dashboard_critique_metadata_round_trip() -> None:
     assert restored_proposal == proposal
 
 
+def test_acceptance_campaign_from_dict_treats_scalar_contract_values_as_single_items() -> None:
+    restored = AcceptanceCampaign.from_dict(
+        {
+            "mode": "exploratory",
+            "goal": "Dogfood the dashboard.",
+            "seed_routes": "/",
+            "allowed_expansions": "/?mission=demo&tab=overview",
+            "critique_focus": "task continuity",
+            "stop_conditions": "stop when route budget is exhausted",
+        }
+    )
+
+    assert restored.seed_routes == ["/"]
+    assert restored.allowed_expansions == ["/?mission=demo&tab=overview"]
+    assert restored.critique_focus == ["task continuity"]
+    assert restored.stop_conditions == ["stop when route budget is exhausted"]
+
+
 def test_acceptance_campaign_round_trip() -> None:
     campaign = AcceptanceCampaign(
         mode=AcceptanceMode.EXPLORATORY,

@@ -1259,7 +1259,7 @@ def test_acceptance_evaluator_rewrites_retry_backed_transcript_empty_state_into_
         worker_results=[_worker_result(tmp_path)],
         artifacts={
             "round_summary": {
-                "round_id": 1,
+                "round_id": 7,
                 "status": "decided",
                 "decision": {
                     "action": "retry",
@@ -1300,7 +1300,7 @@ def test_acceptance_evaluator_rewrites_retry_backed_transcript_empty_state_into_
     )
 
     assert result.status == "warn"
-    assert "retried for contracts_not_defined" in result.summary
+    assert "round 7 was retried for contracts_not_defined" in result.summary
     assert result.findings[0].summary == "Transcript empty state hides the retry cause"
     assert result.findings[0].critique_axis == "task_continuity"
     assert "retry" in result.findings[0].details.lower()
@@ -1310,3 +1310,77 @@ def test_acceptance_evaluator_rewrites_retry_backed_transcript_empty_state_into_
     assert result.issue_proposals[0].title == "Explain retry-backed transcript empty states"
     assert result.issue_proposals[0].critique_axis == "task_continuity"
     assert result.issue_proposals[0].hold_reason
+
+
+def test_acceptance_evaluator_finds_transcript_route_from_interaction_keys(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "pass",
+  "summary": "The exploratory pass completed.",
+  "confidence": 0.76,
+  "evaluator": "acceptance_llm",
+  "tested_routes": ["/"],
+  "findings": [],
+  "issue_proposals": [],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.EXPLORATORY,
+        goal="Dogfood transcript discoverability from an operator perspective.",
+        primary_routes=["/"],
+        related_routes=["/?mission=mission-3&mode=missions&tab=transcript"],
+        filing_policy="hold_ux_concerns_for_operator_review",
+        exploration_budget="wide",
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-3",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/mission-3/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={
+            "browser_evidence": {
+                "tested_routes": ["/"],
+                "interactions": {
+                    "/?mission=mission-3&mode=missions&tab=transcript": [
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                            "status": "passed",
+                        },
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="packet-row"]',
+                            "status": "failed",
+                            "message": "click_selector failed: timeout",
+                        },
+                    ]
+                },
+                "page_errors": [],
+                "console_errors": [],
+            }
+        },
+        repo_root=tmp_path,
+        campaign=campaign,
+    )
+
+    assert result.status == "warn"
+    assert result.findings[0].route == "/?mission=mission-3&mode=missions&tab=transcript"
+    assert result.findings[0].critique_axis == "evidence_discoverability"

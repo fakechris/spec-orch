@@ -801,6 +801,14 @@ class AcceptanceCampaign:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AcceptanceCampaign:
+        def _coerce_str_list(value: Any) -> list[str]:
+            if isinstance(value, str):
+                stripped = value.strip()
+                return [stripped] if stripped else []
+            if not isinstance(value, list):
+                return []
+            return [str(item) for item in value if isinstance(item, str) and item.strip()]
+
         return cls(
             mode=AcceptanceMode(data.get("mode", AcceptanceMode.EXPLORATORY.value)),
             goal=data.get("goal", ""),
@@ -822,26 +830,10 @@ class AcceptanceCampaign:
             interaction_budget=data.get("interaction_budget", ""),
             filing_policy=data.get("filing_policy", ""),
             exploration_budget=data.get("exploration_budget", ""),
-            seed_routes=[
-                str(route)
-                for route in data.get("seed_routes", [])
-                if isinstance(route, str) and route.strip()
-            ],
-            allowed_expansions=[
-                str(route)
-                for route in data.get("allowed_expansions", [])
-                if isinstance(route, str) and route.strip()
-            ],
-            critique_focus=[
-                str(item)
-                for item in data.get("critique_focus", [])
-                if isinstance(item, str) and item.strip()
-            ],
-            stop_conditions=[
-                str(item)
-                for item in data.get("stop_conditions", [])
-                if isinstance(item, str) and item.strip()
-            ],
+            seed_routes=_coerce_str_list(data.get("seed_routes", [])),
+            allowed_expansions=_coerce_str_list(data.get("allowed_expansions", [])),
+            critique_focus=_coerce_str_list(data.get("critique_focus", [])),
+            stop_conditions=_coerce_str_list(data.get("stop_conditions", [])),
             evidence_budget=data.get("evidence_budget", ""),
         )
 

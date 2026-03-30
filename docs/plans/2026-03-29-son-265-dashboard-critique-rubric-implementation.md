@@ -8,6 +8,8 @@
 
 **Tech Stack:** Python, pytest, mypy, ruff, existing LiteLLM acceptance evaluator, dashboard dogfood artifacts.
 
+## Tasks
+
 ### Task 1: Add dashboard-specific exploratory critique metadata to the domain model
 
 **Files:**

@@ -10,6 +10,8 @@
 
 ---
 
+## Tasks
+
 ### Task 1: Extend AcceptanceCampaign with exploratory contract fields
 
 **Files:**

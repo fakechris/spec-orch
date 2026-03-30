@@ -222,6 +222,9 @@ def build_fresh_exploratory_artifacts(
     prior_acceptance = _read_json(round_dir / "acceptance_review.json")
     if prior_acceptance:
         artifacts["workflow_acceptance_review"] = prior_acceptance
+    round_summary = _read_json(round_dir / "round_summary.json")
+    if round_summary:
+        artifacts["round_summary"] = round_summary
 
     return artifacts
 

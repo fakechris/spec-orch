@@ -389,6 +389,17 @@ def test_build_fresh_exploratory_artifacts_inherits_prior_workflow_proof(
         json.dumps(report_payload) + "\n",
         encoding="utf-8",
     )
+    (round_dir / "round_summary.json").write_text(
+        json.dumps(
+            {
+                "round_id": 1,
+                "status": "decided",
+                "decision": {"action": "retry", "reason_code": "contracts_not_defined"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     (round_dir / "acceptance_review.json").write_text(
         json.dumps({"status": "pass", "summary": "Workflow acceptance pass"}) + "\n",
         encoding="utf-8",
@@ -411,6 +422,7 @@ def test_build_fresh_exploratory_artifacts_inherits_prior_workflow_proof(
     )
     assert artifacts["fresh_acpx_mission_e2e_report"]["mission_id"] == mission_id
     assert artifacts["workflow_acceptance_review"]["status"] == "pass"
+    assert artifacts["round_summary"]["decision"]["action"] == "retry"
 
 
 def test_build_fresh_exploratory_artifacts_tolerates_missing_prior_proof(tmp_path: Path) -> None:
@@ -420,6 +432,17 @@ def test_build_fresh_exploratory_artifacts_tolerates_missing_prior_proof(tmp_pat
     mission_id = "fresh-acpx-1"
     round_dir = repo_root / "docs" / "specs" / mission_id / "rounds" / "round-01"
     round_dir.mkdir(parents=True, exist_ok=True)
+    (round_dir / "round_summary.json").write_text(
+        json.dumps(
+            {
+                "round_id": 1,
+                "status": "decided",
+                "decision": {"action": "pass", "reason_code": "none"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
     artifacts = build_fresh_exploratory_artifacts(
         repo_root=repo_root,
@@ -434,3 +457,4 @@ def test_build_fresh_exploratory_artifacts_tolerates_missing_prior_proof(tmp_pat
     assert "proof_split" not in artifacts
     assert "fresh_execution" not in artifacts
     assert "workflow_replay" not in artifacts
+    assert artifacts["round_summary"]["decision"]["action"] == "pass"

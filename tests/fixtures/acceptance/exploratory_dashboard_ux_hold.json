@@ -8,7 +8,10 @@
     "coverage_status": "complete",
     "tested_routes": [
       "/",
-      "/?mission=operator-console&mode=missions&tab=transcript"
+      "/?mission=operator-console&mode=missions&tab=overview",
+      "/?mission=operator-console&mode=missions&tab=transcript",
+      "/?mission=operator-console&mode=missions&tab=acceptance",
+      "/?mission=operator-console&mode=missions&tab=costs"
     ],
     "untested_expected_routes": [],
     "recommended_next_step": "Hold broad UX concerns for operator review before filing.",
