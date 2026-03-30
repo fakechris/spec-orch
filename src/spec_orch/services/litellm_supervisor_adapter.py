@@ -106,6 +106,26 @@ class LiteLLMSupervisorAdapter:
                 ],
             ),
         )
+        try:
+            from spec_orch.services.memory.service import get_memory_service
+
+            memory = get_memory_service(repo_root=self.repo_root)
+            memory.record_decision_record(
+                record=build_round_review_decision_record(
+                    mission_id=round_artifacts.mission_id,
+                    round_id=round_artifacts.round_id,
+                    owner="litellm_supervisor_adapter",
+                    decision=decision,
+                    context_artifacts=[
+                        str(review_path.relative_to(self.repo_root)),
+                        str(decision_path.relative_to(self.repo_root)),
+                    ],
+                ),
+                mission_id=round_artifacts.mission_id,
+                round_id=round_artifacts.round_id,
+            )
+        except Exception:
+            pass
         return decision
 
     def _call_model(self, prompt: str) -> str:

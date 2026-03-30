@@ -8,6 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from spec_orch.acceptance_core.models import AcceptanceJudgment, build_acceptance_judgments
 from spec_orch.domain.models import (
     AcceptanceCampaign,
     AcceptanceFinding,
@@ -47,6 +48,10 @@ The JSON must include:
 - artifacts
 """,
 )
+
+
+def normalize_acceptance_judgments(result: AcceptanceReviewResult) -> list[AcceptanceJudgment]:
+    return build_acceptance_judgments(result)
 
 
 class LiteLLMAcceptanceEvaluator:

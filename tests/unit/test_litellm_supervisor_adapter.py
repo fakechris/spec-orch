@@ -11,9 +11,11 @@ from spec_orch.domain.models import (
     Wave,
     WorkPacket,
 )
+from spec_orch.services.memory.service import MemoryService, reset_memory_service
 
 
 def test_supervisor_adapter_parses_round_decision_from_model_output(tmp_path: Path) -> None:
+    import spec_orch.services.memory.service as mem_mod
     from spec_orch.services.litellm_supervisor_adapter import LiteLLMSupervisorAdapter
 
     def fake_chat_completion(**kwargs):
@@ -31,17 +33,23 @@ Wave looks healthy. Continue to the next step.
 ```
 """
 
-    adapter = LiteLLMSupervisorAdapter(
-        repo_root=tmp_path,
-        model="test/model",
-        chat_completion=fake_chat_completion,
-    )
-    decision = adapter.review_round(
-        round_artifacts=RoundArtifacts(round_id=1, mission_id="mission-1"),
-        plan=ExecutionPlan(plan_id="plan-1", mission_id="mission-1"),
-        round_history=[],
-        context={"note": "ctx"},
-    )
+    reset_memory_service()
+    svc = MemoryService(repo_root=tmp_path)
+    mem_mod._instance = svc
+    try:
+        adapter = LiteLLMSupervisorAdapter(
+            repo_root=tmp_path,
+            model="test/model",
+            chat_completion=fake_chat_completion,
+        )
+        decision = adapter.review_round(
+            round_artifacts=RoundArtifacts(round_id=1, mission_id="mission-1"),
+            plan=ExecutionPlan(plan_id="plan-1", mission_id="mission-1"),
+            round_history=[],
+            context={"note": "ctx"},
+        )
+    finally:
+        reset_memory_service()
 
     assert decision.action is RoundAction.CONTINUE
     assert decision.reason_code == "all_green"
@@ -68,6 +76,11 @@ Wave looks healthy. Continue to the next step.
         "blocking_questions": [],
         "created_at": json.loads(record_path.read_text(encoding="utf-8"))["created_at"],
     }
+    memory_entry = svc.get("decision-record-mission-1-round-1-review")
+    assert memory_entry is not None
+    assert memory_entry.metadata["mission_id"] == "mission-1"
+    assert memory_entry.metadata["round_id"] == 1
+    assert memory_entry.metadata["provenance"] == "unreviewed"
 
 
 def test_supervisor_adapter_falls_back_to_ask_human_on_parse_error(tmp_path: Path) -> None:

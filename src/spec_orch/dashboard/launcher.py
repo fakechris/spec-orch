@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from spec_orch.acceptance_core.calibration import dashboard_surface_pack_v1
+from spec_orch.acceptance_core.routing import AcceptanceSurfacePackRef
 from spec_orch.services.fresh_verification import build_fresh_verification_commands
 from spec_orch.services.lifecycle_manager import MissionLifecycleManager
 from spec_orch.services.linear_client import LinearClient, resolve_linear_token
@@ -38,6 +40,15 @@ _FRESH_ACPX_VARIANT_RESOURCES: dict[str, dict[str, Any]] = {
         "requires_linear": True,
     },
 }
+
+
+def _fresh_acpx_acceptance_surface_pack_ref(mission_id: str) -> AcceptanceSurfacePackRef:
+    pack = dashboard_surface_pack_v1(mission_id)
+    return AcceptanceSurfacePackRef(
+        pack_key=pack.pack_key,
+        subject_kind=pack.subject_kind,
+        subject_id=pack.subject_id,
+    )
 
 
 def _load_raw_config(repo_root: Path) -> dict[str, Any]:

@@ -78,6 +78,8 @@ def test_supervisor_node_context_spec_is_registered() -> None:
     assert "similar_failure_samples" in spec.required_learning_fields
     assert "active_delivery_learnings" in spec.required_learning_fields
     assert "active_feedback_learnings" in spec.required_learning_fields
+    assert "reviewed_decision_failures" in spec.required_learning_fields
+    assert "reviewed_acceptance_findings" in spec.required_learning_fields
 
 
 def test_context_assembler_injects_role_scoped_learning_slices(tmp_path: Path) -> None:
@@ -103,6 +105,58 @@ def test_context_assembler_injects_role_scoped_learning_slices(tmp_path: Path) -
     ]
     assert ctx.learning.active_delivery_learnings == []
     assert ctx.learning.active_feedback_learnings == []
+
+
+def test_context_assembler_injects_reviewed_decision_learning_views(tmp_path: Path) -> None:
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    issue = Issue(
+        issue_id="SON-7",
+        title="review routing",
+        summary="stabilize approval routing",
+        context=IssueContext(),
+    )
+
+    class _Memory:
+        def get_reviewed_decision_failures(self) -> list[dict]:
+            return [{"record_id": "r-fail", "summary": "Needed human escalation."}]
+
+        def get_reviewed_decision_recipes(self) -> list[dict]:
+            return [{"record_id": "r-pass", "summary": "Transcript evidence was sufficient."}]
+
+        def get_reviewed_acceptance_findings(self) -> list[dict]:
+            return [
+                {
+                    "judgment_id": "j-1",
+                    "summary": "Launcher confusion held for review.",
+                    "finding_id": "candidate-1",
+                    "origin_step": "launcher_scan",
+                    "graph_profile": "tuned_dashboard_compare_graph",
+                    "run_mode": "explore",
+                    "compare_overlay": True,
+                }
+            ]
+
+    spec = get_node_context_spec("supervisor")
+    ctx = ContextAssembler().assemble(spec, issue, ws, memory=_Memory(), repo_root=tmp_path)
+
+    assert ctx.learning.reviewed_decision_failures == [
+        {"record_id": "r-fail", "summary": "Needed human escalation."}
+    ]
+    assert ctx.learning.reviewed_decision_recipes == [
+        {"record_id": "r-pass", "summary": "Transcript evidence was sufficient."}
+    ]
+    assert ctx.learning.reviewed_acceptance_findings == [
+        {
+            "judgment_id": "j-1",
+            "summary": "Launcher confusion held for review.",
+            "finding_id": "candidate-1",
+            "origin_step": "launcher_scan",
+            "graph_profile": "tuned_dashboard_compare_graph",
+            "run_mode": "explore",
+            "compare_overlay": True,
+        }
+    ]
 
 
 def test_context_assembler_prefers_normalized_issue_attempt(tmp_path: Path, monkeypatch) -> None:

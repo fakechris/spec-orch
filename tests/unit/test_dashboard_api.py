@@ -266,6 +266,9 @@ class TestDashboardAPI:
         assert data["latest_review"]["coverage_status"] == "partial"
         assert data["latest_review"]["untested_expected_routes"] == ["/pricing"]
         assert data["latest_review"]["issue_proposals"][0]["linear_issue_id"] == "SON-777"
+        assert data["latest_review"]["judgments"][0]["judgment_class"] == "confirmed_issue"
+        assert data["latest_review"]["surface_pack"]["pack_key"] == "dashboard_surface_pack_v1"
+        assert data["latest_review"]["surface_pack"]["safe_action_budget"] == "bounded"
         assert data["latest_review"]["review_route"] == (
             f"/?mission={mission_id}&mode=missions&tab=acceptance&round=2"
         )

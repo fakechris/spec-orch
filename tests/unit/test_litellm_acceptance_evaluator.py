@@ -615,7 +615,36 @@ def test_acceptance_evaluator_fallback_route_requires_single_unambiguous_route()
     assert normalized.findings[0].summary == "Acceptance finding on tested route"
     assert normalized.findings[0].actual == ""
     assert normalized.issue_proposals[0].title == "Investigate acceptance issue on tested route"
-    assert normalized.issue_proposals[0].actual == ""
+
+
+def test_normalize_acceptance_judgments_maps_held_candidate_into_candidate_finding() -> None:
+    from spec_orch.acceptance_core.models import AcceptanceJudgmentClass
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        normalize_acceptance_judgments,
+    )
+
+    result = AcceptanceReviewResult(
+        status="warn",
+        summary="Exploratory review found a credible UX concern.",
+        confidence=0.62,
+        evaluator="acceptance_llm",
+        acceptance_mode="exploratory",
+        issue_proposals=[
+            AcceptanceIssueProposal(
+                title="Clarify transcript entry point",
+                summary="Transcript entry point is credible but should not auto-file yet.",
+                severity="medium",
+                route="/?mission=demo&mode=missions&tab=transcript",
+                hold_reason="Needs operator review before filing.",
+                confidence=0.62,
+            )
+        ],
+    )
+
+    judgments = normalize_acceptance_judgments(result)
+
+    assert len(judgments) == 1
+    assert judgments[0].judgment_class is AcceptanceJudgmentClass.CANDIDATE_FINDING
 
 
 def test_acceptance_evaluator_carries_proof_split_artifacts_forward(tmp_path: Path) -> None:

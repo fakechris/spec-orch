@@ -7,9 +7,13 @@ the provider.
 
 from __future__ import annotations
 
+import json
 import time
 from typing import TYPE_CHECKING, Any
 
+from spec_orch.acceptance_core.models import AcceptanceJudgment, AcceptanceWorkflowState
+from spec_orch.decision_core.models import DecisionRecord, DecisionReview
+from spec_orch.domain.execution_semantics import ExecutionAttempt
 from spec_orch.services.memory.types import MemoryEntry, MemoryLayer
 
 if TYPE_CHECKING:
@@ -102,6 +106,202 @@ class MemoryRecorder:
             },
         )
         return self._provider.store(entry)
+
+    def record_execution_outcome(self, *, attempt: ExecutionAttempt) -> str:
+        """Store one normalized execution attempt outcome in episodic memory."""
+        provenance = (
+            "reviewed"
+            if attempt.outcome.review is not None or attempt.outcome.gate is not None
+            else "unreviewed"
+        )
+        unit_kind = attempt.unit_kind.value
+        owner_kind = attempt.owner_kind.value
+        issue_id = attempt.unit_id if unit_kind == "issue" else ""
+        mission_id = ""
+        round_id: int | None = None
+        if unit_kind == "work_packet" and attempt.workspace_root:
+            workspace = str(attempt.workspace_root)
+            if "/docs/specs/" in workspace and "/rounds/round-" in workspace:
+                try:
+                    mission_id = workspace.split("/docs/specs/", 1)[1].split("/", 1)[0]
+                    round_str = workspace.rsplit("/round-", 1)[1].split("/", 1)[0]
+                    round_id = int(round_str)
+                except (IndexError, ValueError):
+                    mission_id = ""
+                    round_id = None
+
+        summary = {
+            "attempt_id": attempt.attempt_id,
+            "unit_kind": unit_kind,
+            "unit_id": attempt.unit_id,
+            "owner_kind": owner_kind,
+            "status": attempt.outcome.status.value,
+            "provenance": provenance,
+        }
+        entry = MemoryEntry(
+            key=f"execution-outcome-{attempt.attempt_id}",
+            content=json.dumps(summary, ensure_ascii=False),
+            layer=MemoryLayer.EPISODIC,
+            tags=[
+                "execution-outcome",
+                f"unit:{unit_kind}",
+                f"owner:{owner_kind}",
+                f"status:{attempt.outcome.status.value}",
+                f"provenance:{provenance}",
+            ],
+            metadata={
+                "attempt_id": attempt.attempt_id,
+                "unit_kind": unit_kind,
+                "unit_id": attempt.unit_id,
+                "owner_kind": owner_kind,
+                "status": attempt.outcome.status.value,
+                "provenance": provenance,
+                "issue_id": issue_id,
+                "mission_id": mission_id,
+                "round_id": round_id,
+                "entity_scope": "issue" if issue_id else "mission" if mission_id else unit_kind,
+                "entity_id": issue_id or mission_id or attempt.unit_id,
+                "relation_type": "observed",
+            },
+        )
+        return self._provider.store(entry)
+
+    def record_decision_record(
+        self,
+        *,
+        record: DecisionRecord,
+        mission_id: str,
+        round_id: int | None = None,
+    ) -> str:
+        """Store one decision record in episodic memory."""
+        entry = MemoryEntry(
+            key=f"decision-record-{record.record_id}",
+            content=record.summary,
+            layer=MemoryLayer.EPISODIC,
+            tags=[
+                "decision-record",
+                f"decision-point:{record.point_key}",
+                f"owner:{record.owner}",
+                "provenance:unreviewed",
+            ],
+            metadata={
+                "record_id": record.record_id,
+                "point_key": record.point_key,
+                "authority": record.authority.value,
+                "owner": record.owner,
+                "selected_action": record.selected_action,
+                "confidence": record.confidence,
+                "provenance": "unreviewed",
+                "mission_id": mission_id,
+                "round_id": round_id,
+                "entity_scope": "mission",
+                "entity_id": mission_id,
+                "relation_type": "observed",
+            },
+            created_at=record.created_at,
+            updated_at=record.created_at,
+        )
+        return self._provider.store(entry)
+
+    def record_decision_review(
+        self,
+        *,
+        review: DecisionReview,
+        mission_id: str,
+        round_id: int | None = None,
+        point_key: str = "",
+        owner: str = "",
+        selected_action: str = "",
+    ) -> str:
+        """Store one reviewed decision outcome in episodic memory."""
+        entry = MemoryEntry(
+            key=f"decision-review-{review.record_id}-{review.review_id}",
+            content=review.summary,
+            layer=MemoryLayer.EPISODIC,
+            tags=[
+                "decision-review",
+                f"reviewer:{review.reviewer_kind}",
+                f"verdict:{review.verdict}",
+                "provenance:reviewed",
+            ],
+            metadata={
+                "record_id": review.record_id,
+                "review_id": review.review_id,
+                "reviewer_kind": review.reviewer_kind,
+                "verdict": review.verdict,
+                "recommended_authority": (
+                    review.recommended_authority.value
+                    if review.recommended_authority is not None
+                    else None
+                ),
+                "escalate_to_human": review.escalate_to_human,
+                "reflection": review.reflection,
+                "point_key": point_key,
+                "owner": owner,
+                "selected_action": selected_action,
+                "provenance": "reviewed",
+                "mission_id": mission_id,
+                "round_id": round_id,
+                "entity_scope": "mission",
+                "entity_id": mission_id,
+                "relation_type": "observed",
+            },
+            created_at=review.created_at,
+            updated_at=review.created_at,
+        )
+        return self._provider.store(entry)
+
+    def record_acceptance_judgments(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        judgments: list[AcceptanceJudgment],
+    ) -> list[str]:
+        """Store acceptance judgments in episodic memory."""
+        keys: list[str] = []
+        for judgment in judgments:
+            reviewed = judgment.workflow_state is not AcceptanceWorkflowState.QUEUED
+            provenance = "reviewed" if reviewed else "unreviewed"
+            entry = MemoryEntry(
+                key=f"acceptance-judgment-{mission_id}-round-{round_id}-{judgment.judgment_id}",
+                content=judgment.summary,
+                layer=MemoryLayer.EPISODIC,
+                tags=[
+                    "acceptance-judgment",
+                    f"judgment-class:{judgment.judgment_class.value}",
+                    f"workflow-state:{judgment.workflow_state.value}",
+                    f"run-mode:{judgment.run_mode.value}",
+                    f"provenance:{provenance}",
+                ],
+                metadata={
+                    "mission_id": mission_id,
+                    "round_id": round_id,
+                    "judgment_id": judgment.judgment_id,
+                    "judgment_class": judgment.judgment_class.value,
+                    "workflow_state": judgment.workflow_state.value,
+                    "run_mode": judgment.run_mode.value,
+                    "confidence": judgment.confidence,
+                    "finding_id": judgment.candidate.finding_id if judgment.candidate else "",
+                    "route": judgment.candidate.route if judgment.candidate else "",
+                    "baseline_ref": judgment.candidate.baseline_ref if judgment.candidate else "",
+                    "origin_step": judgment.candidate.origin_step if judgment.candidate else "",
+                    "graph_profile": judgment.candidate.graph_profile if judgment.candidate else "",
+                    "compare_overlay": (
+                        judgment.candidate.compare_overlay if judgment.candidate else False
+                    ),
+                    "promotion_test": (
+                        judgment.candidate.promotion_test if judgment.candidate else ""
+                    ),
+                    "dedupe_key": judgment.candidate.dedupe_key if judgment.candidate else "",
+                    "provenance": provenance,
+                    "entity_scope": "mission",
+                    "entity_id": mission_id,
+                    "relation_type": "observed",
+                },
+            )
+            keys.append(self._provider.store(entry))
+        return keys
 
     def record_acceptance(
         self,

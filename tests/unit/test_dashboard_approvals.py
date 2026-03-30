@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from spec_orch.services.memory.service import MemoryService, reset_memory_service
+
 
 def test_gather_latest_approval_request_prefers_decision_core_intervention_queue(
     tmp_path: Path,
@@ -154,6 +156,7 @@ def test_gather_latest_approval_request_ignores_stale_intervention_when_newer_ro
 
 
 def test_record_approval_action_appends_decision_core_response_metadata(tmp_path: Path) -> None:
+    import spec_orch.services.memory.service as mem_mod
     from spec_orch.dashboard.approvals import _record_approval_action
     from spec_orch.decision_core.review_queue import load_decision_reviews
 
@@ -179,15 +182,21 @@ def test_record_approval_action_appends_decision_core_response_metadata(tmp_path
         encoding="utf-8",
     )
 
-    payload = _record_approval_action(
-        tmp_path,
-        mission_id,
-        action_key="approve",
-        label="Approve",
-        message="@approve Approve rollout after transcript review?",
-        channel="web-dashboard",
-        status="applied",
-    )
+    reset_memory_service()
+    svc = MemoryService(repo_root=tmp_path)
+    mem_mod._instance = svc
+    try:
+        payload = _record_approval_action(
+            tmp_path,
+            mission_id,
+            action_key="approve",
+            label="Approve",
+            message="@approve Approve rollout after transcript review?",
+            channel="web-dashboard",
+            status="applied",
+        )
+    finally:
+        reset_memory_service()
 
     assert payload["effect"] == "approval_granted"
     history = [
@@ -226,6 +235,12 @@ def test_record_approval_action_appends_decision_core_response_metadata(tmp_path
             "created_at": payload["timestamp"],
         }
     ]
+    memory_keys = svc.list_keys(layer="episodic", tags=["decision-review"])
+    assert memory_keys
+    memory_entry = svc.get(memory_keys[0])
+    assert memory_entry is not None
+    assert memory_entry.metadata["mission_id"] == mission_id
+    assert memory_entry.metadata["provenance"] == "reviewed"
 
 
 def test_record_approval_action_normalizes_blank_decision_record_id(tmp_path: Path) -> None:

@@ -31,6 +31,9 @@ _LEARNING_FIELDS = {
     "active_self_learnings",
     "active_delivery_learnings",
     "active_feedback_learnings",
+    "reviewed_decision_failures",
+    "reviewed_decision_recipes",
+    "reviewed_acceptance_findings",
     "recent_evolution_journal",
 }
 
@@ -48,14 +51,18 @@ NODE_CONTEXT_SPEC_REGISTRY: dict[str, NodeContextSpec] = {
         node_name="planner",
         required_task_fields=["spec_snapshot_text", "constraints", "architecture_notes"],
         required_execution_fields=["file_tree", "verification_results"],
-        required_learning_fields=["similar_failure_samples"],
+        required_learning_fields=[
+            "similar_failure_samples",
+            "reviewed_decision_recipes",
+            "reviewed_acceptance_findings",
+        ],
         max_tokens_budget=9000,
     ),
     "scoper": NodeContextSpec(
         node_name="scoper",
         required_task_fields=["spec_snapshot_text", "files_in_scope", "constraints"],
         required_execution_fields=["file_tree", "git_diff"],
-        required_learning_fields=["scoper_hints"],
+        required_learning_fields=["scoper_hints", "reviewed_acceptance_findings"],
         max_tokens_budget=8000,
     ),
     "intent_classifier": NodeContextSpec(
@@ -70,7 +77,12 @@ NODE_CONTEXT_SPEC_REGISTRY: dict[str, NodeContextSpec] = {
         node_name="llm_reviewer",
         required_task_fields=["acceptance_criteria", "constraints"],
         required_execution_fields=["git_diff", "verification_results", "gate_report"],
-        required_learning_fields=["similar_failure_samples", "active_delivery_learnings"],
+        required_learning_fields=[
+            "similar_failure_samples",
+            "active_delivery_learnings",
+            "reviewed_decision_failures",
+            "reviewed_decision_recipes",
+        ],
         max_tokens_budget=10000,
     ),
     "supervisor": NodeContextSpec(
@@ -87,6 +99,9 @@ NODE_CONTEXT_SPEC_REGISTRY: dict[str, NodeContextSpec] = {
             "similar_failure_samples",
             "active_delivery_learnings",
             "active_feedback_learnings",
+            "reviewed_decision_failures",
+            "reviewed_decision_recipes",
+            "reviewed_acceptance_findings",
         ],
         max_tokens_budget=9000,
     ),

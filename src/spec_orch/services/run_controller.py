@@ -1340,6 +1340,11 @@ class RunController:
 
             if workspace is not None:
                 self._store_builder_telemetry(memory, run_id, issue_id, workspace)
+                from spec_orch.runtime_core.readers import read_issue_execution_attempt
+
+                normalized_attempt = read_issue_execution_attempt(workspace)
+                if normalized_attempt is not None:
+                    memory.record_execution_outcome(attempt=normalized_attempt)
 
             if human_acceptance and accepted_by:
                 memory.record_acceptance(

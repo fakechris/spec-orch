@@ -280,6 +280,27 @@ def _record_approval_action(
                     },
                     exc_info=True,
                 )
+            try:
+                from spec_orch.services.memory.service import get_memory_service
+
+                get_memory_service(repo_root=repo_root).record_decision_review(
+                    review=review,
+                    mission_id=mission_id,
+                    round_id=int(intervention.get("round_id", 0) or 0),
+                    point_key=str(intervention.get("point_key") or ""),
+                    owner="dashboard.approvals",
+                    selected_action=action_key,
+                )
+            except Exception:
+                logger.warning(
+                    "decision review memory write failed",
+                    extra={
+                        "mission_id": mission_id,
+                        "decision_record_id": decision_record_id,
+                        "action_key": action_key,
+                    },
+                    exc_info=True,
+                )
     return payload
 
 
