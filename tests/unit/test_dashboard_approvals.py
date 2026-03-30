@@ -293,6 +293,7 @@ def test_record_approval_action_tolerates_decision_review_append_failure(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    import spec_orch.services.memory.service as mem_mod
     from spec_orch.dashboard import approvals as approvals_module
 
     mission_id = "mission-approval-review-failure"
@@ -320,17 +321,23 @@ def test_record_approval_action_tolerates_decision_review_append_failure(
         raise OSError("disk full")
 
     monkeypatch.setattr(approvals_module, "append_decision_review", _raise_review_append)
+    reset_memory_service()
+    svc = MemoryService(repo_root=tmp_path)
+    mem_mod._instance = svc
 
-    with caplog.at_level(logging.WARNING):
-        payload = approvals_module._record_approval_action(
-            tmp_path,
-            mission_id,
-            action_key="approve",
-            label="Approve",
-            message="@approve Approve rollout after transcript review?",
-            channel="web-dashboard",
-            status="applied",
-        )
+    try:
+        with caplog.at_level(logging.WARNING):
+            payload = approvals_module._record_approval_action(
+                tmp_path,
+                mission_id,
+                action_key="approve",
+                label="Approve",
+                message="@approve Approve rollout after transcript review?",
+                channel="web-dashboard",
+                status="applied",
+            )
+    finally:
+        reset_memory_service()
 
     assert payload["effect"] == "approval_granted"
     history = [
@@ -355,6 +362,7 @@ def test_record_approval_action_tolerates_decision_review_append_failure(
     ]
     assert "decision review append failed" in caplog.text
     assert not (operator_dir / "decision_reviews.jsonl").exists()
+    assert svc.list_keys(layer="episodic", tags=["decision-review"]) == []
 
 
 def test_load_approval_history_prefers_decision_core_response_history(tmp_path: Path) -> None:
