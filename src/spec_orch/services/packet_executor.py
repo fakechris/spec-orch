@@ -117,18 +117,6 @@ class SubprocessPacketExecutor:
             stdout_bytes, stderr_bytes = b"", str(exc).encode()
             exit_code = 1
 
-        elapsed = time.monotonic() - start
-        level = "packet_completed" if exit_code == 0 else "packet_failed"
-        logger.info(
-            level,
-            extra={
-                "wave_id": wave_id,
-                "packet_id": packet.packet_id,
-                "exit_code": exit_code,
-                "duration_seconds": round(elapsed, 2),
-            },
-        )
-
         return _make_packet_result(
             packet,
             wave_id,

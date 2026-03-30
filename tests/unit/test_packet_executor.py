@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -45,6 +46,27 @@ async def test_subprocess_packet_executor_delegates_attempt_payload_shaping() ->
     assert delegated["wave_id"] == 0
     assert delegated["result"] is result
     assert delegated["owner_kind"] == "packet_executor"
+
+
+@pytest.mark.asyncio
+async def test_subprocess_packet_executor_emits_single_completion_event(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    executor = SubprocessPacketExecutor(codex_bin="echo", workspace="/tmp")
+    packet = _make_packet("p-single-log", "hello")
+    cancel = asyncio.Event()
+
+    with caplog.at_level(logging.INFO, logger="spec_orch.services.packet_executor"):
+        result = await executor.execute_packet(packet, wave_id=2, cancel_event=cancel)
+
+    assert result.packet_id == "p-single-log"
+    completion_records = [
+        record
+        for record in caplog.records
+        if record.msg in {"packet_completed", "packet_failed"}
+    ]
+    assert len(completion_records) == 1
+    assert completion_records[0].msg == "packet_completed"
 
 
 @pytest.mark.asyncio

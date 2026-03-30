@@ -260,7 +260,6 @@ def _record_approval_action(
                     summary=message,
                     recommended_authority=DecisionAuthority.HUMAN_REQUIRED,
                     escalate_to_human=(action_key != "approve"),
-                    reflection=message,
                     created_at=timestamp,
                 ),
             )

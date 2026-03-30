@@ -217,7 +217,7 @@ def test_record_approval_action_appends_decision_core_response_metadata(tmp_path
             "summary": "@approve Approve rollout after transcript review?",
             "recommended_authority": "human_required",
             "escalate_to_human": False,
-            "reflection": "@approve Approve rollout after transcript review?",
+            "reflection": "",
             "created_at": payload["timestamp"],
         }
     ]
