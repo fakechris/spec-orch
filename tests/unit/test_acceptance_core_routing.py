@@ -104,6 +104,39 @@ def test_round_orchestrator_builds_acceptance_routing_decision_from_legacy_mode(
     assert decision.surface_pack_ref.subject_id == "mission-1"
 
 
+def test_round_orchestrator_routes_unknown_surface_to_recon_when_review_routes_missing(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.acceptance_core.models import AcceptanceRunMode
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+    class StubAssembler:
+        def assemble(self, *args, **kwargs):
+            return {}
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=InMemoryWorkerHandleFactory(creator=lambda session_id, workspace: None),
+        context_assembler=StubAssembler(),
+    )
+
+    decision = orchestrator._build_acceptance_routing_decision(  # noqa: SLF001
+        mission_id="mission-2",
+        artifacts={},
+        mode_override=None,
+    )
+
+    assert decision.base_run_mode is AcceptanceRunMode.RECON
+    assert decision.recon_fallback_reason == "weak_contract_or_unknown_surface"
+
+
 def test_routing_surfaces_internal_inputs_and_workflow_tuning_profile() -> None:
     from spec_orch.acceptance_core.routing import (
         AcceptanceRequest,

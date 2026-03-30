@@ -1218,12 +1218,12 @@ class RoundOrchestrator:
         decision = build_acceptance_routing_decision(
             request,
             contract_strength="strong" if mode is not AcceptanceMode.EXPLORATORY else "medium",
-            surface_familiarity="known" if review_routes else "known",
+            surface_familiarity="known" if review_routes else "unknown",
             baseline_available=run_mode is AcceptanceRunMode.REPLAY,
             surface_pack_ref=surface_pack_ref,
         )
         return AcceptanceRoutingDecision(
-            base_run_mode=run_mode,
+            base_run_mode=decision.base_run_mode,
             compare_overlay=decision.compare_overlay,
             budget_profile=decision.budget_profile,
             graph_profile=decision.graph_profile,

@@ -220,6 +220,48 @@ def test_supervisor_adapter_normalizes_model_and_falls_back_to_minimax_envs(
     assert captured_kwargs["api_base"] == "https://api.minimaxi.com/anthropic"
 
 
+def test_supervisor_adapter_logs_memory_write_failures_without_breaking_review(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    import spec_orch.services.memory.service as mem_mod
+    from spec_orch.services.litellm_supervisor_adapter import LiteLLMSupervisorAdapter
+
+    class BrokenMemory:
+        def record_decision_record(self, **kwargs):
+            raise ValueError("boom")
+
+    def fake_chat_completion(**kwargs):
+        return """# Review
+
+```json
+{
+  "action": "continue",
+  "reason_code": "all_green",
+  "summary": "Wave completed successfully.",
+  "confidence": 0.91
+}
+```"""
+
+    monkeypatch.setattr(mem_mod, "get_memory_service", lambda repo_root=None: BrokenMemory())
+
+    adapter = LiteLLMSupervisorAdapter(
+        repo_root=tmp_path,
+        model="test/model",
+        chat_completion=fake_chat_completion,
+    )
+
+    with caplog.at_level("WARNING"):
+        decision = adapter.review_round(
+            round_artifacts=RoundArtifacts(round_id=5, mission_id="mission-5"),
+            plan=ExecutionPlan(plan_id="plan-5", mission_id="mission-5"),
+            round_history=[],
+            context=None,
+        )
+
+    assert decision.action is RoundAction.CONTINUE
+    assert "decision record memory write failed" in caplog.text
+
+
 def test_supervisor_system_prompt_includes_constitution() -> None:
     from spec_orch.services.litellm_supervisor_adapter import _SUPERVISOR_SYSTEM_PROMPT
 

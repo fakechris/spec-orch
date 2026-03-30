@@ -142,15 +142,14 @@ def build_acceptance_routing_decision(
             "route_seed_notes",
         ],
     }[run_mode]
-    risk_posture = (
-        "conservative"
-        if run_mode is AcceptanceRunMode.RECON or judgment_risk == "high"
-        else "cautious_compare"
-        if compare_overlay
-        else "bounded_exploration"
-        if run_mode is AcceptanceRunMode.EXPLORE
-        else "standard"
-    )
+    if run_mode is AcceptanceRunMode.RECON or judgment_risk == "high":
+        risk_posture = "conservative"
+    elif compare_overlay:
+        risk_posture = "cautious_compare"
+    elif run_mode is AcceptanceRunMode.EXPLORE:
+        risk_posture = "bounded_exploration"
+    else:
+        risk_posture = "standard"
     return AcceptanceRoutingDecision(
         base_run_mode=run_mode,
         compare_overlay=compare_overlay,

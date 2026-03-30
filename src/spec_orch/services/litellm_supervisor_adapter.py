@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
@@ -27,6 +28,8 @@ from spec_orch.services.litellm_profile import (
     resolve_litellm_api_base,
     resolve_litellm_api_key,
 )
+
+logger = logging.getLogger(__name__)
 
 _SUPERVISOR_SYSTEM_PROMPT = build_role_system_prompt(
     role_intro="You are Mission Supervisor for SpecOrch.",
@@ -125,7 +128,14 @@ class LiteLLMSupervisorAdapter:
                 round_id=round_artifacts.round_id,
             )
         except Exception:
-            pass
+            logger.warning(
+                "decision record memory write failed",
+                extra={
+                    "mission_id": round_artifacts.mission_id,
+                    "round_id": round_artifacts.round_id,
+                },
+                exc_info=True,
+            )
         return decision
 
     def _call_model(self, prompt: str) -> str:
