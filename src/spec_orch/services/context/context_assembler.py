@@ -29,12 +29,12 @@ from spec_orch.domain.models import (
     VerificationDetail,
     VerificationSummary,
 )
+from spec_orch.runtime_core.readers import read_issue_execution_attempt
 from spec_orch.services.context.context_ranker import (
     ContextRanker,
     RankedSection,
     _detect_chars_per_token,
 )
-from spec_orch.services.execution_semantics_reader import read_issue_execution_attempt
 from spec_orch.services.skill_format import SkillManifest
 
 logger = logging.getLogger(__name__)

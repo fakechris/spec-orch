@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from spec_orch.domain.models import BuilderResult
+from spec_orch.runtime_core.adapters import write_worker_attempt_payloads
 from spec_orch.runtime_core.paths import (
     normalized_issue_conclusion_path,
     normalized_issue_live_path,
@@ -92,4 +94,38 @@ def test_write_round_supervision_payloads_skips_decision_when_absent(tmp_path: P
 
     assert written["summary"] == normalized_round_summary_path(round_dir)
     assert "decision" not in written
+    assert normalized_round_summary_path(round_dir).exists()
     assert not normalized_round_decision_path(round_dir).exists()
+
+
+def test_write_worker_attempt_payloads_synthesizes_builder_report_when_missing(
+    tmp_path: Path,
+) -> None:
+    builder = BuilderResult(
+        succeeded=True,
+        command=["stub"],
+        stdout="ok",
+        stderr="",
+        report_path=tmp_path / "missing-builder-report.json",
+        adapter="stub",
+        agent="stub-agent",
+        metadata={"source": "test"},
+    )
+
+    written = write_worker_attempt_payloads(
+        tmp_path,
+        builder_result=builder,
+        session_name="worker-123",
+    )
+
+    assert written["builder_report"] == normalized_worker_builder_report_path(tmp_path)
+    assert _read_json(written["builder_report"]) == {
+        "adapter": "stub",
+        "agent": "stub-agent",
+        "command": ["stub"],
+        "metadata": {"source": "test"},
+        "session_name": "worker-123",
+        "stderr": "",
+        "stdout": "ok",
+        "succeeded": True,
+    }

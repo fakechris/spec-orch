@@ -6,6 +6,7 @@ from typing import Any
 
 from spec_orch.domain.models import BuilderResult, Issue
 from spec_orch.domain.protocols import BuilderAdapter
+from spec_orch.runtime_core.adapters import write_worker_attempt_payloads
 
 
 class OneShotWorkerHandle:
@@ -38,11 +39,17 @@ class OneShotWorkerHandle:
         prepare = getattr(self._builder_adapter, "prepare", None)
         if callable(prepare):
             prepare(issue=issue, workspace=workspace)
-        return self._builder_adapter.run(
+        result = self._builder_adapter.run(
             issue=issue,
             workspace=workspace,
             event_logger=event_logger,
         )
+        write_worker_attempt_payloads(
+            workspace,
+            builder_result=result,
+            session_name=self._session_id,
+        )
+        return result
 
     def cancel(self, workspace: Path) -> None:
         return None

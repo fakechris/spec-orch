@@ -23,6 +23,18 @@ def write_issue_execution_payloads(
     conclusion: dict[str, Any],
     manifest: dict[str, Any],
 ) -> dict[str, Path]:
+    """Write normalized issue carriers in canonical order.
+
+    Files are written in this order:
+    1. ``live.json``
+    2. ``conclusion.json``
+    3. ``manifest.json``
+
+    Because each call uses ``atomic_write_json`` independently, a later failure can
+    still leave earlier files present. During the dual-write migration this is
+    expected; readers must continue to tolerate partial normalized state and fall
+    back to legacy carriers where needed.
+    """
     live_path = normalized_issue_live_path(workspace)
     conclusion_path = normalized_issue_conclusion_path(workspace)
     manifest_path = normalized_issue_manifest_path(workspace)

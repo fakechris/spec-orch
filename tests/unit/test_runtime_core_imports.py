@@ -24,7 +24,12 @@ def test_runtime_core_models_reexport_execution_semantics() -> None:
 def test_runtime_core_support_modules_import_cleanly() -> None:
     from spec_orch.runtime_core import adapters, paths, readers, writers
 
-    assert adapters.__all__ == []
+    assert adapters.__all__ == [
+        "build_packet_attempt_payload",
+        "write_issue_attempt_payloads",
+        "write_round_cycle_payloads",
+        "write_worker_attempt_payloads",
+    ]
     assert readers.__all__ == [
         "read_issue_artifacts",
         "read_issue_execution_attempt",

@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from spec_orch.services.execution_semantics_reader import read_round_supervision_cycle
+from spec_orch.runtime_core.readers import read_round_supervision_cycle
 
 logger = logging.getLogger(__name__)
 
