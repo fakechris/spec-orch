@@ -82,9 +82,7 @@ class DecisionReview:
             "verdict": self.verdict,
             "summary": self.summary,
             "recommended_authority": (
-                self.recommended_authority.value
-                if self.recommended_authority is not None
-                else None
+                self.recommended_authority.value if self.recommended_authority is not None else None
             ),
             "escalate_to_human": self.escalate_to_human,
             "reflection": self.reflection,

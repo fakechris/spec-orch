@@ -207,7 +207,9 @@ def test_record_approval_action_appends_decision_core_response_metadata(tmp_path
             "effect": "approval_granted",
         }
     ]
-    reviews = load_decision_reviews(tmp_path, mission_id, record_id="mission-approval-round-4-review")
+    reviews = load_decision_reviews(
+        tmp_path, mission_id, record_id="mission-approval-round-4-review"
+    )
     assert reviews == [
         {
             "review_id": f"mission-approval-round-4-review:approve:{payload['timestamp']}",

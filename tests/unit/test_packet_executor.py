@@ -61,16 +61,16 @@ async def test_subprocess_packet_executor_emits_single_completion_event(
 
     assert result.packet_id == "p-single-log"
     completion_records = [
-        record
-        for record in caplog.records
-        if record.msg in {"packet_completed", "packet_failed"}
+        record for record in caplog.records if record.msg in {"packet_completed", "packet_failed"}
     ]
     assert len(completion_records) == 1
     assert completion_records[0].msg == "packet_completed"
 
 
 @pytest.mark.asyncio
-async def test_full_pipeline_packet_executor_delegates_attempt_payload_shaping(tmp_path: Path) -> None:
+async def test_full_pipeline_packet_executor_delegates_attempt_payload_shaping(
+    tmp_path: Path,
+) -> None:
     executor = FullPipelinePacketExecutor(
         codex_bin="python",
         workspace=str(tmp_path),
