@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from spec_orch.decision_core.inventory import ISSUE_REVIEW_VERDICT_POINT
 from spec_orch.domain.compliance import default_turn_contract_compliance
 from spec_orch.domain.models import ReviewSummary
 
@@ -73,6 +74,9 @@ class LocalReviewAdapter:
                     "verdict": summary.verdict,
                     "reviewed_by": summary.reviewed_by,
                     "reviewed_at": datetime.now(UTC).isoformat(),
+                    "decision_point_key": ISSUE_REVIEW_VERDICT_POINT.key,
+                    "decision_authority": ISSUE_REVIEW_VERDICT_POINT.authority.value,
+                    "decision_owner": ISSUE_REVIEW_VERDICT_POINT.owner,
                     "builder_turn_contract_compliance": (
                         builder_turn_contract_compliance or default_turn_contract_compliance()
                     ),

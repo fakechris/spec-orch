@@ -16,6 +16,7 @@ import logging
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from spec_orch.decision_core.inventory import decision_point_for_flow_router_source
 from spec_orch.domain.models import FlowType, Issue
 from spec_orch.flow_engine.mapper import FlowMapper
 from spec_orch.services.evidence_analyzer import EvidenceAnalyzer
@@ -221,4 +222,9 @@ class FlowRouter:
 
     def to_event_payload(self, decision: FlowRoutingDecision) -> dict[str, Any]:
         """Serialize a routing decision for EventBus audit."""
-        return asdict(decision)
+        point = decision_point_for_flow_router_source(decision.source)
+        payload = asdict(decision)
+        payload["decision_point_key"] = point.key
+        payload["decision_authority"] = point.authority.value
+        payload["decision_owner"] = point.owner
+        return payload

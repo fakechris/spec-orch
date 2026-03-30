@@ -152,6 +152,7 @@ def test_gather_latest_approval_request_ignores_stale_intervention_when_newer_ro
 
 def test_record_approval_action_appends_decision_core_response_metadata(tmp_path: Path) -> None:
     from spec_orch.dashboard.approvals import _record_approval_action
+    from spec_orch.decision_core.review_queue import load_decision_reviews
 
     mission_id = "mission-approval"
     operator_dir = tmp_path / "docs" / "specs" / mission_id / "operator"
@@ -204,6 +205,20 @@ def test_record_approval_action_appends_decision_core_response_metadata(tmp_path
             "channel": "web-dashboard",
             "status": "applied",
             "effect": "approval_granted",
+        }
+    ]
+    reviews = load_decision_reviews(tmp_path, mission_id, record_id="mission-approval-round-4-review")
+    assert reviews == [
+        {
+            "review_id": f"mission-approval-round-4-review:approve:{payload['timestamp']}",
+            "record_id": "mission-approval-round-4-review",
+            "reviewer_kind": "human",
+            "verdict": "approval_granted",
+            "summary": "@approve Approve rollout after transcript review?",
+            "recommended_authority": "human_required",
+            "escalate_to_human": False,
+            "reflection": "@approve Approve rollout after transcript review?",
+            "created_at": payload["timestamp"],
         }
     ]
 

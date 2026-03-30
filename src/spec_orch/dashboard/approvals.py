@@ -5,7 +5,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.decision_core.models import DecisionAuthority, DecisionReview
 from spec_orch.decision_core.review_queue import (
+    append_decision_review,
     append_intervention_response,
     load_intervention_response_history,
     load_latest_intervention,
@@ -228,15 +230,16 @@ def _record_approval_action(
 
     intervention = load_latest_intervention(repo_root, mission_id)
     if intervention is not None:
+        decision_record_id = (
+            str(intervention.get("decision_record_id"))
+            if intervention.get("decision_record_id") is not None
+            else None
+        )
         append_intervention_response(
             repo_root,
             mission_id,
             intervention_id=str(intervention.get("intervention_id") or ""),
-            decision_record_id=(
-                str(intervention.get("decision_record_id"))
-                if intervention.get("decision_record_id") is not None
-                else None
-            ),
+            decision_record_id=decision_record_id,
             action_key=action_key,
             label=label,
             message=message,
@@ -245,6 +248,22 @@ def _record_approval_action(
             effect=effect,
             timestamp=timestamp,
         )
+        if decision_record_id:
+            append_decision_review(
+                repo_root,
+                mission_id,
+                review=DecisionReview(
+                    review_id=f"{decision_record_id}:{action_key}:{timestamp}",
+                    record_id=decision_record_id,
+                    reviewer_kind="human",
+                    verdict=effect,
+                    summary=message,
+                    recommended_authority=DecisionAuthority.HUMAN_REQUIRED,
+                    escalate_to_human=(action_key != "approve"),
+                    reflection=message,
+                    created_at=timestamp,
+                ),
+            )
     return payload
 
 
