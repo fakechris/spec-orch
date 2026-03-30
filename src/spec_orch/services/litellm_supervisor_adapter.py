@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
@@ -27,6 +28,8 @@ from spec_orch.services.litellm_profile import (
     resolve_litellm_api_base,
     resolve_litellm_api_key,
 )
+
+logger = logging.getLogger(__name__)
 
 _SUPERVISOR_SYSTEM_PROMPT = build_role_system_prompt(
     role_intro="You are Mission Supervisor for SpecOrch.",
@@ -93,19 +96,35 @@ class LiteLLMSupervisorAdapter:
         decision_path = round_dir / "round_decision.json"
         atomic_write_text(review_path, review_text)
         atomic_write_json(decision_path, decision.to_dict())
-        write_round_decision_record(
-            round_dir,
-            build_round_review_decision_record(
+        record = build_round_review_decision_record(
+            mission_id=round_artifacts.mission_id,
+            round_id=round_artifacts.round_id,
+            owner="litellm_supervisor_adapter",
+            decision=decision,
+            context_artifacts=[
+                str(review_path.relative_to(self.repo_root)),
+                str(decision_path.relative_to(self.repo_root)),
+            ],
+        )
+        write_round_decision_record(round_dir, record)
+        try:
+            from spec_orch.services.memory.service import get_memory_service
+
+            memory = get_memory_service(repo_root=self.repo_root)
+            memory.record_decision_record(
+                record=record,
                 mission_id=round_artifacts.mission_id,
                 round_id=round_artifacts.round_id,
-                owner="litellm_supervisor_adapter",
-                decision=decision,
-                context_artifacts=[
-                    str(review_path.relative_to(self.repo_root)),
-                    str(decision_path.relative_to(self.repo_root)),
-                ],
-            ),
-        )
+            )
+        except Exception:
+            logger.warning(
+                "decision record memory write failed",
+                extra={
+                    "mission_id": round_artifacts.mission_id,
+                    "round_id": round_artifacts.round_id,
+                },
+                exc_info=True,
+            )
         return decision
 
     def _call_model(self, prompt: str) -> str:

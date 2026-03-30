@@ -263,12 +263,14 @@ def _record_approval_action(
                 escalate_to_human=(action_key != "approve"),
                 created_at=timestamp,
             )
+            review_persisted = False
             try:
                 append_decision_review(
                     repo_root,
                     mission_id,
                     review=review,
                 )
+                review_persisted = True
             except (OSError, ValueError, TypeError):
                 logger.warning(
                     "decision review append failed",
@@ -280,6 +282,28 @@ def _record_approval_action(
                     },
                     exc_info=True,
                 )
+            if review_persisted:
+                try:
+                    from spec_orch.services.memory.service import get_memory_service
+
+                    get_memory_service(repo_root=repo_root).record_decision_review(
+                        review=review,
+                        mission_id=mission_id,
+                        round_id=int(intervention.get("round_id", 0) or 0),
+                        point_key=str(intervention.get("point_key") or ""),
+                        owner="dashboard.approvals",
+                        selected_action=action_key,
+                    )
+                except Exception:
+                    logger.warning(
+                        "decision review memory write failed",
+                        extra={
+                            "mission_id": mission_id,
+                            "decision_record_id": decision_record_id,
+                            "action_key": action_key,
+                        },
+                        exc_info=True,
+                    )
     return payload
 
 

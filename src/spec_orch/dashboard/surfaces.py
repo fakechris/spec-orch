@@ -7,6 +7,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from spec_orch.acceptance_core.calibration import dashboard_surface_pack_v1
+from spec_orch.acceptance_core.disposition import AcceptanceDisposition
+from spec_orch.acceptance_core.models import build_acceptance_judgments
 from spec_orch.domain.models import AcceptanceReviewResult, VisualEvaluationResult
 from spec_orch.runtime_core.readers import (
     read_round_supervision_cycle,
@@ -423,15 +426,25 @@ def _gather_mission_acceptance_review(repo_root: Path, mission_id: str) -> dict[
             continue
 
         review_data = review.to_dict()
+        judgments = [judgment.to_dict() for judgment in build_acceptance_judgments(review)]
+        surface_pack = dashboard_surface_pack_v1(mission_id).to_dict()
         review_data.update(
             {
                 "round_id": round_id,
                 "artifact_path": str(review_path.relative_to(repo_root)),
+                "judgments": judgments,
+                "surface_pack": surface_pack,
+                "candidate_findings": [
+                    judgment
+                    for judgment in judgments
+                    if judgment.get("judgment_class") == "candidate_finding"
+                ],
                 "filed_issues": [
                     proposal.to_dict()
                     for proposal in review.issue_proposals
                     if proposal.linear_issue_id or proposal.filing_status == "filed"
                 ],
+                "disposition_vocab": [item.value for item in AcceptanceDisposition],
                 "review_route": (
                     f"/?mission={mission_id}&mode=missions&tab=acceptance&round={round_id}"
                 ),

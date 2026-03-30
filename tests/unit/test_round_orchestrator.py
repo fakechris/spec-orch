@@ -22,6 +22,7 @@ from spec_orch.domain.models import (
     Wave,
     WorkPacket,
 )
+from spec_orch.services.memory.service import MemoryService, reset_memory_service
 
 
 def _make_plan() -> ExecutionPlan:
@@ -479,6 +480,7 @@ def test_run_supervised_retries_same_wave_when_decision_is_retry(tmp_path: Path)
 
 
 def test_run_supervised_persists_acceptance_review_and_files_issue(tmp_path: Path) -> None:
+    import spec_orch.services.memory.service as mem_mod
     from spec_orch.services.round_orchestrator import RoundOrchestrator
     from spec_orch.services.workers.in_memory_worker_handle_factory import (
         InMemoryWorkerHandleFactory,
@@ -555,22 +557,32 @@ def test_run_supervised_persists_acceptance_review_and_files_issue(tmp_path: Pat
             builder_adapter=StubBuilderAdapter(),
         )
     )
-    orchestrator = RoundOrchestrator(
-        repo_root=tmp_path,
-        supervisor=StubSupervisor(),
-        worker_factory=factory,
-        context_assembler=StubAssembler(),
-        acceptance_evaluator=StubAcceptanceEvaluator(),
-        acceptance_filer=StubAcceptanceFiler(),
-    )
+    reset_memory_service()
+    svc = MemoryService(repo_root=tmp_path)
+    mem_mod._instance = svc
+    try:
+        orchestrator = RoundOrchestrator(
+            repo_root=tmp_path,
+            supervisor=StubSupervisor(),
+            worker_factory=factory,
+            context_assembler=StubAssembler(),
+            acceptance_evaluator=StubAcceptanceEvaluator(),
+            acceptance_filer=StubAcceptanceFiler(),
+        )
 
-    result = orchestrator.run_supervised(mission_id="mission-1", plan=_make_single_wave_plan())
+        result = orchestrator.run_supervised(mission_id="mission-1", plan=_make_single_wave_plan())
+    finally:
+        reset_memory_service()
 
     assert result.completed is True
     review_path = tmp_path / "docs/specs/mission-1/rounds/round-01/acceptance_review.json"
     assert review_path.exists()
     payload = review_path.read_text(encoding="utf-8")
     assert "SON-321" in payload
+    memory_entry = svc.get("acceptance-judgment-mission-1-round-1-proposal:0")
+    assert memory_entry is not None
+    assert memory_entry.metadata["mission_id"] == "mission-1"
+    assert memory_entry.metadata["provenance"] == "reviewed"
 
 
 def test_run_supervised_passes_browser_evidence_to_acceptance_evaluator(

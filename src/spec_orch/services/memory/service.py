@@ -262,6 +262,32 @@ class MemoryService:
     def get_project_profile(self, repo_root: Path | None = None) -> dict[str, Any]:
         return self._analytics.get_project_profile(repo_root=repo_root)
 
+    def get_reviewed_decision_failures(self, top_k: int = 5) -> list[dict[str, Any]]:
+        return self._analytics.get_reviewed_decision_failures(top_k=top_k)
+
+    def get_reviewed_decision_recipes(self, top_k: int = 5) -> list[dict[str, Any]]:
+        return self._analytics.get_reviewed_decision_recipes(top_k=top_k)
+
+    def get_reviewed_acceptance_findings(self, top_k: int = 5) -> list[dict[str, Any]]:
+        return self._analytics.get_reviewed_acceptance_findings(top_k=top_k)
+
+    def recall_latest_with_provenance(
+        self,
+        *,
+        entity_scope: str,
+        entity_id: str,
+        layer: MemoryLayer | None = None,
+        tags: list[str] | None = None,
+        top_k: int = 5,
+    ) -> list[dict[str, Any]]:
+        return self._analytics.recall_latest_with_provenance(
+            entity_scope=entity_scope,
+            entity_id=entity_id,
+            layer=layer,
+            tags=tags,
+            top_k=top_k,
+        )
+
     def synthesize_active_learning_slice(
         self,
         kind: str,
@@ -306,6 +332,18 @@ class MemoryService:
 
     def record_builder_telemetry(self, **kwargs: Any) -> str | None:
         return self._recorder.record_builder_telemetry(**kwargs)
+
+    def record_execution_outcome(self, **kwargs: Any) -> str:
+        return self._recorder.record_execution_outcome(**kwargs)
+
+    def record_decision_record(self, **kwargs: Any) -> str:
+        return self._recorder.record_decision_record(**kwargs)
+
+    def record_decision_review(self, **kwargs: Any) -> str:
+        return self._recorder.record_decision_review(**kwargs)
+
+    def record_acceptance_judgments(self, **kwargs: Any) -> list[str]:
+        return self._recorder.record_acceptance_judgments(**kwargs)
 
     def record_acceptance(self, **kwargs: Any) -> str:
         return self._recorder.record_acceptance(**kwargs)

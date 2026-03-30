@@ -10,6 +10,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
 
+from spec_orch.acceptance_core.calibration import dashboard_surface_pack_v1
+from spec_orch.acceptance_core.models import (
+    AcceptanceRunMode,
+    build_acceptance_judgments,
+    run_mode_from_legacy_acceptance_mode,
+)
+from spec_orch.acceptance_core.routing import (
+    AcceptanceRequest,
+    AcceptanceRoutingDecision,
+    AcceptanceSurfacePackRef,
+    build_acceptance_routing_decision,
+)
 from spec_orch.decision_core.interventions import build_intervention_from_record
 from spec_orch.decision_core.records import build_round_review_decision_record
 from spec_orch.decision_core.review_queue import append_intervention
@@ -855,6 +867,20 @@ class RoundOrchestrator:
             except Exception as exc:
                 result = self._mark_acceptance_filing_failure(result, str(exc))
         atomic_write_json(round_dir / "acceptance_review.json", result.to_dict())
+        try:
+            from spec_orch.services.memory.service import get_memory_service
+
+            get_memory_service(repo_root=self.repo_root).record_acceptance_judgments(
+                mission_id=mission_id,
+                round_id=round_id,
+                judgments=build_acceptance_judgments(result),
+            )
+        except Exception:
+            logger.warning(
+                "Failed to record acceptance judgments to memory",
+                extra={"mission_id": mission_id, "round_id": round_id},
+                exc_info=True,
+            )
         return result
 
     def _collect_acceptance_browser_evidence(
@@ -1009,6 +1035,11 @@ class RoundOrchestrator:
         artifacts: dict[str, Any],
         mode_override: AcceptanceMode | None = None,
     ) -> AcceptanceCampaign:
+        routing_decision = self._build_acceptance_routing_decision(
+            mission_id=mission_id,
+            artifacts=artifacts,
+            mode_override=mode_override,
+        )
         mode = self._resolve_acceptance_mode(mode_override=mode_override)
         review_routes = artifacts.get("review_routes", {})
         if mode is AcceptanceMode.EXPLORATORY and not isinstance(review_routes, dict):
@@ -1151,7 +1182,58 @@ class RoundOrchestrator:
             allowed_expansions=allowed_expansions,
             critique_focus=critique_focus,
             stop_conditions=stop_conditions,
-            evidence_budget=evidence_budget,
+            evidence_budget=evidence_budget or routing_decision.action_budget,
+        )
+
+    def _build_acceptance_routing_decision(
+        self,
+        *,
+        mission_id: str,
+        artifacts: dict[str, Any],
+        mode_override: AcceptanceMode | None = None,
+    ) -> AcceptanceRoutingDecision:
+        mode = self._resolve_acceptance_mode(mode_override=mode_override)
+        run_mode = run_mode_from_legacy_acceptance_mode(mode)
+        review_routes = artifacts.get("review_routes", {})
+        surface_pack = dashboard_surface_pack_v1(mission_id)
+        surface_pack_ref = AcceptanceSurfacePackRef(
+            pack_key=surface_pack.pack_key,
+            subject_kind=surface_pack.subject_kind,
+            subject_id=surface_pack.subject_id,
+        )
+        request = AcceptanceRequest(
+            goal={
+                AcceptanceRunMode.VERIFY: "Verify mission acceptance criteria.",
+                AcceptanceRunMode.REPLAY: "Replay the mission workflow against collected evidence.",
+                AcceptanceRunMode.EXPLORE: "Dogfood the mission from an operator perspective.",
+                AcceptanceRunMode.RECON: "Map the mission acceptance surface conservatively.",
+            }[run_mode],
+            target=f"mission:{mission_id}",
+            constraints=(
+                ["compare overlay enabled"]
+                if isinstance(review_routes, dict) and review_routes.get("compare") is True
+                else []
+            ),
+        )
+        decision = build_acceptance_routing_decision(
+            request,
+            contract_strength="strong" if mode is not AcceptanceMode.EXPLORATORY else "medium",
+            surface_familiarity="known" if review_routes else "unknown",
+            baseline_available=run_mode is AcceptanceRunMode.REPLAY,
+            surface_pack_ref=surface_pack_ref,
+        )
+        return AcceptanceRoutingDecision(
+            base_run_mode=decision.base_run_mode,
+            compare_overlay=decision.compare_overlay,
+            budget_profile=decision.budget_profile,
+            graph_profile=decision.graph_profile,
+            evidence_plan=list(decision.evidence_plan),
+            risk_posture=decision.risk_posture,
+            route_budget=decision.route_budget,
+            action_budget=decision.action_budget,
+            recon_fallback_reason=decision.recon_fallback_reason,
+            surface_pack_ref=surface_pack_ref,
+            routing_inputs=decision.routing_inputs,
         )
 
     @staticmethod

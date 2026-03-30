@@ -203,6 +203,9 @@ class ContextAssembler:
             "active_self_learnings",
             "active_delivery_learnings",
             "active_feedback_learnings",
+            "reviewed_decision_failures",
+            "reviewed_decision_recipes",
+            "reviewed_acceptance_findings",
             "recent_evolution_journal",
         ):
             value = getattr(learn, name, None)
@@ -221,6 +224,9 @@ class ContextAssembler:
             "active_self_learnings",
             "active_delivery_learnings",
             "active_feedback_learnings",
+            "reviewed_decision_failures",
+            "reviewed_decision_recipes",
+            "reviewed_acceptance_findings",
             "recent_evolution_journal",
         }
     )
@@ -633,6 +639,27 @@ class ContextAssembler:
                     ctx.active_feedback_learnings = memory.get_active_learning_slice("feedback")
             except Exception:
                 logger.debug("Failed to build active feedback learnings", exc_info=True)
+
+        if memory is not None and (not required or "reviewed_decision_failures" in required):
+            try:
+                if hasattr(memory, "get_reviewed_decision_failures"):
+                    ctx.reviewed_decision_failures = memory.get_reviewed_decision_failures()
+            except Exception:
+                logger.debug("Failed to build reviewed decision failures", exc_info=True)
+
+        if memory is not None and (not required or "reviewed_decision_recipes" in required):
+            try:
+                if hasattr(memory, "get_reviewed_decision_recipes"):
+                    ctx.reviewed_decision_recipes = memory.get_reviewed_decision_recipes()
+            except Exception:
+                logger.debug("Failed to build reviewed decision recipes", exc_info=True)
+
+        if memory is not None and (not required or "reviewed_acceptance_findings" in required):
+            try:
+                if hasattr(memory, "get_reviewed_acceptance_findings"):
+                    ctx.reviewed_acceptance_findings = memory.get_reviewed_acceptance_findings()
+            except Exception:
+                logger.debug("Failed to build reviewed acceptance findings", exc_info=True)
 
         if memory is not None and (not required or "recent_evolution_journal" in required):
             try:

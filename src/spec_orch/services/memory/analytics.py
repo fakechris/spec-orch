@@ -164,6 +164,134 @@ class MemoryAnalytics:
                 break
         return recipes
 
+    def get_reviewed_decision_failures(self, top_k: int = 5) -> list[dict[str, Any]]:
+        """Return latest reviewed decision outcomes that ended negatively."""
+        return self._decision_reviews_by_verdict(top_k=top_k, positive=False)
+
+    def get_reviewed_decision_recipes(self, top_k: int = 5) -> list[dict[str, Any]]:
+        """Return latest reviewed decision outcomes that ended positively."""
+        return self._decision_reviews_by_verdict(top_k=top_k, positive=True)
+
+    def get_reviewed_acceptance_findings(self, top_k: int = 5) -> list[dict[str, Any]]:
+        """Return latest reviewed acceptance judgments, excluding queued findings."""
+        keys = self._provider.list_keys(
+            layer=MemoryLayer.EPISODIC.value,
+            tags=["acceptance-judgment"],
+            limit=top_k * 10,
+        )
+        items: list[dict[str, Any]] = []
+        for key in keys:
+            entry = self._provider.get(key)
+            if entry is None:
+                continue
+            if entry.metadata.get("relation_type") == "superseded":
+                continue
+            if entry.metadata.get("provenance") != "reviewed":
+                continue
+            items.append(
+                {
+                    "key": entry.key,
+                    "mission_id": entry.metadata.get("mission_id", ""),
+                    "round_id": entry.metadata.get("round_id"),
+                    "judgment_id": entry.metadata.get("judgment_id", ""),
+                    "judgment_class": entry.metadata.get("judgment_class", ""),
+                    "workflow_state": entry.metadata.get("workflow_state", ""),
+                    "finding_id": entry.metadata.get("finding_id", ""),
+                    "route": entry.metadata.get("route", ""),
+                    "baseline_ref": entry.metadata.get("baseline_ref", ""),
+                    "origin_step": entry.metadata.get("origin_step", ""),
+                    "graph_profile": entry.metadata.get("graph_profile", ""),
+                    "run_mode": entry.metadata.get("run_mode", ""),
+                    "compare_overlay": bool(entry.metadata.get("compare_overlay", False)),
+                    "promotion_test": entry.metadata.get("promotion_test", ""),
+                    "dedupe_key": entry.metadata.get("dedupe_key", ""),
+                    "summary": entry.content,
+                    "provenance": entry.metadata.get("provenance", "unreviewed"),
+                    "created_at": entry.created_at,
+                }
+            )
+            if len(items) >= top_k:
+                break
+        return items
+
+    def recall_latest_with_provenance(
+        self,
+        *,
+        entity_scope: str,
+        entity_id: str,
+        layer: MemoryLayer | None = None,
+        tags: list[str] | None = None,
+        top_k: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Return latest-first recall results with explicit provenance."""
+        from spec_orch.services.memory.types import MemoryQuery
+
+        entries = self._provider.recall(
+            MemoryQuery(
+                layer=layer,
+                tags=tags or [],
+                top_k=top_k,
+                entity_scope=entity_scope,
+                entity_id=entity_id,
+                exclude_relation_types=["superseded"],
+            )
+        )
+        results: list[dict[str, Any]] = []
+        for entry in entries:
+            results.append(
+                {
+                    "key": entry.key,
+                    "content": entry.content,
+                    "tags": list(entry.tags),
+                    "metadata": entry.metadata,
+                    "provenance": entry.metadata.get("provenance", "unreviewed"),
+                    "created_at": entry.created_at,
+                    "updated_at": entry.updated_at,
+                }
+            )
+        return results
+
+    def _decision_reviews_by_verdict(self, *, top_k: int, positive: bool) -> list[dict[str, Any]]:
+        keys = self._provider.list_keys(
+            layer=MemoryLayer.EPISODIC.value,
+            tags=["decision-review"],
+            limit=top_k * 10,
+        )
+        positive_verdicts = {
+            "approval_granted",
+            "acceptance_candidate_promoted",
+            "acceptance_candidate_reviewed",
+            "continue",
+        }
+        items: list[dict[str, Any]] = []
+        for key in keys:
+            entry = self._provider.get(key)
+            if entry is None:
+                continue
+            if entry.metadata.get("relation_type") == "superseded":
+                continue
+            verdict = str(entry.metadata.get("verdict", ""))
+            verdict_is_positive = verdict in positive_verdicts
+            if verdict_is_positive is not positive:
+                continue
+            items.append(
+                {
+                    "key": entry.key,
+                    "record_id": entry.metadata.get("record_id", ""),
+                    "review_id": entry.metadata.get("review_id", ""),
+                    "point_key": entry.metadata.get("point_key", ""),
+                    "owner": entry.metadata.get("owner", ""),
+                    "selected_action": entry.metadata.get("selected_action", ""),
+                    "verdict": verdict,
+                    "summary": entry.content,
+                    "provenance": entry.metadata.get("provenance", "reviewed"),
+                    "created_at": entry.created_at,
+                }
+            )
+            if len(items) >= top_k:
+                break
+        return items
+
     def get_project_profile(self, repo_root: Path | None = None) -> dict[str, Any]:
         """Build a project profile from memory + config fallback."""
         from spec_orch.domain.context import ProjectProfile

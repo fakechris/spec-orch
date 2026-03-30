@@ -83,6 +83,9 @@ class LearningContext:
     active_self_learnings: list[dict[str, Any]] = field(default_factory=list)
     active_delivery_learnings: list[dict[str, Any]] = field(default_factory=list)
     active_feedback_learnings: list[dict[str, Any]] = field(default_factory=list)
+    reviewed_decision_failures: list[dict[str, Any]] = field(default_factory=list)
+    reviewed_decision_recipes: list[dict[str, Any]] = field(default_factory=list)
+    reviewed_acceptance_findings: list[dict[str, Any]] = field(default_factory=list)
     recent_evolution_journal: list[dict[str, Any]] = field(default_factory=list)
 
 
