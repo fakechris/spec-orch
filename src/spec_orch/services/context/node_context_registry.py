@@ -113,6 +113,9 @@ NODE_CONTEXT_SPEC_REGISTRY: dict[str, NodeContextSpec] = {
         required_learning_fields=[
             "similar_failure_samples",
             "active_self_learnings",
+            "reviewed_decision_failures",
+            "reviewed_decision_recipes",
+            "reviewed_acceptance_findings",
             "recent_evolution_journal",
         ],
         max_tokens_budget=7000,

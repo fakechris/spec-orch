@@ -1,7 +1,7 @@
 # Epic 4-7 Program Plan After Epic 2-3 Merge
 
 **Date:** 2026-03-30  
-**Status:** Epic 4 semantic baseline landed but completion tranche remains; Epic 5 baseline aligned; Epic 6-7 pending  
+**Status:** Epic 4 semantic baseline landed but completion tranche remains; Epic 5 baseline aligned; Epic 6 baseline landed; Epic 7 pending  
 **Prerequisite baseline:** PR #163 merged (`runtime_core` + `decision_core` extraction complete for Epics 2-3)
 
 ## 1. Purpose
@@ -229,8 +229,36 @@ Do not grow more ad hoc ingestion paths before moving to Epic 6.
 
 ### Planning conclusion
 
-Epic 6 should not start before Epic 5 establishes decision-aware and
-acceptance-aware learning views.
+Epic 6 baseline is now landed on top of the Epic 5 learning views.
+
+What now exists:
+
+- normalized evolution signal bridging:
+  - `src/spec_orch/services/evolution/signal_bridge.py`
+- `EvolutionTrigger` journal entries now preserve:
+  - `signal_origins`
+  - `reviewed_evidence_count`
+  - `promotion_origin`
+- prompt evolution now consumes reviewed:
+  - decision failures
+  - decision recipes
+  - acceptance findings
+- high-impact promotions now pass through a review-aware promotion gate
+- explicit file-backed promotion lifecycle state now exists for:
+  - active promotion
+  - supersession
+  - rollback
+- promotion observability is now explicit in both:
+  - `.spec_orch_evolution/promotion_registry.json`
+  - `evolution_journal.jsonl`
+
+Epic 6 therefore no longer depends on future ad hoc evolution semantics.
+Epic 7 can now be planned against a repo that has:
+
+- normalized execution evidence
+- normalized decision evidence
+- acceptance judgment provenance
+- governed policy/prompt promotion state
 
 ## 3.4 Epic 7: Contract Core Extraction and Surface Cleanup
 

@@ -107,6 +107,14 @@ def test_context_assembler_injects_role_scoped_learning_slices(tmp_path: Path) -
     assert ctx.learning.active_feedback_learnings == []
 
 
+def test_prompt_evolver_node_context_spec_includes_reviewed_evidence() -> None:
+    spec = get_node_context_spec("prompt_evolver")
+
+    assert "reviewed_decision_failures" in spec.required_learning_fields
+    assert "reviewed_decision_recipes" in spec.required_learning_fields
+    assert "reviewed_acceptance_findings" in spec.required_learning_fields
+
+
 def test_context_assembler_injects_reviewed_decision_learning_views(tmp_path: Path) -> None:
     ws = tmp_path / "ws"
     ws.mkdir()

@@ -151,6 +151,41 @@ def test_prompt_evolver_system_prompt_includes_constitution() -> None:
     assert "Do not claim improvements that the evidence does not support." in _EVOLVE_SYSTEM_PROMPT
 
 
+def test_render_context_for_prompt_includes_reviewed_decisions_and_acceptance() -> None:
+    from spec_orch.domain.context import (
+        ContextBundle,
+        ExecutionContext,
+        LearningContext,
+        TaskContext,
+    )
+    from spec_orch.domain.models import Issue
+    from spec_orch.services.evolution.prompt_evolver import PromptEvolver
+
+    ctx = ContextBundle(
+        task=TaskContext(
+            issue=Issue(issue_id="SON-601", title="prompt evidence", summary=""),
+            constraints=["keep scope narrow"],
+        ),
+        execution=ExecutionContext(deviation_slices=[{"kind": "retry-loop", "count": 2}]),
+        learning=LearningContext(
+            similar_failure_samples=[{"key": "fail-1", "content": "verification drift"}],
+            reviewed_decision_failures=[{"record_id": "dr-1", "summary": "Prompt widened scope"}],
+            reviewed_decision_recipes=[
+                {"record_id": "dr-2", "summary": "Prompt kept actions concrete"}
+            ],
+            reviewed_acceptance_findings=[
+                {"finding_id": "af-1", "summary": "Transcript route still hides retry evidence"}
+            ],
+        ),
+    )
+
+    rendered = PromptEvolver._render_context_for_prompt(ctx)
+
+    assert "Reviewed decision failures:" in rendered
+    assert "Reviewed decision recipes:" in rendered
+    assert "Reviewed acceptance findings:" in rendered
+
+
 def test_evolve_non_string_response(tmp_path: Path) -> None:
     planner = MagicMock()
     planner.brainstorm.return_value = None
