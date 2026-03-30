@@ -12,8 +12,45 @@ import logging
 import time
 
 from spec_orch.domain.models import PacketResult, WorkPacket
+from spec_orch.runtime_core.adapters import build_packet_attempt_payload
 
 logger = logging.getLogger(__name__)
+
+
+def _make_packet_result(
+    packet: WorkPacket,
+    wave_id: int,
+    exit_code: int,
+    stdout: str,
+    stderr: str,
+    start: float,
+) -> PacketResult:
+    elapsed = round(time.monotonic() - start, 2)
+    result = PacketResult(
+        packet_id=packet.packet_id,
+        wave_id=wave_id,
+        exit_code=exit_code,
+        stdout=stdout,
+        stderr=stderr,
+        duration_seconds=elapsed,
+    )
+    level = "packet_completed" if exit_code == 0 else "packet_failed"
+    logger.info(
+        level,
+        extra={
+            "wave_id": wave_id,
+            "packet_id": packet.packet_id,
+            "exit_code": exit_code,
+            "duration_seconds": elapsed,
+            "normalized_attempt": build_packet_attempt_payload(
+                packet,
+                wave_id=wave_id,
+                result=result,
+                owner_kind="packet_executor",
+            ),
+        },
+    )
+    return result
 
 
 class SubprocessPacketExecutor:
@@ -80,25 +117,13 @@ class SubprocessPacketExecutor:
             stdout_bytes, stderr_bytes = b"", str(exc).encode()
             exit_code = 1
 
-        elapsed = time.monotonic() - start
-        level = "packet_completed" if exit_code == 0 else "packet_failed"
-        logger.info(
-            level,
-            extra={
-                "wave_id": wave_id,
-                "packet_id": packet.packet_id,
-                "exit_code": exit_code,
-                "duration_seconds": round(elapsed, 2),
-            },
-        )
-
-        return PacketResult(
-            packet_id=packet.packet_id,
-            wave_id=wave_id,
-            exit_code=exit_code,
-            stdout=stdout_bytes.decode(errors="replace"),
-            stderr=stderr_bytes.decode(errors="replace"),
-            duration_seconds=round(elapsed, 2),
+        return _make_packet_result(
+            packet,
+            wave_id,
+            exit_code,
+            stdout_bytes.decode(errors="replace"),
+            stderr_bytes.decode(errors="replace"),
+            start,
         )
 
 
@@ -143,7 +168,7 @@ class FullPipelinePacketExecutor:
         )
 
         if cancel_event.is_set() or build_exit != 0:
-            return self._make_result(
+            return _make_packet_result(
                 packet,
                 wave_id,
                 build_exit,
@@ -177,7 +202,7 @@ class FullPipelinePacketExecutor:
         combined_err = build_err
 
         final_exit = overall_exit if build_exit == 0 else build_exit
-        return self._make_result(
+        return _make_packet_result(
             packet,
             wave_id,
             final_exit,
@@ -216,32 +241,3 @@ class FullPipelinePacketExecutor:
             return 127, "", f"{cmd[0]} not found"
         except Exception as exc:
             return 1, "", str(exc)
-
-    @staticmethod
-    def _make_result(
-        packet: WorkPacket,
-        wave_id: int,
-        exit_code: int,
-        stdout: str,
-        stderr: str,
-        start: float,
-    ) -> PacketResult:
-        elapsed = round(time.monotonic() - start, 2)
-        level = "packet_completed" if exit_code == 0 else "packet_failed"
-        logger.info(
-            level,
-            extra={
-                "wave_id": wave_id,
-                "packet_id": packet.packet_id,
-                "exit_code": exit_code,
-                "duration_seconds": elapsed,
-            },
-        )
-        return PacketResult(
-            packet_id=packet.packet_id,
-            wave_id=wave_id,
-            exit_code=exit_code,
-            stdout=stdout,
-            stderr=stderr,
-            duration_seconds=elapsed,
-        )

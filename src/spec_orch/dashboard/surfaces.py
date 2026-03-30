@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.models import AcceptanceReviewResult, VisualEvaluationResult
-from spec_orch.services.execution_semantics_reader import (
+from spec_orch.runtime_core.readers import (
     read_round_supervision_cycle,
     read_worker_execution_attempt,
 )

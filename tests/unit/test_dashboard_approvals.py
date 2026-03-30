@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
+
+import pytest
 
 
 def test_gather_latest_approval_request_prefers_decision_core_intervention_queue(
@@ -152,6 +155,7 @@ def test_gather_latest_approval_request_ignores_stale_intervention_when_newer_ro
 
 def test_record_approval_action_appends_decision_core_response_metadata(tmp_path: Path) -> None:
     from spec_orch.dashboard.approvals import _record_approval_action
+    from spec_orch.decision_core.review_queue import load_decision_reviews
 
     mission_id = "mission-approval"
     operator_dir = tmp_path / "docs" / "specs" / mission_id / "operator"
@@ -206,6 +210,136 @@ def test_record_approval_action_appends_decision_core_response_metadata(tmp_path
             "effect": "approval_granted",
         }
     ]
+    reviews = load_decision_reviews(
+        tmp_path, mission_id, record_id="mission-approval-round-4-review"
+    )
+    assert reviews == [
+        {
+            "review_id": f"mission-approval-round-4-review:approve:{payload['timestamp']}",
+            "record_id": "mission-approval-round-4-review",
+            "reviewer_kind": "human",
+            "verdict": "approval_granted",
+            "summary": "@approve Approve rollout after transcript review?",
+            "recommended_authority": "human_required",
+            "escalate_to_human": False,
+            "reflection": "",
+            "created_at": payload["timestamp"],
+        }
+    ]
+
+
+def test_record_approval_action_normalizes_blank_decision_record_id(tmp_path: Path) -> None:
+    from spec_orch.dashboard.approvals import _record_approval_action
+
+    mission_id = "mission-approval-blank-record-id"
+    operator_dir = tmp_path / "docs" / "specs" / mission_id / "operator"
+    operator_dir.mkdir(parents=True)
+    (operator_dir / "interventions.jsonl").write_text(
+        json.dumps(
+            {
+                "intervention_id": "int-blank",
+                "decision_record_id": "   ",
+                "point_key": "mission.round.review",
+                "mission_id": mission_id,
+                "round_id": 4,
+                "summary": "Need operator approval before rollout.",
+                "questions": ["Approve rollout after transcript review?"],
+                "status": "open",
+                "created_at": "2026-03-30T00:00:00+00:00",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    _record_approval_action(
+        tmp_path,
+        mission_id,
+        action_key="approve",
+        label="Approve",
+        message="@approve Approve rollout after transcript review?",
+        channel="web-dashboard",
+        status="applied",
+    )
+
+    history = [
+        json.loads(line)
+        for line in (operator_dir / "intervention_responses.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert history[0]["decision_record_id"] is None
+    assert not (operator_dir / "decision_reviews.jsonl").exists()
+
+
+def test_record_approval_action_tolerates_decision_review_append_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from spec_orch.dashboard import approvals as approvals_module
+
+    mission_id = "mission-approval-review-failure"
+    operator_dir = tmp_path / "docs" / "specs" / mission_id / "operator"
+    operator_dir.mkdir(parents=True)
+    (operator_dir / "interventions.jsonl").write_text(
+        json.dumps(
+            {
+                "intervention_id": "int-failure",
+                "decision_record_id": "mission-approval-review-failure-round-4-review",
+                "point_key": "mission.round.review",
+                "mission_id": mission_id,
+                "round_id": 4,
+                "summary": "Need operator approval before rollout.",
+                "questions": ["Approve rollout after transcript review?"],
+                "status": "open",
+                "created_at": "2026-03-30T00:00:00+00:00",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    def _raise_review_append(*args: object, **kwargs: object) -> dict[str, object]:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(approvals_module, "append_decision_review", _raise_review_append)
+
+    with caplog.at_level(logging.WARNING):
+        payload = approvals_module._record_approval_action(
+            tmp_path,
+            mission_id,
+            action_key="approve",
+            label="Approve",
+            message="@approve Approve rollout after transcript review?",
+            channel="web-dashboard",
+            status="applied",
+        )
+
+    assert payload["effect"] == "approval_granted"
+    history = [
+        json.loads(line)
+        for line in (operator_dir / "intervention_responses.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert history == [
+        {
+            "timestamp": payload["timestamp"],
+            "intervention_id": "int-failure",
+            "decision_record_id": "mission-approval-review-failure-round-4-review",
+            "action_key": "approve",
+            "label": "Approve",
+            "message": "@approve Approve rollout after transcript review?",
+            "channel": "web-dashboard",
+            "status": "applied",
+            "effect": "approval_granted",
+        }
+    ]
+    assert "decision review append failed" in caplog.text
+    assert not (operator_dir / "decision_reviews.jsonl").exists()
 
 
 def test_load_approval_history_prefers_decision_core_response_history(tmp_path: Path) -> None:

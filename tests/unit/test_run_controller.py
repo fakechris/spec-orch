@@ -166,6 +166,9 @@ def test_review_and_accept_issue_recompute_gate_and_update_artifacts(tmp_path: P
     assert reviewed.gate.failed_conditions == ["human_acceptance"]
     assert (reviewed.workspace / "review_report.json").exists()
     review_report = json.loads((reviewed.workspace / "review_report.json").read_text())
+    assert review_report["decision_point_key"] == "issue.review.verdict"
+    assert review_report["decision_authority"] == "human_required"
+    assert review_report["decision_owner"] == "review_adapter"
     assert (
         review_report["builder_turn_contract_compliance"]
         == initial.builder.metadata["turn_contract_compliance"]

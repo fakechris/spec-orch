@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
 
+from spec_orch.decision_core.inventory import decision_point_for_flow_router_source
 from spec_orch.domain.compliance import (
     default_turn_contract_compliance,
     evaluate_pre_action_narration_compliance,
@@ -201,12 +202,18 @@ class RunController:
         """
         if self._flow_router is not None:
             decision = self._flow_router.route(issue)
+            decision_point = decision_point_for_flow_router_source(decision.source)
             logger.info(
                 "FlowRouter decision: %s (confidence=%.2f, source=%s) — %s",
                 decision.recommended_flow,
                 decision.confidence,
                 decision.source,
                 decision.reasoning,
+                extra={
+                    "decision_point_key": decision_point.key,
+                    "decision_authority": decision_point.authority.value,
+                    "decision_owner": decision_point.owner,
+                },
             )
             if decision.source == "fallback":
                 self._emit_fallback(

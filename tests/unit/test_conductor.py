@@ -208,3 +208,39 @@ class TestStatePersistence:
         loaded = c2.get_state("no-proposal")
         assert loaded is not None
         assert loaded.pending_proposal is None
+
+
+def test_record_to_memory_adds_decision_inventory_metadata(conductor: Conductor, monkeypatch):
+    stored: list[object] = []
+
+    class StubMemoryService:
+        def store(self, entry) -> None:
+            stored.append(entry)
+
+    monkeypatch.setattr(
+        "spec_orch.services.memory.service.get_memory_service",
+        lambda repo_root: StubMemoryService(),
+    )
+
+    state = conductor._get_or_create_state("thread-1")
+    signal = IntentSignal(
+        category=IntentCategory.FEATURE,
+        confidence=0.9,
+        summary="Formalize this idea",
+    )
+    msg = ConversationMessage(
+        message_id="msg-1",
+        thread_id="thread-1",
+        sender="user",
+        content="We should formalize this idea.",
+        timestamp="2026-03-30T10:00:00Z",
+        channel="test",
+    )
+
+    conductor._record_to_memory(state, signal, msg)
+
+    assert len(stored) == 1
+    entry = stored[0]
+    assert entry.metadata["decision_point_key"] == "conductor.intent.classify"
+    assert entry.metadata["decision_authority"] == "llm_owned"
+    assert entry.metadata["decision_owner"] == "conductor"

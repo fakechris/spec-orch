@@ -268,7 +268,7 @@ def read_issue_execution_attempt(workspace: Path) -> ExecutionAttempt | None:
         continuity_id=attempt_id,
         workspace_root=str(workspace),
         attempt_state=ExecutionAttemptState.COMPLETED,
-        started_at=str(live_data.get("started_at") or data.get("started_at") or ""),
+        started_at=live_data.get("started_at") or data.get("started_at"),
         completed_at=data.get("completed_at"),
         outcome=outcome,
     )
@@ -344,7 +344,7 @@ def read_worker_execution_attempt(
         continuity_id=str(session_name) if session_name else None,
         workspace_root=str(worker_dir),
         attempt_state=ExecutionAttemptState.COMPLETED,
-        started_at=str(builder_report.get("started_at") or ""),
+        started_at=builder_report.get("started_at"),
         completed_at=builder_report.get("completed_at"),
         outcome=outcome,
     )

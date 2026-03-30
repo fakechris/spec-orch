@@ -107,6 +107,28 @@ def test_execution_attempt_supports_optional_continuity_id_and_completion() -> N
     assert attempt.outcome.status is ExecutionStatus.PARTIAL
 
 
+def test_execution_attempt_defaults_started_at_to_none_when_unknown() -> None:
+    outcome = ExecutionOutcome(
+        unit_kind=ExecutionUnitKind.WORK_PACKET,
+        owner_kind=ExecutionOwnerKind.PACKET_EXECUTOR,
+        status=ExecutionStatus.PARTIAL,
+        build={"succeeded": True},
+        artifacts={},
+    )
+
+    attempt = ExecutionAttempt(
+        attempt_id="wave-1:packet-3",
+        unit_kind=ExecutionUnitKind.WORK_PACKET,
+        unit_id="packet-3",
+        owner_kind=ExecutionOwnerKind.PACKET_EXECUTOR,
+        continuity_kind=ContinuityKind.SUBPROCESS_PACKET,
+        workspace_root="/tmp/spec-orch/packet-3",
+        outcome=outcome,
+    )
+
+    assert attempt.started_at is None
+
+
 def test_supervision_cycle_is_distinct_from_execution_attempt() -> None:
     cycle = SupervisionCycle(
         cycle_id="mission-123:round-4",

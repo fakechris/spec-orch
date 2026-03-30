@@ -27,14 +27,14 @@
 
 统一采用三种状态：
 
-- `extract-now`
-  - 现在就应该开始抽到目标 core
+- `done`
+  - 已经进入目标 core，或已通过目标 core seam 稳定输出
 
-- `wrap-now`
-  - 现在不直接搬，但要先通过新的 core seam 包住
+- `bridge`
+  - 当前模块仍保留，但已经被明确降级为兼容层或 owner-side bridge
 
-- `leave-for-later`
-  - 现在不动，等前置 core 稳定后再处理
+- `follow-up`
+  - 还没完成这轮 extraction，留给后续 epic 或后续 tranche
 
 统一采用两种兼容策略：
 
@@ -52,30 +52,30 @@
 
 | 当前模块 | 目标位置 | 现在动作 | 兼容策略 | 说明 |
 |---|---|---:|---:|---|
-| `services/execution_semantics_reader.py` | `runtime_core/readers.py` | `extract-now` | `shim` | 计划中的真实 reader 实现，应成为 runtime-core 入口 |
-| `services/execution_semantics_writer.py` | `runtime_core/writers.py` | `extract-now` | `shim` | 计划中的真实 writer 实现，应成为 runtime-core 入口 |
-| `services/run_artifact_service.py` 中的 normalized shaping | `runtime_core/writers.py` / `runtime_core/paths.py` | `extract-now` | `shim` | 只抽 normalized shaping，不抽 owner 时序 |
-| `services/run_report_writer.py` 中的 normalized outcome shaping | `runtime_core/writers.py` | `extract-now` | `shim` | report carrier 继续保留，但 normalized write 迁出去 |
-| `round_orchestrator.py` 中 round artifact normalization 部分 | `runtime_core/supervision.py` + `runtime_core/writers.py` | `extract-now` | `shim` | 仅抽 payload shaping，不抽 round loop owner |
-| `services/packet_executor.py` 中 packet outcome shaping | `runtime_core/writers.py` | `extract-now` | `shim` | packet executor 保留为 owner |
+| `services/execution_semantics_reader.py` | `runtime_core/readers.py` | `done` | `shim` | reader 实现已经在 runtime-core；service 模块现在是纯 shim |
+| `services/execution_semantics_writer.py` | `runtime_core/writers.py` | `done` | `shim` | writer 实现已经在 runtime-core；service 模块现在是纯 shim |
+| `services/run_artifact_service.py` 中的 normalized shaping | `runtime_core/writers.py` / `runtime_core/paths.py` | `done` | `shim` | issue-path normalized write 已委托出去 |
+| `services/run_report_writer.py` 中的 normalized outcome shaping | `runtime_core/writers.py` / `runtime_core/paths.py` | `bridge` | `shim` | report carrier 继续保留；canonical path 引用已进入 runtime-core |
+| `round_orchestrator.py` 中 round artifact normalization 部分 | `runtime_core/supervision.py` + `runtime_core/writers.py` | `done` | `shim` | round summary / decision payload 已委托到 runtime-core |
+| `services/packet_executor.py` 中 packet outcome shaping | `runtime_core/adapters.py` | `done` | `shim` | packet attempt shaping 已通过 adapter seam 输出 |
 
 ### 3.2 应包住但不立刻搬走的 Runtime Owners
 
 | 当前模块 | 目标关系 | 现在动作 | 兼容策略 | 说明 |
 |---|---|---:|---:|---|
-| [`run_controller.py`](../../src/spec_orch/services/run_controller.py) | runtime-core consumer | `wrap-now` | `stay` | owner 保留，只把 normalized read/write 收到 runtime-core |
-| [`round_orchestrator.py`](../../src/spec_orch/services/round_orchestrator.py) | runtime-core consumer | `wrap-now` | `stay` | round owner 保留，不提前拆 supervision owner |
-| [`mission_execution_service.py`](../../src/spec_orch/services/mission_execution_service.py) | runtime-core consumer | `wrap-now` | `stay` | mission owner 门面，不做 first move |
-| [`parallel_run_controller.py`](../../src/spec_orch/services/parallel_run_controller.py) | runtime-core consumer | `wrap-now` | `stay` | 执行 owner，等 runtime-core 稳定后再细拆 |
-| `services/workers/*_worker_handle.py` | runtime-core consumer | `wrap-now` | `stay` | continuity 和 outcome write 通过 runtime-core 输出 |
+| [`run_controller.py`](../../src/spec_orch/services/run_controller.py) | runtime-core consumer | `bridge` | `stay` | owner 保留，只把 normalized read/write 收到 runtime-core |
+| [`round_orchestrator.py`](../../src/spec_orch/services/round_orchestrator.py) | runtime-core consumer | `bridge` | `stay` | round owner 保留，不提前拆 supervision owner |
+| [`mission_execution_service.py`](../../src/spec_orch/services/mission_execution_service.py) | runtime-core consumer | `follow-up` | `stay` | mission owner 门面，不做 first move |
+| [`parallel_run_controller.py`](../../src/spec_orch/services/parallel_run_controller.py) | runtime-core consumer | `follow-up` | `stay` | 执行 owner，等 runtime-core 稳定后再细拆 |
+| `services/workers/*_worker_handle.py` | runtime-core consumer | `bridge` | `stay` | ACPX / one-shot 已开始通过 runtime-core 输出；其余后续补齐 |
 
 ### 3.3 现在不要碰的 Runtime 周边
 
 | 当前模块 | 现在动作 | 说明 |
 |---|---:|---|
-| `services/builders/*` | `leave-for-later` | builder adapter 是执行后端，不是当前抽象中心 |
-| `services/verification_service.py` | `leave-for-later` | 先作为 outcome input 保留 |
-| `services/gate_service.py` | `leave-for-later` | gate 先作为 outcome/review input，不急着 core 化 |
+| `services/builders/*` | `follow-up` | builder adapter 是执行后端，不是当前抽象中心 |
+| `services/verification_service.py` | `follow-up` | 先作为 outcome input 保留 |
+| `services/gate_service.py` | `follow-up` | gate 先作为 outcome/review input，不急着 core 化 |
 
 ---
 
@@ -85,25 +85,25 @@
 
 | 当前模块 | 目标位置 | 现在动作 | 兼容策略 | 说明 |
 |---|---|---:|---:|---|
-| `RoundDecision` dataclass（当前在 `domain/models.py`） | `decision_core/models.py` 或 `domain` re-export + `decision_core` helpers | `wrap-now` | `shim` | 不急着搬 object，本轮先让 decision-core 围绕它组织 |
-| `litellm_supervisor_adapter.py` 中 review parsing / decision shaping | `decision_core/records.py` | `extract-now` | `shim` | 抽出 `DecisionRecord` write path |
-| `dashboard/approvals.py` | `decision_core/interventions.py` + `decision_core/review_queue.py` | `extract-now` | `shim` | approval queue 先从 dashboard 语义里抽出来 |
-| `dashboard/missions.py` 中 approval-state derivation | `decision_core/review_queue.py` | `extract-now` | `shim` | approval state 不应继续散在 dashboard model adapter 里 |
+| `RoundDecision` dataclass（当前在 `domain/models.py`） | `decision_core/models.py` 或 `domain` re-export + `decision_core` helpers | `bridge` | `shim` | 仍然是 bridge object，后续再彻底收口 |
+| `litellm_supervisor_adapter.py` 中 review parsing / decision shaping | `decision_core/records.py` | `done` | `shim` | `DecisionRecord` write path 已落地 |
+| `dashboard/approvals.py` | `decision_core/interventions.py` + `decision_core/review_queue.py` | `done` | `shim` | approval queue 已优先读 decision-core intervention state |
+| `dashboard/missions.py` 中 approval-state derivation | `decision_core/review_queue.py` | `done` | `shim` | approval state 已通过 decision-core history 读取 |
 
 ### 4.2 应包住但不立刻搬走的 Decision Owners
 
 | 当前模块 | 目标关系 | 现在动作 | 兼容策略 | 说明 |
 |---|---|---:|---:|---|
-| [`round_orchestrator.py`](../../src/spec_orch/services/round_orchestrator.py) | decision-core consumer | `wrap-now` | `stay` | supervision owner 保留，decision shaping 外委 |
-| [`dashboard/routes.py`](../../src/spec_orch/dashboard/routes.py) | decision-core consumer | `wrap-now` | `stay` | route 层不应自己推导 decision 语义 |
-| [`dashboard/app.py`](../../src/spec_orch/dashboard/app.py) | decision-core consumer | `wrap-now` | `stay` | UI 只消费 queue / intervention / state |
+| [`round_orchestrator.py`](../../src/spec_orch/services/round_orchestrator.py) | decision-core consumer | `bridge` | `stay` | supervision owner 保留，decision shaping 外委 |
+| [`dashboard/routes.py`](../../src/spec_orch/dashboard/routes.py) | decision-core consumer | `bridge` | `stay` | route 层不应自己推导 decision 语义 |
+| [`dashboard/app.py`](../../src/spec_orch/dashboard/app.py) | decision-core consumer | `bridge` | `stay` | UI 只消费 queue / intervention / state |
 
 ### 4.3 现在不要碰的 Decision 周边
 
 | 当前模块 | 现在动作 | 说明 |
 |---|---:|---|
-| `flow_engine/flow_router.py` | `leave-for-later` | 虽然也是 decision，但先不混入 mission supervision 抽取 |
-| `reaction_engine.py` / `skill_degradation.py` | `leave-for-later` | 属于另一条 decision 子系统，后续再纳入统一 inventory |
+| `flow_engine/flow_router.py` | `follow-up` | 虽然也是 decision，但先不混入 mission supervision 抽取 |
+| `reaction_engine.py` / `skill_degradation.py` | `follow-up` | 属于另一条 decision 子系统，后续再纳入统一 inventory |
 
 ---
 
@@ -111,10 +111,10 @@
 
 | 当前模块 | 目标位置 | 现在动作 | 兼容策略 | 说明 |
 |---|---|---:|---:|---|
-| [`domain/task_contract.py`](../../src/spec_orch/domain/task_contract.py) | `contract_core/contracts.py` | `leave-for-later` | `stay` | 先保留在 domain，后面再细分 |
-| [`services/spec_snapshot_service.py`](../../src/spec_orch/services/spec_snapshot_service.py) | `contract_core/snapshots.py` | `leave-for-later` | `stay` | 当前可稳定运行，不挡住 runtime extraction |
-| [`spec_import/`](../../src/spec_orch/spec_import) | `contract_core/importers/` | `leave-for-later` | `stay` | 更偏 contract ingestion，优先级低于 runtime/decision |
-| `cli/spec_commands.py` 中 question/decision recording | `contract_core/decisions.py` | `leave-for-later` | `stay` | 这条和 decision-core 相关，但先不并线 |
+| [`domain/task_contract.py`](../../src/spec_orch/domain/task_contract.py) | `contract_core/contracts.py` | `follow-up` | `stay` | 先保留在 domain，后面再细分 |
+| [`services/spec_snapshot_service.py`](../../src/spec_orch/services/spec_snapshot_service.py) | `contract_core/snapshots.py` | `follow-up` | `stay` | 当前可稳定运行，不挡住 runtime extraction |
+| [`spec_import/`](../../src/spec_orch/spec_import) | `contract_core/importers/` | `follow-up` | `stay` | 更偏 contract ingestion，优先级低于 runtime/decision |
+| `cli/spec_commands.py` 中 question/decision recording | `contract_core/decisions.py` | `follow-up` | `stay` | 这条和 decision-core 相关，但先不并线 |
 
 结论：
 
@@ -128,9 +128,9 @@
 
 | 当前模块 | 目标位置 | 现在动作 | 兼容策略 | 说明 |
 |---|---|---:|---:|---|
-| [`services/memory/*`](../../src/spec_orch/services/memory) | `memory_core/*` | `leave-for-later` | `stay` | 已形成相对完整子包，后续可整体 alias 或 rename |
-| [`services/context/*`](../../src/spec_orch/services/context) | `memory_core/views/` 或平行 context package | `leave-for-later` | `stay` | 先别在 runtime extraction 时动 context 结构 |
-| `MemoryRecorder.record_*` 的决策相关扩展 | `memory_core/recorder.py` | `wrap-now` | `stay` | 等 `DecisionRecord` 稳定后接入，不先改 provider |
+| [`services/memory/*`](../../src/spec_orch/services/memory) | `memory_core/*` | `follow-up` | `stay` | 已形成相对完整子包，后续可整体 alias 或 rename |
+| [`services/context/*`](../../src/spec_orch/services/context) | `memory_core/views/` 或平行 context package | `bridge` | `stay` | read-side consumer 已切到 runtime_core，但包结构后续再调整 |
+| `MemoryRecorder.record_*` 的决策相关扩展 | `memory_core/recorder.py` | `follow-up` | `stay` | 等 `DecisionRecord` 稳定后接入，不先改 provider |
 
 结论：
 
@@ -144,9 +144,9 @@
 
 | 当前模块 | 目标位置 | 现在动作 | 兼容策略 | 说明 |
 |---|---|---:|---:|---|
-| [`services/evolution/*`](../../src/spec_orch/services/evolution) | `evolution_core/*` | `leave-for-later` | `stay` | 当前先不拆 |
-| [`services/evolution_policy.py`](../../src/spec_orch/services/evolution_policy.py) | `evolution_core/policy.py` | `leave-for-later` | `stay` | 等 decision artifacts 稳定后再接 |
-| [`docs/architecture/evolution-trigger-architecture.md`](./evolution-trigger-architecture.md) 对应的 inventory | `decision_core` + `evolution_core` 共享输入 | `wrap-now` | `stay` | 文档先更新，代码后接 |
+| [`services/evolution/*`](../../src/spec_orch/services/evolution) | `evolution_core/*` | `follow-up` | `stay` | 当前先不拆 |
+| [`services/evolution_policy.py`](../../src/spec_orch/services/evolution_policy.py) | `evolution_core/policy.py` | `follow-up` | `stay` | 等 decision artifacts 稳定后再接 |
+| [`docs/architecture/evolution-trigger-architecture.md`](./evolution-trigger-architecture.md) 对应的 inventory | `decision_core` + `evolution_core` 共享输入 | `follow-up` | `stay` | 文档先更新，代码后接 |
 
 结论：
 
@@ -159,10 +159,10 @@
 
 | 当前模块 | 目标关系 | 现在动作 | 兼容策略 | 说明 |
 |---|---|---:|---:|---|
-| `cli/*` | surface | `leave-for-later` | `stay` | CLI 先继续走旧入口 |
-| `dashboard/*` | surface | `wrap-now` | `stay` | 只抽 approval / decision shaping，不动整体 UI |
-| `daemon.py` | surface + owner trigger | `leave-for-later` | `stay` | daemon 先不参与第一轮 core extraction |
-| external adapters (`linear`, `github`, `browser`, ACPX) | surface/backend | `leave-for-later` | `stay` | 这些先继续作为边界依赖存在 |
+| `cli/*` | surface | `follow-up` | `stay` | CLI 先继续走旧入口 |
+| `dashboard/*` | surface | `bridge` | `stay` | approval / decision shaping 已切部分；整体 UI 不动 |
+| `daemon.py` | surface + owner trigger | `follow-up` | `stay` | daemon 先不参与第一轮 core extraction |
+| external adapters (`linear`, `github`, `browser`, ACPX) | surface/backend | `follow-up` | `stay` | 这些先继续作为边界依赖存在 |
 
 ---
 

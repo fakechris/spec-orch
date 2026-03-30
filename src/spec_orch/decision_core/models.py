@@ -62,8 +62,37 @@ class DecisionRecord:
         }
 
 
+@dataclass(slots=True)
+class DecisionReview:
+    review_id: str
+    record_id: str
+    reviewer_kind: str
+    verdict: str
+    summary: str
+    recommended_authority: DecisionAuthority | None = None
+    escalate_to_human: bool = False
+    reflection: str = ""
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "review_id": self.review_id,
+            "record_id": self.record_id,
+            "reviewer_kind": self.reviewer_kind,
+            "verdict": self.verdict,
+            "summary": self.summary,
+            "recommended_authority": (
+                self.recommended_authority.value if self.recommended_authority is not None else None
+            ),
+            "escalate_to_human": self.escalate_to_human,
+            "reflection": self.reflection,
+            "created_at": self.created_at,
+        }
+
+
 __all__ = [
     "DecisionAuthority",
     "DecisionPoint",
     "DecisionRecord",
+    "DecisionReview",
 ]

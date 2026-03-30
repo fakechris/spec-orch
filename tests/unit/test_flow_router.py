@@ -66,6 +66,9 @@ class TestFlowRoutingDecision:
         assert payload["recommended_flow"] == "full"
         assert payload["confidence"] == 0.95
         assert payload["source"] == "llm"
+        assert payload["decision_point_key"] == "issue.flow.route.llm"
+        assert payload["decision_authority"] == "llm_owned"
+        assert payload["decision_owner"] == "flow_router"
 
 
 class TestLLMResponseParsing:

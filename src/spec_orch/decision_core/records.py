@@ -4,19 +4,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from spec_orch.decision_core.models import (
-    DecisionAuthority,
-    DecisionPoint,
-    DecisionRecord,
-)
+from spec_orch.decision_core.inventory import MISSION_ROUND_REVIEW_POINT
+from spec_orch.decision_core.models import DecisionAuthority, DecisionPoint, DecisionRecord
 from spec_orch.domain.models import RoundDecision
-
-MISSION_ROUND_REVIEW_POINT = DecisionPoint(
-    key="mission.round.review",
-    authority=DecisionAuthority.LLM_OWNED,
-    owner="round_orchestrator",
-    summary="Review one mission round and decide the next orchestration action.",
-)
 
 
 def build_decision_record(

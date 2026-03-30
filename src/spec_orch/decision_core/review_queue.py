@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from spec_orch.decision_core.interventions import Intervention
-from spec_orch.decision_core.models import DecisionRecord
+from spec_orch.decision_core.models import DecisionRecord, DecisionReview
 
 
 def decision_record_path(round_dir: Path) -> Path:
@@ -27,6 +27,10 @@ def intervention_response_history_path(repo_root: Path, mission_id: str) -> Path
         / "operator"
         / "intervention_responses.jsonl"
     )
+
+
+def decision_review_history_path(repo_root: Path, mission_id: str) -> Path:
+    return Path(repo_root) / "docs" / "specs" / mission_id / "operator" / "decision_reviews.jsonl"
 
 
 def load_intervention_response_history(repo_root: Path, mission_id: str) -> list[dict[str, Any]]:
@@ -128,12 +132,57 @@ def append_intervention_response(
     return payload
 
 
+def append_decision_review(
+    repo_root: Path,
+    mission_id: str,
+    *,
+    review: DecisionReview,
+) -> dict[str, Any]:
+    payload = review.to_dict()
+    path = decision_review_history_path(repo_root, mission_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    return payload
+
+
+def load_decision_reviews(
+    repo_root: Path,
+    mission_id: str,
+    *,
+    record_id: str | None = None,
+) -> list[dict[str, Any]]:
+    path = decision_review_history_path(repo_root, mission_id)
+    if not path.exists():
+        return []
+
+    reviews: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if record_id is not None and str(payload.get("record_id") or "") != record_id:
+            continue
+        reviews.append(payload)
+
+    reviews.sort(key=lambda item: str(item.get("created_at", "")), reverse=True)
+    return reviews
+
+
 __all__ = [
+    "append_decision_review",
     "append_intervention",
     "append_intervention_response",
     "decision_record_path",
+    "decision_review_history_path",
     "intervention_queue_path",
     "intervention_response_history_path",
+    "load_decision_reviews",
     "load_intervention_response_history",
     "load_latest_intervention",
     "write_round_decision_record",

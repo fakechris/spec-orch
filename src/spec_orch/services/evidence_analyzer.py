@@ -7,7 +7,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from spec_orch.services.execution_semantics_reader import read_issue_execution_attempt
+from spec_orch.runtime_core.readers import read_issue_execution_attempt
 
 logger = logging.getLogger(__name__)
 

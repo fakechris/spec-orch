@@ -5,6 +5,7 @@ from spec_orch.decision_core.models import (
     DecisionAuthority,
     DecisionPoint,
     DecisionRecord,
+    DecisionReview,
 )
 
 
@@ -40,3 +41,21 @@ def test_decision_point_and_record_capture_minimal_decision_shape() -> None:
 
 def test_intervention_status_defaults_to_open() -> None:
     assert InterventionStatus.OPEN.value == "open"
+
+
+def test_decision_review_captures_review_and_escalation_shape() -> None:
+    review = DecisionReview(
+        review_id="rev-1",
+        record_id="dec-1",
+        reviewer_kind="human",
+        verdict="approval_granted",
+        summary="Approved after transcript review.",
+        recommended_authority=DecisionAuthority.HUMAN_REQUIRED,
+        escalate_to_human=False,
+        reflection="Human operator confirmed rollout.",
+    )
+
+    assert review.record_id == "dec-1"
+    assert review.reviewer_kind == "human"
+    assert review.recommended_authority is DecisionAuthority.HUMAN_REQUIRED
+    assert review.to_dict()["recommended_authority"] == "human_required"

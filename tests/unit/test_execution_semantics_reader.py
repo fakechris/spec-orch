@@ -113,6 +113,24 @@ def test_read_worker_execution_attempt_normalizes_worker_session_artifacts(
     assert attempt.outcome.artifacts["event_log"].path.endswith("telemetry/incoming_events.jsonl")
 
 
+def test_read_worker_execution_attempt_preserves_unknown_started_at_as_none(
+    tmp_path: Path,
+) -> None:
+    worker_dir = tmp_path / "docs/specs/mission-1/workers/pkt-2"
+    _write_json(
+        worker_dir / "builder_report.json",
+        {
+            "succeeded": True,
+            "session_name": "mission-m1-pkt2",
+        },
+    )
+
+    attempt = read_worker_execution_attempt(worker_dir, mission_id="mission-1", packet_id="pkt-2")
+
+    assert attempt is not None
+    assert attempt.started_at is None
+
+
 def test_read_round_supervision_cycle_keeps_round_separate_from_execution_attempt(
     tmp_path: Path,
 ) -> None:

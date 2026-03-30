@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+from spec_orch.decision_core.inventory import CONDUCTOR_INTENT_CLASSIFICATION_POINT
 from spec_orch.domain.models import ConversationMessage, ConversationThread, Issue, IssueContext
 from spec_orch.services.conductor.intent_classifier import classify_intent
 from spec_orch.services.conductor.types import (
@@ -690,6 +691,11 @@ class Conductor:
                         f"thread:{state.thread_id}",
                     ],
                     metadata={
+                        "decision_point_key": CONDUCTOR_INTENT_CLASSIFICATION_POINT.key,
+                        "decision_authority": (
+                            CONDUCTOR_INTENT_CLASSIFICATION_POINT.authority.value
+                        ),
+                        "decision_owner": CONDUCTOR_INTENT_CLASSIFICATION_POINT.owner,
                         "intent_category": signal.category.value,
                         "confidence": signal.confidence,
                         "summary": signal.summary,

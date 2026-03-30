@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -91,7 +90,7 @@ class ExecutionAttempt:
     outcome: ExecutionOutcome
     continuity_id: str | None = None
     attempt_state: ExecutionAttemptState = ExecutionAttemptState.CREATED
-    started_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    started_at: str | None = None
     completed_at: str | None = None
 
 
