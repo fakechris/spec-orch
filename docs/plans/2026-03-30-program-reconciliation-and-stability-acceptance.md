@@ -1,9 +1,10 @@
 # Program Reconciliation And Stability Acceptance Plan
 
-> **Status note (2026-03-30):** Tranche S1 completed. Tranche S2 is now
-> implemented as the canonical matrix plus updated operator guides. Tranche S3
-> baseline automation for issue-start and mission/milestone-start is also
-> landed. UI/exploratory automation and continuous reporting remain open.
+> **Status note (2026-03-30):** Tranche S1 completed. Tranche S2 is implemented
+> as the canonical matrix plus updated operator guides. Tranche S3 and the
+> first-pass S4 baseline are also landed: issue-start, mission-start,
+> dashboard/UI, and exploratory acceptance all have canonical harness
+> entrypoints. Continuous reporting remains open.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
@@ -130,6 +131,8 @@ This epic fixes that.
 
 ### Tranche S4: Automate UI and exploratory acceptance
 
+**Status:** Baseline dashboard/UI and exploratory acceptance harnesses completed
+
 **Files:**
 - Modify/Create under: `tests/e2e/`
 - Modify/Create under: `src/spec_orch/dashboard/`
@@ -139,6 +142,7 @@ This epic fixes that.
 - automate dashboard route acceptance
 - automate post-run acceptance review surfaces
 - add exploratory acceptance smoke coverage with bounded evidence assertions
+- materialize canonical dashboard and exploratory smoke reports
 
 ### Tranche S5: Continuous reporting
 

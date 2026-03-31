@@ -24,6 +24,11 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def _write_markdown(path: Path, lines: list[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def _dataclass_payload(value: Any) -> Any:
     if is_dataclass(value):
         return asdict(value)
@@ -62,20 +67,17 @@ def write_issue_start_acceptance_report(
     json_path = report_dir / "issue_start_smoke.json"
     md_path = report_dir / "issue_start_smoke.md"
     _write_json(json_path, payload)
-    md_path.write_text(
-        "\n".join(
-            [
-                "# Issue-Start Acceptance Smoke",
-                "",
-                f"- Status: `{status}`",
-                f"- Issue: `{issue_id}`",
-                f"- Fixture issue: `{fixture_issue_id}`",
-                f"- Workspace: `{workspace}`",
-                "",
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
+    _write_markdown(
+        md_path,
+        [
+            "# Issue-Start Acceptance Smoke",
+            "",
+            f"- Status: `{status}`",
+            f"- Issue: `{issue_id}`",
+            f"- Fixture issue: `{fixture_issue_id}`",
+            f"- Workspace: `{workspace}`",
+            "",
+        ],
     )
     return {"json_path": str(json_path), "markdown_path": str(md_path)}
 
@@ -109,21 +111,92 @@ def write_mission_start_acceptance_report(
     json_path = operator_dir / "mission_start_acceptance.json"
     md_path = operator_dir / "mission_start_acceptance.md"
     _write_json(json_path, payload)
-    operator_dir.mkdir(parents=True, exist_ok=True)
-    md_path.write_text(
-        "\n".join(
-            [
-                "# Mission-Start Acceptance Smoke",
-                "",
-                f"- Status: `{status}`",
-                f"- Mission: `{mission_id}`",
-                f"- Launch mode: `{launch_mode}`",
-                f"- Variant: `{variant}`",
-                f"- Round dir: `{round_dir}`",
-                "",
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
+    _write_markdown(
+        md_path,
+        [
+            "# Mission-Start Acceptance Smoke",
+            "",
+            f"- Status: `{status}`",
+            f"- Mission: `{mission_id}`",
+            f"- Launch mode: `{launch_mode}`",
+            f"- Variant: `{variant}`",
+            f"- Round dir: `{round_dir}`",
+            "",
+        ],
+    )
+    return {"json_path": str(json_path), "markdown_path": str(md_path)}
+
+
+def write_dashboard_ui_acceptance_report(
+    *,
+    repo_root: Path,
+    command: str,
+    suite_summary: dict[str, Any],
+) -> dict[str, str]:
+    repo_root = Path(repo_root).resolve()
+    status = str(suite_summary.get("status", "")).strip().lower() or "fail"
+    payload = {
+        "status": status,
+        "command": command,
+        "suite_summary": suite_summary,
+    }
+    report_dir = repo_root / ".spec_orch" / "acceptance"
+    json_path = report_dir / "dashboard_ui_acceptance.json"
+    md_path = report_dir / "dashboard_ui_acceptance.md"
+    _write_json(json_path, payload)
+    _write_markdown(
+        md_path,
+        [
+            "# Dashboard UI Acceptance",
+            "",
+            f"- Status: `{status}`",
+            f"- Command: `{command}`",
+            "",
+        ],
+    )
+    return {"json_path": str(json_path), "markdown_path": str(md_path)}
+
+
+def write_exploratory_acceptance_report(
+    *,
+    repo_root: Path,
+    mission_id: str,
+    variant: str,
+    round_dir: Path,
+    source: str,
+) -> dict[str, str]:
+    repo_root = Path(repo_root).resolve()
+    round_dir = Path(round_dir).resolve()
+    acceptance_review = _read_json_object(round_dir / "acceptance_review.json")
+    browser_evidence = _read_json_object(round_dir / "browser_evidence.json")
+    fresh_report = _read_json_object(round_dir / "fresh_acpx_mission_e2e_report.json")
+    review_status = str(acceptance_review.get("status", "")).strip().lower()
+    status = "pass" if review_status == "pass" else "fail"
+    payload = {
+        "status": status,
+        "mission_id": mission_id,
+        "variant": variant,
+        "source": source,
+        "round_dir": str(round_dir),
+        "acceptance_review": acceptance_review,
+        "browser_evidence": browser_evidence,
+        "fresh_report": fresh_report,
+    }
+    operator_dir = repo_root / "docs" / "specs" / mission_id / "operator"
+    json_path = operator_dir / "exploratory_acceptance_smoke.json"
+    md_path = operator_dir / "exploratory_acceptance_smoke.md"
+    _write_json(json_path, payload)
+    _write_markdown(
+        md_path,
+        [
+            "# Exploratory Acceptance Smoke",
+            "",
+            f"- Status: `{status}`",
+            f"- Mission: `{mission_id}`",
+            f"- Variant: `{variant}`",
+            f"- Source: `{source}`",
+            f"- Round dir: `{round_dir}`",
+            "",
+        ],
     )
     return {"json_path": str(json_path), "markdown_path": str(md_path)}

@@ -108,3 +108,98 @@ def test_write_mission_start_acceptance_report_preserves_fresh_report(
     assert report_json["variant"] == "default"
     assert report_json["round_dir"] == str(round_dir)
     assert report_json["fresh_report"]["acceptance_review"]["status"] == "pass"
+
+
+def test_write_dashboard_ui_acceptance_report_materializes_surface_summary(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import write_dashboard_ui_acceptance_report
+
+    report = write_dashboard_ui_acceptance_report(
+        repo_root=tmp_path,
+        command="./tests/e2e/dashboard_ui_acceptance.sh --full",
+        suite_summary={
+            "status": "pass",
+            "selected_tests": [
+                "test_launcher_readiness_endpoint",
+                "test_acceptance_review_endpoint_surfaces_latest_review_and_filed_issues",
+                "test_visual_qa_endpoint_includes_latest_round_and_review_route",
+                "test_costs_endpoint_aggregates_worker_reports",
+                "test_approvals_endpoint_returns_dedicated_queue",
+            ],
+            "surface_summary": {
+                "launcher": "pass",
+                "mission_detail": "pass",
+                "acceptance_review": "pass",
+                "visual_qa": "pass",
+                "costs": "pass",
+                "approvals": "pass",
+            },
+        },
+    )
+
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+    assert report_json["status"] == "pass"
+    assert report_json["command"] == "./tests/e2e/dashboard_ui_acceptance.sh --full"
+    assert report_json["suite_summary"]["surface_summary"]["visual_qa"] == "pass"
+    assert (
+        "test_costs_endpoint_aggregates_worker_reports"
+        in report_json["suite_summary"]["selected_tests"]
+    )
+
+
+def test_write_exploratory_acceptance_report_preserves_round_artifacts(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import write_exploratory_acceptance_report
+
+    round_dir = tmp_path / "docs" / "specs" / "fresh-acpx-2" / "rounds" / "round-01"
+    round_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        round_dir / "fresh_acpx_mission_e2e_report.json",
+        {
+            "mission_id": "fresh-acpx-2",
+            "workflow_replay": {
+                "proof_type": "workflow_replay",
+                "review_routes": {"overview": "/?mission=fresh-acpx-2&mode=missions&tab=overview"},
+            },
+            "acceptance_review": {"status": "pass", "coverage_status": "complete"},
+        },
+    )
+    _write_json(
+        round_dir / "acceptance_review.json",
+        {
+            "status": "pass",
+            "summary": "Exploratory replay completed.",
+            "artifacts": {
+                "graph_profile": "tuned_exploratory_graph",
+                "step_artifacts": [
+                    "docs/specs/fresh-acpx-2/rounds/round-01/acceptance_graph_runs/agr-1/steps/01.json"
+                ],
+            },
+        },
+    )
+    _write_json(
+        round_dir / "browser_evidence.json",
+        {
+            "tested_routes": ["/", "/settings"],
+            "screenshots": ["shot-1.png"],
+        },
+    )
+
+    report = write_exploratory_acceptance_report(
+        repo_root=tmp_path,
+        mission_id="fresh-acpx-2",
+        variant="default",
+        round_dir=round_dir,
+        source="fresh-acpx-mission-smoke",
+    )
+
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+    assert report_json["status"] == "pass"
+    assert report_json["mission_id"] == "fresh-acpx-2"
+    assert report_json["source"] == "fresh-acpx-mission-smoke"
+    assert report_json["browser_evidence"]["tested_routes"] == ["/", "/settings"]
+    assert (
+        report_json["acceptance_review"]["artifacts"]["graph_profile"] == "tuned_exploratory_graph"
+    )
