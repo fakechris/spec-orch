@@ -203,3 +203,43 @@ def test_write_exploratory_acceptance_report_preserves_round_artifacts(
     assert (
         report_json["acceptance_review"]["artifacts"]["graph_profile"] == "tuned_exploratory_graph"
     )
+
+
+def test_write_stability_acceptance_status_summarizes_latest_reports(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import write_stability_acceptance_status
+
+    acceptance_dir = tmp_path / ".spec_orch" / "acceptance"
+    _write_json(acceptance_dir / "issue_start_smoke.json", {"status": "pass", "issue_id": "SPC-1"})
+    _write_json(
+        acceptance_dir / "dashboard_ui_acceptance.json",
+        {
+            "status": "pass",
+            "suite_summary": {"surface_summary": {"launcher": "pass", "visual_qa": "pass"}},
+        },
+    )
+
+    mission_id = "fresh-acpx-3"
+    operator_dir = tmp_path / "docs" / "specs" / mission_id / "operator"
+    _write_json(
+        operator_dir / "mission_start_acceptance.json",
+        {"status": "pass", "mission_id": mission_id, "variant": "default"},
+    )
+    _write_json(
+        operator_dir / "exploratory_acceptance_smoke.json",
+        {"status": "fail", "mission_id": mission_id, "variant": "default"},
+    )
+
+    report = write_stability_acceptance_status(repo_root=tmp_path)
+
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+    report_md = Path(report["markdown_path"]).read_text(encoding="utf-8")
+
+    assert report_json["summary"]["overall_status"] == "fail"
+    assert report_json["checks"]["issue_start"]["status"] == "pass"
+    assert report_json["checks"]["dashboard_ui"]["status"] == "pass"
+    assert report_json["checks"]["mission_start"]["mission_id"] == mission_id
+    assert report_json["checks"]["exploratory"]["status"] == "fail"
+    assert "Exploratory" in report_md
+    assert "fail" in report_md.lower()

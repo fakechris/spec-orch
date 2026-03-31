@@ -47,9 +47,9 @@ Each row should eventually have:
 The next gaps to close are:
 
 1. linear-bound mission launch still needs a canonical automation wrapper
-2. continuous acceptance status reporting still needs a durable output surface
-3. dashboard/UI acceptance should eventually gain browser-backed replay in addition to API assertions
-4. exploratory acceptance should eventually support non-fresh reruns against preserved missions
+2. dashboard/UI acceptance should eventually gain browser-backed replay in addition to API assertions
+3. exploratory acceptance should eventually support non-fresh reruns against preserved missions
+4. consolidated status should eventually publish the latest full-run timestamps per harness
 
 ## 5. Status Semantics
 

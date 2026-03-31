@@ -35,6 +35,16 @@ def _dataclass_payload(value: Any) -> Any:
     return value
 
 
+def _latest_report(paths: list[Path]) -> dict[str, Any]:
+    existing = [path for path in paths if path.exists()]
+    if not existing:
+        return {}
+    latest = max(existing, key=lambda path: path.stat().st_mtime)
+    payload = _read_json_object(latest)
+    payload["_path"] = str(latest)
+    return payload
+
+
 def write_issue_start_acceptance_report(
     *,
     repo_root: Path,
@@ -196,6 +206,66 @@ def write_exploratory_acceptance_report(
             f"- Variant: `{variant}`",
             f"- Source: `{source}`",
             f"- Round dir: `{round_dir}`",
+            "",
+        ],
+    )
+    return {"json_path": str(json_path), "markdown_path": str(md_path)}
+
+
+def write_stability_acceptance_status(*, repo_root: Path) -> dict[str, str]:
+    repo_root = Path(repo_root).resolve()
+    acceptance_dir = repo_root / ".spec_orch" / "acceptance"
+    specs_dir = repo_root / "docs" / "specs"
+
+    mission_reports = list(specs_dir.glob("*/operator/mission_start_acceptance.json"))
+    exploratory_reports = list(specs_dir.glob("*/operator/exploratory_acceptance_smoke.json"))
+
+    checks = {
+        "issue_start": _read_json_object(acceptance_dir / "issue_start_smoke.json"),
+        "dashboard_ui": _read_json_object(acceptance_dir / "dashboard_ui_acceptance.json"),
+        "mission_start": _latest_report(mission_reports),
+        "exploratory": _latest_report(exploratory_reports),
+    }
+
+    statuses = [str(item.get("status", "")).strip().lower() for item in checks.values() if item]
+    if not statuses:
+        overall_status = "missing"
+    elif any(status == "fail" for status in statuses):
+        overall_status = "fail"
+    elif all(status == "pass" for status in statuses):
+        overall_status = "pass"
+    else:
+        overall_status = "partial"
+
+    payload = {
+        "summary": {
+            "overall_status": overall_status,
+            "reported_checks": len([item for item in checks.values() if item]),
+            "total_checks": len(checks),
+        },
+        "checks": checks,
+    }
+
+    json_path = acceptance_dir / "stability_acceptance_status.json"
+    md_path = repo_root / "docs" / "plans" / "2026-03-30-stability-acceptance-status.md"
+    _write_json(json_path, payload)
+    _write_markdown(
+        md_path,
+        [
+            "# Stability Acceptance Status",
+            "",
+            f"- Overall status: `{overall_status}`",
+            (
+                f"- Reported checks: "
+                f"`{payload['summary']['reported_checks']}/{payload['summary']['total_checks']}`"
+            ),
+            "",
+            "## Checks",
+            "",
+            f"- Issue Start: `{checks['issue_start'].get('status', 'missing')}`",
+            f"- Mission Start: `{checks['mission_start'].get('status', 'missing')}`",
+            f"- Dashboard UI: `{checks['dashboard_ui'].get('status', 'missing')}`",
+            f"- Exploratory: `{checks['exploratory'].get('status', 'missing')}`",
             "",
         ],
     )

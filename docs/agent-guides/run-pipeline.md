@@ -26,6 +26,7 @@ Mission 级别执行由 `plan.json` 驱动。若 `docs/specs/<mission_id>/plan.j
 ./tests/e2e/dashboard_ui_acceptance.sh --full    # dashboard/UI full smoke
 ./tests/e2e/exploratory_acceptance_smoke.sh      # exploratory dry-run
 ./tests/e2e/exploratory_acceptance_smoke.sh --full  # exploratory full smoke
+./tests/e2e/update_stability_acceptance_status.sh   # refresh consolidated status
 ```
 
 它们会把结果分别收口到：
@@ -34,6 +35,8 @@ Mission 级别执行由 `plan.json` 驱动。若 `docs/specs/<mission_id>/plan.j
 - `docs/specs/<mission_id>/operator/mission_start_acceptance.json`
 - `.spec_orch/acceptance/dashboard_ui_acceptance.json`
 - `docs/specs/<mission_id>/operator/exploratory_acceptance_smoke.json`
+- `.spec_orch/acceptance/stability_acceptance_status.json`
+- `docs/plans/2026-03-30-stability-acceptance-status.md`
 
 ## Pipeline 阶段
 

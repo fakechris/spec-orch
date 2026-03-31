@@ -38,10 +38,12 @@ spec-orch daemon dlq       # 查看死信队列
 ./tests/e2e/mission_start_acceptance.sh --full
 ./tests/e2e/dashboard_ui_acceptance.sh --full
 ./tests/e2e/exploratory_acceptance_smoke.sh --full
+./tests/e2e/update_stability_acceptance_status.sh
 ```
 
 前两者覆盖 issue 和 fresh mission/milestone 启动主链，后两者覆盖
-dashboard/UI 主 surface 和 post-run exploratory acceptance smoke。
+dashboard/UI 主 surface 和 post-run exploratory acceptance smoke。最后一个命令把
+现有 canonical 报告刷新成统一状态页。
 
 Dashboard 现在已经进入 operator-console 形态，首页主要看三块：
 

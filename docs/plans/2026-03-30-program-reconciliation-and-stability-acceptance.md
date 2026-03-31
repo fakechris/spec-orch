@@ -1,10 +1,10 @@
 # Program Reconciliation And Stability Acceptance Plan
 
 > **Status note (2026-03-30):** Tranche S1 completed. Tranche S2 is implemented
-> as the canonical matrix plus updated operator guides. Tranche S3 and the
-> first-pass S4 baseline are also landed: issue-start, mission-start,
-> dashboard/UI, and exploratory acceptance all have canonical harness
-> entrypoints. Continuous reporting remains open.
+> as the canonical matrix plus updated operator guides. Tranche S3, the
+> first-pass S4 baseline, and the S5 status-refresh baseline are all landed:
+> issue-start, mission-start, dashboard/UI, exploratory acceptance, and a
+> consolidated status page now all have canonical entrypoints.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
@@ -145,6 +145,8 @@ This epic fixes that.
 - materialize canonical dashboard and exploratory smoke reports
 
 ### Tranche S5: Continuous reporting
+
+**Status:** Completed as a baseline status-refresh seam
 
 **Files:**
 - Modify/Create: `docs/plans/2026-03-30-stability-acceptance-status.md`
