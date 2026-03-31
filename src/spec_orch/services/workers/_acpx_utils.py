@@ -41,6 +41,12 @@ def _session_ensure_adapter(arguments: dict[str, Any]) -> dict[str, Any]:
         text=True,
         check=False,
     )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "ACPX session ensure failed "
+            f"(rc={result.returncode}, cmd={cmd}): "
+            f"{(result.stderr or result.stdout).strip()}"
+        )
     return {
         "returncode": result.returncode,
         "stdout": result.stdout,
@@ -67,6 +73,12 @@ def _session_cancel_adapter(arguments: dict[str, Any]) -> dict[str, Any]:
         text=True,
         check=False,
     )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "ACPX session cancel failed "
+            f"(rc={result.returncode}, cmd={cmd}): "
+            f"{(result.stderr or result.stdout).strip()}"
+        )
     return {
         "returncode": result.returncode,
         "stdout": result.stdout,

@@ -5,6 +5,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 
+def _mapping_or_empty(value: object) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
 @dataclass(slots=True)
 class CompactionTriggerDecision:
     trigger: bool
@@ -48,7 +52,7 @@ class CompactionBoundary:
         return cls(
             boundary_id=str(payload.get("boundary_id", "")),
             trigger_reason=str(payload.get("trigger_reason", "")),
-            restore_bundle=dict(payload.get("restore_bundle") or {}),
+            restore_bundle=_mapping_or_empty(payload.get("restore_bundle")),
             created_at=str(payload.get("created_at", "")),
         )
 
@@ -73,6 +77,6 @@ class CompactionTelemetryEvent:
         return cls(
             phase=str(payload.get("phase", "")),
             reason=str(payload.get("reason", "")),
-            details=dict(payload.get("details") or {}),
+            details=_mapping_or_empty(payload.get("details")),
             created_at=str(payload.get("created_at", "")),
         )

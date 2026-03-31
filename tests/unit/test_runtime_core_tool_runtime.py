@@ -124,6 +124,32 @@ def test_plan_tool_batches_respects_concurrency_classes() -> None:
     ]
 
 
+def test_plan_tool_batches_isolates_unknown_tools() -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="parallel.tool",
+            adapter=lambda arguments: {},
+            concurrency_class=ToolConcurrencyClass.SAFE_PARALLEL,
+        )
+    )
+
+    plan = plan_tool_batches(
+        [
+            ToolExecutionRequest(tool_name="parallel.tool", arguments={}),
+            ToolExecutionRequest(tool_name="missing.tool", arguments={}),
+            ToolExecutionRequest(tool_name="parallel.tool", arguments={}),
+        ],
+        registry=registry,
+    )
+
+    assert [[request.tool_name for request in batch] for batch in plan] == [
+        ["parallel.tool"],
+        ["missing.tool"],
+        ["parallel.tool"],
+    ]
+
+
 def test_execute_tool_request_rejects_missing_required_fields(tmp_path: Path) -> None:
     registry = ToolRegistry()
     registry.register(

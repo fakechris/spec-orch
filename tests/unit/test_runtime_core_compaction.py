@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from spec_orch.runtime_core.compaction.models import CompactionRestoreBundle
+from spec_orch.runtime_core.compaction.models import (
+    CompactionBoundary,
+    CompactionRestoreBundle,
+    CompactionTelemetryEvent,
+)
 from spec_orch.runtime_core.compaction.runner import (
     evaluate_compaction_trigger,
     run_memory_compaction,
@@ -77,3 +81,23 @@ def test_run_memory_compaction_writes_boundary_and_telemetry(tmp_path: Path) -> 
     last = read_last_compaction(tmp_path)
     assert last is not None
     assert last["stats"]["distilled"] == 1
+
+
+def test_compaction_models_coerce_malformed_nested_payloads() -> None:
+    boundary = CompactionBoundary.from_dict(
+        {
+            "boundary_id": "boundary-1",
+            "trigger_reason": "run_threshold_reached",
+            "restore_bundle": "not-a-mapping",
+        }
+    )
+    event = CompactionTelemetryEvent.from_dict(
+        {
+            "phase": "completed",
+            "reason": "run_threshold_reached",
+            "details": "not-a-mapping",
+        }
+    )
+
+    assert boundary.restore_bundle == {}
+    assert event.details == {}

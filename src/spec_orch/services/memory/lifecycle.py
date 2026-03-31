@@ -146,8 +146,10 @@ class MemoryLifecycleManager:
     def _write_snapshots(self, snapshots: list[SessionMemorySnapshot]) -> None:
         path = self._root / "session_snapshots.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
-        lines = [json.dumps(snapshot.to_dict(), ensure_ascii=False) for snapshot in snapshots]
-        path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+        if not snapshots:
+            return
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(snapshots[-1].to_dict(), ensure_ascii=False) + "\n")
 
     @staticmethod
     def _read_json_dict(path: Path) -> dict[str, Any]:

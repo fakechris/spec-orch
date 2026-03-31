@@ -156,7 +156,16 @@ def plan_tool_batches(
     batches: ToolBatchPlan = []
     current_parallel: list[ToolExecutionRequest] = []
     for request in requests:
-        definition = registry.resolve(request.tool_name)
+        try:
+            definition = registry.resolve(request.tool_name)
+        except KeyError:
+            if current_parallel:
+                batches.append(current_parallel)
+                current_parallel = []
+            # Unknown tools still get their own batch so execute_tool_request()
+            # can turn them into structured failures instead of crashing planning.
+            batches.append([request])
+            continue
         if definition.concurrency_class is ToolConcurrencyClass.SAFE_PARALLEL:
             current_parallel.append(request)
             continue

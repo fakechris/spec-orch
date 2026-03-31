@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from spec_orch.runtime_core.tool_runtime.telemetry import read_tool_lifecycle_events
 from spec_orch.services.workers._acpx_utils import cancel_acpx_session, ensure_acpx_session
 
 
@@ -59,3 +60,7 @@ def test_cancel_acpx_session_raises_runtime_error_on_failure(
         assert "session cancel failed" in str(exc).lower()
     else:
         raise AssertionError("expected RuntimeError")
+
+    telemetry = tmp_path / "telemetry" / "tool_runtime"
+    events = read_tool_lifecycle_events(telemetry)
+    assert [event.phase for event in events] == ["started", "failed"]
