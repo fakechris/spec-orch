@@ -211,6 +211,16 @@ def run_mode_from_legacy_acceptance_mode(
 def build_acceptance_judgments(result: AcceptanceReviewResult) -> list[AcceptanceJudgment]:
     judgments: list[AcceptanceJudgment] = []
     run_mode = run_mode_from_legacy_acceptance_mode(result.acceptance_mode)
+    review_artifact_refs: list[str] = []
+    if isinstance(result.artifacts, dict):
+        graph_run = result.artifacts.get("graph_run")
+        if isinstance(graph_run, str) and graph_run.strip():
+            review_artifact_refs.append(graph_run)
+        step_artifacts = result.artifacts.get("step_artifacts")
+        if isinstance(step_artifacts, list):
+            review_artifact_refs.extend(
+                str(item) for item in step_artifacts if isinstance(item, str) and item.strip()
+            )
 
     for index, proposal in enumerate(result.issue_proposals):
         hold_reason = str(proposal.hold_reason or "").strip()
@@ -232,7 +242,9 @@ def build_acceptance_judgments(result: AcceptanceReviewResult) -> list[Acceptanc
             claim=proposal.summary or proposal.title,
             surface=proposal.critique_axis or "",
             route=proposal.route,
-            evidence_refs=list(proposal.artifact_paths.values()),
+            evidence_refs=list(
+                dict.fromkeys([*proposal.artifact_paths.values(), *review_artifact_refs])
+            ),
             confidence=proposal.confidence,
             impact_if_true=proposal.why_it_matters,
             repro_status="filed" if filed else "credible",
@@ -277,7 +289,9 @@ def build_acceptance_judgments(result: AcceptanceReviewResult) -> list[Acceptanc
                     summary=finding.summary,
                     route=finding.route,
                     details=finding.details,
-                    evidence_refs=list(finding.artifact_paths.values()),
+                    evidence_refs=list(
+                        dict.fromkeys([*finding.artifact_paths.values(), *review_artifact_refs])
+                    ),
                     critique_axis=finding.critique_axis,
                     operator_task=finding.operator_task,
                     why_it_matters=finding.why_it_matters,

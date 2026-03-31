@@ -7,6 +7,13 @@ from unittest.mock import patch
 
 import pytest
 
+from spec_orch.acceptance_core.models import (
+    AcceptanceJudgment,
+    AcceptanceJudgmentClass,
+    AcceptanceRunMode,
+    AcceptanceWorkflowState,
+    CandidateFinding,
+)
 from spec_orch.domain.models import (
     AcceptanceIssueProposal,
     AcceptanceMode,
@@ -805,6 +812,196 @@ def test_run_supervised_records_acceptance_graph_trace_artifacts(tmp_path: Path)
     assert payload["artifacts"]["graph_run"].endswith("graph_run.json")
     assert payload["artifacts"]["graph_profile"] == "verify_contract_graph"
     assert len(payload["artifacts"]["step_artifacts"]) == 4
+
+
+def test_run_supervised_appends_fixture_graduation_from_repeated_reviewed_candidate(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            return RoundDecision(action=RoundAction.STOP, summary="Done")
+
+    class StubAssembler:
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            return {}
+
+    class StubAcceptanceEvaluator:
+        ADAPTER_NAME = "stub_acceptance"
+
+        def invoke_acceptance_graph_step(self, *, system_prompt: str, user_prompt: str) -> str:
+            payload = json.loads(user_prompt.split("\n", 3)[-1])
+            step_key = payload["step_key"]
+            next_transition = {
+                "contract_brief": "route_replay",
+                "route_replay": "assert_contract",
+                "assert_contract": "summarize_judgment",
+                "surface_scan": "guided_probe",
+                "guided_probe": "candidate_review",
+                "candidate_review": "summarize_judgment",
+                "summarize_judgment": "",
+            }[step_key]
+            return json.dumps(
+                {
+                    "decision": "continue" if next_transition else "complete",
+                    "outputs": {f"{step_key}_artifact": "ok"},
+                    "next_transition": next_transition,
+                    "warnings": [],
+                    "review_markdown": f"## {step_key}",
+                }
+            )
+
+        def evaluate_acceptance(
+            self,
+            *,
+            mission_id: str,
+            round_id: int,
+            round_dir: Path,
+            worker_results,
+            artifacts,
+            repo_root: Path,
+            campaign=None,
+        ) -> AcceptanceReviewResult | None:
+            return AcceptanceReviewResult(
+                status="warn",
+                summary="Repeated transcript orientation issue still reproduces.",
+                confidence=0.91,
+                evaluator="stub_acceptance",
+                acceptance_mode="exploratory",
+                coverage_status="complete",
+                findings=[],
+                issue_proposals=[
+                    AcceptanceIssueProposal(
+                        title="Transcript orientation issue",
+                        summary="Transcript route needs stronger orientation.",
+                        severity="medium",
+                        route="/?mission=mission-1&mode=missions&tab=transcript",
+                        confidence=0.72,
+                        hold_reason="Needs repeated confirmation before filing.",
+                        why_it_matters="Operators may miss the main evidence path.",
+                        critique_axis="surface_orientation",
+                        operator_task="trace_transcript_route",
+                        artifact_paths={
+                            "acceptance_review": "docs/specs/mission-1/rounds/round-01/acceptance_review.json"
+                        },
+                        filing_status="filed",
+                        linear_issue_id="SON-999",
+                    )
+                ],
+                artifacts=dict(artifacts),
+            )
+
+    reset_memory_service()
+    svc = MemoryService(repo_root=tmp_path)
+    svc.record_acceptance_judgments(
+        mission_id="mission-1",
+        round_id=0,
+        judgments=[
+            AcceptanceJudgment(
+                judgment_id="proposal:older-1",
+                judgment_class=AcceptanceJudgmentClass.CANDIDATE_FINDING,
+                run_mode=AcceptanceRunMode.EXPLORE,
+                workflow_state=AcceptanceWorkflowState.REVIEWED,
+                summary="Transcript route needs stronger orientation.",
+                candidate=CandidateFinding(
+                    finding_id="candidate:older-1",
+                    claim="Transcript route needs stronger orientation.",
+                    route="/?mission=mission-1&mode=missions&tab=transcript",
+                    baseline_ref="fixture:dashboard-transcript-regression",
+                    origin_step="candidate_review",
+                    graph_profile="tuned_exploratory_graph",
+                    run_mode="explore",
+                    compare_overlay=True,
+                    promotion_test="Replay transcript route with orientation breadcrumbs visible.",
+                    recommended_next_step="Promote to fixture candidate when repeated.",
+                    dedupe_key="dashboard:transcript-orientation",
+                ),
+            ),
+            AcceptanceJudgment(
+                judgment_id="proposal:older-2",
+                judgment_class=AcceptanceJudgmentClass.CANDIDATE_FINDING,
+                run_mode=AcceptanceRunMode.EXPLORE,
+                workflow_state=AcceptanceWorkflowState.REVIEWED,
+                summary="Transcript route needs stronger orientation.",
+                candidate=CandidateFinding(
+                    finding_id="candidate:older-2",
+                    claim="Transcript route needs stronger orientation.",
+                    route="/?mission=mission-1&mode=missions&tab=transcript",
+                    baseline_ref="fixture:dashboard-transcript-regression",
+                    origin_step="candidate_review",
+                    graph_profile="tuned_exploratory_graph",
+                    run_mode="explore",
+                    compare_overlay=True,
+                    promotion_test="Replay transcript route with orientation breadcrumbs visible.",
+                    recommended_next_step="Promote to fixture candidate when repeated.",
+                    dedupe_key="dashboard:transcript-orientation",
+                ),
+            ),
+        ],
+    )
+
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=StubBuilderAdapter(),
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=factory,
+        context_assembler=StubAssembler(),
+        acceptance_evaluator=StubAcceptanceEvaluator(),
+    )
+
+    try:
+        with patch("spec_orch.services.memory.service._instance", svc):
+            result = orchestrator.run_supervised(
+                mission_id="mission-1",
+                plan=_make_single_wave_plan(),
+            )
+    finally:
+        reset_memory_service()
+
+    assert result.completed is True
+    graduations_path = tmp_path / "docs/specs/mission-1/operator/fixture_graduations.jsonl"
+    rows = [
+        json.loads(line)
+        for line in graduations_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(rows) == 1
+    assert rows[0]["stage"] == "fixture_candidate"
+    assert rows[0]["dedupe_key"] == "/?mission=mission-1&mode=missions&tab=transcript"
+    assert rows[0]["repeat_count"] == 3
+    assert rows[0]["graph_profile"] == "verify_contract_graph"
+    assert rows[0]["graph_run"].endswith("graph_run.json")
+    assert len(rows[0]["step_artifacts"]) == 4
+    assert rows[0]["graph_transitions"][-1] == "assert_contract->summarize_judgment"
 
 
 def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(

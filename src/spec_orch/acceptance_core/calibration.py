@@ -266,6 +266,59 @@ def fixture_graduation_history_path(repo_root: Path, mission_id: str) -> Path:
     )
 
 
+def build_fixture_graduation_event(
+    *,
+    mission_id: str,
+    judgment: AcceptanceJudgment,
+    stage: FixtureGraduationStage,
+    source_record_id: str,
+    repeat_count: int,
+    review_artifacts: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    candidate = judgment.candidate
+    if candidate is None:
+        raise ValueError("fixture graduation requires a candidate judgment")
+    artifacts = review_artifacts if isinstance(review_artifacts, dict) else {}
+    graph_run = str(artifacts.get("graph_run") or "")
+    step_artifacts = [
+        str(item) for item in artifacts.get("step_artifacts", []) if isinstance(item, str)
+    ]
+    graph_transitions = [
+        str(item) for item in artifacts.get("graph_transitions", []) if isinstance(item, str)
+    ]
+    workflow_tuning_notes = [
+        str(item)
+        for item in artifacts.get("workflow_tuning_notes", [])
+        if isinstance(item, str) and item.strip()
+    ]
+    evidence_refs = list(candidate.evidence_refs)
+    if graph_run:
+        evidence_refs.append(graph_run)
+    evidence_refs.extend(step_artifacts)
+    unique_evidence_refs = list(dict.fromkeys(ref for ref in evidence_refs if ref))
+    return {
+        "mission_id": mission_id,
+        "judgment_id": judgment.judgment_id,
+        "finding_id": candidate.finding_id,
+        "stage": stage.value,
+        "summary": judgment.summary,
+        "source_record_id": source_record_id,
+        "evidence_refs": unique_evidence_refs,
+        "repeat_count": repeat_count,
+        "dedupe_key": candidate.dedupe_key,
+        "baseline_ref": candidate.baseline_ref,
+        "graph_profile": candidate.graph_profile,
+        "graph_run": graph_run,
+        "step_artifacts": step_artifacts,
+        "graph_transitions": graph_transitions,
+        "final_transition": str(artifacts.get("final_transition") or ""),
+        "workflow_tuning_notes": workflow_tuning_notes,
+        "route": candidate.route,
+        "origin_step": candidate.origin_step,
+        "promotion_test": candidate.promotion_test,
+    }
+
+
 def append_fixture_graduation_event(
     repo_root: Path,
     *,
@@ -275,13 +328,39 @@ def append_fixture_graduation_event(
     summary: str,
     source_record_id: str,
     evidence_refs: list[str],
+    finding_id: str = "",
+    repeat_count: int = 0,
+    dedupe_key: str = "",
+    baseline_ref: str = "",
+    graph_profile: str = "",
+    graph_run: str = "",
+    step_artifacts: list[str] | None = None,
+    graph_transitions: list[str] | None = None,
+    final_transition: str = "",
+    workflow_tuning_notes: list[str] | None = None,
+    route: str = "",
+    origin_step: str = "",
+    promotion_test: str = "",
 ) -> dict[str, Any]:
     payload = {
         "judgment_id": judgment_id,
+        "finding_id": finding_id,
         "stage": stage.value,
         "summary": summary,
         "source_record_id": source_record_id,
         "evidence_refs": list(evidence_refs),
+        "repeat_count": repeat_count,
+        "dedupe_key": dedupe_key,
+        "baseline_ref": baseline_ref,
+        "graph_profile": graph_profile,
+        "graph_run": graph_run,
+        "step_artifacts": list(step_artifacts or []),
+        "graph_transitions": list(graph_transitions or []),
+        "final_transition": final_transition,
+        "workflow_tuning_notes": list(workflow_tuning_notes or []),
+        "route": route,
+        "origin_step": origin_step,
+        "promotion_test": promotion_test,
     }
     path = fixture_graduation_history_path(repo_root, mission_id)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -371,6 +450,7 @@ __all__ = [
     "AcceptanceSurfacePack",
     "FixtureGraduationStage",
     "append_fixture_graduation_event",
+    "build_fixture_graduation_event",
     "compare_review_to_fixture",
     "dashboard_surface_pack_v1",
     "fixture_graduation_history_path",

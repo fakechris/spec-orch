@@ -198,6 +198,7 @@ class MemoryAnalytics:
                     "workflow_state": entry.metadata.get("workflow_state", ""),
                     "finding_id": entry.metadata.get("finding_id", ""),
                     "route": entry.metadata.get("route", ""),
+                    "evidence_refs": list(entry.metadata.get("evidence_refs", []) or []),
                     "baseline_ref": entry.metadata.get("baseline_ref", ""),
                     "origin_step": entry.metadata.get("origin_step", ""),
                     "graph_profile": entry.metadata.get("graph_profile", ""),

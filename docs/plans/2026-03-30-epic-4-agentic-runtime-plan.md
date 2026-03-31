@@ -13,6 +13,9 @@
 runner, and a first integration path through `round_orchestrator` and the
 acceptance dashboard surface. Remaining work is graph-family expansion,
 stronger loop/gate tuning, and deeper calibration/dashboard observability.
+Step artifacts and graph traces now also feed the fixture-graduation audit
+trail and reviewed acceptance memory provenance, so graph execution is no
+longer isolated to dashboard observability alone.
 
 ## 1. Design Position
 

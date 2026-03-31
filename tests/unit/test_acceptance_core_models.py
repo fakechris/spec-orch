@@ -72,6 +72,46 @@ def test_issue_proposal_with_hold_reason_normalizes_into_candidate_finding() -> 
     assert judgments[0].candidate.compare_overlay is False
 
 
+def test_build_acceptance_judgments_carries_graph_trace_refs_into_candidate_evidence() -> None:
+    from spec_orch.acceptance_core.models import build_acceptance_judgments
+
+    result = AcceptanceReviewResult(
+        status="warn",
+        summary="Exploratory review found a likely UX concern.",
+        confidence=0.71,
+        evaluator="acceptance_llm",
+        acceptance_mode="exploratory",
+        issue_proposals=[
+            AcceptanceIssueProposal(
+                title="Clarify transcript entry point",
+                summary="The transcript path is credible but needs operator review before filing.",
+                severity="medium",
+                route="/?mission=demo&mode=missions&tab=transcript",
+                hold_reason="Needs operator confirmation before queueing UX work.",
+                confidence=0.64,
+                artifact_paths={"review": "docs/specs/demo/rounds/round-01/acceptance_review.json"},
+            )
+        ],
+        artifacts={
+            "graph_run": "docs/specs/demo/rounds/round-01/acceptance_graph_runs/agr-1/graph_run.json",
+            "step_artifacts": [
+                "docs/specs/demo/rounds/round-01/acceptance_graph_runs/agr-1/steps/01-surface_scan.json",
+                "docs/specs/demo/rounds/round-01/acceptance_graph_runs/agr-1/steps/02-guided_probe.json",
+            ],
+        },
+    )
+
+    judgments = build_acceptance_judgments(result)
+
+    assert judgments[0].candidate is not None
+    assert judgments[0].candidate.evidence_refs == [
+        "docs/specs/demo/rounds/round-01/acceptance_review.json",
+        "docs/specs/demo/rounds/round-01/acceptance_graph_runs/agr-1/graph_run.json",
+        "docs/specs/demo/rounds/round-01/acceptance_graph_runs/agr-1/steps/01-surface_scan.json",
+        "docs/specs/demo/rounds/round-01/acceptance_graph_runs/agr-1/steps/02-guided_probe.json",
+    ]
+
+
 def test_finding_without_issue_proposal_normalizes_into_observation() -> None:
     from spec_orch.acceptance_core.models import (
         AcceptanceJudgmentClass,

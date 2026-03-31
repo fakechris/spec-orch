@@ -137,6 +137,10 @@ def test_reviewed_acceptance_findings_filter_out_unreviewed_candidates(svc: Memo
             claim="Confirmed regression in dashboard transcript route.",
             finding_id="candidate:promoted",
             route="/?mission=mission-acceptance&mode=missions&tab=transcript",
+            evidence_refs=[
+                "docs/specs/mission-acceptance/rounds/round-04/acceptance_review.json",
+                "docs/specs/mission-acceptance/rounds/round-04/acceptance_graph/graph_run.json",
+            ],
             baseline_ref="fixture:dashboard-transcript-regression",
             origin_step="transcript_empty_state_review",
             graph_profile="tuned_dashboard_compare_graph",
@@ -167,6 +171,10 @@ def test_reviewed_acceptance_findings_filter_out_unreviewed_candidates(svc: Memo
     assert findings[0]["compare_overlay"] is True
     assert findings[0]["promotion_test"] == "rerun transcript path with retry artifact visible"
     assert findings[0]["dedupe_key"] == "dashboard:transcript_empty_state_retry_cause"
+    assert findings[0]["evidence_refs"] == [
+        "docs/specs/mission-acceptance/rounds/round-04/acceptance_review.json",
+        "docs/specs/mission-acceptance/rounds/round-04/acceptance_graph/graph_run.json",
+    ]
 
 
 def test_recall_latest_with_provenance_prefers_newest_reviewed_entries(

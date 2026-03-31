@@ -10,7 +10,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
 
-from spec_orch.acceptance_core.calibration import dashboard_surface_pack_v1
+from spec_orch.acceptance_core.calibration import (
+    FixtureGraduationStage,
+    append_fixture_graduation_event,
+    build_fixture_graduation_event,
+    dashboard_surface_pack_v1,
+    load_fixture_graduation_events,
+    qualifies_for_fixture_candidate,
+)
 from spec_orch.acceptance_core.models import (
     AcceptanceRunMode,
     build_acceptance_judgments,
@@ -883,13 +890,22 @@ class RoundOrchestrator:
             except Exception as exc:
                 result = self._mark_acceptance_filing_failure(result, str(exc))
         atomic_write_json(round_dir / "acceptance_review.json", result.to_dict())
+        judgments = build_acceptance_judgments(result)
         try:
             from spec_orch.services.memory.service import get_memory_service
 
-            get_memory_service(repo_root=self.repo_root).record_acceptance_judgments(
+            memory = get_memory_service(repo_root=self.repo_root)
+            memory.record_acceptance_judgments(
                 mission_id=mission_id,
                 round_id=round_id,
-                judgments=build_acceptance_judgments(result),
+                judgments=judgments,
+            )
+            self._record_fixture_candidate_graduations(
+                mission_id=mission_id,
+                source_record_id=f"acceptance:round-{round_id}",
+                judgments=judgments,
+                review=result,
+                memory=memory,
             )
         except Exception:
             logger.warning(
@@ -956,6 +972,100 @@ class RoundOrchestrator:
         ]
         normalized["final_transition"] = str(trace.get("final_transition", "") or "")
         return normalized
+
+    def _record_fixture_candidate_graduations(
+        self,
+        *,
+        mission_id: str,
+        source_record_id: str,
+        judgments: list[Any],
+        review: AcceptanceReviewResult,
+        memory: Any,
+    ) -> None:
+        reviewed_findings = memory.get_reviewed_acceptance_findings(top_k=200)
+        existing_events = load_fixture_graduation_events(self.repo_root, mission_id)
+        existing_markers = {
+            str(
+                event.get("dedupe_key") or event.get("finding_id") or event.get("judgment_id") or ""
+            )
+            for event in existing_events
+            if isinstance(event, dict)
+        }
+        for judgment in judgments:
+            candidate = getattr(judgment, "candidate", None)
+            if candidate is None:
+                continue
+            repeat_count = self._fixture_candidate_repeat_count(
+                judgment=judgment,
+                reviewed_findings=reviewed_findings,
+            )
+            if not qualifies_for_fixture_candidate(judgment, repeat_count=repeat_count):
+                continue
+            marker = str(
+                candidate.dedupe_key or candidate.finding_id or judgment.judgment_id or ""
+            ).strip()
+            if marker and marker in existing_markers:
+                continue
+            payload = build_fixture_graduation_event(
+                mission_id=mission_id,
+                judgment=judgment,
+                stage=FixtureGraduationStage.FIXTURE_CANDIDATE,
+                source_record_id=source_record_id,
+                repeat_count=repeat_count,
+                review_artifacts=review.artifacts if isinstance(review.artifacts, dict) else {},
+            )
+            append_fixture_graduation_event(
+                self.repo_root,
+                mission_id=mission_id,
+                judgment_id=str(payload["judgment_id"]),
+                finding_id=str(payload.get("finding_id") or ""),
+                stage=FixtureGraduationStage.FIXTURE_CANDIDATE,
+                summary=str(payload["summary"]),
+                source_record_id=str(payload["source_record_id"]),
+                evidence_refs=list(payload.get("evidence_refs", [])),
+                repeat_count=int(payload.get("repeat_count", 0)),
+                dedupe_key=str(payload.get("dedupe_key") or ""),
+                baseline_ref=str(payload.get("baseline_ref") or ""),
+                graph_profile=str(payload.get("graph_profile") or ""),
+                graph_run=str(payload.get("graph_run") or ""),
+                step_artifacts=list(payload.get("step_artifacts", [])),
+                graph_transitions=list(payload.get("graph_transitions", [])),
+                final_transition=str(payload.get("final_transition") or ""),
+                workflow_tuning_notes=list(payload.get("workflow_tuning_notes", [])),
+                route=str(payload.get("route") or ""),
+                origin_step=str(payload.get("origin_step") or ""),
+                promotion_test=str(payload.get("promotion_test") or ""),
+            )
+            if marker:
+                existing_markers.add(marker)
+
+    @staticmethod
+    def _fixture_candidate_repeat_count(
+        *,
+        judgment: Any,
+        reviewed_findings: list[dict[str, Any]],
+    ) -> int:
+        candidate = getattr(judgment, "candidate", None)
+        if candidate is None:
+            return 0
+        dedupe_key = str(candidate.dedupe_key or "").strip()
+        if dedupe_key:
+            count = sum(1 for item in reviewed_findings if item.get("dedupe_key") == dedupe_key)
+            if count > 1:
+                return count
+        route = str(candidate.route or "").strip()
+        baseline_ref = str(candidate.baseline_ref or "").strip()
+        if route or baseline_ref:
+            count = 0
+            for item in reviewed_findings:
+                if route and item.get("route") != route:
+                    continue
+                if baseline_ref and item.get("baseline_ref") != baseline_ref:
+                    continue
+                count += 1
+            if count:
+                return count
+        return 1
 
     def _collect_acceptance_browser_evidence(
         self,
