@@ -12,6 +12,7 @@ from spec_orch.domain.models import (
     RunState,
     validate_transition,
 )
+from spec_orch.runtime_chain.models import ChainPhase
 from spec_orch.runtime_chain.store import read_chain_events, read_chain_status
 from spec_orch.services.run_controller import RunController
 
@@ -58,9 +59,18 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     assert chain_status is not None
     assert chain_status.chain_id == report_data["run_id"]
     assert chain_status.subject_kind.value == "issue"
+    assert chain_status.active_span_id.endswith(":gate")
+    assert chain_status.phase == ChainPhase.DEGRADED
+    assert chain_status.status_reason == "gate_blocked"
     assert chain_events
     assert chain_events[0].chain_id == report_data["run_id"]
     assert chain_events[0].subject_kind.value == "issue"
+    assert any(event.status_reason == "builder_started" for event in chain_events)
+    assert any(event.status_reason == "builder_completed" for event in chain_events)
+    assert any(event.status_reason == "verification_started" for event in chain_events)
+    assert any(event.status_reason == "verification_completed" for event in chain_events)
+    assert any(event.status_reason == "review_initialized" for event in chain_events)
+    assert any(event.status_reason == "gate_blocked" for event in chain_events)
     assert any(event["event_type"] == "verification_started" for event in events)
     assert any(
         event["event_type"] == "verification_step_completed" and event["data"]["step"] == "lint"
@@ -379,6 +389,58 @@ def test_run_issue_does_not_crash_when_auto_approve_is_blocked(tmp_path: Path) -
     assert result.state == RunState.SPEC_DRAFTING
     assert result.builder.skipped is True
     assert result.gate.failed_conditions == ["pre_build"]
+
+
+def test_run_controller_marks_issue_chain_builder_started_before_builder_returns(
+    tmp_path: Path,
+) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-CHAIN.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-CHAIN",
+                "title": "Chain status during builder run",
+                "summary": "Expose builder phase before the adapter returns.",
+            }
+        )
+    )
+    observed: dict[str, str] = {}
+
+    class _InspectingBuilderAdapter:
+        ADAPTER_NAME = "inspect_builder"
+        AGENT_NAME = "codex"
+
+        def run(self, **kwargs) -> BuilderResult:
+            workspace = kwargs["workspace"]
+            chain_root = workspace / "telemetry" / "runtime_chain"
+            status = read_chain_status(chain_root)
+            assert status is not None
+            observed["phase"] = status.phase.value
+            observed["reason"] = status.status_reason
+            observed["span"] = status.active_span_id
+            return BuilderResult(
+                succeeded=True,
+                command=[],
+                stdout="",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter=self.ADAPTER_NAME,
+                agent=self.AGENT_NAME,
+                metadata={},
+            )
+
+    controller = RunController(
+        repo_root=tmp_path,
+        builder_adapter=_InspectingBuilderAdapter(),
+        require_spec_approval=False,
+    )
+
+    controller.run_issue("SPC-CHAIN")
+
+    assert observed["phase"] == "started"
+    assert observed["reason"] == "builder_started"
+    assert observed["span"].endswith(":builder")
 
 
 def test_validate_transition_rejects_illegal_move() -> None:

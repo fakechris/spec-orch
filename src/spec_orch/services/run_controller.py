@@ -267,6 +267,61 @@ class RunController:
         )
 
     @staticmethod
+    def _issue_chain_root(workspace: Path) -> Path:
+        return workspace / "telemetry" / "runtime_chain"
+
+    @staticmethod
+    def _issue_span_id(run_id: str, phase_name: str | None = None) -> str:
+        issue_span_id = f"{run_id}:issue"
+        if not phase_name:
+            return issue_span_id
+        return f"{issue_span_id}:{phase_name}"
+
+    def _record_issue_chain_phase(
+        self,
+        *,
+        workspace: Path,
+        run_id: str,
+        issue_id: str,
+        phase_name: str | None,
+        phase: ChainPhase,
+        status_reason: str,
+        artifact_refs: dict[str, Any] | None = None,
+    ) -> None:
+        chain_root = self._issue_chain_root(workspace)
+        issue_span_id = self._issue_span_id(run_id)
+        span_id = self._issue_span_id(run_id, phase_name)
+        updated_at = datetime.now(UTC).isoformat()
+        refs = dict(artifact_refs or {})
+        append_chain_event(
+            chain_root,
+            RuntimeChainEvent(
+                chain_id=run_id,
+                span_id=span_id,
+                parent_span_id=None if phase_name is None else issue_span_id,
+                subject_kind=RuntimeSubjectKind.ISSUE,
+                subject_id=issue_id,
+                phase=phase,
+                status_reason=status_reason,
+                artifact_refs=refs,
+                updated_at=updated_at,
+            ),
+        )
+        write_chain_status(
+            chain_root,
+            RuntimeChainStatus(
+                chain_id=run_id,
+                active_span_id=span_id,
+                subject_kind=RuntimeSubjectKind.ISSUE,
+                subject_id=issue_id,
+                phase=phase,
+                status_reason=status_reason,
+                artifact_refs=refs,
+                updated_at=updated_at,
+            ),
+        )
+
+    @staticmethod
     def _resolve_active_conditions(issue: Issue) -> set[str]:
         """Extract active conditions from issue labels and priority."""
         conditions: set[str] = set()
@@ -297,35 +352,16 @@ class RunController:
         run_id = self.telemetry_service.new_run_id(issue.issue_id)
         graph = self.flow_engine.get_graph(resolved_flow)
         active_conditions = self._resolve_active_conditions(issue)
-        chain_root = workspace / "telemetry" / "runtime_chain"
-        issue_span_id = f"{run_id}:issue"
-        updated_at = datetime.now(UTC).isoformat()
-        append_chain_event(
-            chain_root,
-            RuntimeChainEvent(
-                chain_id=run_id,
-                span_id=issue_span_id,
-                parent_span_id=None,
-                subject_kind=RuntimeSubjectKind.ISSUE,
-                subject_id=issue.issue_id,
-                phase=ChainPhase.STARTED,
-                status_reason="issue_run_started",
-                artifact_refs={"workspace": str(workspace)},
-                updated_at=updated_at,
-            ),
-        )
-        write_chain_status(
-            chain_root,
-            RuntimeChainStatus(
-                chain_id=run_id,
-                active_span_id=issue_span_id,
-                subject_kind=RuntimeSubjectKind.ISSUE,
-                subject_id=issue.issue_id,
-                phase=ChainPhase.STARTED,
-                status_reason="issue_run_started",
-                artifact_refs={"workspace": str(workspace)},
-                updated_at=updated_at,
-            ),
+        chain_root = self._issue_chain_root(workspace)
+        issue_span_id = self._issue_span_id(run_id)
+        self._record_issue_chain_phase(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            phase_name=None,
+            phase=ChainPhase.STARTED,
+            status_reason="issue_run_started",
+            artifact_refs={"workspace": str(workspace)},
         )
 
         prev_snap = RunProgressSnapshot.load(workspace)
@@ -614,18 +650,39 @@ class RunController:
             event_type="verification_started",
             message="Started verification steps.",
         )
+        self._record_issue_chain_phase(
+            workspace=ctx["workspace"],
+            run_id=ctx["run_id"],
+            issue_id=ctx["issue"].issue_id,
+            phase_name="verification",
+            phase=ChainPhase.STARTED,
+            status_reason="verification_started",
+        )
         verification = self.verification_service.run(
             issue=ctx["issue"],
             workspace=ctx["workspace"],
+        )
+        verification_succeeded = (
+            all(verification.step_results.values()) if verification.step_results else True
         )
         v_passed = sum(1 for v in verification.step_results.values() if v)
         v_total = len(verification.step_results)
         run_snap.mark_stage_complete(
             "verification",
-            success=all(verification.step_results.values()) if verification.step_results else True,
+            success=verification_succeeded,
             detail=f"{v_passed}/{v_total} checks passed",
         )
         run_snap.save(ctx["workspace"])
+        self._record_issue_chain_phase(
+            workspace=ctx["workspace"],
+            run_id=ctx["run_id"],
+            issue_id=ctx["issue"].issue_id,
+            phase_name="verification",
+            phase=ChainPhase.COMPLETED if verification_succeeded else ChainPhase.DEGRADED,
+            status_reason="verification_completed"
+            if verification_succeeded
+            else "verification_failed",
+        )
         self._event_logger.log_verification_events(
             workspace=ctx["workspace"],
             issue_id=ctx["issue"].issue_id,
@@ -684,9 +741,25 @@ class RunController:
                 message="Initialized review state.",
                 data={"verdict": review.verdict},
             )
+            self._record_issue_chain_phase(
+                workspace=ctx["workspace"],
+                run_id=ctx["run_id"],
+                issue_id=ctx["issue"].issue_id,
+                phase_name="review",
+                phase=ChainPhase.HEARTBEAT,
+                status_reason="review_initialized",
+            )
             ctx["review"] = review
 
         run_snap.mark_stage_start("gate")
+        self._record_issue_chain_phase(
+            workspace=ctx["workspace"],
+            run_id=ctx["run_id"],
+            issue_id=ctx["issue"].issue_id,
+            phase_name="gate",
+            phase=ChainPhase.STARTED,
+            status_reason="gate_started",
+        )
         gate, explain, report = self._finalize_run(
             issue=ctx["issue"],
             workspace=ctx["workspace"],
@@ -702,6 +775,18 @@ class RunController:
         )
         run_snap.mark_stage_complete("gate", success=gate.mergeable)
         run_snap.save(ctx["workspace"])
+        self._record_issue_chain_phase(
+            workspace=ctx["workspace"],
+            run_id=ctx["run_id"],
+            issue_id=ctx["issue"].issue_id,
+            phase_name="gate",
+            phase=ChainPhase.COMPLETED if gate.mergeable else ChainPhase.DEGRADED,
+            status_reason="gate_evaluated" if gate.mergeable else "gate_blocked",
+            artifact_refs={
+                "report": str(report),
+                "explain": str(explain),
+            },
+        )
         self._handle_gate_flow_signals(
             gate=gate,
             resolved_flow=ctx["resolved_flow"],
@@ -1679,6 +1764,15 @@ class RunController:
             adapter=adapter_name,
             agent=agent_name,
         )
+        self._record_issue_chain_phase(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            phase_name="builder",
+            phase=ChainPhase.STARTED,
+            status_reason="builder_started",
+            artifact_refs={"workspace": str(workspace)},
+        )
         try:
             builder = self.builder_adapter.run(
                 issue=enriched_issue,
@@ -1720,6 +1814,15 @@ class RunController:
 
         if builder.adapter == adapter_name:
             write_builder_report(builder)
+        self._record_issue_chain_phase(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue.issue_id,
+            phase_name="builder",
+            phase=ChainPhase.COMPLETED if builder.succeeded else ChainPhase.DEGRADED,
+            status_reason="builder_completed" if builder.succeeded else "builder_failed",
+            artifact_refs={"builder_report": str(builder.report_path)},
+        )
         self._event_logger.log_and_emit(
             activity_logger=activity_logger,
             workspace=workspace,

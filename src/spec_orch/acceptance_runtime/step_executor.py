@@ -16,41 +16,27 @@ from spec_orch.acceptance_runtime.graph_models import (
 from spec_orch.acceptance_runtime.prompts import compose_step_prompt
 
 
-def _slice_balanced_json_object(raw_text: str) -> str:
-    start = raw_text.find("{")
-    if start < 0:
-        raise ValueError("step output did not contain a JSON object")
-    depth = 0
-    in_string = False
-    escaped = False
-    for index in range(start, len(raw_text)):
-        char = raw_text[index]
-        if in_string:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
+def _parse_json_object_from_text(raw_text: str) -> dict[str, object]:
+    decoder = json.JSONDecoder()
+    last_error: ValueError | None = None
+    for match in re.finditer(r"\{", raw_text):
+        start = match.start()
+        try:
+            payload, _end = decoder.raw_decode(raw_text[start:])
+        except ValueError as exc:
+            last_error = exc
             continue
-        if char == '"':
-            in_string = True
-        elif char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                return raw_text[start : index + 1]
-    raise ValueError("step output contained an unbalanced JSON object")
+        if isinstance(payload, dict):
+            return payload
+    if last_error is not None:
+        raise ValueError("step output contained an unbalanced JSON object") from last_error
+    raise ValueError("step output did not contain a JSON object")
 
 
 def _extract_json(raw_output: str) -> dict[str, object]:
     fenced = re.search(r"```json\s*([\s\S]*?)\s*```", raw_output, flags=re.DOTALL)
     candidate = fenced.group(1) if fenced else raw_output
-    payload = json.loads(_slice_balanced_json_object(candidate))
-    if not isinstance(payload, dict):
-        raise ValueError("step output must be a JSON object")
-    return payload
+    return _parse_json_object_from_text(candidate)
 
 
 def execute_acceptance_step(

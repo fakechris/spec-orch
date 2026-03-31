@@ -12,8 +12,13 @@ from typing import Any
 
 from spec_orch.domain.compliance import default_turn_contract_compliance
 from spec_orch.domain.models import BuilderResult
-from spec_orch.runtime_chain.models import ChainPhase, RuntimeChainEvent, RuntimeSubjectKind
-from spec_orch.runtime_chain.store import append_chain_event
+from spec_orch.runtime_chain.models import (
+    ChainPhase,
+    RuntimeChainEvent,
+    RuntimeChainStatus,
+    RuntimeSubjectKind,
+)
+from spec_orch.runtime_chain.store import append_chain_event, write_chain_status
 from spec_orch.runtime_core.writers import write_worker_execution_payloads
 from spec_orch.services.workers._acpx_utils import (
     build_acpx_command,
@@ -140,6 +145,7 @@ class AcpxWorkerHandle:
         session_name = self._active_session_name()
         report_path = workspace / "builder_report.json"
         if chain_root is not None and chain_id and span_id:
+            updated_at = datetime.now(UTC).isoformat()
             append_chain_event(
                 chain_root,
                 RuntimeChainEvent(
@@ -151,7 +157,20 @@ class AcpxWorkerHandle:
                     phase=ChainPhase.STARTED,
                     status_reason="worker_turn_started",
                     artifact_refs={"workspace": str(workspace)},
-                    updated_at=datetime.now(UTC).isoformat(),
+                    updated_at=updated_at,
+                ),
+            )
+            write_chain_status(
+                chain_root,
+                RuntimeChainStatus(
+                    chain_id=chain_id,
+                    active_span_id=span_id,
+                    subject_kind=RuntimeSubjectKind.PACKET,
+                    subject_id=self._session_id,
+                    phase=ChainPhase.STARTED,
+                    status_reason="worker_turn_started",
+                    artifact_refs={"workspace": str(workspace)},
+                    updated_at=updated_at,
                 ),
             )
         try:
@@ -183,6 +202,7 @@ class AcpxWorkerHandle:
                 builder_report=report_payload,
             )
             if chain_root is not None and chain_id and span_id:
+                updated_at = datetime.now(UTC).isoformat()
                 append_chain_event(
                     chain_root,
                     RuntimeChainEvent(
@@ -194,7 +214,20 @@ class AcpxWorkerHandle:
                         phase=ChainPhase.DEGRADED,
                         status_reason="session_ensure_failed",
                         artifact_refs={"builder_report": str(report_path)},
-                        updated_at=datetime.now(UTC).isoformat(),
+                        updated_at=updated_at,
+                    ),
+                )
+                write_chain_status(
+                    chain_root,
+                    RuntimeChainStatus(
+                        chain_id=chain_id,
+                        active_span_id=span_id,
+                        subject_kind=RuntimeSubjectKind.PACKET,
+                        subject_id=self._session_id,
+                        phase=ChainPhase.DEGRADED,
+                        status_reason="session_ensure_failed",
+                        artifact_refs={"builder_report": str(report_path)},
+                        updated_at=updated_at,
                     ),
                 )
             return BuilderResult(
@@ -464,6 +497,7 @@ class AcpxWorkerHandle:
             encoding="utf-8",
         )
         if chain_root is not None and chain_id and span_id:
+            updated_at = datetime.now(UTC).isoformat()
             append_chain_event(
                 chain_root,
                 RuntimeChainEvent(
@@ -475,7 +509,20 @@ class AcpxWorkerHandle:
                     phase=ChainPhase.COMPLETED if succeeded else ChainPhase.DEGRADED,
                     status_reason=terminal_reason,
                     artifact_refs={"builder_report": str(report_path)},
-                    updated_at=datetime.now(UTC).isoformat(),
+                    updated_at=updated_at,
+                ),
+            )
+            write_chain_status(
+                chain_root,
+                RuntimeChainStatus(
+                    chain_id=chain_id,
+                    active_span_id=span_id,
+                    subject_kind=RuntimeSubjectKind.PACKET,
+                    subject_id=self._session_id,
+                    phase=ChainPhase.COMPLETED if succeeded else ChainPhase.DEGRADED,
+                    status_reason=terminal_reason,
+                    artifact_refs={"builder_report": str(report_path)},
+                    updated_at=updated_at,
                 ),
             )
         worker_health_path.write_text(
