@@ -6,6 +6,7 @@ import json
 import logging
 import re
 from dataclasses import asdict, is_dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,13 @@ from spec_orch.domain.models import (
     RoundDecision,
     RoundSummary,
 )
+from spec_orch.runtime_chain.models import (
+    ChainPhase,
+    RuntimeChainEvent,
+    RuntimeChainStatus,
+    RuntimeSubjectKind,
+)
+from spec_orch.runtime_chain.store import append_chain_event, write_chain_status
 from spec_orch.services.constitutions import (
     SUPERVISOR_CONSTITUTION,
     build_role_system_prompt,
@@ -62,6 +70,7 @@ class LiteLLMSupervisorAdapter:
         api_key: str | None = None,
         api_base: str | None = None,
         temperature: float = 0.1,
+        request_timeout_seconds: float = 120.0,
         chat_completion: Any | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
@@ -72,6 +81,7 @@ class LiteLLMSupervisorAdapter:
         self.api_key = resolve_litellm_api_key(api_key=api_key, api_type=api_type)
         self.api_base = resolve_litellm_api_base(api_base=api_base, api_type=api_type)
         self.temperature = temperature
+        self.request_timeout_seconds = request_timeout_seconds
         self._chat_completion = chat_completion
 
     def review_round(
@@ -81,15 +91,52 @@ class LiteLLMSupervisorAdapter:
         plan: ExecutionPlan,
         round_history: list[RoundSummary],
         context: Any | None = None,
+        chain_root: Path | None = None,
+        chain_id: str | None = None,
+        span_id: str | None = None,
+        parent_span_id: str | None = None,
     ) -> RoundDecision:
+        self._emit_chain_status(
+            chain_root=chain_root,
+            chain_id=chain_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
+            subject_id=f"{round_artifacts.mission_id}:round-{round_artifacts.round_id}:supervisor",
+            phase=ChainPhase.STARTED,
+            status_reason="supervisor_review_started",
+        )
         prompt = self._build_prompt(
             round_artifacts=round_artifacts,
             plan=plan,
             round_history=round_history,
             context=context,
         )
-        raw_output = self._call_model(prompt)
-        review_text, decision = self._parse_output(raw_output)
+        try:
+            raw_output = self._call_model(prompt)
+            review_text, decision = self._parse_output(raw_output)
+        except Exception as exc:
+            logger.warning(
+                "supervisor model call failed; using deterministic fallback",
+                extra={
+                    "mission_id": round_artifacts.mission_id,
+                    "round_id": round_artifacts.round_id,
+                },
+                exc_info=True,
+            )
+            review_text, decision = self._fallback_for_model_error(
+                exc, round_artifacts=round_artifacts
+            )
+            self._emit_chain_status(
+                chain_root=chain_root,
+                chain_id=chain_id,
+                span_id=span_id,
+                parent_span_id=parent_span_id,
+                subject_id=(
+                    f"{round_artifacts.mission_id}:round-{round_artifacts.round_id}:supervisor"
+                ),
+                phase=ChainPhase.DEGRADED,
+                status_reason="supervisor_review_fallback",
+            )
 
         round_dir = self._round_dir(round_artifacts.mission_id, round_artifacts.round_id)
         review_path = round_dir / "supervisor_review.md"
@@ -125,7 +172,72 @@ class LiteLLMSupervisorAdapter:
                 },
                 exc_info=True,
             )
+        if not (
+            chain_root is not None and chain_id is not None and span_id is not None
+        ) or decision.reason_code not in {
+            "supervisor_timeout_all_mergeable",
+            "supervisor_timeout_round_needs_retry",
+            "supervisor_timeout",
+        }:
+            self._emit_chain_status(
+                chain_root=chain_root,
+                chain_id=chain_id,
+                span_id=span_id,
+                parent_span_id=parent_span_id,
+                subject_id=(
+                    f"{round_artifacts.mission_id}:round-{round_artifacts.round_id}:supervisor"
+                ),
+                phase=ChainPhase.COMPLETED,
+                status_reason="supervisor_review_completed",
+                artifact_refs={
+                    "review_path": str(review_path),
+                    "decision_path": str(decision_path),
+                },
+            )
         return decision
+
+    def _emit_chain_status(
+        self,
+        *,
+        chain_root: Path | None,
+        chain_id: str | None,
+        span_id: str | None,
+        parent_span_id: str | None,
+        subject_id: str,
+        phase: ChainPhase,
+        status_reason: str,
+        artifact_refs: dict[str, str] | None = None,
+    ) -> None:
+        if chain_root is None or chain_id is None or span_id is None:
+            return
+        updated_at = datetime.now(UTC).isoformat()
+        append_chain_event(
+            chain_root,
+            RuntimeChainEvent(
+                chain_id=chain_id,
+                span_id=span_id,
+                parent_span_id=parent_span_id,
+                subject_kind=RuntimeSubjectKind.SUPERVISOR,
+                subject_id=subject_id,
+                phase=phase,
+                status_reason=status_reason,
+                artifact_refs=artifact_refs or {},
+                updated_at=updated_at,
+            ),
+        )
+        write_chain_status(
+            chain_root,
+            RuntimeChainStatus(
+                chain_id=chain_id,
+                active_span_id=span_id,
+                subject_kind=RuntimeSubjectKind.SUPERVISOR,
+                subject_id=subject_id,
+                phase=phase,
+                status_reason=status_reason,
+                artifact_refs=artifact_refs or {},
+                updated_at=updated_at,
+            ),
+        )
 
     def _call_model(self, prompt: str) -> str:
         if self._chat_completion is not None:
@@ -136,6 +248,7 @@ class LiteLLMSupervisorAdapter:
                     {"role": "user", "content": prompt},
                 ],
                 temperature=self.temperature,
+                timeout=self.request_timeout_seconds,
                 api_key=self.api_key,
                 api_base=self.api_base,
             )
@@ -156,10 +269,78 @@ class LiteLLMSupervisorAdapter:
                 {"role": "user", "content": prompt},
             ],
             temperature=self.temperature,
+            timeout=self.request_timeout_seconds,
             api_key=self.api_key,
             api_base=self.api_base,
         )
         return self._extract_text(response)
+
+    def _fallback_for_model_error(
+        self,
+        exc: Exception,
+        *,
+        round_artifacts: RoundArtifacts,
+    ) -> tuple[str, RoundDecision]:
+        message = str(exc).strip() or exc.__class__.__name__
+        builder_reports = [
+            report for report in round_artifacts.builder_reports if isinstance(report, dict)
+        ]
+        gate_verdicts = [
+            verdict for verdict in round_artifacts.gate_verdicts if isinstance(verdict, dict)
+        ]
+        all_build_succeeded = bool(builder_reports) and all(
+            bool(report.get("succeeded")) for report in builder_reports
+        )
+        all_mergeable = bool(gate_verdicts) and all(
+            bool(verdict.get("mergeable")) for verdict in gate_verdicts
+        )
+        any_failed = any(not bool(report.get("succeeded")) for report in builder_reports) or any(
+            not bool(verdict.get("mergeable")) for verdict in gate_verdicts
+        )
+
+        if (
+            all_build_succeeded
+            and all_mergeable
+            and len(builder_reports) == len(gate_verdicts)
+            and len(builder_reports) > 0
+        ):
+            decision = RoundDecision(
+                action=RoundAction.CONTINUE,
+                reason_code="supervisor_timeout_all_mergeable",
+                summary=(
+                    "Supervisor model call timed out; using deterministic continue fallback "
+                    "because all packets succeeded and all gates are mergeable."
+                ),
+                confidence=0.2,
+            )
+        elif any_failed:
+            decision = RoundDecision(
+                action=RoundAction.RETRY,
+                reason_code="supervisor_timeout_round_needs_retry",
+                summary=(
+                    "Supervisor model call timed out; using deterministic retry fallback "
+                    "because at least one packet failed or is not mergeable."
+                ),
+                confidence=0.2,
+            )
+        else:
+            decision = RoundDecision(
+                action=RoundAction.ASK_HUMAN,
+                reason_code="supervisor_timeout",
+                summary=(
+                    "Supervisor model call timed out; unable to derive a safe automatic "
+                    "decision from round artifacts."
+                ),
+                confidence=0.0,
+                blocking_questions=["Review the round artifacts and choose the next action."],
+            )
+
+        review = (
+            "## Round Review Fallback\n\n"
+            f"Supervisor model call failed: `{message}`.\n\n"
+            f"Fallback decision: `{decision.action.value}` (`{decision.reason_code}`)."
+        )
+        return review, decision
 
     def _build_prompt(
         self,

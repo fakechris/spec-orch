@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,13 @@ from spec_orch.domain.models import (
     BuilderResult,
     WorkPacket,
 )
+from spec_orch.runtime_chain.models import (
+    ChainPhase,
+    RuntimeChainEvent,
+    RuntimeChainStatus,
+    RuntimeSubjectKind,
+)
+from spec_orch.runtime_chain.store import append_chain_event, write_chain_status
 from spec_orch.services.acceptance.prompt_composer import compose_acceptance_prompt
 from spec_orch.services.constitutions import (
     ACCEPTANCE_EVALUATOR_CONSTITUTION,
@@ -67,6 +75,7 @@ class LiteLLMAcceptanceEvaluator:
         api_key: str | None = None,
         api_base: str | None = None,
         temperature: float = 0.1,
+        request_timeout_seconds: float = 120.0,
         chat_completion: Any | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
@@ -77,6 +86,7 @@ class LiteLLMAcceptanceEvaluator:
         self.api_key = resolve_litellm_api_key(api_key=api_key, api_type=api_type)
         self.api_base = resolve_litellm_api_base(api_base=api_base, api_type=api_type)
         self.temperature = temperature
+        self.request_timeout_seconds = request_timeout_seconds
         self._chat_completion = chat_completion
 
     def evaluate_acceptance(
@@ -89,7 +99,21 @@ class LiteLLMAcceptanceEvaluator:
         artifacts: dict[str, Any],
         repo_root: Path,
         campaign: AcceptanceCampaign | None = None,
+        chain_root: Path | None = None,
+        chain_id: str | None = None,
+        span_id: str | None = None,
+        parent_span_id: str | None = None,
     ) -> AcceptanceReviewResult:
+        subject_id = f"{mission_id}:round-{round_id}:acceptance"
+        self._emit_chain_status(
+            chain_root=chain_root,
+            chain_id=chain_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
+            subject_id=subject_id,
+            phase=ChainPhase.STARTED,
+            status_reason="acceptance_evaluation_started",
+        )
         prompt = compose_acceptance_prompt(
             mission_id=mission_id,
             round_id=round_id,
@@ -99,15 +123,43 @@ class LiteLLMAcceptanceEvaluator:
             repo_root=repo_root,
             campaign=campaign,
         )
-        raw_output = self._call_model(prompt)
-        _, result = self._parse_output(raw_output)
+        try:
+            raw_output = self._call_model(prompt)
+            _, result = self._parse_output(raw_output)
+        except Exception as exc:
+            result = self._fallback_for_model_error(exc)
+            self._emit_chain_status(
+                chain_root=chain_root,
+                chain_id=chain_id,
+                span_id=span_id,
+                parent_span_id=parent_span_id,
+                subject_id=subject_id,
+                phase=ChainPhase.DEGRADED,
+                status_reason="acceptance_evaluation_fallback",
+            )
         result = self._normalize_result(result, artifacts=artifacts)
         result = self._apply_campaign_defaults(result, campaign=campaign)
-        return self._synthesize_exploratory_gap_candidates(
+        final_result = self._synthesize_exploratory_gap_candidates(
             result,
             artifacts=artifacts,
             campaign=campaign,
         )
+        if final_result.findings and any(
+            finding.summary == "Acceptance evaluator call failed."
+            for finding in final_result.findings
+        ):
+            return final_result
+        self._emit_chain_status(
+            chain_root=chain_root,
+            chain_id=chain_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
+            subject_id=subject_id,
+            phase=ChainPhase.COMPLETED,
+            status_reason="acceptance_evaluation_completed",
+            artifact_refs={"round_dir": str(round_dir)},
+        )
+        return final_result
 
     def _call_model(self, prompt: str) -> str:
         return self._call_model_messages(
@@ -130,6 +182,7 @@ class LiteLLMAcceptanceEvaluator:
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=self.temperature,
+                timeout=self.request_timeout_seconds,
                 api_key=self.api_key,
                 api_base=self.api_base,
             )
@@ -150,10 +203,70 @@ class LiteLLMAcceptanceEvaluator:
                 {"role": "user", "content": user_prompt},
             ],
             temperature=self.temperature,
+            timeout=self.request_timeout_seconds,
             api_key=self.api_key,
             api_base=self.api_base,
         )
         return self._extract_text(response)
+
+    def _fallback_for_model_error(self, exc: Exception) -> AcceptanceReviewResult:
+        message = str(exc).strip() or exc.__class__.__name__
+        return AcceptanceReviewResult(
+            status="warn",
+            summary=f"Acceptance evaluator call timed out or failed: {message}",
+            confidence=0.0,
+            evaluator=self.ADAPTER_NAME,
+            findings=[
+                AcceptanceFinding(
+                    severity="error",
+                    summary="Acceptance evaluator call failed.",
+                    details=message,
+                )
+            ],
+        )
+
+    def _emit_chain_status(
+        self,
+        *,
+        chain_root: Path | None,
+        chain_id: str | None,
+        span_id: str | None,
+        parent_span_id: str | None,
+        subject_id: str,
+        phase: ChainPhase,
+        status_reason: str,
+        artifact_refs: dict[str, str] | None = None,
+    ) -> None:
+        if chain_root is None or chain_id is None or span_id is None:
+            return
+        updated_at = datetime.now(UTC).isoformat()
+        append_chain_event(
+            chain_root,
+            RuntimeChainEvent(
+                chain_id=chain_id,
+                span_id=span_id,
+                parent_span_id=parent_span_id,
+                subject_kind=RuntimeSubjectKind.ACCEPTANCE,
+                subject_id=subject_id,
+                phase=phase,
+                status_reason=status_reason,
+                artifact_refs=artifact_refs or {},
+                updated_at=updated_at,
+            ),
+        )
+        write_chain_status(
+            chain_root,
+            RuntimeChainStatus(
+                chain_id=chain_id,
+                active_span_id=span_id,
+                subject_kind=RuntimeSubjectKind.ACCEPTANCE,
+                subject_id=subject_id,
+                phase=phase,
+                status_reason=status_reason,
+                artifact_refs=artifact_refs or {},
+                updated_at=updated_at,
+            ),
+        )
 
     def _parse_output(self, raw_output: str) -> tuple[str, AcceptanceReviewResult]:
         try:

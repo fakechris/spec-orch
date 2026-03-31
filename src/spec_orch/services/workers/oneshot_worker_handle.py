@@ -27,6 +27,10 @@ class OneShotWorkerHandle:
         prompt: str,
         workspace: Path,
         event_logger: Callable[[dict[str, Any]], None] | None = None,
+        chain_root: Path | None = None,
+        chain_id: str | None = None,
+        span_id: str | None = None,
+        parent_span_id: str | None = None,
     ) -> BuilderResult:
         if self._closed:
             raise RuntimeError(f"Worker handle {self._session_id} is closed")

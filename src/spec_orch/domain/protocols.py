@@ -198,6 +198,10 @@ class WorkerHandle(Protocol):
         prompt: str,
         workspace: Path,
         event_logger: Callable[[dict[str, Any]], None] | None = None,
+        chain_root: Path | None = None,
+        chain_id: str | None = None,
+        span_id: str | None = None,
+        parent_span_id: str | None = None,
     ) -> BuilderResult:
         """Send work to this worker and return a standard BuilderResult."""
         ...
@@ -224,6 +228,10 @@ class SupervisorAdapter(Protocol):
         plan: ExecutionPlan,
         round_history: list[RoundSummary],
         context: Any | None = None,
+        chain_root: Path | None = None,
+        chain_id: str | None = None,
+        span_id: str | None = None,
+        parent_span_id: str | None = None,
     ) -> RoundDecision:
         """Produce a structured round decision from current artifacts and history."""
         ...
@@ -287,6 +295,10 @@ class AcceptanceEvaluatorAdapter(Protocol):
         artifacts: dict[str, Any],
         repo_root: Path,
         campaign: AcceptanceCampaign | None = None,
+        chain_root: Path | None = None,
+        chain_id: str | None = None,
+        span_id: str | None = None,
+        parent_span_id: str | None = None,
     ) -> AcceptanceReviewResult | None:
         """Return acceptance review artifacts or None when evaluation is skipped."""
         ...

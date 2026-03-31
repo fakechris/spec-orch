@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import IO, Any
+from typing import IO, Any, TypeVar
+from uuid import uuid4
 
 from spec_orch.acceptance_core.calibration import (
     FixtureGraduationStage,
@@ -62,6 +65,13 @@ from spec_orch.domain.protocols import (
     VisualEvaluatorAdapter,
     WorkerHandleFactory,
 )
+from spec_orch.runtime_chain.models import (
+    ChainPhase,
+    RuntimeChainEvent,
+    RuntimeChainStatus,
+    RuntimeSubjectKind,
+)
+from spec_orch.runtime_chain.store import append_chain_event, write_chain_status
 from spec_orch.runtime_core.writers import write_round_supervision_payloads
 from spec_orch.services.acceptance.browser_evidence import collect_playwright_browser_evidence
 from spec_orch.services.event_bus import Event, EventBus, EventTopic
@@ -74,6 +84,7 @@ from spec_orch.services.telemetry_service import TelemetryService
 from spec_orch.services.verification_service import VerificationService
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
 def _load_repo_fixture_json(repo_root: Path, fixture_name: str) -> dict[str, Any]:
@@ -161,12 +172,58 @@ class RoundOrchestrator:
         plan = self._replay_plan_patches(plan, round_history)
         current_wave_idx = self._determine_start_wave(plan, round_history)
         round_id = initial_round
+        chain_root = self._mission_operator_dir(mission_id) / "runtime_chain"
+        chain_id = self._new_chain_id(mission_id)
+        mission_span_id = f"{chain_id}:mission"
+        updated_at = datetime.now(UTC).isoformat()
+        append_chain_event(
+            chain_root,
+            RuntimeChainEvent(
+                chain_id=chain_id,
+                span_id=mission_span_id,
+                parent_span_id=None,
+                subject_kind=RuntimeSubjectKind.MISSION,
+                subject_id=mission_id,
+                phase=ChainPhase.STARTED,
+                status_reason="mission_supervision_started",
+                artifact_refs={"mission_root": str(self._mission_dir(mission_id))},
+                updated_at=updated_at,
+            ),
+        )
+        write_chain_status(
+            chain_root,
+            RuntimeChainStatus(
+                chain_id=chain_id,
+                active_span_id=mission_span_id,
+                subject_kind=RuntimeSubjectKind.MISSION,
+                subject_id=mission_id,
+                phase=ChainPhase.STARTED,
+                status_reason="mission_supervision_started",
+                artifact_refs={"mission_root": str(self._mission_dir(mission_id))},
+                updated_at=updated_at,
+            ),
+        )
 
         while round_id < self.max_rounds and current_wave_idx < len(plan.waves):
             round_id += 1
             wave = plan.waves[current_wave_idx]
             round_dir = self._round_dir(mission_id, round_id)
             round_dir.mkdir(parents=True, exist_ok=True)
+            round_span_id = f"{chain_id}:round:{round_id:02d}"
+            append_chain_event(
+                chain_root,
+                RuntimeChainEvent(
+                    chain_id=chain_id,
+                    span_id=round_span_id,
+                    parent_span_id=mission_span_id,
+                    subject_kind=RuntimeSubjectKind.ROUND,
+                    subject_id=f"round-{round_id:02d}",
+                    phase=ChainPhase.STARTED,
+                    status_reason="round_started",
+                    artifact_refs={"round_dir": str(round_dir)},
+                    updated_at=datetime.now(UTC).isoformat(),
+                ),
+            )
 
             summary = RoundSummary(
                 round_id=round_id,
@@ -179,12 +236,29 @@ class RoundOrchestrator:
                     round_id=round_id,
                     wave=wave,
                     round_history=round_history,
+                    chain_id=chain_id,
+                    chain_root=chain_root,
+                    round_span_id=round_span_id,
                 )
             except Exception as exc:
                 summary.status = RoundStatus.FAILED
                 summary.completed_at = datetime.now(UTC).isoformat()
                 summary.worker_results = [{"error": str(exc), "wave_id": current_wave_idx}]
                 self._persist_round(round_dir, summary)
+                append_chain_event(
+                    chain_root,
+                    RuntimeChainEvent(
+                        chain_id=chain_id,
+                        span_id=round_span_id,
+                        parent_span_id=mission_span_id,
+                        subject_kind=RuntimeSubjectKind.ROUND,
+                        subject_id=f"round-{round_id:02d}",
+                        phase=ChainPhase.FAILED,
+                        status_reason="round_failed",
+                        artifact_refs={"round_dir": str(round_dir)},
+                        updated_at=datetime.now(UTC).isoformat(),
+                    ),
+                )
                 round_history.append(summary)
                 return RoundOrchestratorResult(completed=False, rounds=round_history)
             summary.worker_results = [
@@ -225,16 +299,35 @@ class RoundOrchestrator:
                 assembled_context=assembled_context,
                 artifacts=artifacts,
             )
-            decision = self.supervisor.review_round(
+            decision = self._call_runtime_chain_aware(
+                self.supervisor.review_round,
                 round_artifacts=artifacts,
                 plan=plan,
                 round_history=round_history,
                 context=context,
+                chain_root=chain_root,
+                chain_id=chain_id,
+                span_id=f"{round_span_id}:supervisor",
+                parent_span_id=round_span_id,
             )
             summary.decision = decision
             summary.status = RoundStatus.DECIDED
             summary.completed_at = datetime.now(UTC).isoformat()
             self._persist_round(round_dir, summary)
+            append_chain_event(
+                chain_root,
+                RuntimeChainEvent(
+                    chain_id=chain_id,
+                    span_id=round_span_id,
+                    parent_span_id=mission_span_id,
+                    subject_kind=RuntimeSubjectKind.ROUND,
+                    subject_id=f"round-{round_id:02d}",
+                    phase=ChainPhase.COMPLETED,
+                    status_reason="round_completed",
+                    artifact_refs={"round_dir": str(round_dir)},
+                    updated_at=datetime.now(UTC).isoformat(),
+                ),
+            )
             round_history.append(summary)
             self._run_acceptance_evaluation(
                 mission_id=mission_id,
@@ -243,6 +336,9 @@ class RoundOrchestrator:
                 worker_results=worker_results,
                 artifacts=artifacts,
                 summary=summary,
+                chain_root=chain_root,
+                chain_id=chain_id,
+                round_span_id=round_span_id,
             )
 
             self._apply_session_ops(mission_id, decision)
@@ -297,6 +393,9 @@ class RoundOrchestrator:
         round_id: int,
         wave: Wave,
         round_history: list[RoundSummary],
+        chain_id: str,
+        chain_root: Path,
+        round_span_id: str,
     ) -> list[tuple[WorkPacket, BuilderResult]]:
         results: list[tuple[WorkPacket, BuilderResult]] = []
         last_decision = round_history[-1].decision if round_history else None
@@ -305,6 +404,21 @@ class RoundOrchestrator:
             session_id = f"mission-{mission_id}-{packet.packet_id}"
             workspace = self._packet_workspace(mission_id, packet)
             workspace.mkdir(parents=True, exist_ok=True)
+            packet_span_id = f"{chain_id}:packet:{packet.packet_id}"
+            append_chain_event(
+                chain_root,
+                RuntimeChainEvent(
+                    chain_id=chain_id,
+                    span_id=packet_span_id,
+                    parent_span_id=round_span_id,
+                    subject_kind=RuntimeSubjectKind.PACKET,
+                    subject_id=packet.packet_id,
+                    phase=ChainPhase.STARTED,
+                    status_reason="packet_started",
+                    artifact_refs={"workspace": str(workspace)},
+                    updated_at=datetime.now(UTC).isoformat(),
+                ),
+            )
 
             handle = self.worker_factory.get(session_id)
             if handle is None:
@@ -354,6 +468,10 @@ class RoundOrchestrator:
                         prompt=prompt,
                         workspace=workspace,
                         event_logger=event_logger,
+                        chain_root=chain_root,
+                        chain_id=chain_id,
+                        span_id=f"{packet_span_id}:worker",
+                        parent_span_id=packet_span_id,
                     )
                 except Exception as exc:
                     self._event_logger.log_and_emit(
@@ -373,6 +491,20 @@ class RoundOrchestrator:
                             "error": str(exc),
                         },
                     )
+                    append_chain_event(
+                        chain_root,
+                        RuntimeChainEvent(
+                            chain_id=chain_id,
+                            span_id=packet_span_id,
+                            parent_span_id=round_span_id,
+                            subject_kind=RuntimeSubjectKind.PACKET,
+                            subject_id=packet.packet_id,
+                            phase=ChainPhase.FAILED,
+                            status_reason="packet_failed",
+                            artifact_refs={"workspace": str(workspace)},
+                            updated_at=datetime.now(UTC).isoformat(),
+                        ),
+                    )
                     raise
                 self._event_logger.log_and_emit(
                     activity_logger=activity_logger,
@@ -390,6 +522,23 @@ class RoundOrchestrator:
                         "succeeded": result.succeeded,
                         "report_path": str(result.report_path),
                     },
+                )
+                append_chain_event(
+                    chain_root,
+                    RuntimeChainEvent(
+                        chain_id=chain_id,
+                        span_id=packet_span_id,
+                        parent_span_id=round_span_id,
+                        subject_kind=RuntimeSubjectKind.PACKET,
+                        subject_id=packet.packet_id,
+                        phase=ChainPhase.COMPLETED if result.succeeded else ChainPhase.DEGRADED,
+                        status_reason="packet_completed" if result.succeeded else "packet_degraded",
+                        artifact_refs={
+                            "workspace": str(workspace),
+                            "builder_report": str(result.report_path),
+                        },
+                        updated_at=datetime.now(UTC).isoformat(),
+                    ),
                 )
             finally:
                 if activity_logger is not None:
@@ -749,13 +898,27 @@ class RoundOrchestrator:
         else:
             base_prompt = self._build_followup_prompt(packet, decision)
 
+        files_to_read: list[str] = []
+        target_files: list[str] = []
+        for rel_path in packet.files_in_scope:
+            normalized = str(rel_path).strip()
+            if not normalized:
+                continue
+            if (workspace / normalized).exists():
+                files_to_read.append(normalized)
+            else:
+                target_files.append(normalized)
+
         issue = Issue(
             issue_id=packet.packet_id,
             title=packet.title,
             summary=base_prompt,
             builder_prompt=base_prompt,
             verification_commands=dict(packet.verification_commands),
-            context=IssueContext(files_to_read=list(packet.files_in_scope)),
+            context=IssueContext(
+                files_to_read=files_to_read,
+                target_files=target_files,
+            ),
             acceptance_criteria=list(packet.acceptance_criteria),
             mission_id=mission_id,
             spec_section=packet.spec_section or None,
@@ -788,6 +951,24 @@ class RoundOrchestrator:
 
     def _mission_dir(self, mission_id: str) -> Path:
         return self.repo_root / "docs" / "specs" / mission_id
+
+    def _mission_operator_dir(self, mission_id: str) -> Path:
+        path = self._mission_dir(mission_id) / "operator"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @staticmethod
+    def _call_runtime_chain_aware(func: Callable[..., T], /, **kwargs: Any) -> T:
+        signature = inspect.signature(func)
+        supported_kwargs = {
+            name: value for name, value in kwargs.items() if name in signature.parameters
+        }
+        return func(**supported_kwargs)
+
+    @staticmethod
+    def _new_chain_id(mission_id: str) -> str:
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        return f"chain_{mission_id}_{timestamp}_{uuid4().hex[:8]}"
 
     def _round_dir(self, mission_id: str, round_id: int) -> Path:
         return self._mission_dir(mission_id) / "rounds" / f"round-{round_id:02d}"
@@ -831,6 +1012,9 @@ class RoundOrchestrator:
         worker_results: list[tuple[WorkPacket, BuilderResult]],
         artifacts: RoundArtifacts,
         summary: RoundSummary,
+        chain_root: Path,
+        chain_id: str,
+        round_span_id: str,
     ) -> AcceptanceReviewResult | None:
         if self.acceptance_evaluator is None:
             return None
@@ -856,18 +1040,31 @@ class RoundOrchestrator:
         )
         if browser_evidence is not None:
             acceptance_artifacts["browser_evidence"] = browser_evidence
-        graph_trace = self._run_acceptance_graph_trace(
-            mission_id=mission_id,
-            round_id=round_id,
-            round_dir=round_dir,
-            campaign=campaign,
-            routing_decision=routing_decision,
-            acceptance_artifacts=acceptance_artifacts,
-        )
-        if graph_trace:
-            acceptance_artifacts.update(graph_trace)
         try:
-            result = self.acceptance_evaluator.evaluate_acceptance(
+            graph_trace = self._run_acceptance_graph_trace(
+                mission_id=mission_id,
+                round_id=round_id,
+                round_dir=round_dir,
+                campaign=campaign,
+                routing_decision=routing_decision,
+                acceptance_artifacts=acceptance_artifacts,
+                chain_root=chain_root,
+                chain_id=chain_id,
+                round_span_id=round_span_id,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Acceptance graph trace failed for %s round %s",
+                mission_id,
+                round_id,
+            )
+            acceptance_artifacts["graph_trace_error"] = str(exc)
+        else:
+            if graph_trace:
+                acceptance_artifacts.update(graph_trace)
+        try:
+            result = self._call_runtime_chain_aware(
+                self.acceptance_evaluator.evaluate_acceptance,
                 mission_id=mission_id,
                 round_id=round_id,
                 round_dir=round_dir,
@@ -875,6 +1072,10 @@ class RoundOrchestrator:
                 artifacts=acceptance_artifacts,
                 repo_root=self.repo_root,
                 campaign=campaign,
+                chain_root=chain_root,
+                chain_id=chain_id,
+                span_id=f"{round_span_id}:acceptance-review",
+                parent_span_id=round_span_id,
             )
         except Exception:
             logger.exception("Acceptance evaluation failed for %s round %s", mission_id, round_id)
@@ -925,6 +1126,9 @@ class RoundOrchestrator:
         campaign: AcceptanceCampaign,
         routing_decision: AcceptanceRoutingDecision,
         acceptance_artifacts: dict[str, Any],
+        chain_root: Path,
+        chain_id: str,
+        round_span_id: str,
     ) -> dict[str, Any]:
         if self.acceptance_evaluator is None:
             return {}
@@ -946,6 +1150,10 @@ class RoundOrchestrator:
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
             ),
+            chain_root=chain_root,
+            chain_id=chain_id,
+            span_id=f"{round_span_id}:acceptance-graph",
+            parent_span_id=round_span_id,
         )
         normalized: dict[str, Any] = {"graph_profile": trace["graph_profile"]}
         graph_run_path = Path(trace["graph_run"])

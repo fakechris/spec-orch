@@ -12,6 +12,7 @@ from spec_orch.domain.models import (
     RunState,
     validate_transition,
 )
+from spec_orch.runtime_chain.store import read_chain_events, read_chain_status
 from spec_orch.services.run_controller import RunController
 
 
@@ -51,6 +52,15 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
     assert report_data["run_id"]
     assert report_data["builder"]["metadata"]["run_id"] == report_data["run_id"]
     events = _read_events(telemetry_dir / "events.jsonl")
+    chain_root = telemetry_dir / "runtime_chain"
+    chain_status = read_chain_status(chain_root)
+    chain_events = read_chain_events(chain_root)
+    assert chain_status is not None
+    assert chain_status.chain_id == report_data["run_id"]
+    assert chain_status.subject_kind.value == "issue"
+    assert chain_events
+    assert chain_events[0].chain_id == report_data["run_id"]
+    assert chain_events[0].subject_kind.value == "issue"
     assert any(event["event_type"] == "verification_started" for event in events)
     assert any(
         event["event_type"] == "verification_step_completed" and event["data"]["step"] == "lint"

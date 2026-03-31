@@ -12,6 +12,7 @@ from spec_orch.domain.models import (
     BuilderResult,
     WorkPacket,
 )
+from spec_orch.runtime_chain.store import read_chain_events, read_chain_status
 
 
 def _worker_result(tmp_path: Path) -> tuple[WorkPacket, BuilderResult]:
@@ -313,6 +314,101 @@ def test_acceptance_evaluator_degrades_safely_on_empty_json_payload(tmp_path: Pa
 
     assert result.status == "warn"
     assert result.findings[0].summary == "Acceptance evaluator output could not be parsed."
+
+
+def test_acceptance_evaluator_times_out_to_warn_fallback(tmp_path: Path) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    captured_kwargs = {}
+
+    def fake_chat_completion(**kwargs):
+        captured_kwargs.update(kwargs)
+        raise TimeoutError("acceptance evaluator timed out")
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+        request_timeout_seconds=9.0,
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-4b",
+        round_id=4,
+        round_dir=tmp_path / "docs/specs/mission-4b/rounds/round-04",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={},
+        repo_root=tmp_path,
+        chain_root=tmp_path / "docs/specs/mission-4b/operator/runtime_chain",
+        chain_id="chain-mission-4b",
+        span_id="span-round-04-acceptance",
+        parent_span_id="span-round-04",
+    )
+
+    assert captured_kwargs["timeout"] == 9.0
+    assert result.status == "warn"
+    assert result.confidence == 0.0
+    assert result.findings[0].summary == "Acceptance evaluator call failed."
+    assert "timed out" in result.summary.lower()
+    chain_root = tmp_path / "docs/specs/mission-4b/operator/runtime_chain"
+    events = read_chain_events(chain_root)
+    status = read_chain_status(chain_root)
+    assert [event.phase.value for event in events] == ["started", "degraded"]
+    assert status is not None
+    assert status.phase.value == "degraded"
+
+
+def test_acceptance_evaluator_emits_completed_runtime_chain_status(tmp_path: Path) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "pass",
+  "summary": "The run meets the intended result.",
+  "confidence": 0.93,
+  "evaluator": "acceptance_llm",
+  "tested_routes": ["/"],
+  "findings": [],
+  "issue_proposals": [],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-4c",
+        round_id=4,
+        round_dir=tmp_path / "docs/specs/mission-4c/rounds/round-04",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={},
+        repo_root=tmp_path,
+        chain_root=tmp_path / "docs/specs/mission-4c/operator/runtime_chain",
+        chain_id="chain-mission-4c",
+        span_id="span-round-04-acceptance",
+        parent_span_id="span-round-04",
+    )
+
+    chain_root = tmp_path / "docs/specs/mission-4c/operator/runtime_chain"
+    events = read_chain_events(chain_root)
+    status = read_chain_status(chain_root)
+
+    assert result.status == "pass"
+    assert [event.phase.value for event in events] == ["started", "completed"]
+    assert status is not None
+    assert status.subject_kind.value == "acceptance"
+    assert status.phase.value == "completed"
 
 
 def test_acceptance_evaluator_normalizes_model_and_falls_back_to_minimax_envs(
