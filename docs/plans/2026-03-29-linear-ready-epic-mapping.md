@@ -1,7 +1,8 @@
 # Linear-Ready Epic Mapping
 
 > 日期: 2026-03-29
-> 状态: canonical 7-epic Linear mapping
+> 状态: historical Linear creation mapping; current execution status must be
+> read from Linear and 2026-03-30 reconciliation docs
 > 目的: 把完整架构计划推进到可直接映射 Linear 的程度
 
 ---

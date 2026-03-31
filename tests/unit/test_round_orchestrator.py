@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -29,6 +29,7 @@ from spec_orch.domain.models import (
     Wave,
     WorkPacket,
 )
+from spec_orch.runtime_chain.store import read_chain_events, read_chain_status
 from spec_orch.services.memory.service import MemoryService, reset_memory_service
 
 
@@ -141,6 +142,21 @@ def test_run_supervised_continues_to_next_wave_until_complete(tmp_path: Path) ->
     assert "## Task" in builder.prompts[1]
     assert "Do task 2" in builder.prompts[1]
     assert (tmp_path / "docs/specs/mission-1/rounds/round-01/round_summary.json").exists()
+    chain_root = tmp_path / "docs/specs/mission-1/operator/runtime_chain"
+    chain_status = read_chain_status(chain_root)
+    chain_events = read_chain_events(chain_root)
+    assert chain_status is not None
+    assert chain_status.subject_kind.value == "mission"
+    assert chain_events
+    assert chain_events[0].subject_kind.value == "mission"
+    assert any(
+        event.subject_kind.value == "round" and event.subject_id == "round-01"
+        for event in chain_events
+    )
+    assert any(
+        event.subject_kind.value == "packet" and event.subject_id == "pkt-1"
+        for event in chain_events
+    )
 
 
 def test_run_supervised_pauses_on_ask_human(tmp_path: Path) -> None:
@@ -222,6 +238,88 @@ def test_run_supervised_pauses_on_ask_human(tmp_path: Path) -> None:
             "review_route": "/?mission=mission-1&mode=missions&tab=approvals&round=1",
         }
     ]
+
+
+def test_run_supervised_uses_unique_packet_spans_per_round(tmp_path: Path) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    plan = ExecutionPlan(
+        plan_id="plan-repeat",
+        mission_id="mission-repeat",
+        waves=[
+            Wave(
+                wave_number=0,
+                description="Wave 0",
+                work_packets=[
+                    WorkPacket(packet_id="pkt-repeat", title="Task 1", builder_prompt="Do task 1")
+                ],
+            ),
+            Wave(
+                wave_number=1,
+                description="Wave 1",
+                work_packets=[
+                    WorkPacket(packet_id="pkt-repeat", title="Task 2", builder_prompt="Do task 2")
+                ],
+            ),
+        ],
+    )
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            return RoundDecision(action=RoundAction.CONTINUE, summary="Continue")
+
+    class StubAssembler:
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            return {}
+
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=StubBuilderAdapter(),
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=factory,
+        context_assembler=StubAssembler(),
+    )
+
+    result = orchestrator.run_supervised(mission_id="mission-repeat", plan=plan)
+
+    assert result.completed is True
+    chain_root = tmp_path / "docs/specs/mission-repeat/operator/runtime_chain"
+    packet_started_events = [
+        event
+        for event in read_chain_events(chain_root)
+        if event.subject_kind.value == "packet" and event.phase.value == "started"
+    ]
+    assert len(packet_started_events) == 2
+    assert {event.subject_id for event in packet_started_events} == {"pkt-repeat"}
+    assert len({event.span_id for event in packet_started_events}) == 2
 
 
 def test_run_supervised_enriches_supervisor_context_and_persists_visual_eval(
@@ -812,6 +910,98 @@ def test_run_supervised_records_acceptance_graph_trace_artifacts(tmp_path: Path)
     assert payload["artifacts"]["graph_run"].endswith("graph_run.json")
     assert payload["artifacts"]["graph_profile"] == "verify_contract_graph"
     assert len(payload["artifacts"]["step_artifacts"]) == 4
+
+
+def test_run_supervised_continues_when_acceptance_graph_trace_fails(tmp_path: Path) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            return RoundDecision(action=RoundAction.STOP, summary="Done")
+
+    class StubAssembler:
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            return {}
+
+    class StubAcceptanceEvaluator:
+        ADAPTER_NAME = "stub_acceptance"
+
+        def invoke_acceptance_graph_step(self, *, system_prompt: str, user_prompt: str) -> str:
+            raise ValueError("step output contained an unbalanced JSON object")
+
+        def evaluate_acceptance(
+            self,
+            *,
+            mission_id: str,
+            round_id: int,
+            round_dir: Path,
+            worker_results,
+            artifacts,
+            repo_root: Path,
+            campaign=None,
+        ) -> AcceptanceReviewResult | None:
+            assert "graph_run" not in artifacts
+            assert (
+                artifacts["graph_trace_error"] == "step output contained an unbalanced JSON object"
+            )
+            return AcceptanceReviewResult(
+                status="warn",
+                summary="Acceptance graph degraded gracefully.",
+                confidence=0.6,
+                evaluator="stub_acceptance",
+                tested_routes=["/"],
+                findings=[],
+                issue_proposals=[],
+                artifacts=dict(artifacts),
+            )
+
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=StubBuilderAdapter(),
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=factory,
+        context_assembler=StubAssembler(),
+        acceptance_evaluator=StubAcceptanceEvaluator(),
+    )
+
+    result = orchestrator.run_supervised(mission_id="mission-1", plan=_make_single_wave_plan())
+
+    assert result.completed is True
+    review_path = tmp_path / "docs/specs/mission-1/rounds/round-01/acceptance_review.json"
+    payload = json.loads(review_path.read_text(encoding="utf-8"))
+    assert payload["summary"] == "Acceptance graph degraded gracefully."
+    assert (
+        payload["artifacts"]["graph_trace_error"]
+        == "step output contained an unbalanced JSON object"
+    )
 
 
 def test_run_supervised_appends_fixture_graduation_from_repeated_reviewed_candidate(
@@ -2071,6 +2261,13 @@ def test_run_supervised_worker_prompt_uses_builder_envelope(tmp_path: Path) -> N
 
     packet_workspace = tmp_path / "docs" / "specs" / "mission-1" / "workers" / "pkt-1"
     packet_workspace.mkdir(parents=True, exist_ok=True)
+    (packet_workspace / "src").mkdir(parents=True, exist_ok=True)
+    (packet_workspace / "tests").mkdir(parents=True, exist_ok=True)
+    (packet_workspace / "src" / "migrate.py").write_text("print('ok')\n", encoding="utf-8")
+    (packet_workspace / "tests" / "test_migrate.py").write_text(
+        "def test_stub():\n    assert True\n",
+        encoding="utf-8",
+    )
     (packet_workspace / "btw_context.md").write_text(
         "Focus on preserving backward compatibility.",
         encoding="utf-8",
@@ -2201,6 +2398,57 @@ def test_run_supervised_replays_plan_patch_on_resume(tmp_path: Path) -> None:
     assert len(builder.prompts) == 1
     assert "## Task" in builder.prompts[0]
     assert "Do task 1 with replayed plan patch" in builder.prompts[0]
+
+
+def test_build_worker_prompt_moves_missing_output_targets_out_of_files_to_read(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.domain.models import WorkPacket
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubSupervisor:
+        pass
+
+    class StubAssembler:
+        pass
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=InMemoryWorkerHandleFactory(
+            creator=lambda session_id, workspace: OneShotWorkerHandle(
+                session_id=session_id,
+                builder_adapter=MagicMock(),
+            )
+        ),
+        context_assembler=StubAssembler(),
+        max_rounds=1,
+    )
+
+    workspace = tmp_path / "docs" / "specs" / "mission-1" / "workers" / "pkt-new"
+    workspace.mkdir(parents=True, exist_ok=True)
+    packet = WorkPacket(
+        packet_id="pkt-new",
+        title="Scaffold mission types",
+        builder_prompt="Create src/contracts/mission_types.ts with minimal interfaces.",
+        files_in_scope=["src/contracts/mission_types.ts"],
+        acceptance_criteria=["File exists"],
+    )
+
+    prompt = orchestrator._build_worker_prompt(
+        mission_id="mission-1",
+        packet=packet,
+        workspace=workspace,
+        decision=None,
+    )
+
+    assert "## Target Files" in prompt
+    assert "src/contracts/mission_types.ts" in prompt
+    assert "## Files to Read" not in prompt
 
 
 def test_run_supervised_applies_plan_patch_during_retry(tmp_path: Path) -> None:

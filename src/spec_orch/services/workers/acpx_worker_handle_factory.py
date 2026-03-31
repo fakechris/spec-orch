@@ -18,6 +18,12 @@ class AcpxWorkerHandleFactory:
         executable: str = "npx",
         acpx_package: str = "acpx",
         absolute_timeout_seconds: float = 1800.0,
+        startup_timeout_seconds: float = 30.0,
+        idle_progress_timeout_seconds: float = 60.0,
+        completion_quiet_period_seconds: float = 2.0,
+        max_retries: int = 1,
+        max_turns_per_session: int = 10,
+        max_session_age_seconds: float = 1800.0,
     ) -> None:
         self.agent = agent
         self.model = model
@@ -25,6 +31,12 @@ class AcpxWorkerHandleFactory:
         self.executable = executable
         self.acpx_package = acpx_package
         self.absolute_timeout_seconds = absolute_timeout_seconds
+        self.startup_timeout_seconds = startup_timeout_seconds
+        self.idle_progress_timeout_seconds = idle_progress_timeout_seconds
+        self.completion_quiet_period_seconds = completion_quiet_period_seconds
+        self.max_retries = max_retries
+        self.max_turns_per_session = max_turns_per_session
+        self.max_session_age_seconds = max_session_age_seconds
         self._handles: dict[str, AcpxWorkerHandle] = {}
 
     def create(
@@ -43,6 +55,12 @@ class AcpxWorkerHandleFactory:
                 executable=self.executable,
                 acpx_package=self.acpx_package,
                 absolute_timeout_seconds=self.absolute_timeout_seconds,
+                startup_timeout_seconds=self.startup_timeout_seconds,
+                idle_progress_timeout_seconds=self.idle_progress_timeout_seconds,
+                completion_quiet_period_seconds=self.completion_quiet_period_seconds,
+                max_retries=self.max_retries,
+                max_turns_per_session=self.max_turns_per_session,
+                max_session_age_seconds=self.max_session_age_seconds,
             )
             self._handles[session_id] = handle
         return handle

@@ -1,5 +1,8 @@
 # Epic 7 Contract Core Plan
 
+> **Status note (2026-03-30):** Implemented and merged as the Epic 7 baseline.
+> `contract_core/` extraction and the planned surface cleanup pass have landed.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Extract contract-specific concerns into a visible `contract_core` seam, starting with contract models and spec snapshot/freeze behavior, then use that seam from surfaces.
@@ -10,11 +13,11 @@
 
 ## Current Progress
 
-- `E7-I1` completed locally: `contract_core/` package exists and owns canonical contract/snapshot primitives.
-- `E7-I2` completed locally: snapshot approval / auto-approval / draft creation now sit behind `contract_core.snapshots`, and `run_controller` plus spec CLI consume that seam.
-- `E7-I3` completed locally: question/answer/decision recording now sits behind `contract_core.decisions`, and spec CLI no longer mutates snapshot question/decision objects ad hoc.
-- `E7-I4` completed locally: spec import registry access now sits behind `contract_core.importers`, and spec CLI import consumes that seam.
-- `E7-I5` remains pending: surface cleanup pass across dashboard / daemon / remaining CLI paths.
+- `E7-I1` landed: `contract_core/` owns canonical contract/snapshot primitives.
+- `E7-I2` landed: snapshot approval / auto-approval / draft creation sit behind `contract_core.snapshots`, and `run_controller` plus spec CLI consume that seam.
+- `E7-I3` landed: question/answer/decision recording sits behind `contract_core.decisions`, and spec CLI no longer mutates snapshot question/decision objects ad hoc.
+- `E7-I4` landed: spec import registry access sits behind `contract_core.importers`, and spec CLI import consumes that seam.
+- `E7-I5` landed: surface cleanup pass across remaining CLI paths was completed as part of the merged Epic 7 tranche.
 
 ## First Batch Scope
 
@@ -48,7 +51,7 @@
 
 ## Deferred To Later Epic 7 Batches
 
-- E7-I5 surface cleanup pass across CLI/daemon/dashboard
+- broader product-surface cleanup beyond the contract-truth owners already migrated in Epic 7
 
 ## Verification
 

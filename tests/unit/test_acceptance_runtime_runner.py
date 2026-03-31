@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from spec_orch.acceptance_core.routing import AcceptanceGraphProfile
+from spec_orch.runtime_chain.store import read_chain_events
 
 
 def test_run_acceptance_graph_executes_steps_and_persists_trace(tmp_path) -> None:
@@ -211,3 +212,51 @@ def test_run_acceptance_graph_skips_candidate_review_without_reviewable_observat
     ]
     assert "guided_probe->candidate_review" not in result["graph_transitions"]
     assert len(result["step_artifacts"]) == 3
+
+
+def test_run_acceptance_graph_emits_runtime_chain_events(tmp_path) -> None:
+    from spec_orch.acceptance_runtime.graph_registry import graph_definition_for
+    from spec_orch.acceptance_runtime.runner import run_acceptance_graph
+
+    def _invoke(system_prompt: str, user_prompt: str) -> str:
+        payload = json.loads(user_prompt.split("\n", 3)[-1])
+        step_key = payload["step_key"]
+        next_transition = {
+            "contract_brief": "route_replay",
+            "route_replay": "assert_contract",
+            "assert_contract": "summarize_judgment",
+            "summarize_judgment": "",
+        }[step_key]
+        return json.dumps(
+            {
+                "decision": "continue" if next_transition else "complete",
+                "outputs": {f"{step_key}_notes": f"artifact for {step_key}"},
+                "next_transition": next_transition,
+                "warnings": [],
+                "review_markdown": f"## {step_key}\n- ok",
+            }
+        )
+
+    definition = graph_definition_for(AcceptanceGraphProfile.VERIFY_CONTRACT)
+    chain_root = tmp_path / "operator" / "runtime_chain"
+    run_acceptance_graph(
+        base_dir=tmp_path,
+        run_id="agr-chain",
+        graph=definition,
+        mission_id="mission-1",
+        round_id=1,
+        goal="Verify contract",
+        target="/?mission=mission-1&tab=transcript",
+        evidence={"browser_evidence": {"tested_routes": ["/"]}},
+        compare_overlay=False,
+        invoke=_invoke,
+        chain_root=chain_root,
+        chain_id="chain-mission-1",
+        span_id="span-round-01-acceptance-graph",
+        parent_span_id="span-round-01-acceptance",
+    )
+
+    events = read_chain_events(chain_root)
+
+    assert [event.phase.value for event in events] == ["started", "completed"]
+    assert all(event.subject_kind.value == "acceptance" for event in events)

@@ -2,16 +2,18 @@
 
 **Date:** 2026-03-30  
 **Epic:** Epic 4 — Acceptance Judgment and Calibration  
-**Status:** Completed for current program phase; full agentic graph runtime explicitly deferred  
+**Status:** Completed for current program phase; bounded `acceptance_runtime`
+baseline landed later the same day; broader or unbounded graph-runtime
+expansion remains later runtime work
 
 ## Goal
 
 Capture the remaining work needed so Epic 4 can move from "semantic baseline
 landed" to "design-complete for this program phase".
 
-This tranche exists because the core semantic objects were landed in code, but
-the three canonical Epic 4 design references are not yet implemented end to
-end:
+This tranche originally existed because the core semantic objects were landed in
+code before the three canonical Epic 4 design references had been fully pulled
+through:
 
 1. `docs/plans/2026-03-30-acpx-agentic-graphs-epic-4-alignment.md`
 2. `docs/plans/2026-03-30-acceptance-routing-policy.md`
@@ -70,14 +72,18 @@ Implemented in bounded form:
 
 Current state:
 
-- `workflow tuning` and `graph_profile` are now part of the semantic layer
+- `workflow tuning` and `graph_profile` are part of the semantic layer
+- bounded `acceptance_runtime/` graph execution, stepwise prompt reveal, and
+  per-step artifacts are landed
 - calibration and provenance can express workflow drift explicitly
 
 Deferred beyond this tranche:
 
-- real graph/runtime activation based on tuned workflow availability
-- stepwise prompt reveal / per-step artifact runtime behavior
-- explicit graph-level observability beyond stored semantic fields
+- broader or unbounded graph/runtime activation beyond the bounded profiles now
+  landed
+- richer graph-family expansion and deeper workflow-tuning activation policy
+- graph-level observability and compare semantics beyond the current bounded
+  runtime baseline
 
 This is intentionally not part of the current-program semantic completion gate.
 It should be treated as later runtime/orchestration work, not as missing Epic 4

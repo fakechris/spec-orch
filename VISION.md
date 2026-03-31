@@ -198,6 +198,21 @@ This is the system philosophy of SpecOrch.
 
 ---
 
+## Current Realization
+
+Today this philosophy is also reflected in explicit code seams:
+
+- `runtime_core` for shared execution semantics and normalized read/write
+- `decision_core` for supervision, decision recording, review, and intervention
+- `acceptance_core` for routing, judgment, disposition, and calibration
+- `acceptance_runtime` for bounded graph-based acceptance execution
+- `contract_core` for contract, snapshot, and import semantics
+
+`Issue` and `mission` ownership still stay separate where that boundary is
+real, but both paths now speak the same execution and decision language.
+
+---
+
 ## In One Sentence
 
 **SpecOrch is the control plane for spec-driven software delivery.**

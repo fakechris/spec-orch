@@ -164,6 +164,7 @@ class ExecutionPlan:
 @dataclass(slots=True)
 class IssueContext:
     files_to_read: list[str] = field(default_factory=list)
+    target_files: list[str] = field(default_factory=list)
     architecture_notes: str = ""
     constraints: list[str] = field(default_factory=list)
 

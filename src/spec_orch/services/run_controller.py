@@ -34,6 +34,13 @@ from spec_orch.domain.protocols import BuilderAdapter, IssueSource, PlannerAdapt
 from spec_orch.flow_engine.engine import FlowEngine
 from spec_orch.flow_engine.flow_router import FlowRouter
 from spec_orch.flow_engine.mapper import FlowMapper
+from spec_orch.runtime_chain.models import (
+    ChainPhase,
+    RuntimeChainEvent,
+    RuntimeChainStatus,
+    RuntimeSubjectKind,
+)
+from spec_orch.runtime_chain.store import append_chain_event, write_chain_status
 from spec_orch.services.activity_logger import ActivityLogger
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
@@ -290,6 +297,36 @@ class RunController:
         run_id = self.telemetry_service.new_run_id(issue.issue_id)
         graph = self.flow_engine.get_graph(resolved_flow)
         active_conditions = self._resolve_active_conditions(issue)
+        chain_root = workspace / "telemetry" / "runtime_chain"
+        issue_span_id = f"{run_id}:issue"
+        updated_at = datetime.now(UTC).isoformat()
+        append_chain_event(
+            chain_root,
+            RuntimeChainEvent(
+                chain_id=run_id,
+                span_id=issue_span_id,
+                parent_span_id=None,
+                subject_kind=RuntimeSubjectKind.ISSUE,
+                subject_id=issue.issue_id,
+                phase=ChainPhase.STARTED,
+                status_reason="issue_run_started",
+                artifact_refs={"workspace": str(workspace)},
+                updated_at=updated_at,
+            ),
+        )
+        write_chain_status(
+            chain_root,
+            RuntimeChainStatus(
+                chain_id=run_id,
+                active_span_id=issue_span_id,
+                subject_kind=RuntimeSubjectKind.ISSUE,
+                subject_id=issue.issue_id,
+                phase=ChainPhase.STARTED,
+                status_reason="issue_run_started",
+                artifact_refs={"workspace": str(workspace)},
+                updated_at=updated_at,
+            ),
+        )
 
         prev_snap = RunProgressSnapshot.load(workspace)
         completed_stages: set[str] = prev_snap.completed_stage_names() if prev_snap else set()
@@ -312,6 +349,9 @@ class RunController:
             "report": None,
             "task_spec": None,
             "progress": None,
+            "chain_id": run_id,
+            "chain_root": chain_root,
+            "issue_span_id": issue_span_id,
         }
 
         with self._event_logger.open_activity_logger(workspace) as activity_logger:
@@ -1565,6 +1605,10 @@ class RunController:
         if issue.context.files_to_read:
             items = "\n".join(f"- {f}" for f in issue.context.files_to_read)
             sections.append(f"## Files to Read\n{items}")
+
+        if issue.context.target_files:
+            items = "\n".join(f"- {f}" for f in issue.context.target_files)
+            sections.append(f"## Target Files\n{items}")
 
         if issue.verification_commands:
             cmds = "\n".join(
