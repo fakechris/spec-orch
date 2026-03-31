@@ -1,8 +1,9 @@
 # Program Reconciliation And Stability Acceptance Plan
 
-> **Status note (2026-03-30):** Tranche S1 completed. Old Epic 1-7 plan state
-> and Linear state have been reconciled to shipped code. Stability-acceptance
-> automation tranches remain open.
+> **Status note (2026-03-30):** Tranche S1 completed. Tranche S2 is now
+> implemented as the canonical matrix plus updated operator guides. Tranche S3
+> baseline automation for issue-start and mission/milestone-start is also
+> landed. UI/exploratory automation and continuous reporting remain open.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
@@ -98,7 +99,7 @@ This epic fixes that.
 
 ### Tranche S2: Build the acceptance matrix
 
-**Status:** Baseline document landed; automation and guide integration still pending
+**Status:** Completed
 
 **Files:**
 - Create: `docs/plans/2026-03-30-stability-acceptance-matrix.md`
@@ -110,8 +111,11 @@ This epic fixes that.
 - list major UI/dashboard surfaces
 - list exploratory acceptance flows
 - define pass/fail artifacts and owners for each row
+- wire the canonical feature launch rows into agent/operator guides
 
 ### Tranche S3: Automate feature acceptance
+
+**Status:** Baseline issue-start and mission/milestone-start harnesses completed
 
 **Files:**
 - Modify/Create under: `tests/e2e/`
@@ -122,6 +126,7 @@ This epic fixes that.
 - automate issue-start e2e
 - automate mission/milestone-start e2e
 - capture expected artifacts and pass/fail assertions
+- materialize canonical smoke reports suitable for repeated operator review
 
 ### Tranche S4: Automate UI and exploratory acceptance
 

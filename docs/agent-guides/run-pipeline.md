@@ -15,6 +15,20 @@ Mission 级别执行由 `plan.json` 驱动。若 `docs/specs/<mission_id>/plan.j
 - `docs/guides/supervised-mission-e2e-playbook.md`
 - `docs/guides/operator-console.md`
 
+重构后的稳定性验收现在建议优先用这两个 canonical smoke 入口：
+
+```bash
+./tests/e2e/issue_start_smoke.sh                 # issue-start dry-run
+./tests/e2e/issue_start_smoke.sh --full          # issue-start full smoke
+./tests/e2e/mission_start_acceptance.sh          # mission-start dry-run
+./tests/e2e/mission_start_acceptance.sh --full   # mission-start full smoke
+```
+
+它们会把结果分别收口到：
+
+- `.spec_orch/acceptance/issue_start_smoke.json`
+- `docs/specs/<mission_id>/operator/mission_start_acceptance.json`
+
 ## Pipeline 阶段
 
 ```

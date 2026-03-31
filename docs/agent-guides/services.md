@@ -31,6 +31,15 @@ spec-orch daemon dlq       # 查看死信队列
 - `docs/guides/supervised-mission-e2e-playbook.md`
 - `docs/guides/operator-console.md`
 
+如果当前目标是做重构后的稳定性验收，优先用：
+
+```bash
+./tests/e2e/issue_start_smoke.sh --full
+./tests/e2e/mission_start_acceptance.sh --full
+```
+
+前者覆盖 issue 启动主链，后者覆盖 fresh mission/milestone 启动主链。
+
 Dashboard 现在已经进入 operator-console 形态，首页主要看三块：
 
 - `Inbox`：paused / failed / approval-needed mission triage

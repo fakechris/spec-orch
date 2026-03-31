@@ -1,7 +1,7 @@
 # Stability Acceptance Matrix
 
 **Date:** 2026-03-30  
-**Status:** Canonical matrix established; automation coverage still in progress
+**Status:** Canonical matrix established; feature-launch automation baseline landed
 **Parent plan:** [`2026-03-30-program-reconciliation-and-stability-acceptance.md`](./2026-03-30-program-reconciliation-and-stability-acceptance.md)
 
 ## 1. Purpose
@@ -29,8 +29,8 @@ Each row should eventually have:
 
 | Area | Scenario | Current Harness | Expected Artifact | Status |
 |---|---|---|---|---|
-| Feature | Issue-start pipeline smoke | `spec-orch run --source fixture` and targeted unit/integration coverage | run workspace artifacts, normalized execution payloads | Planned |
-| Feature | Mission/milestone-start launch | `tests/e2e/fresh_acpx_mission_smoke.sh` family | mission rounds, acceptance review, launch metadata | Planned |
+| Feature | Issue-start pipeline smoke | `tests/e2e/issue_start_smoke.sh --full` | `.spec_orch/acceptance/issue_start_smoke.json`, run workspace artifacts, normalized execution payloads | Automated |
+| Feature | Mission/milestone-start launch | `tests/e2e/mission_start_acceptance.sh --full` | `mission_start_acceptance.json`, mission rounds, acceptance review, launch metadata | Automated |
 | Feature | Linear-bound mission launch | `tests/e2e/fresh_acpx_mission_smoke.sh` linear-bound variant | `linear_issue.json`, launch metadata, mission run artifacts | Planned |
 | UI | Dashboard root and control surfaces | dashboard API/unit suite | API payloads, route readiness, control overview | Partially automated |
 | UI | Mission detail / transcript / acceptance review surfaces | dashboard API/unit suite + post-run replay checks | mission detail payload, transcript data, graph artifacts | Partially automated |
@@ -44,12 +44,12 @@ Each row should eventually have:
 
 ## 4. Immediate Gaps
 
-The first gaps to close are:
+The next gaps to close are:
 
-1. issue-start e2e needs a canonical smoke harness
-2. mission/milestone-start needs a canonical acceptance command and result contract
-3. dashboard/UI acceptance needs a single rerunnable harness rather than only scattered unit tests
-4. exploratory acceptance should produce stable smoke artifacts suitable for repeated operator review
+1. dashboard/UI acceptance needs a single rerunnable harness rather than only scattered unit tests
+2. exploratory acceptance should produce stable smoke artifacts suitable for repeated operator review
+3. linear-bound mission launch still needs a canonical automation wrapper
+4. continuous acceptance status reporting still needs a durable output surface
 
 ## 5. Status Semantics
 
