@@ -284,6 +284,9 @@ class MemoryRecorder:
                     "confidence": judgment.confidence,
                     "finding_id": judgment.candidate.finding_id if judgment.candidate else "",
                     "route": judgment.candidate.route if judgment.candidate else "",
+                    "evidence_refs": (
+                        list(judgment.candidate.evidence_refs) if judgment.candidate else []
+                    ),
                     "baseline_ref": judgment.candidate.baseline_ref if judgment.candidate else "",
                     "origin_step": judgment.candidate.origin_step if judgment.candidate else "",
                     "graph_profile": judgment.candidate.graph_profile if judgment.candidate else "",

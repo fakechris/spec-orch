@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 
-from spec_orch.acceptance_core.models import AcceptanceJudgment, AcceptanceWorkflowState
+from spec_orch.acceptance_core.models import (
+    AcceptanceJudgment,
+    AcceptanceWorkflowState,
+    apply_candidate_governance,
+)
 from spec_orch.decision_core.models import DecisionReview
 
 
@@ -23,6 +27,9 @@ class AcceptanceDispositionDecision:
     workflow_state: AcceptanceWorkflowState
     summary: str
     intervention_required: bool = False
+    reviewer_identity: str = ""
+    review_note: str = ""
+    superseded_by: str = ""
 
 
 def disposition_decision(
@@ -30,6 +37,9 @@ def disposition_decision(
     *,
     disposition: AcceptanceDisposition,
     summary: str,
+    reviewer_identity: str = "",
+    review_note: str = "",
+    superseded_by: str = "",
 ) -> AcceptanceDispositionDecision:
     state_map = {
         AcceptanceDisposition.REVIEW: AcceptanceWorkflowState.REVIEWED,
@@ -48,6 +58,9 @@ def disposition_decision(
         workflow_state=workflow_state,
         summary=summary,
         intervention_required=intervention_required,
+        reviewer_identity=reviewer_identity,
+        review_note=review_note,
+        superseded_by=superseded_by,
     )
 
 
@@ -69,13 +82,34 @@ def build_acceptance_decision_review(
         reviewer_kind=reviewer_kind,
         verdict=verdict_map[decision.disposition],
         summary=decision.summary,
-        reflection="",
+        reflection=decision.review_note,
     )
+
+
+def apply_disposition_to_judgment(
+    judgment: AcceptanceJudgment,
+    decision: AcceptanceDispositionDecision,
+) -> AcceptanceJudgment:
+    updated = replace(judgment, workflow_state=decision.workflow_state)
+    if updated.candidate is None:
+        return updated
+    dismissal_reason = (
+        decision.summary if decision.disposition is AcceptanceDisposition.DISMISS else ""
+    )
+    updated_candidate = apply_candidate_governance(
+        updated.candidate,
+        reviewer_identity=decision.reviewer_identity,
+        review_note=decision.review_note,
+        dismissal_reason=dismissal_reason,
+        superseded_by=decision.superseded_by,
+    )
+    return replace(updated, candidate=updated_candidate)
 
 
 __all__ = [
     "AcceptanceDisposition",
     "AcceptanceDispositionDecision",
+    "apply_disposition_to_judgment",
     "build_acceptance_decision_review",
     "disposition_decision",
 ]

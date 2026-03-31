@@ -238,7 +238,14 @@ class TestDashboardAPI:
                         }
                     ],
                     "artifacts": {
-                        "acceptance_review": "docs/specs/mission-acceptance/rounds/round-02/acceptance_review.json"
+                        "acceptance_review": "docs/specs/mission-acceptance/rounds/round-02/acceptance_review.json",
+                        "graph_run": "docs/specs/mission-acceptance/rounds/round-02/acceptance_graph_runs/agr-1/graph_run.json",
+                        "graph_profile": "tuned_dashboard_compare_graph",
+                        "step_artifacts": [
+                            "docs/specs/mission-acceptance/rounds/round-02/acceptance_graph_runs/agr-1/steps/01-baseline_brief.json",
+                            "docs/specs/mission-acceptance/rounds/round-02/acceptance_graph_runs/agr-1/steps/02-compare_evidence.json",
+                        ],
+                        "final_transition": "summarize_judgment",
                     },
                     "campaign": {
                         "mode": "impact_sweep",
@@ -269,6 +276,13 @@ class TestDashboardAPI:
         assert data["latest_review"]["judgments"][0]["judgment_class"] == "confirmed_issue"
         assert data["latest_review"]["surface_pack"]["pack_key"] == "dashboard_surface_pack_v1"
         assert data["latest_review"]["surface_pack"]["safe_action_budget"] == "bounded"
+        assert (
+            data["latest_review"]["graph_artifacts"]["graph_profile"]
+            == "tuned_dashboard_compare_graph"
+        )
+        assert len(data["latest_review"]["graph_artifacts"]["step_artifacts"]) == 2
+        assert data["latest_review"]["graph_artifacts"]["step_count"] == 2
+        assert data["latest_review"]["graph_artifacts"]["final_transition"] == "summarize_judgment"
         assert data["latest_review"]["review_route"] == (
             f"/?mission={mission_id}&mode=missions&tab=acceptance&round=2"
         )

@@ -907,7 +907,7 @@ class AcceptanceReviewResult:
     evaluator: str
     findings: list[AcceptanceFinding] = field(default_factory=list)
     issue_proposals: list[AcceptanceIssueProposal] = field(default_factory=list)
-    artifacts: dict[str, str] = field(default_factory=dict)
+    artifacts: dict[str, Any] = field(default_factory=dict)
     tested_routes: list[str] = field(default_factory=list)
     acceptance_mode: str = ""
     coverage_status: str = ""

@@ -6,10 +6,11 @@ import json
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from spec_orch.acceptance_core.models import AcceptanceJudgment, AcceptanceJudgmentClass
 from spec_orch.domain.models import AcceptanceReviewResult
+from spec_orch.services.io import atomic_write_json
 
 
 @dataclass(slots=True)
@@ -63,6 +64,8 @@ class AcceptanceCalibrationComparison:
     field_drift: dict[str, dict[str, Any]] = field(default_factory=dict)
     step_artifact_drift: dict[str, list[str]] = field(default_factory=dict)
     graph_profile_drift: dict[str, str] = field(default_factory=dict)
+    graph_transition_drift: dict[str, list[str]] = field(default_factory=dict)
+    workflow_tuning_drift: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -78,6 +81,8 @@ class AcceptanceCalibrationComparison:
             "field_drift": dict(self.field_drift),
             "step_artifact_drift": {k: list(v) for k, v in self.step_artifact_drift.items()},
             "graph_profile_drift": dict(self.graph_profile_drift),
+            "graph_transition_drift": {k: list(v) for k, v in self.graph_transition_drift.items()},
+            "workflow_tuning_drift": dict(self.workflow_tuning_drift),
         }
 
 
@@ -169,6 +174,8 @@ def compare_review_to_fixture(
     field_drift: dict[str, dict[str, Any]] = {}
     step_artifact_drift: dict[str, list[str]] = {}
     graph_profile_drift: dict[str, str] = {}
+    graph_transition_drift: dict[str, list[str]] = {}
+    workflow_tuning_drift: dict[str, str] = {}
     if actual.status != expected_status:
         mismatches.append("status")
     if actual_mode != expected_mode:
@@ -192,6 +199,16 @@ def compare_review_to_fixture(
                 "expected": str(expected_fields.get("graph_profile") or ""),
                 "actual": str(actual_fields.get("graph_profile") or ""),
             }
+            workflow_tuning_drift["graph_profile"] = "tuned_graph_mismatch"
+        if "workflow_tuning_notes" in expected_fields and actual_fields.get(
+            "workflow_tuning_notes"
+        ) != expected_fields.get("workflow_tuning_notes"):
+            mismatches.append("field:workflow_tuning_notes")
+            field_drift["workflow_tuning_notes"] = {
+                "expected": expected_fields.get("workflow_tuning_notes"),
+                "actual": actual_fields.get("workflow_tuning_notes"),
+            }
+            workflow_tuning_drift["workflow_tuning_notes"] = "tuning_notes_mismatch"
     expected_step_artifacts = fixture.expected.get("step_artifacts")
     actual_step_artifacts = []
     actual_artifacts = actual.artifacts if isinstance(actual.artifacts, dict) else {}
@@ -207,6 +224,25 @@ def compare_review_to_fixture(
                 "missing": missing,
                 "unexpected": unexpected,
             }
+            if missing:
+                workflow_tuning_drift["step_artifacts"] = "expected_step_artifacts_missing"
+            elif unexpected:
+                workflow_tuning_drift["step_artifacts"] = "unexpected_step_artifacts_present"
+    expected_graph_transitions = fixture.expected.get("graph_transitions")
+    actual_graph_transitions = []
+    if isinstance(actual_artifacts.get("graph_transitions"), list):
+        actual_graph_transitions = [str(item) for item in actual_artifacts["graph_transitions"]]
+    if isinstance(expected_graph_transitions, list):
+        expected_transitions = [str(item) for item in expected_graph_transitions]
+        missing_transitions = sorted(set(expected_transitions) - set(actual_graph_transitions))
+        unexpected_transitions = sorted(set(actual_graph_transitions) - set(expected_transitions))
+        if missing_transitions or unexpected_transitions:
+            mismatches.append("graph_transitions")
+            graph_transition_drift = {
+                "missing": missing_transitions,
+                "unexpected": unexpected_transitions,
+            }
+            workflow_tuning_drift["graph_transitions"] = "transition_path_mismatch"
     return AcceptanceCalibrationComparison(
         fixture_name=fixture.fixture_name,
         matches=not mismatches,
@@ -220,6 +256,8 @@ def compare_review_to_fixture(
         field_drift=field_drift,
         step_artifact_drift=step_artifact_drift,
         graph_profile_drift=graph_profile_drift,
+        graph_transition_drift=graph_transition_drift,
+        workflow_tuning_drift=workflow_tuning_drift,
     )
 
 
@@ -227,6 +265,120 @@ def fixture_graduation_history_path(repo_root: Path, mission_id: str) -> Path:
     return (
         Path(repo_root) / "docs" / "specs" / mission_id / "operator" / "fixture_graduations.jsonl"
     )
+
+
+def fixture_candidate_seed_dir(repo_root: Path, mission_id: str) -> Path:
+    return Path(repo_root) / "docs" / "specs" / mission_id / "operator" / "fixture_candidates"
+
+
+def _seed_name_from_event(event: dict[str, Any]) -> str:
+    raw = str(
+        event.get("dedupe_key")
+        or event.get("finding_id")
+        or event.get("judgment_id")
+        or "fixture-candidate"
+    )
+    slug = "".join(ch if ch.isalnum() else "-" for ch in raw.lower()).strip("-")
+    slug = "-".join(part for part in slug.split("-") if part)
+    if not slug:
+        slug = "fixture-candidate"
+    return f"fixture-candidate-{slug}"
+
+
+def build_fixture_graduation_event(
+    *,
+    mission_id: str,
+    judgment: AcceptanceJudgment,
+    stage: FixtureGraduationStage,
+    source_record_id: str,
+    repeat_count: int,
+    review_artifacts: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    candidate = judgment.candidate
+    if candidate is None:
+        raise ValueError("fixture graduation requires a candidate judgment")
+    artifacts = review_artifacts if isinstance(review_artifacts, dict) else {}
+    graph_run = str(artifacts.get("graph_run") or "")
+    step_artifacts = [
+        str(item) for item in artifacts.get("step_artifacts", []) if isinstance(item, str)
+    ]
+    graph_transitions = [
+        str(item) for item in artifacts.get("graph_transitions", []) if isinstance(item, str)
+    ]
+    workflow_tuning_notes = [
+        str(item)
+        for item in artifacts.get("workflow_tuning_notes", [])
+        if isinstance(item, str) and item.strip()
+    ]
+    evidence_refs = list(candidate.evidence_refs)
+    if graph_run:
+        evidence_refs.append(graph_run)
+    evidence_refs.extend(step_artifacts)
+    unique_evidence_refs = list(dict.fromkeys(ref for ref in evidence_refs if ref))
+    return {
+        "mission_id": mission_id,
+        "judgment_id": judgment.judgment_id,
+        "finding_id": candidate.finding_id,
+        "stage": stage.value,
+        "summary": judgment.summary,
+        "source_record_id": source_record_id,
+        "evidence_refs": unique_evidence_refs,
+        "repeat_count": repeat_count,
+        "dedupe_key": candidate.dedupe_key,
+        "baseline_ref": candidate.baseline_ref,
+        "graph_profile": candidate.graph_profile,
+        "graph_run": graph_run,
+        "step_artifacts": step_artifacts,
+        "graph_transitions": graph_transitions,
+        "final_transition": str(artifacts.get("final_transition") or ""),
+        "workflow_tuning_notes": workflow_tuning_notes,
+        "route": candidate.route,
+        "origin_step": candidate.origin_step,
+        "promotion_test": candidate.promotion_test,
+    }
+
+
+def write_fixture_candidate_seed(
+    repo_root: Path,
+    *,
+    mission_id: str,
+    event: dict[str, Any],
+    review_payload: dict[str, Any],
+) -> dict[str, Any]:
+    seed_name = _seed_name_from_event(event)
+    seed_dir = fixture_candidate_seed_dir(repo_root, mission_id)
+    seed_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "seed_name": seed_name,
+        "mission_id": mission_id,
+        "stage": event.get("stage", FixtureGraduationStage.FIXTURE_CANDIDATE.value),
+        "event": dict(event),
+        "review": dict(review_payload),
+        "expected": {
+            "field_expectations": {
+                "graph_profile": str(event.get("graph_profile") or ""),
+                "baseline_ref": str(event.get("baseline_ref") or ""),
+                "route": str(event.get("route") or ""),
+            },
+            "step_artifacts": list(event.get("step_artifacts", []) or []),
+            "graph_transitions": list(event.get("graph_transitions", []) or []),
+        },
+    }
+    atomic_write_json(seed_dir / f"{seed_name}.json", payload)
+    return payload
+
+
+def load_fixture_candidate_seed(
+    repo_root: Path,
+    *,
+    mission_id: str,
+    seed_name: str,
+) -> dict[str, Any]:
+    path = fixture_candidate_seed_dir(repo_root, mission_id) / f"{seed_name}.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise TypeError(f"fixture candidate seed must be a JSON object: {path}")
+    return cast(dict[str, Any], payload)
 
 
 def append_fixture_graduation_event(
@@ -238,13 +390,39 @@ def append_fixture_graduation_event(
     summary: str,
     source_record_id: str,
     evidence_refs: list[str],
+    finding_id: str = "",
+    repeat_count: int = 0,
+    dedupe_key: str = "",
+    baseline_ref: str = "",
+    graph_profile: str = "",
+    graph_run: str = "",
+    step_artifacts: list[str] | None = None,
+    graph_transitions: list[str] | None = None,
+    final_transition: str = "",
+    workflow_tuning_notes: list[str] | None = None,
+    route: str = "",
+    origin_step: str = "",
+    promotion_test: str = "",
 ) -> dict[str, Any]:
     payload = {
         "judgment_id": judgment_id,
+        "finding_id": finding_id,
         "stage": stage.value,
         "summary": summary,
         "source_record_id": source_record_id,
         "evidence_refs": list(evidence_refs),
+        "repeat_count": repeat_count,
+        "dedupe_key": dedupe_key,
+        "baseline_ref": baseline_ref,
+        "graph_profile": graph_profile,
+        "graph_run": graph_run,
+        "step_artifacts": list(step_artifacts or []),
+        "graph_transitions": list(graph_transitions or []),
+        "final_transition": final_transition,
+        "workflow_tuning_notes": list(workflow_tuning_notes or []),
+        "route": route,
+        "origin_step": origin_step,
+        "promotion_test": promotion_test,
     }
     path = fixture_graduation_history_path(repo_root, mission_id)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -275,16 +453,44 @@ def run_acceptance_calibration_harness(
     fixture_names: list[str],
     actual_reviews: dict[str, AcceptanceReviewResult],
 ) -> dict[str, Any]:
-    comparisons = [
-        compare_review_to_fixture(actual_reviews[name], load_acceptance_calibration_fixture(name))
-        for name in fixture_names
-    ]
+    comparisons: list[AcceptanceCalibrationComparison] = []
+    missing_actual_reviews = 0
+    for name in fixture_names:
+        fixture = load_acceptance_calibration_fixture(name)
+        actual = actual_reviews.get(name)
+        if actual is None:
+            missing_actual_reviews += 1
+            comparisons.append(
+                AcceptanceCalibrationComparison(
+                    fixture_name=name,
+                    matches=False,
+                    mismatches=["missing_review"],
+                    expected_status=str(fixture.expected.get("status") or fixture.review.status),
+                    actual_status="missing_review",
+                    expected_acceptance_mode=str(
+                        fixture.expected.get("acceptance_mode")
+                        or fixture.review.acceptance_mode
+                        or ""
+                    ),
+                    actual_acceptance_mode="",
+                    expected_coverage_status=str(
+                        fixture.expected.get("coverage_status")
+                        or fixture.review.coverage_status
+                        or ""
+                    ),
+                    actual_coverage_status="",
+                    workflow_tuning_drift={"review": "missing_actual_review"},
+                )
+            )
+            continue
+        comparisons.append(compare_review_to_fixture(actual, fixture))
     mismatched = [item for item in comparisons if not item.matches]
     return {
         "summary": {
             "total": len(comparisons),
             "matched": len(comparisons) - len(mismatched),
             "mismatched": len(mismatched),
+            "missing_actual_reviews": missing_actual_reviews,
         },
         "comparisons": [item.to_dict() for item in comparisons],
     }
@@ -306,11 +512,15 @@ __all__ = [
     "AcceptanceSurfacePack",
     "FixtureGraduationStage",
     "append_fixture_graduation_event",
+    "build_fixture_graduation_event",
     "compare_review_to_fixture",
     "dashboard_surface_pack_v1",
+    "fixture_candidate_seed_dir",
     "fixture_graduation_history_path",
     "load_acceptance_calibration_fixture",
+    "load_fixture_candidate_seed",
     "load_fixture_graduation_events",
     "qualifies_for_fixture_candidate",
     "run_acceptance_calibration_harness",
+    "write_fixture_candidate_seed",
 ]

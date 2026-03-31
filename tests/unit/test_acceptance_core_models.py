@@ -72,6 +72,46 @@ def test_issue_proposal_with_hold_reason_normalizes_into_candidate_finding() -> 
     assert judgments[0].candidate.compare_overlay is False
 
 
+def test_build_acceptance_judgments_carries_graph_trace_refs_into_candidate_evidence() -> None:
+    from spec_orch.acceptance_core.models import build_acceptance_judgments
+
+    result = AcceptanceReviewResult(
+        status="warn",
+        summary="Exploratory review found a likely UX concern.",
+        confidence=0.71,
+        evaluator="acceptance_llm",
+        acceptance_mode="exploratory",
+        issue_proposals=[
+            AcceptanceIssueProposal(
+                title="Clarify transcript entry point",
+                summary="The transcript path is credible but needs operator review before filing.",
+                severity="medium",
+                route="/?mission=demo&mode=missions&tab=transcript",
+                hold_reason="Needs operator confirmation before queueing UX work.",
+                confidence=0.64,
+                artifact_paths={"review": "docs/specs/demo/rounds/round-01/acceptance_review.json"},
+            )
+        ],
+        artifacts={
+            "graph_run": "docs/specs/demo/rounds/round-01/acceptance_graph_runs/agr-1/graph_run.json",
+            "step_artifacts": [
+                "docs/specs/demo/rounds/round-01/acceptance_graph_runs/agr-1/steps/01-surface_scan.json",
+                "docs/specs/demo/rounds/round-01/acceptance_graph_runs/agr-1/steps/02-guided_probe.json",
+            ],
+        },
+    )
+
+    judgments = build_acceptance_judgments(result)
+
+    assert judgments[0].candidate is not None
+    assert judgments[0].candidate.evidence_refs == [
+        "docs/specs/demo/rounds/round-01/acceptance_review.json",
+        "docs/specs/demo/rounds/round-01/acceptance_graph_runs/agr-1/graph_run.json",
+        "docs/specs/demo/rounds/round-01/acceptance_graph_runs/agr-1/steps/01-surface_scan.json",
+        "docs/specs/demo/rounds/round-01/acceptance_graph_runs/agr-1/steps/02-guided_probe.json",
+    ]
+
+
 def test_finding_without_issue_proposal_normalizes_into_observation() -> None:
     from spec_orch.acceptance_core.models import (
         AcceptanceJudgmentClass,
@@ -135,3 +175,44 @@ def test_candidate_finding_serializes_provenance_fields_from_review_sop() -> Non
     assert payload["graph_profile"] == "tuned_dashboard_compare_graph"
     assert payload["run_mode"] == "explore"
     assert payload["compare_overlay"] is True
+
+
+def test_observation_can_be_promoted_into_candidate_finding_with_governance_fields() -> None:
+    from spec_orch.acceptance_core.models import (
+        AcceptanceObservation,
+        promote_observation_to_candidate,
+    )
+
+    observation = AcceptanceObservation(
+        summary="Transcript empty state hides the retry cause.",
+        route="/?mission=demo&mode=missions&tab=transcript",
+        evidence_refs=["browser_evidence.json"],
+        critique_axis="evidence_discoverability",
+        operator_task="Inspect transcript entry point copy",
+        why_it_matters="Operators miss the first useful proof surface.",
+    )
+
+    candidate = promote_observation_to_candidate(
+        observation,
+        finding_id="candidate-obs-1",
+        claim="Transcript empty state hides the retry cause.",
+        confidence=0.73,
+        impact_if_true="high",
+        repro_status="suggestive_only",
+        hold_reason="Needs targeted replay before filing.",
+        promotion_test="Replay transcript empty-state path with retry cause visible.",
+        recommended_next_step="Run targeted compare replay before filing",
+        dedupe_key="dashboard:transcript_empty_state_retry_cause",
+        baseline_ref="fixture:dashboard-transcript-empty-state",
+        origin_step="transcript_empty_state_review",
+        graph_profile="tuned_dashboard_compare_graph",
+        run_mode="explore",
+        compare_overlay=True,
+        source_observation_id="obs-1",
+    )
+
+    assert candidate.finding_id == "candidate-obs-1"
+    assert candidate.source_observation_id == "obs-1"
+    assert candidate.critique_axis == "evidence_discoverability"
+    assert candidate.operator_task == "Inspect transcript entry point copy"
+    assert candidate.baseline_ref == "fixture:dashboard-transcript-empty-state"
