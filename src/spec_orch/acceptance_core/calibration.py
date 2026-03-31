@@ -10,6 +10,7 @@ from typing import Any
 
 from spec_orch.acceptance_core.models import AcceptanceJudgment, AcceptanceJudgmentClass
 from spec_orch.domain.models import AcceptanceReviewResult
+from spec_orch.services.io import atomic_write_json
 
 
 @dataclass(slots=True)
@@ -266,6 +267,24 @@ def fixture_graduation_history_path(repo_root: Path, mission_id: str) -> Path:
     )
 
 
+def fixture_candidate_seed_dir(repo_root: Path, mission_id: str) -> Path:
+    return Path(repo_root) / "docs" / "specs" / mission_id / "operator" / "fixture_candidates"
+
+
+def _seed_name_from_event(event: dict[str, Any]) -> str:
+    raw = str(
+        event.get("dedupe_key")
+        or event.get("finding_id")
+        or event.get("judgment_id")
+        or "fixture-candidate"
+    )
+    slug = "".join(ch if ch.isalnum() else "-" for ch in raw.lower()).strip("-")
+    slug = "-".join(part for part in slug.split("-") if part)
+    if not slug:
+        slug = "fixture-candidate"
+    return f"fixture-candidate-{slug}"
+
+
 def build_fixture_graduation_event(
     *,
     mission_id: str,
@@ -317,6 +336,46 @@ def build_fixture_graduation_event(
         "origin_step": candidate.origin_step,
         "promotion_test": candidate.promotion_test,
     }
+
+
+def write_fixture_candidate_seed(
+    repo_root: Path,
+    *,
+    mission_id: str,
+    event: dict[str, Any],
+    review_payload: dict[str, Any],
+) -> dict[str, Any]:
+    seed_name = _seed_name_from_event(event)
+    seed_dir = fixture_candidate_seed_dir(repo_root, mission_id)
+    seed_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "seed_name": seed_name,
+        "mission_id": mission_id,
+        "stage": event.get("stage", FixtureGraduationStage.FIXTURE_CANDIDATE.value),
+        "event": dict(event),
+        "review": dict(review_payload),
+        "expected": {
+            "field_expectations": {
+                "graph_profile": str(event.get("graph_profile") or ""),
+                "baseline_ref": str(event.get("baseline_ref") or ""),
+                "route": str(event.get("route") or ""),
+            },
+            "step_artifacts": list(event.get("step_artifacts", []) or []),
+            "graph_transitions": list(event.get("graph_transitions", []) or []),
+        },
+    }
+    atomic_write_json(seed_dir / f"{seed_name}.json", payload)
+    return payload
+
+
+def load_fixture_candidate_seed(
+    repo_root: Path,
+    *,
+    mission_id: str,
+    seed_name: str,
+) -> dict[str, Any]:
+    path = fixture_candidate_seed_dir(repo_root, mission_id) / f"{seed_name}.json"
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def append_fixture_graduation_event(
@@ -453,9 +512,12 @@ __all__ = [
     "build_fixture_graduation_event",
     "compare_review_to_fixture",
     "dashboard_surface_pack_v1",
+    "fixture_candidate_seed_dir",
     "fixture_graduation_history_path",
     "load_acceptance_calibration_fixture",
+    "load_fixture_candidate_seed",
     "load_fixture_graduation_events",
     "qualifies_for_fixture_candidate",
     "run_acceptance_calibration_harness",
+    "write_fixture_candidate_seed",
 ]

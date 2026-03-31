@@ -3,7 +3,7 @@
 **Date:** 2026-03-30  
 **Epic:** Epic 4 — Acceptance Judgment and Calibration  
 **Issue:** E4-I2 — Define acceptance routing policy  
-**Status:** Draft v0
+**Status:** Implemented baseline with tuned graph activation
 
 ## Goal
 
@@ -275,6 +275,13 @@ This is where ACPX-style workflow lessons apply.
 - `workflow_replay_graph_v1`
 - `dashboard_explore_graph_v1`
 - `recon_surface_mapping_graph_v1`
+
+Current implemented baseline maps these ideas to explicit runtime profiles:
+
+- `tuned_workflow_replay_graph`
+- `tuned_dashboard_compare_graph`
+- `tuned_exploratory_graph`
+- `tuned_recon_mapping_graph`
 
 Graph profile controls:
 

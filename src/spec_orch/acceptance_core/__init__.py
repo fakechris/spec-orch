@@ -9,10 +9,13 @@ from spec_orch.acceptance_core.calibration import (
     build_fixture_graduation_event,
     compare_review_to_fixture,
     dashboard_surface_pack_v1,
+    fixture_candidate_seed_dir,
     load_acceptance_calibration_fixture,
+    load_fixture_candidate_seed,
     load_fixture_graduation_events,
     qualifies_for_fixture_candidate,
     run_acceptance_calibration_harness,
+    write_fixture_candidate_seed,
 )
 from spec_orch.acceptance_core.disposition import (
     AcceptanceDisposition,
@@ -84,10 +87,13 @@ __all__ = [
     "compare_review_to_fixture",
     "dashboard_surface_pack_v1",
     "disposition_decision",
+    "fixture_candidate_seed_dir",
     "load_acceptance_calibration_fixture",
+    "load_fixture_candidate_seed",
     "load_fixture_graduation_events",
     "promote_observation_to_candidate",
     "qualifies_for_fixture_candidate",
     "run_mode_from_legacy_acceptance_mode",
     "run_acceptance_calibration_harness",
+    "write_fixture_candidate_seed",
 ]

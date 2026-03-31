@@ -51,9 +51,11 @@ class AcceptanceGraphProfile(StrEnum):
     VERIFY_CONTRACT = "verify_contract_graph"
     BASELINE_REPLAY = "baseline_replay_graph"
     TUNED_DASHBOARD_COMPARE = "tuned_dashboard_compare_graph"
+    TUNED_WORKFLOW_REPLAY = "tuned_workflow_replay_graph"
     EXPLORATORY_PROBE = "exploratory_probe_graph"
     TUNED_EXPLORATORY = "tuned_exploratory_graph"
     RECON_PROBE = "recon_probe_graph"
+    TUNED_RECON_MAPPING = "tuned_recon_mapping_graph"
 
 
 class AcceptanceRiskPosture(StrEnum):
@@ -210,22 +212,12 @@ def build_acceptance_routing_decision(
         AcceptanceRunMode.EXPLORE: AcceptanceBudgetProfile.EXPLORE_BOUNDED,
         AcceptanceRunMode.RECON: AcceptanceBudgetProfile.RECON_BOUNDED,
     }[run_mode]
-    if run_mode is AcceptanceRunMode.RECON:
-        graph_profile = AcceptanceGraphProfile.RECON_PROBE
-    elif run_mode is AcceptanceRunMode.REPLAY:
-        graph_profile = (
-            AcceptanceGraphProfile.TUNED_DASHBOARD_COMPARE
-            if routing_inputs.workflow_tuning_availability is WorkflowTuningAvailability.TUNED_GRAPH
-            else AcceptanceGraphProfile.BASELINE_REPLAY
-        )
-    elif run_mode is AcceptanceRunMode.EXPLORE:
-        graph_profile = (
-            AcceptanceGraphProfile.TUNED_EXPLORATORY
-            if routing_inputs.workflow_tuning_availability is WorkflowTuningAvailability.TUNED_GRAPH
-            else AcceptanceGraphProfile.EXPLORATORY_PROBE
-        )
-    else:
-        graph_profile = AcceptanceGraphProfile.VERIFY_CONTRACT
+    graph_profile = _select_graph_profile(
+        run_mode=run_mode,
+        compare_overlay=compare_overlay,
+        surface_pack_ref=surface_pack_ref,
+        routing_inputs=routing_inputs,
+    )
     evidence_plan = {
         AcceptanceRunMode.VERIFY: [
             "contract_assertions",
@@ -247,6 +239,17 @@ def build_acceptance_routing_decision(
             "conservative_recon_summary",
         ],
     }[run_mode]
+    if (
+        graph_profile
+        in {
+            AcceptanceGraphProfile.TUNED_WORKFLOW_REPLAY,
+            AcceptanceGraphProfile.TUNED_EXPLORATORY,
+            AcceptanceGraphProfile.TUNED_RECON_MAPPING,
+            AcceptanceGraphProfile.TUNED_DASHBOARD_COMPARE,
+        }
+        and "step_artifacts" not in evidence_plan
+    ):
+        evidence_plan = [*evidence_plan, "step_artifacts"]
     if (
         run_mode is AcceptanceRunMode.RECON
         or routing_inputs.judgment_risk is JudgmentRisk.HIGH
@@ -272,6 +275,34 @@ def build_acceptance_routing_decision(
         surface_pack_ref=surface_pack_ref,
         routing_inputs=routing_inputs,
     )
+
+
+def _select_graph_profile(
+    *,
+    run_mode: AcceptanceRunMode,
+    compare_overlay: bool,
+    surface_pack_ref: AcceptanceSurfacePackRef | None,
+    routing_inputs: AcceptanceRoutingInputs,
+) -> AcceptanceGraphProfile:
+    tuned = routing_inputs.workflow_tuning_availability is WorkflowTuningAvailability.TUNED_GRAPH
+    dashboard_pack = surface_pack_ref is not None and (
+        surface_pack_ref.pack_key == "dashboard_surface_pack_v1"
+    )
+    if run_mode is AcceptanceRunMode.RECON:
+        if tuned and dashboard_pack:
+            return AcceptanceGraphProfile.TUNED_RECON_MAPPING
+        return AcceptanceGraphProfile.RECON_PROBE
+    if run_mode is AcceptanceRunMode.REPLAY:
+        if compare_overlay and tuned:
+            return AcceptanceGraphProfile.TUNED_DASHBOARD_COMPARE
+        if tuned and dashboard_pack:
+            return AcceptanceGraphProfile.TUNED_WORKFLOW_REPLAY
+        return AcceptanceGraphProfile.BASELINE_REPLAY
+    if run_mode is AcceptanceRunMode.EXPLORE:
+        if tuned:
+            return AcceptanceGraphProfile.TUNED_EXPLORATORY
+        return AcceptanceGraphProfile.EXPLORATORY_PROBE
+    return AcceptanceGraphProfile.VERIFY_CONTRACT
 
 
 __all__ = [

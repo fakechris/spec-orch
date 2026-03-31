@@ -8,14 +8,16 @@
 
 **Tech Stack:** Python 3.13, existing `acceptance_core`, `decision_core`, `runtime_core`, file-backed artifacts, dashboard surfaces.
 
-**Current Status:** Tasks 1-6 baseline landed. The repo now has a bounded
+**Current Status:** Tasks 1-6 baseline landed, plus tuned graph-family
+expansion and fixture-seed linkage. The repo now has a bounded
 `acceptance_runtime/` layer, step-scoped prompts, per-step artifacts, a graph
 runner, and a first integration path through `round_orchestrator` and the
 acceptance dashboard surface. Remaining work is graph-family expansion,
 stronger loop/gate tuning, and deeper calibration/dashboard observability.
 Step artifacts and graph traces now also feed the fixture-graduation audit
-trail and reviewed acceptance memory provenance, so graph execution is no
-longer isolated to dashboard observability alone.
+trail, fixture-candidate seed generation, and reviewed acceptance memory
+provenance, so graph execution is no longer isolated to dashboard observability
+alone.
 
 ## 1. Design Position
 

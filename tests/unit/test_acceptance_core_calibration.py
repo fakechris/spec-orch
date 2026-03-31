@@ -226,6 +226,98 @@ def test_build_fixture_graduation_event_includes_graph_trace_metadata() -> None:
     ]
 
 
+def test_write_fixture_candidate_seed_persists_review_snapshot_and_expected_fields(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.acceptance_core.calibration import (
+        FixtureGraduationStage,
+        build_fixture_graduation_event,
+        load_fixture_candidate_seed,
+        write_fixture_candidate_seed,
+    )
+    from spec_orch.acceptance_core.models import (
+        AcceptanceJudgment,
+        AcceptanceJudgmentClass,
+        AcceptanceRunMode,
+        AcceptanceWorkflowState,
+        CandidateFinding,
+    )
+
+    judgment = AcceptanceJudgment(
+        judgment_id="proposal:promoted",
+        judgment_class=AcceptanceJudgmentClass.CANDIDATE_FINDING,
+        run_mode=AcceptanceRunMode.EXPLORE,
+        workflow_state=AcceptanceWorkflowState.PROMOTED,
+        summary="Transcript route needs stronger orientation.",
+        candidate=CandidateFinding(
+            finding_id="candidate:promoted",
+            claim="Transcript route needs stronger orientation.",
+            route="/?mission=mission-1&mode=missions&tab=transcript",
+            evidence_refs=["docs/specs/mission-1/rounds/round-01/acceptance_review.json"],
+            baseline_ref="fixture:dashboard-transcript-regression",
+            origin_step="candidate_review",
+            graph_profile="tuned_exploratory_graph",
+            run_mode="explore",
+            compare_overlay=True,
+            promotion_test="Replay transcript route with orientation breadcrumbs visible.",
+            recommended_next_step="Promote to fixture candidate.",
+            dedupe_key="dashboard:transcript-orientation",
+        ),
+    )
+    event = build_fixture_graduation_event(
+        mission_id="mission-1",
+        judgment=judgment,
+        stage=FixtureGraduationStage.FIXTURE_CANDIDATE,
+        source_record_id="acceptance:proposal:promoted",
+        repeat_count=3,
+        review_artifacts={
+            "graph_run": "docs/specs/mission-1/rounds/round-01/acceptance_graph/graph_run.json",
+            "step_artifacts": [
+                "docs/specs/mission-1/rounds/round-01/acceptance_graph/steps/01-surface_scan.json"
+            ],
+            "graph_transitions": [
+                "surface_scan->guided_probe",
+                "guided_probe->candidate_review",
+            ],
+        },
+    )
+
+    seed = write_fixture_candidate_seed(
+        tmp_path,
+        mission_id="mission-1",
+        event=event,
+        review_payload={
+            "status": "warn",
+            "acceptance_mode": "exploratory",
+            "coverage_status": "complete",
+            "artifacts": {
+                "graph_profile": "tuned_exploratory_graph",
+                "graph_transitions": [
+                    "surface_scan->guided_probe",
+                    "guided_probe->candidate_review",
+                ],
+                "step_artifacts": [
+                    "docs/specs/mission-1/rounds/round-01/acceptance_graph/steps/01-surface_scan.json"
+                ],
+            },
+        },
+    )
+    loaded = load_fixture_candidate_seed(
+        tmp_path,
+        mission_id="mission-1",
+        seed_name=seed["seed_name"],
+    )
+
+    assert seed["seed_name"].startswith("fixture-candidate-")
+    assert loaded["event"]["judgment_id"] == "proposal:promoted"
+    assert loaded["review"]["status"] == "warn"
+    assert loaded["expected"]["field_expectations"]["graph_profile"] == "tuned_exploratory_graph"
+    assert loaded["expected"]["graph_transitions"] == [
+        "surface_scan->guided_probe",
+        "guided_probe->candidate_review",
+    ]
+
+
 def test_calibration_harness_aggregates_fixture_comparisons() -> None:
     from spec_orch.acceptance_core.calibration import run_acceptance_calibration_harness
     from spec_orch.domain.models import AcceptanceReviewResult

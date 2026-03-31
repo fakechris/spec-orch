@@ -50,3 +50,31 @@ def test_graph_registry_maps_tuned_dashboard_compare_to_replay_shape() -> None:
         "summarize_judgment",
     ]
     assert definition.supports_compare_overlay is True
+
+
+def test_graph_registry_exposes_tuned_workflow_replay_graph() -> None:
+    from spec_orch.acceptance_runtime.graph_registry import graph_definition_for
+
+    definition = graph_definition_for(AcceptanceGraphProfile.TUNED_WORKFLOW_REPLAY)
+
+    assert [step.key for step in definition.steps] == [
+        "workflow_brief",
+        "route_replay",
+        "workflow_gate_review",
+        "summarize_judgment",
+    ]
+    assert definition.supports_compare_overlay is True
+
+
+def test_graph_registry_exposes_tuned_recon_mapping_graph() -> None:
+    from spec_orch.acceptance_runtime.graph_registry import graph_definition_for
+
+    definition = graph_definition_for(AcceptanceGraphProfile.TUNED_RECON_MAPPING)
+
+    assert [step.key for step in definition.steps] == [
+        "surface_scan",
+        "route_seed_probe",
+        "route_map",
+        "summarize_judgment",
+    ]
+    assert definition.supports_compare_overlay is False

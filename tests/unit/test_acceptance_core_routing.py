@@ -140,6 +140,7 @@ def test_round_orchestrator_routes_unknown_surface_to_recon_when_review_routes_m
 def test_routing_surfaces_internal_inputs_and_workflow_tuning_profile() -> None:
     from spec_orch.acceptance_core.routing import (
         AcceptanceRequest,
+        AcceptanceSurfacePackRef,
         build_acceptance_routing_decision,
     )
 
@@ -155,12 +156,76 @@ def test_routing_surfaces_internal_inputs_and_workflow_tuning_profile() -> None:
         judgment_risk="high",
         mutation_risk="medium",
         workflow_tuning_availability="tuned_graph",
+        surface_pack_ref=AcceptanceSurfacePackRef(
+            pack_key="dashboard_surface_pack_v1",
+            subject_kind="mission",
+            subject_id="demo",
+        ),
     )
 
     assert decision.routing_inputs.workflow_tuning_availability == "tuned_graph"
     assert decision.routing_inputs.judgment_risk == "high"
     assert decision.graph_profile == "tuned_dashboard_compare_graph"
-    assert decision.surface_pack_ref is None
+    assert decision.surface_pack_ref is not None
+
+
+def test_routing_activates_tuned_workflow_replay_graph_for_dashboard_pack() -> None:
+    from spec_orch.acceptance_core.routing import (
+        AcceptanceRequest,
+        AcceptanceSurfacePackRef,
+        build_acceptance_routing_decision,
+    )
+
+    decision = build_acceptance_routing_decision(
+        AcceptanceRequest(
+            goal="Check whether this operator workflow still works end-to-end.",
+            target="mission:demo",
+            constraints=["dashboard only", "workflow continuity"],
+        ),
+        contract_strength="strong",
+        surface_familiarity="known",
+        baseline_available=True,
+        workflow_tuning_availability="tuned_graph",
+        surface_pack_ref=AcceptanceSurfacePackRef(
+            pack_key="dashboard_surface_pack_v1",
+            subject_kind="mission",
+            subject_id="demo",
+        ),
+    )
+
+    assert decision.graph_profile == "tuned_workflow_replay_graph"
+    assert decision.base_run_mode.value == "replay"
+    assert "step_artifacts" in decision.evidence_plan
+
+
+def test_routing_activates_tuned_recon_mapping_graph_when_recon_is_needed() -> None:
+    from spec_orch.acceptance_core.routing import (
+        AcceptanceRequest,
+        AcceptanceSurfacePackRef,
+        build_acceptance_routing_decision,
+    )
+
+    decision = build_acceptance_routing_decision(
+        AcceptanceRequest(
+            goal="Map this risky approvals surface before making any strong judgment.",
+            target="mission:demo",
+            constraints=["write surface", "dashboard only"],
+        ),
+        contract_strength="medium",
+        surface_familiarity="known",
+        baseline_available=False,
+        mutation_risk="high",
+        workflow_tuning_availability="tuned_graph",
+        surface_pack_ref=AcceptanceSurfacePackRef(
+            pack_key="dashboard_surface_pack_v1",
+            subject_kind="mission",
+            subject_id="demo",
+        ),
+    )
+
+    assert decision.base_run_mode.value == "recon"
+    assert decision.graph_profile == "tuned_recon_mapping_graph"
+    assert "step_artifacts" in decision.evidence_plan
 
 
 def test_compare_overlay_requires_relevant_baseline_signal() -> None:

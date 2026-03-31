@@ -1002,6 +1002,15 @@ def test_run_supervised_appends_fixture_graduation_from_repeated_reviewed_candid
     assert rows[0]["graph_run"].endswith("graph_run.json")
     assert len(rows[0]["step_artifacts"]) == 4
     assert rows[0]["graph_transitions"][-1] == "assert_contract->summarize_judgment"
+    seed_dir = tmp_path / "docs/specs/mission-1/operator/fixture_candidates"
+    seeds = sorted(seed_dir.glob("*.json"))
+    assert len(seeds) == 1
+    seed_payload = json.loads(seeds[0].read_text(encoding="utf-8"))
+    assert seed_payload["event"]["judgment_id"] == "proposal:0"
+    assert (
+        seed_payload["expected"]["field_expectations"]["graph_profile"] == "verify_contract_graph"
+    )
+    assert seed_payload["expected"]["step_artifacts"][0].endswith("01-contract_brief.json")
 
 
 def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(

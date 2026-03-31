@@ -17,6 +17,7 @@ from spec_orch.acceptance_core.calibration import (
     dashboard_surface_pack_v1,
     load_fixture_graduation_events,
     qualifies_for_fixture_candidate,
+    write_fixture_candidate_seed,
 )
 from spec_orch.acceptance_core.models import (
     AcceptanceRunMode,
@@ -1035,6 +1036,12 @@ class RoundOrchestrator:
                 route=str(payload.get("route") or ""),
                 origin_step=str(payload.get("origin_step") or ""),
                 promotion_test=str(payload.get("promotion_test") or ""),
+            )
+            write_fixture_candidate_seed(
+                self.repo_root,
+                mission_id=mission_id,
+                event=payload,
+                review_payload=review.to_dict(),
             )
             if marker:
                 existing_markers.add(marker)

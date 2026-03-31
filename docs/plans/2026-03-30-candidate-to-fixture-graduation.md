@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-30  
 **Epic:** Epic 4 — Acceptance Judgment and Calibration  
-**Status:** Implemented baseline audit trail
+**Status:** Implemented baseline seed generation
 
 ## Goal
 
@@ -50,6 +50,22 @@ Each event records:
 - `source_record_id`
 - `evidence_refs`
 
+## Fixture Candidate Seeds
+
+Baseline seed generation now exists in addition to the audit trail.
+
+Current path:
+
+- `docs/specs/<mission_id>/operator/fixture_candidates/*.json`
+
+Each seed captures:
+
+- the graduation event
+- a review snapshot
+- expected field expectations
+- expected step artifacts
+- expected graph transitions
+
 ## Why This Stops At Audit Trail
 
 Epic 4 should establish:
@@ -60,8 +76,8 @@ Epic 4 should establish:
 
 It should not yet:
 
-- auto-promote into memory
-- auto-create regression fixtures
+- auto-promote into memory beyond reviewed finding provenance
+- auto-publish stable regression fixtures into `tests/fixtures/acceptance`
 - auto-wire evolution policies
 
 Those belong to Epic 5 and Epic 6.
