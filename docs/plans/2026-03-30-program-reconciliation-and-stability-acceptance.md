@@ -183,3 +183,17 @@ This epic should only be considered complete when:
 - dashboard/UI acceptance has a repeatable harness
 - exploratory acceptance has at least bounded smoke coverage
 - acceptance status can be updated continuously without re-opening planning work
+
+## 7. Follow-On Epic
+
+The first full fresh-mission reruns surfaced a new infrastructure gap: runtime
+observability is still fragmented even though the stability harness now exists.
+
+The canonical follow-on epic for that work is:
+
+- `SON-339` / `docs/plans/2026-03-31-runtime-chain-observability-epic.md`
+
+That epic is not “more acceptance testing.” It is the runtime support seam that
+lets operators and harnesses answer where the system is currently waiting
+without manually stitching together worker telemetry, round summaries,
+supervisor state, and acceptance artifacts.
