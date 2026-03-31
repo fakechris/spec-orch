@@ -44,6 +44,12 @@ done
 
 cd "$REPO_ROOT"
 
+MISSION_DIR=""
+MISSION_ID=""
+ROUND_DIR=""
+HARNESS_PID=""
+HARNESS_LOG=""
+
 if [ "$FULL_MODE" != true ]; then
   warn "Dry-run only. This script wraps the fresh ACPX mission smoke path."
   echo
@@ -56,16 +62,59 @@ fi
 step "Capture mission directories before launch"
 BEFORE_FILE="$(mktemp)"
 AFTER_FILE="$(mktemp)"
+HARNESS_LOG="$(mktemp)"
+
+cleanup() {
+  if [ -n "$HARNESS_PID" ] && kill -0 "$HARNESS_PID" >/dev/null 2>&1; then
+    kill "$HARNESS_PID" >/dev/null 2>&1 || true
+  fi
+  rm -f "$BEFORE_FILE" "$AFTER_FILE" "$HARNESS_LOG"
+}
+trap cleanup EXIT
+
 find docs/specs -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort > "$BEFORE_FILE" || true
 
 step "Run canonical fresh mission smoke harness"
-./tests/e2e/fresh_acpx_mission_smoke.sh --full --variant "$VARIANT"
+./tests/e2e/fresh_acpx_mission_smoke.sh --full --variant "$VARIANT" >"$HARNESS_LOG" 2>&1 &
+HARNESS_PID=$!
+
+LAST_CHAIN_STATUS=""
+while kill -0 "$HARNESS_PID" >/dev/null 2>&1; do
+  find docs/specs -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort > "$AFTER_FILE" || true
+  if [ -z "$MISSION_DIR" ]; then
+    MISSION_DIR="$(comm -13 "$BEFORE_FILE" "$AFTER_FILE" | tail -n 1 || true)"
+    if [ -n "$MISSION_DIR" ]; then
+      MISSION_ID="$(basename "$MISSION_DIR")"
+      ok "detected mission: ${MISSION_ID}"
+    fi
+  fi
+
+  if [ -n "$MISSION_ID" ]; then
+    CURRENT_CHAIN_STATUS="$(
+      uv run --python 3.13 spec-orch chain status --mission-id "$MISSION_ID" 2>/dev/null || true
+    )"
+    if [ -n "$CURRENT_CHAIN_STATUS" ] && [ "$CURRENT_CHAIN_STATUS" != "$LAST_CHAIN_STATUS" ]; then
+      echo "chain: ${CURRENT_CHAIN_STATUS}"
+      LAST_CHAIN_STATUS="$CURRENT_CHAIN_STATUS"
+    fi
+  fi
+  sleep 5
+done
+
+if wait "$HARNESS_PID"; then
+  ok "fresh mission smoke harness completed"
+else
+  cat "$HARNESS_LOG" >&2 || true
+  fail "fresh mission smoke harness failed"
+fi
 
 step "Identify the newly created mission"
 find docs/specs -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort > "$AFTER_FILE" || true
-MISSION_DIR="$(comm -13 "$BEFORE_FILE" "$AFTER_FILE" | tail -n 1 || true)"
+if [ -z "$MISSION_DIR" ]; then
+  MISSION_DIR="$(comm -13 "$BEFORE_FILE" "$AFTER_FILE" | tail -n 1 || true)"
+  [ -n "$MISSION_DIR" ] && MISSION_ID="$(basename "$MISSION_DIR")"
+fi
 [ -n "$MISSION_DIR" ] || fail "could not determine new mission directory"
-MISSION_ID="$(basename "$MISSION_DIR")"
 ROUND_DIR="$(find "$MISSION_DIR/rounds" -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1 || true)"
 [ -n "$ROUND_DIR" ] || fail "could not determine latest round directory for ${MISSION_ID}"
 [ -f "$ROUND_DIR/fresh_acpx_mission_e2e_report.json" ] || fail "fresh_acpx_mission_e2e_report.json missing"

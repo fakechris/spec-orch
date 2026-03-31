@@ -29,6 +29,7 @@ from spec_orch.cli import (  # noqa: E402
     gate_commands,
     mission_commands,
     run_commands,
+    runtime_chain_commands,
     spec_commands,
 )
 
@@ -42,6 +43,7 @@ __all__ = [
     "evolution_commands",
     "gate_commands",
     "mission_commands",
+    "runtime_chain_commands",
     "run_commands",
     "spec_commands",
 ]

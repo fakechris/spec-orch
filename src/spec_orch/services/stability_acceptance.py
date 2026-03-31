@@ -5,6 +5,7 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
+from spec_orch.runtime_chain.store import read_chain_status
 from spec_orch.runtime_core.readers import read_issue_execution_attempt
 from spec_orch.services.workspace_service import WorkspaceService
 
@@ -45,6 +46,34 @@ def _latest_report(paths: list[Path]) -> dict[str, Any]:
     return payload
 
 
+def _runtime_chain_summary(chain_root: Path) -> dict[str, Any]:
+    status = read_chain_status(chain_root)
+    if status is None:
+        return {}
+    payload = status.to_dict()
+    payload["chain_root"] = str(chain_root)
+    return payload
+
+
+def _augment_report_with_runtime_chain(
+    report: dict[str, Any], *, check_name: str
+) -> dict[str, Any]:
+    if not report or report.get("runtime_chain"):
+        return report
+    path = str(report.get("_path", "")).strip()
+    if check_name == "issue_start":
+        workspace = str(report.get("workspace", "")).strip()
+        if workspace:
+            report["runtime_chain"] = _runtime_chain_summary(
+                Path(workspace).resolve() / "telemetry" / "runtime_chain"
+            )
+        return report
+    if path:
+        operator_dir = Path(path).resolve().parent
+        report["runtime_chain"] = _runtime_chain_summary(operator_dir / "runtime_chain")
+    return report
+
+
 def write_issue_start_acceptance_report(
     *,
     repo_root: Path,
@@ -72,6 +101,7 @@ def write_issue_start_acceptance_report(
         "workspace": str(workspace),
         "preflight": preflight_report,
         "attempt": _dataclass_payload(attempt) if attempt is not None else None,
+        "runtime_chain": _runtime_chain_summary(workspace / "telemetry" / "runtime_chain"),
     }
     report_dir = repo_root / ".spec_orch" / "acceptance"
     json_path = report_dir / "issue_start_smoke.json"
@@ -116,6 +146,9 @@ def write_mission_start_acceptance_report(
         "variant": variant,
         "round_dir": str(round_dir),
         "fresh_report": fresh_report,
+        "runtime_chain": _runtime_chain_summary(
+            repo_root / "docs" / "specs" / mission_id / "operator" / "runtime_chain"
+        ),
     }
     operator_dir = repo_root / "docs" / "specs" / mission_id / "operator"
     json_path = operator_dir / "mission_start_acceptance.json"
@@ -191,6 +224,9 @@ def write_exploratory_acceptance_report(
         "acceptance_review": acceptance_review,
         "browser_evidence": browser_evidence,
         "fresh_report": fresh_report,
+        "runtime_chain": _runtime_chain_summary(
+            repo_root / "docs" / "specs" / mission_id / "operator" / "runtime_chain"
+        ),
     }
     operator_dir = repo_root / "docs" / "specs" / mission_id / "operator"
     json_path = operator_dir / "exploratory_acceptance_smoke.json"
@@ -226,6 +262,10 @@ def write_stability_acceptance_status(*, repo_root: Path) -> dict[str, str]:
         "mission_start": _latest_report(mission_reports),
         "exploratory": _latest_report(exploratory_reports),
     }
+    checks = {
+        name: _augment_report_with_runtime_chain(report, check_name=name)
+        for name, report in checks.items()
+    }
 
     statuses = [str(item.get("status", "")).strip().lower() for item in checks.values() if item]
     if not statuses:
@@ -248,6 +288,10 @@ def write_stability_acceptance_status(*, repo_root: Path) -> dict[str, str]:
         "checks": checks,
     }
 
+    issue_runtime_chain = checks["issue_start"].get("runtime_chain", {})
+    mission_runtime_chain = checks["mission_start"].get("runtime_chain", {})
+    exploratory_runtime_chain = checks["exploratory"].get("runtime_chain", {})
+
     json_path = acceptance_dir / "stability_acceptance_status.json"
     md_path = repo_root / "docs" / "plans" / "2026-03-30-stability-acceptance-status.md"
     _write_json(json_path, payload)
@@ -262,9 +306,15 @@ def write_stability_acceptance_status(*, repo_root: Path) -> dict[str, str]:
             "## Checks",
             "",
             f"- Issue Start: `{checks['issue_start'].get('status', 'missing')}`",
+            f"  - Chain: `{issue_runtime_chain.get('phase', 'missing')}`"
+            f" / `{issue_runtime_chain.get('status_reason', 'none')}`",
             f"- Mission Start: `{checks['mission_start'].get('status', 'missing')}`",
+            f"  - Chain: `{mission_runtime_chain.get('phase', 'missing')}`"
+            f" / `{mission_runtime_chain.get('status_reason', 'none')}`",
             f"- Dashboard UI: `{checks['dashboard_ui'].get('status', 'missing')}`",
             f"- Exploratory: `{checks['exploratory'].get('status', 'missing')}`",
+            f"  - Chain: `{exploratory_runtime_chain.get('phase', 'missing')}`"
+            f" / `{exploratory_runtime_chain.get('status_reason', 'none')}`",
             "",
         ],
     )

@@ -1,12 +1,15 @@
 # Stability Acceptance Status
 
-- Overall status: `pass`
-- Reported checks: `1/4`
+- Overall status: `fail`
+- Reported checks: `4/4`
 
 ## Checks
 
-- Issue Start: `missing`
-- Mission Start: `missing`
+- Issue Start: `fail`
+  - Chain: `missing` / `none`
+- Mission Start: `pass`
+  - Chain: `completed` / `acceptance_evaluation_completed`
 - Dashboard UI: `pass`
-- Exploratory: `missing`
+- Exploratory: `pass`
+  - Chain: `completed` / `acceptance_evaluation_completed`
 

@@ -175,3 +175,46 @@ def test_execute_acceptance_step_raises_for_non_object_payload() -> None:
             step_input=step_input,
             invoke=lambda system_prompt, user_prompt: "```json\n[]\n```",
         )
+
+
+def test_execute_acceptance_step_skips_leading_non_json_braces() -> None:
+    from spec_orch.acceptance_runtime.graph_models import (
+        AcceptanceGraphProfileDefinition,
+        AcceptanceGraphStep,
+        AcceptanceStepInput,
+    )
+    from spec_orch.acceptance_runtime.step_executor import execute_acceptance_step
+
+    graph = AcceptanceGraphProfileDefinition(
+        profile=AcceptanceGraphProfile.TUNED_EXPLORATORY,
+        steps=[AcceptanceGraphStep(key="surface_scan", instruction="scan the surface")],
+    )
+    step_input = AcceptanceStepInput(
+        mission_id="mission-1",
+        round_id=1,
+        graph_profile=AcceptanceGraphProfile.TUNED_EXPLORATORY,
+        step_key="surface_scan",
+        goal="Investigate transcript usability",
+        target="/?mission=mission-1&tab=transcript",
+    )
+
+    raw_output = """Observed placeholder token {route_hint before structured output.
+{
+  "decision": "continue",
+  "outputs": {"surface_scan_notes": "still parseable"},
+  "next_transition": "guided_probe",
+  "warnings": [],
+  "review_markdown": "## Scan"
+}
+"""
+
+    result = execute_acceptance_step(
+        graph=graph,
+        step=graph.steps[0],
+        step_input=step_input,
+        invoke=lambda system_prompt, user_prompt: raw_output,
+    )
+
+    assert result.decision == "continue"
+    assert result.outputs["surface_scan_notes"] == "still parseable"
+    assert result.next_transition == "guided_probe"

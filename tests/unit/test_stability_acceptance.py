@@ -16,7 +16,34 @@ def test_issue_start_smoke_script_reads_redirected_preflight_report() -> None:
 
     assert "/tmp/spec_orch_issue_start_preflight.json" in script
     assert 'repo_root / ".spec_orch" / "preflight.json"' not in script
-    assert 'if ! uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve; then' not in script
+    assert "PREFLIGHT_EXIT=0" in script
+    assert "spec-orch chain status --issue-id" in script
+    assert (
+        'if ! uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve; then'
+        not in script
+    )
+
+
+def test_mission_harness_polls_runtime_chain_status_while_fresh_run_executes() -> None:
+    script = (
+        Path(__file__).resolve().parents[2] / "tests" / "e2e" / "mission_start_acceptance.sh"
+    ).read_text(encoding="utf-8")
+
+    assert './tests/e2e/fresh_acpx_mission_smoke.sh --full --variant "$VARIANT" >' in script
+    assert "HARNESS_PID=$!" in script
+    assert "spec-orch chain status --mission-id" in script
+    assert 'wait "$HARNESS_PID"' in script
+
+
+def test_exploratory_harness_polls_runtime_chain_status_while_fresh_run_executes() -> None:
+    script = (
+        Path(__file__).resolve().parents[2] / "tests" / "e2e" / "exploratory_acceptance_smoke.sh"
+    ).read_text(encoding="utf-8")
+
+    assert './tests/e2e/fresh_acpx_mission_smoke.sh --full --variant "$VARIANT" >' in script
+    assert "HARNESS_PID=$!" in script
+    assert "spec-orch chain status --mission-id" in script
+    assert 'wait "$HARNESS_PID"' in script
 
 
 def test_write_issue_start_acceptance_report_materializes_normalized_attempt(
@@ -240,6 +267,18 @@ def test_write_stability_acceptance_status_summarizes_latest_reports(
         operator_dir / "exploratory_acceptance_smoke.json",
         {"status": "fail", "mission_id": mission_id, "variant": "default"},
     )
+    _write_json(
+        operator_dir / "runtime_chain" / "chain_status.json",
+        {
+            "chain_id": "mission-chain-7",
+            "active_span_id": "mission-chain-7:acceptance",
+            "subject_kind": "acceptance",
+            "subject_id": "acceptance-round-03",
+            "phase": "degraded",
+            "status_reason": "acceptance_model_waiting",
+            "updated_at": "2026-03-31T10:15:00+00:00",
+        },
+    )
 
     report = write_stability_acceptance_status(repo_root=tmp_path)
 
@@ -250,6 +289,12 @@ def test_write_stability_acceptance_status_summarizes_latest_reports(
     assert report_json["checks"]["issue_start"]["status"] == "pass"
     assert report_json["checks"]["dashboard_ui"]["status"] == "pass"
     assert report_json["checks"]["mission_start"]["mission_id"] == mission_id
+    assert report_json["checks"]["mission_start"]["runtime_chain"]["phase"] == "degraded"
+    assert (
+        report_json["checks"]["mission_start"]["runtime_chain"]["status_reason"]
+        == "acceptance_model_waiting"
+    )
     assert report_json["checks"]["exploratory"]["status"] == "fail"
     assert "Exploratory" in report_md
     assert "fail" in report_md.lower()
+    assert "acceptance_model_waiting" in report_md

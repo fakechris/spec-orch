@@ -219,6 +219,61 @@ def test_build_round_orchestrator_wires_acceptance_evaluator_and_filer(
     assert captured_acceptance["api_type"] == "anthropic"
 
 
+def test_build_round_orchestrator_passes_acpx_worker_robustness_knobs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = DaemonConfig(
+        {
+            "builder": {
+                "adapter": "acpx_opencode",
+                "startup_timeout_seconds": 17,
+                "idle_progress_timeout_seconds": 45,
+                "completion_quiet_period_seconds": 3,
+                "max_retries": 2,
+                "max_turns_per_session": 7,
+                "max_session_age_seconds": 900,
+            },
+            "supervisor": {
+                "adapter": "litellm",
+                "model": "openai/gpt-4o",
+            },
+        }
+    )
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    captured_orchestrator: dict[str, object] = {}
+    captured_factory: dict[str, object] = {}
+
+    class StubRoundOrchestrator:
+        def __init__(self, **kwargs):
+            captured_orchestrator.update(kwargs)
+
+    monkeypatch.setattr(
+        "spec_orch.services.litellm_supervisor_adapter.LiteLLMSupervisorAdapter",
+        lambda **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "spec_orch.services.workers.acpx_worker_handle_factory.AcpxWorkerHandleFactory",
+        lambda **kwargs: captured_factory.update(kwargs) or object(),
+    )
+    monkeypatch.setattr(
+        "spec_orch.services.round_orchestrator.RoundOrchestrator",
+        StubRoundOrchestrator,
+    )
+
+    orchestrator = daemon._build_round_orchestrator()
+
+    assert isinstance(orchestrator, StubRoundOrchestrator)
+    assert captured_orchestrator["worker_factory"] is not None
+    assert captured_factory["agent"] == "opencode"
+    assert captured_factory["startup_timeout_seconds"] == 17.0
+    assert captured_factory["idle_progress_timeout_seconds"] == 45.0
+    assert captured_factory["completion_quiet_period_seconds"] == 3.0
+    assert captured_factory["max_retries"] == 2
+    assert captured_factory["max_turns_per_session"] == 7
+    assert captured_factory["max_session_age_seconds"] == 900.0
+
+
 def test_daemon_poll_and_run_skips_locked(tmp_path: Path) -> None:
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)

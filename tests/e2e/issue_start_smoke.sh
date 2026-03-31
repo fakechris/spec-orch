@@ -66,16 +66,39 @@ fi
 [ -f "fixtures/issues/${ISSUE_ID}.json" ] || fail "fixture issue fixtures/issues/${ISSUE_ID}.json missing"
 
 step "Run preflight"
-uv run --python 3.13 spec-orch preflight --json >/tmp/spec_orch_issue_start_preflight.json
-ok "preflight completed"
+PREFLIGHT_EXIT=0
+if uv run --python 3.13 spec-orch preflight --json >/tmp/spec_orch_issue_start_preflight.json; then
+  ok "preflight completed"
+else
+  PREFLIGHT_EXIT=$?
+  warn "preflight exited with status ${PREFLIGHT_EXIT}; materializing smoke report before failing"
+fi
 
 step "Run fixture issue through full pipeline"
 RUN_EXIT=0
-if uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve; then
-  :
+RUN_LOG="$(mktemp -t spec_orch_issue_start_run.XXXXXX.log)"
+LAST_CHAIN_STATUS=""
+if [ "$PREFLIGHT_EXIT" -eq 0 ]; then
+  uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve >"$RUN_LOG" 2>&1 &
+  RUN_PID=$!
+  while kill -0 "$RUN_PID" 2>/dev/null; do
+    CHAIN_STATUS="$(uv run --python 3.13 spec-orch chain status --issue-id "$ISSUE_ID" 2>/dev/null || true)"
+    if [ -n "$CHAIN_STATUS" ] && [ "$CHAIN_STATUS" != "$LAST_CHAIN_STATUS" ]; then
+      echo "chain> $CHAIN_STATUS"
+      LAST_CHAIN_STATUS="$CHAIN_STATUS"
+    fi
+    sleep 5
+  done
+  if wait "$RUN_PID"; then
+    :
+  else
+    RUN_EXIT=$?
+    warn "spec-orch run exited with status ${RUN_EXIT}; materializing smoke report before failing"
+    tail -n 80 "$RUN_LOG" >&2 || true
+  fi
 else
-  RUN_EXIT=$?
-  warn "spec-orch run exited with status ${RUN_EXIT}; materializing smoke report before failing"
+  RUN_EXIT=$PREFLIGHT_EXIT
+  warn "Skipping fixture issue run because preflight failed"
 fi
 
 step "Materialize issue-start acceptance report"

@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from spec_orch.runtime_chain.store import read_chain_events
+from spec_orch.runtime_chain.store import read_chain_events, read_chain_status
 from spec_orch.services.workers.acpx_worker_handle import AcpxWorkerHandle
 from spec_orch.services.workers.acpx_worker_handle_factory import AcpxWorkerHandleFactory
 
@@ -152,6 +152,13 @@ def test_acpx_worker_handle_links_worker_turn_to_runtime_chain(
     assert [event.phase.value for event in chain_events] == ["started", "completed"]
     assert all(event.subject_kind.value == "packet" for event in chain_events)
     assert all(event.subject_id == "mission-m1-pkt1" for event in chain_events)
+    chain_status = read_chain_status(chain_root)
+    assert chain_status is not None
+    assert chain_status.chain_id == "chain-mission-1"
+    assert chain_status.subject_kind.value == "packet"
+    assert chain_status.subject_id == "mission-m1-pkt1"
+    assert chain_status.phase.value == "completed"
+    assert chain_status.active_span_id == "span-pkt-1-worker"
     mock_ensure_session.assert_called_once()
 
 

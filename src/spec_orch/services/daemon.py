@@ -382,6 +382,16 @@ class SpecOrchDaemon:
                 executable=builder_cfg.get("executable", "npx"),
                 acpx_package=builder_cfg.get("acpx_package", "acpx"),
                 absolute_timeout_seconds=float(builder_cfg.get("timeout_seconds", 1800)),
+                startup_timeout_seconds=float(builder_cfg.get("startup_timeout_seconds", 30)),
+                idle_progress_timeout_seconds=float(
+                    builder_cfg.get("idle_progress_timeout_seconds", 60)
+                ),
+                completion_quiet_period_seconds=float(
+                    builder_cfg.get("completion_quiet_period_seconds", 2)
+                ),
+                max_retries=int(builder_cfg.get("max_retries", 1)),
+                max_turns_per_session=int(builder_cfg.get("max_turns_per_session", 10)),
+                max_session_age_seconds=float(builder_cfg.get("max_session_age_seconds", 1800)),
             )
         else:
             worker_factory = InMemoryWorkerHandleFactory(
