@@ -151,6 +151,27 @@ def test_memory_lifecycle_reclaims_stale_lock(tmp_path: Path) -> None:
     assert manager.reserve_shared_memory_write("acceptance:route:/dashboard") is True
 
 
+def test_memory_lifecycle_stale_lock_race_raises_runtimeerror(tmp_path: Path) -> None:
+    provider = FileSystemMemoryProvider(tmp_path / "memory")
+    manager = MemoryLifecycleManager(tmp_path / "memory" / "_lifecycle", provider)
+    stale_lock = tmp_path / "memory" / "_lifecycle" / "shared_memory_claims.lock"
+    stale_lock.parent.mkdir(parents=True, exist_ok=True)
+    stale_lock.write_text("2000-01-01T00:00:00+00:00", encoding="utf-8")
+
+    original_open = Path.open
+
+    def _open_with_race(self: Path, mode: str = "r", *args, **kwargs):
+        if self == stale_lock and mode == "x":
+            raise FileExistsError("lost race")
+        return original_open(self, mode, *args, **kwargs)
+
+    with (
+        patch.object(Path, "open", _open_with_race),
+        pytest.raises(RuntimeError, match="lock already held: shared_memory_claims"),
+    ):
+        manager.reserve_shared_memory_write("acceptance:route:/dashboard")
+
+
 def test_memory_lifecycle_shared_memory_sync_uses_stable_content_hash(tmp_path: Path) -> None:
     provider = FileSystemMemoryProvider(tmp_path / "memory")
     manager = MemoryLifecycleManager(tmp_path / "memory" / "_lifecycle", provider)

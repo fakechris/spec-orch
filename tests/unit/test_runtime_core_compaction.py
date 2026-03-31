@@ -71,6 +71,19 @@ def test_evaluate_compaction_input_uses_budget_pressure() -> None:
     assert decision.effective_budget == 800
 
 
+def test_evaluate_compaction_input_respects_explicit_zero_threshold() -> None:
+    decision = evaluate_compaction_input(
+        effective_context_window=1000,
+        reserved_output_budget=200,
+        transcript_size=0,
+        recent_growth=0,
+        threshold=0,
+    )
+
+    assert decision.threshold == 0
+    assert decision.trigger is True
+
+
 def test_run_memory_compaction_writes_boundary_and_telemetry(tmp_path: Path) -> None:
     memory = _FakeMemoryService()
     decision = evaluate_compaction_trigger(observed_count=10, threshold=10)

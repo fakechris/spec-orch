@@ -315,7 +315,10 @@ class MemoryLifecycleManager:
                 seconds=stale_after_seconds
             ):
                 lock_path.unlink(missing_ok=True)
-                fd = lock_path.open("x", encoding="utf-8")
+                try:
+                    fd = lock_path.open("x", encoding="utf-8")
+                except FileExistsError:
+                    raise RuntimeError(f"lock already held: {lock_name}") from exc
             else:
                 raise RuntimeError(f"lock already held: {lock_name}") from exc
         try:

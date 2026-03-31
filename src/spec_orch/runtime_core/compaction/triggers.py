@@ -15,7 +15,7 @@ def evaluate_compaction_policy(
         0,
         slice_.effective_context_window - slice_.reserved_output_budget,
     )
-    trigger_threshold = threshold or max(1, int(effective_budget * 0.8))
+    trigger_threshold = threshold if threshold is not None else max(1, int(effective_budget * 0.8))
     should_trigger = slice_.transcript_size >= trigger_threshold or slice_.recent_growth >= max(
         1, int(trigger_threshold * 0.15)
     )

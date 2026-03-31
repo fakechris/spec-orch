@@ -262,6 +262,3 @@ the baseline defined in this plan.
 - `ruff check`: passed
 - `ruff format --check`: passed
 - `mypy`: passed
-- `ruff check`: pass
-- `ruff format --check`: pass
-- `mypy`: pass
