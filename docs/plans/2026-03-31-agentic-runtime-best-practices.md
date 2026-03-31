@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-31  
 **Program Fit:** Epics 2-4, with downstream impact on Epics 5-7  
-**Status:** Research synthesis
+**Status:** Adopted architecture standard
 
 ## Goal
 
@@ -24,6 +24,17 @@ Companion package documents:
 - `2026-03-31-compaction-package.md`
 - `2026-03-31-memory-package.md`
 - `2026-03-31-long-task-observability-package.md`
+
+## Adoption Status
+
+As of 2026-03-31, SpecOrch has absorbed the first complete package baseline implied by
+this research:
+
+- runtime control remains code-owned in `runtime_core` / `runtime_chain`
+- judgment and calibration remain separate in `acceptance_core`
+- `acceptance_runtime` now consumes runtime-owned packages instead of duplicating them
+- tool runtime, compaction, memory lifecycle, and long-task observability now exist as
+  explicit package seams rather than scattered behaviors
 
 ## Executive Summary
 

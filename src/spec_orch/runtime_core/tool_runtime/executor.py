@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 
 from spec_orch.runtime_core.tool_runtime.hooks import HookDispatcher
 from spec_orch.runtime_core.tool_runtime.models import (
@@ -10,7 +11,9 @@ from spec_orch.runtime_core.tool_runtime.models import (
     ToolExecutionRequest,
     ToolExecutionResult,
     ToolLifecycleEvent,
+    ToolPairingRecord,
 )
+from spec_orch.runtime_core.tool_runtime.pairing import append_tool_pairing
 from spec_orch.runtime_core.tool_runtime.permissions import evaluate_permission
 from spec_orch.runtime_core.tool_runtime.registry import ToolRegistry
 from spec_orch.runtime_core.tool_runtime.telemetry import append_tool_lifecycle_event
@@ -25,14 +28,17 @@ def execute_tool_request(
     hooks: HookDispatcher | None = None,
 ) -> ToolExecutionResult:
     dispatcher = hooks or HookDispatcher()
+    request_id = request.request_id or f"toolreq-{uuid.uuid4().hex[:12]}"
     try:
         definition = registry.resolve(request.tool_name)
     except KeyError:
         result = ToolExecutionResult(
             tool_name=request.tool_name,
             success=False,
+            request_id=request_id,
             error=f"Unknown tool: {request.tool_name}",
         )
+        _record_pairing(request, result)
         _emit(
             request,
             ToolLifecycleEvent(
@@ -49,8 +55,10 @@ def execute_tool_request(
         result = ToolExecutionResult(
             tool_name=definition.name,
             success=False,
+            request_id=request_id,
             error=f"Missing required fields: {', '.join(missing)}",
         )
+        _record_pairing(request, result)
         _emit(
             request,
             ToolLifecycleEvent(
@@ -64,6 +72,32 @@ def execute_tool_request(
         )
         return result
 
+    if definition.validator is not None:
+        try:
+            validated_arguments = definition.validator(dict(request.arguments))
+        except Exception as exc:
+            result = ToolExecutionResult(
+                tool_name=definition.name,
+                success=False,
+                request_id=request_id,
+                error=f"validation failed: {exc}",
+            )
+            _record_pairing(request, result)
+            _emit(
+                request,
+                ToolLifecycleEvent(
+                    tool_name=definition.name,
+                    phase="failed",
+                    success=False,
+                    error=result.error,
+                    telemetry_label=definition.telemetry_label,
+                    arguments=request.arguments,
+                ),
+            )
+            return result
+    else:
+        validated_arguments = dict(request.arguments)
+
     effective_permissions = request.allowed_permissions or set()
     permission = evaluate_permission(
         definition,
@@ -73,9 +107,11 @@ def execute_tool_request(
         result = ToolExecutionResult(
             tool_name=definition.name,
             success=False,
+            request_id=request_id,
             error=permission.reason,
             permission=permission,
         )
+        _record_pairing(request, result)
         _emit(
             request,
             ToolLifecycleEvent(
@@ -95,9 +131,11 @@ def execute_tool_request(
         result = ToolExecutionResult(
             tool_name=definition.name,
             success=False,
+            request_id=request_id,
             error=f"pre-hook failed: {exc}",
             permission=permission,
         )
+        _record_pairing(request, result)
         _emit(
             request,
             ToolLifecycleEvent(
@@ -116,17 +154,19 @@ def execute_tool_request(
             tool_name=definition.name,
             phase="started",
             telemetry_label=definition.telemetry_label,
-            arguments=request.arguments,
+            arguments=validated_arguments,
+            metadata={"request_id": request_id},
         ),
     )
     started = time.monotonic()
     try:
-        output = definition.adapter(request.arguments)
+        output = definition.adapter(validated_arguments)
     except Exception as exc:
         duration_ms = int((time.monotonic() - started) * 1000)
         result = ToolExecutionResult(
             tool_name=definition.name,
             success=False,
+            request_id=request_id,
             error=str(exc),
             duration_ms=duration_ms,
             permission=permission,
@@ -148,15 +188,18 @@ def execute_tool_request(
                 error=result.error,
                 duration_ms=duration_ms,
                 telemetry_label=definition.telemetry_label,
-                arguments=request.arguments,
+                arguments=validated_arguments,
+                metadata={"request_id": request_id},
             ),
         )
+        _record_pairing(request, result)
         return result
 
     duration_ms = int((time.monotonic() - started) * 1000)
     result = ToolExecutionResult(
         tool_name=definition.name,
         success=True,
+        request_id=request_id,
         output=output,
         duration_ms=duration_ms,
         permission=permission,
@@ -167,6 +210,7 @@ def execute_tool_request(
         failed = ToolExecutionResult(
             tool_name=definition.name,
             success=False,
+            request_id=request_id,
             error=f"post-hook failed: {exc}",
             duration_ms=duration_ms,
             permission=permission,
@@ -180,9 +224,11 @@ def execute_tool_request(
                 error=failed.error,
                 duration_ms=duration_ms,
                 telemetry_label=definition.telemetry_label,
-                arguments=request.arguments,
+                arguments=validated_arguments,
+                metadata={"request_id": request_id},
             ),
         )
+        _record_pairing(request, failed)
         return failed
     _emit(
         request,
@@ -192,9 +238,11 @@ def execute_tool_request(
             success=True,
             duration_ms=duration_ms,
             telemetry_label=definition.telemetry_label,
-            arguments=request.arguments,
+            arguments=validated_arguments,
+            metadata={"request_id": request_id},
         ),
     )
+    _record_pairing(request, result)
     return result
 
 
@@ -236,6 +284,28 @@ def _emit(request: ToolExecutionRequest, event: ToolLifecycleEvent) -> None:
     except Exception:
         logger.debug(
             "tool lifecycle emission failed for %s",
+            request.tool_name,
+            exc_info=True,
+        )
+
+
+def _record_pairing(request: ToolExecutionRequest, result: ToolExecutionResult) -> None:
+    if request.telemetry_root is None:
+        return
+    try:
+        append_tool_pairing(
+            request.telemetry_root,
+            ToolPairingRecord(
+                request_id=result.request_id or request.request_id,
+                tool_name=result.tool_name,
+                status="completed" if result.success else "failed",
+                error=result.error,
+                metadata={"duration_ms": result.duration_ms},
+            ),
+        )
+    except Exception:
+        logger.debug(
+            "tool pairing record failed for %s",
             request.tool_name,
             exc_info=True,
         )

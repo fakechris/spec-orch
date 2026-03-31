@@ -35,6 +35,9 @@ class RuntimeBudgetVisibility:
     remaining_steps: int
     loop_budget: int = 0
     remaining_loop_budget: int = 0
+    continuation_count: int = 0
+    recent_token_growth: int = 0
+    justified: bool = True
 
     def to_dict(self) -> dict[str, int | str]:
         return {
@@ -44,6 +47,9 @@ class RuntimeBudgetVisibility:
             "remaining_steps": self.remaining_steps,
             "loop_budget": self.loop_budget,
             "remaining_loop_budget": self.remaining_loop_budget,
+            "continuation_count": self.continuation_count,
+            "recent_token_growth": self.recent_token_growth,
+            "justified": self.justified,
         }
 
     @classmethod
@@ -55,6 +61,9 @@ class RuntimeBudgetVisibility:
             remaining_steps=_int_value(payload.get("remaining_steps", 0)),
             loop_budget=_int_value(payload.get("loop_budget", 0)),
             remaining_loop_budget=_int_value(payload.get("remaining_loop_budget", 0)),
+            continuation_count=_int_value(payload.get("continuation_count", 0)),
+            recent_token_growth=_int_value(payload.get("recent_token_growth", 0)),
+            justified=bool(payload.get("justified", True)),
         )
 
 
@@ -63,12 +72,16 @@ class RuntimeStallSignal:
     stalled: bool = False
     idle_seconds: int = 0
     reason: str = ""
+    diminishing_returns: bool = False
+    repeated_steps: int = 0
 
     def to_dict(self) -> dict[str, bool | int | str]:
         return {
             "stalled": self.stalled,
             "idle_seconds": self.idle_seconds,
             "reason": self.reason,
+            "diminishing_returns": self.diminishing_returns,
+            "repeated_steps": self.repeated_steps,
         }
 
     @classmethod
@@ -77,6 +90,8 @@ class RuntimeStallSignal:
             stalled=bool(payload.get("stalled", False)),
             idle_seconds=_int_value(payload.get("idle_seconds", 0)),
             reason=str(payload.get("reason", "")),
+            diminishing_returns=bool(payload.get("diminishing_returns", False)),
+            repeated_steps=_int_value(payload.get("repeated_steps", 0)),
         )
 
 
@@ -178,6 +193,66 @@ class RuntimeRecap:
             subject_key=str(payload.get("subject_key", "")),
             title=str(payload.get("title", "")),
             bullets=[str(item) for item in bullets] if isinstance(bullets, list) else [],
+            artifact_refs=_string_dict(payload.get("artifact_refs")),
+            updated_at=str(payload.get("updated_at", "")),
+        )
+
+
+@dataclass(slots=True)
+class RuntimeStepSummary:
+    subject_key: str
+    step_key: str
+    summary: str
+    artifact_refs: dict[str, str] = field(default_factory=dict)
+    updated_at: str = ""
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "subject_key": self.subject_key,
+            "step_key": self.step_key,
+            "summary": self.summary,
+            "artifact_refs": self.artifact_refs,
+            "updated_at": self.updated_at,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> RuntimeStepSummary:
+        return cls(
+            subject_key=str(payload.get("subject_key", "")),
+            step_key=str(payload.get("step_key", "")),
+            summary=str(payload.get("summary", "")),
+            artifact_refs=_string_dict(payload.get("artifact_refs")),
+            updated_at=str(payload.get("updated_at", "")),
+        )
+
+
+@dataclass(slots=True)
+class RuntimeBatchSummary:
+    subject_key: str
+    batch_key: str
+    steps: list[str]
+    summary: str
+    artifact_refs: dict[str, str] = field(default_factory=dict)
+    updated_at: str = ""
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "subject_key": self.subject_key,
+            "batch_key": self.batch_key,
+            "steps": list(self.steps),
+            "summary": self.summary,
+            "artifact_refs": self.artifact_refs,
+            "updated_at": self.updated_at,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> RuntimeBatchSummary:
+        steps = payload.get("steps") or []
+        return cls(
+            subject_key=str(payload.get("subject_key", "")),
+            batch_key=str(payload.get("batch_key", "")),
+            steps=[str(item) for item in steps] if isinstance(steps, list) else [],
+            summary=str(payload.get("summary", "")),
             artifact_refs=_string_dict(payload.get("artifact_refs")),
             updated_at=str(payload.get("updated_at", "")),
         )

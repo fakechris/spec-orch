@@ -4,9 +4,10 @@ import json
 import logging
 from pathlib import Path
 
-from spec_orch.runtime_core.tool_runtime.models import ToolLifecycleEvent
+from spec_orch.runtime_core.tool_runtime.models import ToolLifecycleEvent, ToolProgressEvent
 
 TOOL_LIFECYCLE_FILENAME = "tool_lifecycle.jsonl"
+TOOL_PROGRESS_FILENAME = "tool_progress.jsonl"
 logger = logging.getLogger(__name__)
 
 
@@ -32,4 +33,29 @@ def read_tool_lifecycle_events(root: Path) -> list[ToolLifecycleEvent]:
         payload = json.loads(line)
         if isinstance(payload, dict):
             rows.append(ToolLifecycleEvent.from_dict(payload))
+    return rows
+
+
+def append_tool_progress_event(root: Path, event: ToolProgressEvent) -> Path:
+    path = Path(root) / TOOL_PROGRESS_FILENAME
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+    except OSError:
+        logger.debug("tool progress telemetry write failed: %s", path, exc_info=True)
+    return path
+
+
+def read_tool_progress_events(root: Path) -> list[ToolProgressEvent]:
+    path = Path(root) / TOOL_PROGRESS_FILENAME
+    if not path.exists():
+        return []
+    rows: list[ToolProgressEvent] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        if isinstance(payload, dict):
+            rows.append(ToolProgressEvent.from_dict(payload))
     return rows

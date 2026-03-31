@@ -21,7 +21,12 @@ from spec_orch.services.memory._utils import list_summaries_compat
 from spec_orch.services.memory.analytics import MemoryAnalytics
 from spec_orch.services.memory.distiller import MemoryDistiller
 from spec_orch.services.memory.fs_provider import FileSystemMemoryProvider
-from spec_orch.services.memory.lifecycle import MemoryLifecycleManager, SessionMemorySnapshot
+from spec_orch.services.memory.lifecycle import (
+    MemoryLifecycleManager,
+    SessionMemorySnapshot,
+    SessionSnapshotCadenceDecision,
+    SharedMemorySyncEvent,
+)
 from spec_orch.services.memory.protocol import MemoryProvider
 from spec_orch.services.memory.recorder import MemoryRecorder
 from spec_orch.services.memory.types import MemoryEntry, MemoryLayer, MemoryQuery
@@ -332,6 +337,23 @@ class MemoryService:
     def should_snapshot_session(self, event_count: int, *, every_n_events: int = 2) -> bool:
         return self._lifecycle.should_snapshot_session(event_count, every_n_events=every_n_events)
 
+    def evaluate_snapshot_cadence(
+        self,
+        *,
+        event_count: int,
+        token_growth: int = 0,
+        tool_calls: int = 0,
+        natural_break: bool = False,
+        every_n_events: int = 2,
+    ) -> SessionSnapshotCadenceDecision:
+        return self._lifecycle.evaluate_snapshot_cadence(
+            event_count=event_count,
+            token_growth=token_growth,
+            tool_calls=tool_calls,
+            natural_break=natural_break,
+            every_n_events=every_n_events,
+        )
+
     def record_session_snapshot(
         self,
         *,
@@ -361,6 +383,36 @@ class MemoryService:
 
     def consolidation_lock(self, lock_name: str = "consolidation") -> Any:
         return self._lifecycle.consolidation_lock(lock_name)
+
+    def validate_shared_memory_content(
+        self,
+        *,
+        repo_scope: str,
+        content: str,
+    ) -> tuple[bool, str]:
+        return self._lifecycle.validate_shared_memory_content(
+            repo_scope=repo_scope,
+            content=content,
+        )
+
+    def record_shared_memory_sync(
+        self,
+        *,
+        sync_id: str,
+        repo_scope: str,
+        source: str,
+        freshness_key: str,
+        content: str,
+        status: str = "written",
+    ) -> SharedMemorySyncEvent:
+        return self._lifecycle.record_shared_memory_sync(
+            sync_id=sync_id,
+            repo_scope=repo_scope,
+            source=source,
+            freshness_key=freshness_key,
+            content=content,
+            status=status,
+        )
 
     # -- recorder delegates --------------------------------------------------
 

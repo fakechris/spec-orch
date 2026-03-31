@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-31  
 **Program Fit:** Epics 2-4, with operator-facing impact  
-**Status:** Recommended subsystem standard
+**Status:** Adopted subsystem standard
 
 ## Goal
 
@@ -189,3 +189,17 @@ The package should be considered complete when:
 - stalls and diminishing returns are visible
 - step or batch artifacts are operator-readable
 - handoff recaps exist without relying on raw transcript review
+
+## Completion Snapshot
+
+This package is now absorbed into `runtime_chain`, `runtime_core.observability`, and
+`acceptance_runtime`.
+
+Implemented baseline:
+
+- budget visibility with continuation posture
+- live progress summaries
+- step and batch summaries
+- stall and diminishing-returns signals
+- structured chain event trail and live status
+- operator-readable recaps consumed by acceptance graph runs

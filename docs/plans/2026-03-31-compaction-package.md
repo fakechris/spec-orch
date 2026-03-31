@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-31  
 **Program Fit:** Epics 2-3, with downstream impact on Epic 4  
-**Status:** Recommended subsystem standard
+**Status:** Adopted subsystem standard
 
 ## Goal
 
@@ -188,3 +188,16 @@ The package should be considered complete when:
 - critical state is restored after compaction
 - compact boundaries are explicit
 - operators can inspect compaction telemetry when tasks drift
+
+## Completion Snapshot
+
+This package is now absorbed into `runtime_core.compaction`.
+
+Implemented baseline:
+
+- explicit trigger evaluation
+- recursion/collapse guard via runtime lock
+- prompt-too-long retry and fallback path
+- restore bundles from compact boundaries
+- explicit boundary markers and last-compaction status
+- operator-readable compaction telemetry

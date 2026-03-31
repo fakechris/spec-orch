@@ -16,6 +16,8 @@ class CompactionTriggerDecision:
     threshold: int
     observed_count: int
     posture: str = "standard"
+    source_size: int = 0
+    effective_budget: int = 0
 
 
 @dataclass(slots=True)
@@ -30,6 +32,17 @@ class CompactionRestoreBundle:
             "attachment_refs": self.attachment_refs,
             "discovered_tools": self.discovered_tools,
         }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> CompactionRestoreBundle:
+        discovered_tools = payload.get("discovered_tools") or []
+        return cls(
+            restored_state=_mapping_or_empty(payload.get("restored_state")),
+            attachment_refs=_mapping_or_empty(payload.get("attachment_refs")),
+            discovered_tools=[
+                str(item) for item in discovered_tools if isinstance(item, str) and item.strip()
+            ],
+        )
 
 
 @dataclass(slots=True)
@@ -80,3 +93,34 @@ class CompactionTelemetryEvent:
             details=_mapping_or_empty(payload.get("details")),
             created_at=str(payload.get("created_at", "")),
         )
+
+
+@dataclass(slots=True)
+class CompactionInputSlice:
+    effective_context_window: int
+    reserved_output_budget: int
+    transcript_size: int
+    recent_growth: int = 0
+    posture: str = "standard"
+
+
+@dataclass(slots=True)
+class CompactionResult:
+    triggered: bool
+    boundary: dict[str, Any] = field(default_factory=dict)
+    stats: dict[str, Any] = field(default_factory=dict)
+    restore_bundle: dict[str, Any] = field(default_factory=dict)
+    retries_used: int = 0
+    fallback_used: str = ""
+    guard_state: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "triggered": self.triggered,
+            "boundary": self.boundary,
+            "stats": self.stats,
+            "restore_bundle": self.restore_bundle,
+            "retries_used": self.retries_used,
+            "fallback_used": self.fallback_used,
+            "guard_state": self.guard_state,
+        }

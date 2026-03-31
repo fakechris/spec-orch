@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-31  
 **Program Fit:** Epics 2-4  
-**Status:** Recommended subsystem standard
+**Status:** Adopted subsystem standard
 
 ## Goal
 
@@ -210,3 +210,18 @@ The package should be considered complete when:
 - tool request/result integrity is enforced
 - hooks and telemetry are first-class
 - deferred tool state survives long-running session behavior
+
+## Completion Snapshot
+
+This package is now absorbed into `runtime_core.tool_runtime`.
+
+Implemented baseline:
+
+- registry-owned tool identity
+- validation before execution
+- deny-by-default permission gating
+- lifecycle hook containment
+- runtime-owned batch planning
+- pairing integrity records
+- dynamic/conditional activation
+- lifecycle and progress telemetry

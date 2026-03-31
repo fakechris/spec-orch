@@ -1,6 +1,6 @@
 # Runtime Package Absorption Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Execution Note:** Use `superpowers:executing-plans` to implement this plan task-by-task.
 
 **Goal:** Absorb the 2026-03-31 runtime package research into SpecOrch as a coherent architecture program that strengthens runtime completeness without collapsing acceptance judgment into execution control.
 
@@ -230,7 +230,8 @@ This architecture absorption should be considered complete when:
 
 ## 9. Current Completion Status
 
-As of 2026-03-31, the first package-absorption tranche is implemented.
+As of 2026-03-31, the runtime package absorption program is implemented to completion for
+the baseline defined in this plan.
 
 ### Implemented packages
 
@@ -248,7 +249,7 @@ As of 2026-03-31, the first package-absorption tranche is implemented.
   - `MemoryService` now exposes lifecycle methods instead of keeping this logic implicit.
 - `SON-351` Long-Task Observability Package
   - `runtime_core.observability` now owns budget visibility, progress events, live summaries,
-    and human-readable recaps.
+    step summaries, batch summaries, stall signals, and human-readable recaps.
 - `SON-352` Acceptance Runtime Alignment
   - `acceptance_runtime.runner` now consumes runtime-owned observability and memory lifecycle
     packages.
@@ -256,8 +257,11 @@ As of 2026-03-31, the first package-absorption tranche is implemented.
 
 ### Verification snapshot
 
-- runtime package matrix: `42 passed`
-- acceptance/memory alignment matrix: `69 passed`
+- runtime/acceptance package matrix: `106 passed`
+- focused observability/acceptance runner regression matrix: `10 passed`
+- `ruff check`: passed
+- `ruff format --check`: passed
+- `mypy`: passed
 - `ruff check`: pass
 - `ruff format --check`: pass
 - `mypy`: pass
