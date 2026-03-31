@@ -318,6 +318,28 @@ def test_write_fixture_candidate_seed_persists_review_snapshot_and_expected_fiel
     ]
 
 
+def test_load_fixture_candidate_seed_rejects_non_object_payload(tmp_path: Path) -> None:
+    from spec_orch.acceptance_core.calibration import (
+        fixture_candidate_seed_dir,
+        load_fixture_candidate_seed,
+    )
+
+    seed_dir = fixture_candidate_seed_dir(tmp_path, "mission-1")
+    seed_dir.mkdir(parents=True, exist_ok=True)
+    (seed_dir / "bad-seed.json").write_text('["not", "an", "object"]', encoding="utf-8")
+
+    try:
+        load_fixture_candidate_seed(
+            tmp_path,
+            mission_id="mission-1",
+            seed_name="bad-seed",
+        )
+    except TypeError as exc:
+        assert "JSON object" in str(exc)
+    else:
+        raise AssertionError("expected load_fixture_candidate_seed to reject non-object JSON")
+
+
 def test_calibration_harness_aggregates_fixture_comparisons() -> None:
     from spec_orch.acceptance_core.calibration import run_acceptance_calibration_harness
     from spec_orch.domain.models import AcceptanceReviewResult

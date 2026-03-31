@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from spec_orch.acceptance_core.models import AcceptanceJudgment, AcceptanceJudgmentClass
 from spec_orch.domain.models import AcceptanceReviewResult
@@ -375,7 +375,10 @@ def load_fixture_candidate_seed(
     seed_name: str,
 ) -> dict[str, Any]:
     path = fixture_candidate_seed_dir(repo_root, mission_id) / f"{seed_name}.json"
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise TypeError(f"fixture candidate seed must be a JSON object: {path}")
+    return cast(dict[str, Any], payload)
 
 
 def append_fixture_graduation_event(

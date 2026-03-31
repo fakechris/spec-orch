@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from spec_orch.acceptance_core.routing import AcceptanceGraphProfile
 
 
@@ -92,3 +94,84 @@ def test_execute_acceptance_step_parses_structured_output_from_invoker() -> None
     assert result.next_transition == "guided_probe"
     assert result.review_markdown.startswith("## Surface Scan")
     assert "scan the surface" in captured["user"]
+
+
+def test_execute_acceptance_step_handles_nested_json_and_malformed_fields() -> None:
+    from spec_orch.acceptance_runtime.graph_models import (
+        AcceptanceGraphProfileDefinition,
+        AcceptanceGraphStep,
+        AcceptanceStepInput,
+    )
+    from spec_orch.acceptance_runtime.step_executor import execute_acceptance_step
+
+    def _invoke(system_prompt: str, user_prompt: str) -> str:
+        return """```json
+{
+  "decision": "continue",
+  "outputs": {
+    "surface_scan_notes": {
+      "severity": "medium",
+      "details": {"route": "/"}
+    }
+  },
+  "next_transition": "guided_probe",
+  "warnings": "not-a-list",
+  "review_markdown": "## Nested"
+}
+```"""
+
+    graph = AcceptanceGraphProfileDefinition(
+        profile=AcceptanceGraphProfile.TUNED_EXPLORATORY,
+        steps=[AcceptanceGraphStep(key="surface_scan", instruction="scan the surface")],
+    )
+    step_input = AcceptanceStepInput(
+        mission_id="mission-1",
+        round_id=1,
+        graph_profile=AcceptanceGraphProfile.TUNED_EXPLORATORY,
+        step_key="surface_scan",
+        goal="Investigate transcript usability",
+        target="/?mission=mission-1&tab=transcript",
+    )
+
+    result = execute_acceptance_step(
+        graph=graph,
+        step=graph.steps[0],
+        step_input=step_input,
+        invoke=_invoke,
+    )
+
+    assert result.outputs["surface_scan_notes"] == {
+        "severity": "medium",
+        "details": {"route": "/"},
+    }
+    assert result.warnings == []
+
+
+def test_execute_acceptance_step_raises_for_non_object_payload() -> None:
+    from spec_orch.acceptance_runtime.graph_models import (
+        AcceptanceGraphProfileDefinition,
+        AcceptanceGraphStep,
+        AcceptanceStepInput,
+    )
+    from spec_orch.acceptance_runtime.step_executor import execute_acceptance_step
+
+    graph = AcceptanceGraphProfileDefinition(
+        profile=AcceptanceGraphProfile.TUNED_EXPLORATORY,
+        steps=[AcceptanceGraphStep(key="surface_scan", instruction="scan the surface")],
+    )
+    step_input = AcceptanceStepInput(
+        mission_id="mission-1",
+        round_id=1,
+        graph_profile=AcceptanceGraphProfile.TUNED_EXPLORATORY,
+        step_key="surface_scan",
+        goal="Investigate transcript usability",
+        target="/?mission=mission-1&tab=transcript",
+    )
+
+    with pytest.raises(ValueError, match="JSON object"):
+        execute_acceptance_step(
+            graph=graph,
+            step=graph.steps[0],
+            step_input=step_input,
+            invoke=lambda system_prompt, user_prompt: "```json\n[]\n```",
+        )

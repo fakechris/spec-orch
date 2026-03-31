@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TypeVar
@@ -66,6 +67,7 @@ class AcceptanceRiskPosture(StrEnum):
 
 
 _EnumT = TypeVar("_EnumT", bound=StrEnum)
+_logger = logging.getLogger(__name__)
 
 
 def _coerce_enum(enum_cls: type[_EnumT], value: _EnumT | str) -> _EnumT:
@@ -74,7 +76,14 @@ def _coerce_enum(enum_cls: type[_EnumT], value: _EnumT | str) -> _EnumT:
     try:
         return enum_cls(str(value).strip().lower())
     except ValueError:
-        return list(enum_cls)[0]
+        fallback = list(enum_cls)[0]
+        _logger.warning(
+            "Invalid %s value %r, falling back to %s",
+            enum_cls.__name__,
+            value,
+            fallback.value,
+        )
+        return fallback
 
 
 @dataclass(slots=True)
@@ -93,21 +102,33 @@ class AcceptanceSurfacePackRef:
 
 @dataclass(slots=True)
 class AcceptanceRoutingInputs:
-    contract_strength: ContractStrength
-    surface_familiarity: SurfaceFamiliarity
+    contract_strength: ContractStrength | str
+    surface_familiarity: SurfaceFamiliarity | str
     baseline_availability: bool
-    judgment_risk: JudgmentRisk = JudgmentRisk.MEDIUM
-    mutation_risk: MutationRisk = MutationRisk.MEDIUM
-    workflow_tuning_availability: WorkflowTuningAvailability = WorkflowTuningAvailability.NONE
+    judgment_risk: JudgmentRisk | str = JudgmentRisk.MEDIUM
+    mutation_risk: MutationRisk | str = MutationRisk.MEDIUM
+    workflow_tuning_availability: WorkflowTuningAvailability | str = WorkflowTuningAvailability.NONE
 
     def __post_init__(self) -> None:
-        self.contract_strength = _coerce_enum(ContractStrength, self.contract_strength)
-        self.surface_familiarity = _coerce_enum(SurfaceFamiliarity, self.surface_familiarity)
-        self.judgment_risk = _coerce_enum(JudgmentRisk, self.judgment_risk)
-        self.mutation_risk = _coerce_enum(MutationRisk, self.mutation_risk)
-        self.workflow_tuning_availability = _coerce_enum(
-            WorkflowTuningAvailability,
-            self.workflow_tuning_availability,
+        object.__setattr__(
+            self,
+            "contract_strength",
+            _coerce_enum(ContractStrength, self.contract_strength),
+        )
+        object.__setattr__(
+            self,
+            "surface_familiarity",
+            _coerce_enum(SurfaceFamiliarity, self.surface_familiarity),
+        )
+        object.__setattr__(self, "judgment_risk", _coerce_enum(JudgmentRisk, self.judgment_risk))
+        object.__setattr__(self, "mutation_risk", _coerce_enum(MutationRisk, self.mutation_risk))
+        object.__setattr__(
+            self,
+            "workflow_tuning_availability",
+            _coerce_enum(
+                WorkflowTuningAvailability,
+                self.workflow_tuning_availability,
+            ),
         )
 
 
