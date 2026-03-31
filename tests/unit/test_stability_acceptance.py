@@ -9,6 +9,15 @@ def _write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def test_issue_start_smoke_script_reads_redirected_preflight_report() -> None:
+    script = (
+        Path(__file__).resolve().parents[2] / "tests" / "e2e" / "issue_start_smoke.sh"
+    ).read_text(encoding="utf-8")
+
+    assert "/tmp/spec_orch_issue_start_preflight.json" in script
+    assert 'repo_root / ".spec_orch" / "preflight.json"' not in script
+
+
 def test_write_issue_start_acceptance_report_materializes_normalized_attempt(
     tmp_path: Path,
 ) -> None:

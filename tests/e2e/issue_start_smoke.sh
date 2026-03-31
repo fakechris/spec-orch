@@ -86,7 +86,7 @@ from spec_orch.services.stability_acceptance import write_issue_start_acceptance
 
 repo_root = Path(".").resolve()
 issue_id = sys.argv[1]
-preflight_path = repo_root / ".spec_orch" / "preflight.json"
+preflight_path = Path("/tmp/spec_orch_issue_start_preflight.json")
 preflight = json.loads(preflight_path.read_text(encoding="utf-8")) if preflight_path.exists() else {}
 report = write_issue_start_acceptance_report(
     repo_root=repo_root,
