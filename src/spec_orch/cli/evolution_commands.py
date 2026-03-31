@@ -10,6 +10,11 @@ import yaml
 
 from spec_orch.cli import app
 from spec_orch.cli._helpers import _build_planner_from_toml
+from spec_orch.contract_core.contracts import (
+    TaskContract,
+    assess_risk_level,
+    generate_contract_from_issue,
+)
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
 
 evidence_app = typer.Typer(help="Evidence analysis commands.")
@@ -586,8 +591,6 @@ def contract_generate(
     repo_root: str = typer.Option("", help="Repository root (default: cwd)"),
 ) -> None:
     """Generate a TaskContract from an issue definition."""
-    from spec_orch.domain.task_contract import generate_contract_from_issue
-
     root = Path(repo_root) if repo_root else Path.cwd()
     source = FixtureIssueSource(repo_root=root)
     issue = source.load(issue_id)
@@ -613,8 +616,6 @@ def contract_validate(
     path: str = typer.Argument(help="Path to contract YAML file"),
 ) -> None:
     """Validate a TaskContract YAML file."""
-    from spec_orch.domain.task_contract import TaskContract
-
     data = yaml.safe_load(Path(path).read_text())
     contract = TaskContract.from_dict(data)
     errors = contract.validate()
@@ -631,8 +632,6 @@ def contract_assess_risk(
     repo_root: str = typer.Option("", help="Repository root (default: cwd)"),
 ) -> None:
     """Assess the risk level of an issue for contract purposes."""
-    from spec_orch.domain.task_contract import assess_risk_level
-
     root = Path(repo_root) if repo_root else Path.cwd()
     source = FixtureIssueSource(repo_root=root)
     issue = source.load(issue_id)

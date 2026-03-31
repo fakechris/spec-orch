@@ -6,6 +6,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
 
+from spec_orch.contract_core.snapshots import (
+    auto_approve_spec_snapshot,
+    create_initial_snapshot,
+    read_spec_snapshot,
+    write_spec_snapshot,
+)
 from spec_orch.decision_core.inventory import decision_point_for_flow_router_source
 from spec_orch.domain.compliance import (
     default_turn_contract_compliance,
@@ -44,11 +50,6 @@ from spec_orch.services.run_artifact_service import RunArtifactService
 from spec_orch.services.run_event_logger import RunEventLogger
 from spec_orch.services.run_progress import RunProgressSnapshot
 from spec_orch.services.run_report_writer import RunReportWriter
-from spec_orch.services.spec_snapshot_service import (
-    create_initial_snapshot,
-    read_spec_snapshot,
-    write_spec_snapshot,
-)
 from spec_orch.services.telemetry_service import TelemetryService
 from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.workspace_service import WorkspaceService
@@ -440,8 +441,7 @@ class RunController:
             )
 
         if existing_snapshot is not None:
-            existing_snapshot.approved = True
-            existing_snapshot.version += 1
+            auto_approve_spec_snapshot(existing_snapshot)
             write_spec_snapshot(workspace, existing_snapshot)
             self._event_logger.log_and_emit(
                 activity_logger=activity_logger,
