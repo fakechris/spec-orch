@@ -7,19 +7,24 @@
 
 ## 项目状态
 
-**v0.5.2** — Alpha，内部 dogfood 模式。1245+ 测试，65+ 命令。
+**v0.5.2** — Alpha，post-refactor 基线。1751 tests collected，65+ 命令。
 
-七层架构骨架完备，Credibility Flywheel 各环基线就位，架构债务已清理。
-Memory Architecture v2 完成：SQLite WAL 索引替代 JSON、LLM 摘要蒸馏、Builder telemetry 入库、用户反馈存储、时间趋势聚合、4 层记忆全部激活。
-分层记忆架构（ADR-0001）已通过完整 E2E 验证：Qdrant 语义索引 + 真实 run-issue 链路确认可用。
-当前处于**从内部原型走向外部验证**的转折点。
+七层架构骨架已经落到真实代码结构中。`runtime_core`、`decision_core`、
+`acceptance_core`、`acceptance_runtime`、`contract_core` 都已经抽出来，
+Epic 1-7 的主骨架已经完成并合并。
 
-Linear 现状：主干基础能力已完成，当前重新打开了下一阶段 backlog，重点集中在：
+当前不再优先新增 scope。当前阶段的主目标是：
 
-- `SON-234` Operator Console Phase 2
-- `SON-242` Acceptance Harness Phase 2
-- `SON-243` Harness Selfhood
-- `SON-244` Operator Feedback and Social Learning
+- 把旧 Epic / Issue / 文档状态同步到真实完成度
+- 对重构后的主 feature 做系统性的稳定性验收
+- 建立自动化 acceptance harness，让系统能持续验收自己
+
+Linear 当前的 program-level 焦点是：
+
+- `SON-331` Program Reconciliation and Stability Acceptance
+- `SON-332` Reconcile Epic 1-7 completion state across docs and Linear
+- `SON-333` Define canonical stability acceptance matrix
+- `SON-334` ~ `SON-338` 自动化 feature / UI / exploratory acceptance 与持续状态报告
 
 ---
 
@@ -27,7 +32,38 @@ Linear 现状：主干基础能力已完成，当前重新打开了下一阶段 
 
 按优先级排列。每项启动前应创建 Linear issue 并回填到本表。
 
-### Milestone 0: Memory vNext（SON-227）✅ DONE
+### Milestone 0: Epic 1-7 Core Extraction Program ✅ DONE
+
+**状态**：Shared semantics、runtime core、decision core、acceptance core /
+runtime、memory linkage、evolution linkage、contract core 已全部落地并合并。
+
+| 方向 | 说明 | 状态 |
+|------|------|------|
+| Epic 1 | Shared Execution Semantics | ✅ |
+| Epic 2 | Runtime Core Extraction | ✅ |
+| Epic 3 | Decision Core Extraction | ✅ |
+| Epic 4 | Acceptance Judgment + bounded agentic runtime baseline | ✅ |
+| Epic 5 | Memory and Learning Linkage baseline | ✅ |
+| Epic 6 | Evolution and Policy Promotion Linkage baseline | ✅ |
+| Epic 7 | Contract Core Extraction and Surface Cleanup | ✅ |
+
+### Milestone 1: Program Reconciliation and Stability Acceptance（SON-331）
+
+**为什么现在做**：这一轮大重构已经把主骨架拉直了，但旧的 Linear 状态、
+旧计划文档、README/Vision/Roadmap，以及真实可运行的 feature acceptance
+还没有统一收口。继续加新功能会放大回归风险。
+
+| 任务 | 说明 | Linear |
+|------|------|--------|
+| 状态对账 | 回刷旧 Epic 1-7 与其子卡的真实完成状态 | `SON-332` |
+| 验收矩阵 | 定义 feature / UI / exploratory / e2e 的 canonical acceptance matrix | `SON-333` |
+| issue 启动 E2E | 自动化 issue-driven 启动与主链验收 | `SON-334` |
+| milestone / mission 启动 E2E | 自动化 milestone/mission 启动与 Linear-bound 场景验收 | `SON-335` |
+| dashboard 验收 | 自动化关键路由和交互 surface 验收 | `SON-336` |
+| exploratory smoke | 有界探索式验收 smoke 流程与稳定 artifacts | `SON-337` |
+| 持续状态报告 | 持续写入最后一次 acceptance 状态并回显到文档/Linear | `SON-338` |
+
+### Milestone 2: Memory vNext（SON-227）✅ DONE
 
 **状态**：全部 6 个 child issues 已合并。Review 修复 PR 已提交（distilled key 覆盖、SQL 下推、soft-delete、跨进程安全、service 拆分、entity filter 协议化）。
 
@@ -43,7 +79,7 @@ Linear 现状：主干基础能力已完成，当前重新打开了下一阶段 
 | 4 | Async Derivation | SON-233 | ✅ |
 | Review | 8 项 review 修复（P0/P1/P2） | — | ✅ |
 
-### Milestone 1: 外部用户端到端验证
+### Milestone 3: 外部用户端到端验证
 
 **为什么是第一优先级**：内部 dogfood 已证明系统可以跑通，但从未在真实外部用户的项目上验证过。产品假设需要真实数据支撑。
 
@@ -54,7 +90,7 @@ Linear 现状：主干基础能力已完成，当前重新打开了下一阶段 
 | 收集反馈并归档 | 用户体验痛点、报错、fallback 路径质量 | — |
 | Daemon + MiniMax 全链路实测 | 低成本模型下 daemon 模式自动执行验证 | — |
 
-### Milestone 1A: Harness Engineering vNext
+### Milestone 4: Harness Engineering vNext
 
 **为什么现在做**：Operator Console、Mission Launcher、Acceptance Evaluator 基线都已经落地。下一阶段不该只补 UI 细节，而应该把 acceptance、self-evolution、memory synthesis、feedback learning 这些更深的 harness 能力接起来。
 
@@ -72,7 +108,7 @@ Linear 现状：主干基础能力已完成，当前重新打开了下一阶段 
 | Human Acceptance & Feedback Loop | operator feedback capture、feedback synthesis、policy loop | `SON-244`, `SON-253..255` |
 | External Discussion Ingestion | 受限的外部讨论/社交输入设计探索 | `SON-256` or later epic split |
 
-### Milestone 2: Contract 自动化
+### Milestone 5: Contract 自动化
 
 **目标**：自动为高风险 task 生成 Contract，减少人工干预。
 
@@ -83,7 +119,7 @@ Linear 现状：主干基础能力已完成，当前重新打开了下一阶段 
 | Risk Level 自动评估 | import graph + 修改文件被引用次数 | — |
 | Gate 增加 contract_violations 维度 | 越界行为作为门控条件 | — |
 
-### Milestone 3: 产品化
+### Milestone 6: 产品化
 
 **目标**：从原型走向可发布产品。
 
@@ -94,7 +130,7 @@ Linear 现状：主干基础能力已完成，当前重新打开了下一阶段 
 | PyPI 发布自动化 | CI 自动发布 + 版本号管理 | — |
 | 端到端 dogfood 连续 7 天 | 用 spec-orch 开发 spec-orch | — |
 
-### Milestone 4: 架构一致性 + 深化基线
+### Milestone 7: 架构一致性 + 深化基线
 
 **核心架构矛盾（优先解决）：**
 

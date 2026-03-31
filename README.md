@@ -7,7 +7,7 @@
 
 **The control plane for spec-driven software delivery.**
 
-> [中文版 README](README.zh.md) | [Project Vision](VISION.md) / [项目愿景](VISION.zh.md)
+> [中文版 README](README.zh.md) | [Project Vision](VISION.md) / [项目愿景](VISION.zh.md) | [Roadmap](docs/plans/roadmap.md)
 
 SpecOrch orchestrates AI coding agents with a spec-first, gate-first, evidence-driven approach. It connects **intent, tasks, execution, verification, and evolution** into a coherent control plane — so you can stop babysitting agents and start operating a delivery system.
 
@@ -183,12 +183,16 @@ enabled = true
 
 ## Status
 
-**v0.5.2** — Alpha, dogfood-first (EODF) mode.
+**v0.5.2** — Alpha, post-core-extraction baseline.
 
-The system is used to develop itself and improves itself with each iteration. 1328+ tests, 65+ commands.
+The system is used to develop itself and improves itself with each iteration. 1751 tests collected, 65+ commands.
 
 What works on `main`:
 
+- Shared execution semantics across issue and mission paths
+- Extracted `runtime_core`, `decision_core`, `acceptance_core`, `acceptance_runtime`, and `contract_core` seams
+- Bounded acceptance graph runtime: graph profiles, stepwise prompt reveal, per-step artifacts, graph traces, and fixture candidate seeds
+- Memory, evolution, and contract linkage now sit on top of the extracted seams instead of legacy ad hoc carriers
 - Seven-plane architecture with closed-loop evolution (FlowEngine DAGs defined but `run_issue()` uses direct sequencing; unification planned)
 - Spec-first approval gate: `run_issue()` requires explicit spec approval by default (`--auto-approve` to bypass)
 - Pluggable builder/reviewer adapters (Codex, OpenCode, Claude Code, Droid, ACPX)

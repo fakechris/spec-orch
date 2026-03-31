@@ -7,7 +7,7 @@
 
 **Spec 驱动的软件交付控制面。**
 
-> [English README](README.md) | [Project Vision](VISION.md) / [项目愿景](VISION.zh.md)
+> [English README](README.md) | [Project Vision](VISION.md) / [项目愿景](VISION.zh.md) | [Roadmap](docs/plans/roadmap.md)
 
 SpecOrch 用 spec 优先、gate 优先、证据驱动的方式编排 AI 编码代理。它把 **意图、任务、执行、验证、进化** 串成一个统一的控制面——让你从"盯着 agent 干活"变成"运营一套交付系统"。
 
@@ -166,12 +166,16 @@ spec-orch policy distill          # 零 LLM 确定性脚本
 
 ## 当前状态
 
-**v0.5.1** — Alpha，吃自己的狗粮（EODF）模式。
+**v0.5.2** — Alpha，核心抽取完成后的基线阶段。
 
-系统用自己来开发自己，每次迭代都在自我改进。1203+ 测试，65+ 命令。
+系统用自己来开发自己，每次迭代都在自我改进。当前可收集到 1751 个测试，65+ 命令。
 
 `main` 分支已有的功能：
 
+- issue 与 mission 路径共享执行语义
+- 已抽出 `runtime_core`、`decision_core`、`acceptance_core`、`acceptance_runtime`、`contract_core`
+- 已落地有界 acceptance graph runtime：graph profile、stepwise prompt reveal、per-step artifact、graph trace、fixture candidate seed
+- memory / evolution / contract 已经挂到这些核心 seam 上，不再依赖分散的旧 carrier
 - 七层架构 + 闭环进化
 - Spec-first 审批门控：`run_issue()` 默认需要审批（`--auto-approve` 可跳过）
 - 可插拔 builder/reviewer 适配器（Codex、OpenCode、Claude Code、Droid、ACPX）

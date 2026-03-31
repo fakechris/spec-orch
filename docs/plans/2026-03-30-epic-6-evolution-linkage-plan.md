@@ -1,5 +1,8 @@
 # Epic 6 Evolution Linkage Implementation Plan
 
+> **Status note (2026-03-30):** Implemented and merged as the Epic 6 baseline.
+> This document is now the execution record for the work that landed.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Complete Epic 6 by making evolution consume normalized execution/decision/acceptance evidence, adding review-gated promotion governance, and recording supersession/rollback and promotion-origin observability.

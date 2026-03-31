@@ -1,5 +1,12 @@
 # Full Epic and Issue Breakdown
 
+> **Status note (2026-03-30):** Historical planning baseline. The Epic 1-7
+> program described here has now been substantially executed and merged.
+> Current status lives in:
+> - `docs/plans/2026-03-30-epic-4-7-program-plan.md`
+> - `docs/plans/2026-03-30-program-reconciliation-and-stability-acceptance.md`
+> - Linear Epic `SON-331`
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Convert the architecture and acceptance program into one dependency-correct Epic/Issue tree covering shared semantics, core extraction, acceptance judgment, and the later memory/evolution/contract follow-through.

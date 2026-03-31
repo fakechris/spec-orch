@@ -1,7 +1,7 @@
 # Stability Acceptance Matrix
 
 **Date:** 2026-03-30  
-**Status:** Initial canonical matrix; automation coverage in progress  
+**Status:** Canonical matrix established; automation coverage still in progress
 **Parent plan:** [`2026-03-30-program-reconciliation-and-stability-acceptance.md`](./2026-03-30-program-reconciliation-and-stability-acceptance.md)
 
 ## 1. Purpose

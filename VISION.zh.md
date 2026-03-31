@@ -195,6 +195,21 @@ SpecOrch 将软件交付组织为七个平面：
 
 ---
 
+## 当前落地状态
+
+这套哲学现在也已经落成了明确的代码边界：
+
+- `runtime_core`：共享执行语义与规范化读写
+- `decision_core`：监督、决策、复盘、人工介入
+- `acceptance_core`：routing、judgment、disposition、calibration
+- `acceptance_runtime`：有界的图式 acceptance 执行层
+- `contract_core`：contract、snapshot、import 语义
+
+`issue` 和 `mission` 在 owner 层仍保留真实边界，但它们在执行语义和
+决策语义上已经说同一种语言。
+
+---
+
 ## 一句话
 
 **SpecOrch 是 Spec 驱动的软件交付控制面。**

@@ -1,5 +1,9 @@
 # Program Reconciliation And Stability Acceptance Plan
 
+> **Status note (2026-03-30):** Tranche S1 completed. Old Epic 1-7 plan state
+> and Linear state have been reconciled to shipped code. Stability-acceptance
+> automation tranches remain open.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Reconcile program state after the large core-extraction refactor, sync docs and Linear to the code that actually shipped, and establish a repeatable stability-acceptance loop before new feature work resumes.
@@ -78,6 +82,8 @@ This epic fixes that.
 
 ### Tranche S1: Reconcile state
 
+**Status:** Completed
+
 **Files:**
 - Modify: `docs/plans/2026-03-30-epic-4-7-program-plan.md`
 - Modify: `docs/plans/2026-03-29-linear-ready-epic-mapping.md`
@@ -91,6 +97,8 @@ This epic fixes that.
 - create the Linear epic and child issue set for this work
 
 ### Tranche S2: Build the acceptance matrix
+
+**Status:** Baseline document landed; automation and guide integration still pending
 
 **Files:**
 - Create: `docs/plans/2026-03-30-stability-acceptance-matrix.md`
