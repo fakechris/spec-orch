@@ -30,7 +30,7 @@ def _write_markdown(path: Path, lines: list[str]) -> None:
 
 
 def _dataclass_payload(value: Any) -> Any:
-    if is_dataclass(value):
+    if is_dataclass(value) and not isinstance(value, type):
         return asdict(value)
     return value
 
@@ -237,11 +237,13 @@ def write_stability_acceptance_status(*, repo_root: Path) -> dict[str, str]:
     else:
         overall_status = "partial"
 
+    reported_checks = len([item for item in checks.values() if item])
+    total_checks = len(checks)
     payload = {
         "summary": {
             "overall_status": overall_status,
-            "reported_checks": len([item for item in checks.values() if item]),
-            "total_checks": len(checks),
+            "reported_checks": reported_checks,
+            "total_checks": total_checks,
         },
         "checks": checks,
     }
@@ -255,10 +257,7 @@ def write_stability_acceptance_status(*, repo_root: Path) -> dict[str, str]:
             "# Stability Acceptance Status",
             "",
             f"- Overall status: `{overall_status}`",
-            (
-                f"- Reported checks: "
-                f"`{payload['summary']['reported_checks']}/{payload['summary']['total_checks']}`"
-            ),
+            f"- Reported checks: `{reported_checks}/{total_checks}`",
             "",
             "## Checks",
             "",

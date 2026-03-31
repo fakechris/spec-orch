@@ -258,6 +258,27 @@ def test_acpx_worker_handle_cancel_calls_acpx_cancel(
     assert handle._session_ready is False
 
 
+@patch("spec_orch.services.workers.acpx_worker_handle.cancel_acpx_session")
+def test_acpx_worker_handle_cancel_targets_active_recycled_session(
+    mock_cancel_session: MagicMock,
+    tmp_path: Path,
+) -> None:
+    handle = AcpxWorkerHandle(session_id="mission-m1-pkt1", agent="codex")
+    handle._session_ready = True
+    handle._session_generation = 2
+
+    handle.cancel(tmp_path)
+
+    mock_cancel_session.assert_called_once_with(
+        workspace=tmp_path,
+        executable="npx",
+        acpx_package="acpx",
+        agent="codex",
+        session_name="mission-m1-pkt1-retry-2",
+    )
+    assert handle._session_ready is False
+
+
 def test_acpx_worker_handle_factory_reuses_existing_handles(tmp_path: Path) -> None:
     factory = AcpxWorkerHandleFactory(
         agent="codex",
@@ -465,3 +486,41 @@ def test_acpx_worker_handle_completes_on_explicit_result_event_without_process_e
     assert process.terminated is True
     report = json.loads((tmp_path / "builder_report.json").read_text(encoding="utf-8"))
     assert report["terminal_reason"] == "event_completed"
+
+
+@patch("spec_orch.services.workers.acpx_worker_handle.ensure_acpx_session")
+@patch("spec_orch.services.workers.acpx_worker_handle.subprocess.Popen")
+def test_acpx_worker_handle_retries_after_session_ensure_failure(
+    mock_popen: MagicMock,
+    mock_ensure_session: MagicMock,
+    tmp_path: Path,
+) -> None:
+    mock_ensure_session.side_effect = [
+        RuntimeError("session bootstrap failed"),
+        None,
+    ]
+    mock_process = MagicMock()
+    mock_process.stdout = iter(['{"type": "result", "params": {"text": "done"}}\n'])
+    mock_process.stderr = iter([])
+    mock_process.returncode = 0
+    mock_process.wait.return_value = 0
+    mock_process.poll.return_value = 0
+    mock_popen.return_value = mock_process
+
+    handle = AcpxWorkerHandle(
+        session_id="mission-m1-pkt1",
+        agent="codex",
+        executable="npx",
+        acpx_package="acpx",
+        max_retries=1,
+    )
+
+    result = handle.send(prompt="Continue.", workspace=tmp_path)
+
+    assert result.succeeded is True
+    assert mock_ensure_session.call_count == 2
+    assert mock_popen.call_count == 1
+    report = json.loads((tmp_path / "builder_report.json").read_text(encoding="utf-8"))
+    assert report["retry_count"] == 1
+    assert report["session_recycled"] is True
+    assert report["session_name"] == "mission-m1-pkt1-retry-1"

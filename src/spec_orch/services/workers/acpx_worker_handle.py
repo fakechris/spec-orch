@@ -101,7 +101,11 @@ class AcpxWorkerHandle:
             )
             last_result = turn
             terminal_reason = str(turn.metadata.get("terminal_reason", "")).strip()
-            retryable = terminal_reason in {"startup_timeout", "reconnect_required"}
+            retryable = terminal_reason in {
+                "startup_timeout",
+                "reconnect_required",
+                "session_ensure_failed",
+            }
             had_progress = bool(turn.metadata.get("files_changed")) or bool(
                 turn.metadata.get("commands_completed", 0)
             )
@@ -133,10 +137,81 @@ class AcpxWorkerHandle:
         parent_span_id: str | None,
     ) -> BuilderResult:
         session_reused = self._session_turns_completed > 0
-        self._ensure_session(workspace)
+        session_name = self._active_session_name()
+        report_path = workspace / "builder_report.json"
+        if chain_root is not None and chain_id and span_id:
+            append_chain_event(
+                chain_root,
+                RuntimeChainEvent(
+                    chain_id=chain_id,
+                    span_id=span_id,
+                    parent_span_id=parent_span_id,
+                    subject_kind=RuntimeSubjectKind.PACKET,
+                    subject_id=self._session_id,
+                    phase=ChainPhase.STARTED,
+                    status_reason="worker_turn_started",
+                    artifact_refs={"workspace": str(workspace)},
+                    updated_at=datetime.now(UTC).isoformat(),
+                ),
+            )
+        try:
+            self._ensure_session(workspace)
+        except RuntimeError as exc:
+            self._session_health = "degraded"
+            self._session_ready = False
+            report_payload: dict[str, Any] = {
+                "adapter": "acpx_worker",
+                "agent": self.agent,
+                "model": self.model,
+                "succeeded": False,
+                "exit_code": None,
+                "event_count": 0,
+                "session_name": session_name,
+                "terminal_reason": "session_ensure_failed",
+                "commands_completed": 0,
+                "files_changed": [],
+                "retry_count": attempts,
+                "session_reused": session_reused,
+                "session_recycled": False,
+                "session_health": self._session_health,
+                "chain_id": chain_id,
+                "span_id": span_id,
+                "parent_span_id": parent_span_id,
+            }
+            write_worker_execution_payloads(
+                workspace,
+                builder_report=report_payload,
+            )
+            if chain_root is not None and chain_id and span_id:
+                append_chain_event(
+                    chain_root,
+                    RuntimeChainEvent(
+                        chain_id=chain_id,
+                        span_id=span_id,
+                        parent_span_id=parent_span_id,
+                        subject_kind=RuntimeSubjectKind.PACKET,
+                        subject_id=self._session_id,
+                        phase=ChainPhase.DEGRADED,
+                        status_reason="session_ensure_failed",
+                        artifact_refs={"builder_report": str(report_path)},
+                        updated_at=datetime.now(UTC).isoformat(),
+                    ),
+                )
+            return BuilderResult(
+                succeeded=False,
+                command=[],
+                stdout="",
+                stderr=str(exc),
+                report_path=report_path,
+                adapter="acpx_worker",
+                agent=self.agent,
+                metadata={
+                    "turn_contract_compliance": default_turn_contract_compliance(),
+                    **report_payload,
+                },
+            )
 
         full_prompt = f"{_WORKER_PREAMBLE}\n\n{prompt}"
-        session_name = self._active_session_name()
         command = build_acpx_command(
             executable=self.executable,
             acpx_package=self.acpx_package,
@@ -146,7 +221,6 @@ class AcpxWorkerHandle:
             session_name=session_name,
             permissions=self.permissions,
         )
-        report_path = workspace / "builder_report.json"
         telemetry_dir = workspace / "telemetry"
         telemetry_dir.mkdir(parents=True, exist_ok=True)
         incoming_path = telemetry_dir / "incoming_events.jsonl"
@@ -167,22 +241,6 @@ class AcpxWorkerHandle:
             "last_event_at": time.monotonic(),
             "last_progress_at": None,
         }
-        if chain_root is not None and chain_id and span_id:
-            append_chain_event(
-                chain_root,
-                RuntimeChainEvent(
-                    chain_id=chain_id,
-                    span_id=span_id,
-                    parent_span_id=parent_span_id,
-                    subject_kind=RuntimeSubjectKind.PACKET,
-                    subject_id=self._session_id,
-                    phase=ChainPhase.STARTED,
-                    status_reason="worker_turn_started",
-                    artifact_refs={"workspace": str(workspace)},
-                    updated_at=datetime.now(UTC).isoformat(),
-                ),
-            )
-
         try:
             process = subprocess.Popen(
                 command,
@@ -559,7 +617,7 @@ class AcpxWorkerHandle:
                 executable=self.executable,
                 acpx_package=self.acpx_package,
                 agent=self.agent,
-                session_name=self._session_id,
+                session_name=self._active_session_name(),
             )
         except RuntimeError as exc:
             logger.warning("ACPX worker cancel degraded gracefully: %s", exc)
