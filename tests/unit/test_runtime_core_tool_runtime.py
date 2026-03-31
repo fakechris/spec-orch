@@ -90,6 +90,32 @@ def test_execute_tool_request_blocks_missing_permission(tmp_path: Path) -> None:
     assert [event.phase for event in lifecycle] == ["blocked"]
 
 
+def test_execute_tool_request_denies_implicit_permissions(tmp_path: Path) -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="demo.read",
+            adapter=lambda arguments: {"ok": True},
+            permission_class=ToolPermissionClass.READ_ONLY,
+        )
+    )
+
+    result = execute_tool_request(
+        ToolExecutionRequest(
+            tool_name="demo.read",
+            arguments={},
+            allowed_permissions=None,
+            telemetry_root=tmp_path,
+        ),
+        registry=registry,
+    )
+
+    assert result.success is False
+    assert "permission denied" in result.error.lower()
+    lifecycle = read_tool_lifecycle_events(tmp_path)
+    assert [event.phase for event in lifecycle] == ["blocked"]
+
+
 def test_plan_tool_batches_respects_concurrency_classes() -> None:
     registry = ToolRegistry()
     registry.register(
@@ -174,3 +200,98 @@ def test_execute_tool_request_rejects_missing_required_fields(tmp_path: Path) ->
     lifecycle = read_tool_lifecycle_events(tmp_path)
     assert lifecycle[0].phase == "failed"
     assert lifecycle[0].success is False
+
+
+def test_execute_tool_request_contains_pre_hook_failures(tmp_path: Path) -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="demo.echo",
+            adapter=lambda arguments: {"ok": True},
+            permission_class=ToolPermissionClass.READ_ONLY,
+        )
+    )
+
+    hooks = HookDispatcher(
+        pre_hooks=[lambda definition, request: (_ for _ in ()).throw(RuntimeError("boom"))]
+    )
+
+    result = execute_tool_request(
+        ToolExecutionRequest(
+            tool_name="demo.echo",
+            arguments={},
+            allowed_permissions={ToolPermissionClass.READ_ONLY},
+            telemetry_root=tmp_path,
+        ),
+        registry=registry,
+        hooks=hooks,
+    )
+
+    assert result.success is False
+    assert "pre-hook failed" in result.error
+    lifecycle = read_tool_lifecycle_events(tmp_path)
+    assert [event.phase for event in lifecycle] == ["failed"]
+
+
+def test_execute_tool_request_contains_post_hook_failures(tmp_path: Path) -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="demo.echo",
+            adapter=lambda arguments: {"ok": True},
+            permission_class=ToolPermissionClass.READ_ONLY,
+        )
+    )
+
+    hooks = HookDispatcher(
+        post_hooks=[lambda definition, request, result: (_ for _ in ()).throw(RuntimeError("boom"))]
+    )
+
+    result = execute_tool_request(
+        ToolExecutionRequest(
+            tool_name="demo.echo",
+            arguments={},
+            allowed_permissions={ToolPermissionClass.READ_ONLY},
+            telemetry_root=tmp_path,
+        ),
+        registry=registry,
+        hooks=hooks,
+    )
+
+    assert result.success is False
+    assert "post-hook failed" in result.error
+    lifecycle = read_tool_lifecycle_events(tmp_path)
+    assert [event.phase for event in lifecycle] == ["started", "failed"]
+
+
+def test_execute_tool_request_swallows_failure_hook_exceptions(tmp_path: Path) -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="demo.fail",
+            adapter=lambda arguments: (_ for _ in ()).throw(RuntimeError("adapter failed")),
+            permission_class=ToolPermissionClass.READ_ONLY,
+        )
+    )
+
+    hooks = HookDispatcher(
+        failure_hooks=[
+            lambda definition, request, result: (_ for _ in ()).throw(RuntimeError("hook boom"))
+        ]
+    )
+
+    result = execute_tool_request(
+        ToolExecutionRequest(
+            tool_name="demo.fail",
+            arguments={},
+            allowed_permissions={ToolPermissionClass.READ_ONLY},
+            telemetry_root=tmp_path,
+        ),
+        registry=registry,
+        hooks=hooks,
+    )
+
+    assert result.success is False
+    assert "adapter failed" in result.error
+    lifecycle = read_tool_lifecycle_events(tmp_path)
+    assert [event.phase for event in lifecycle] == ["started", "failed"]

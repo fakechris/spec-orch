@@ -64,9 +64,10 @@ def execute_tool_request(
         )
         return result
 
+    effective_permissions = request.allowed_permissions or set()
     permission = evaluate_permission(
         definition,
-        allowed_permissions=request.allowed_permissions,
+        allowed_permissions=effective_permissions,
     )
     if not permission.allowed:
         result = ToolExecutionResult(
@@ -88,7 +89,27 @@ def execute_tool_request(
         )
         return result
 
-    dispatcher.run_pre(definition, request)
+    try:
+        dispatcher.run_pre(definition, request)
+    except Exception as exc:
+        result = ToolExecutionResult(
+            tool_name=definition.name,
+            success=False,
+            error=f"pre-hook failed: {exc}",
+            permission=permission,
+        )
+        _emit(
+            request,
+            ToolLifecycleEvent(
+                tool_name=definition.name,
+                phase="failed",
+                success=False,
+                error=result.error,
+                telemetry_label=definition.telemetry_label,
+                arguments=request.arguments,
+            ),
+        )
+        return result
     _emit(
         request,
         ToolLifecycleEvent(
@@ -110,7 +131,14 @@ def execute_tool_request(
             duration_ms=duration_ms,
             permission=permission,
         )
-        dispatcher.run_failure(definition, request, result)
+        try:
+            dispatcher.run_failure(definition, request, result)
+        except Exception:
+            logger.debug(
+                "failure hook execution failed for %s",
+                definition.name,
+                exc_info=True,
+            )
         _emit(
             request,
             ToolLifecycleEvent(
@@ -133,7 +161,29 @@ def execute_tool_request(
         duration_ms=duration_ms,
         permission=permission,
     )
-    dispatcher.run_post(definition, request, result)
+    try:
+        dispatcher.run_post(definition, request, result)
+    except Exception as exc:
+        failed = ToolExecutionResult(
+            tool_name=definition.name,
+            success=False,
+            error=f"post-hook failed: {exc}",
+            duration_ms=duration_ms,
+            permission=permission,
+        )
+        _emit(
+            request,
+            ToolLifecycleEvent(
+                tool_name=definition.name,
+                phase="failed",
+                success=False,
+                error=failed.error,
+                duration_ms=duration_ms,
+                telemetry_label=definition.telemetry_label,
+                arguments=request.arguments,
+            ),
+        )
+        return failed
     _emit(
         request,
         ToolLifecycleEvent(
