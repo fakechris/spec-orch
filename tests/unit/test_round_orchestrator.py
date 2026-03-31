@@ -702,6 +702,111 @@ def test_run_supervised_passes_browser_evidence_to_acceptance_evaluator(
     assert captured_campaign["value"].interaction_plans == {}
 
 
+def test_run_supervised_records_acceptance_graph_trace_artifacts(tmp_path: Path) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            return RoundDecision(action=RoundAction.STOP, summary="Done")
+
+    class StubAssembler:
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            return {}
+
+    class StubAcceptanceEvaluator:
+        ADAPTER_NAME = "stub_acceptance"
+
+        def invoke_acceptance_graph_step(self, *, system_prompt: str, user_prompt: str) -> str:
+            payload = json.loads(user_prompt.split("\n", 3)[-1])
+            step_key = payload["step_key"]
+            next_transition = {
+                "contract_brief": "route_replay",
+                "route_replay": "assert_contract",
+                "assert_contract": "summarize_judgment",
+                "summarize_judgment": "",
+            }[step_key]
+            return json.dumps(
+                {
+                    "decision": "continue" if next_transition else "complete",
+                    "outputs": {f"{step_key}_artifact": "ok"},
+                    "next_transition": next_transition,
+                    "warnings": [],
+                    "review_markdown": f"## {step_key}",
+                }
+            )
+
+        def evaluate_acceptance(
+            self,
+            *,
+            mission_id: str,
+            round_id: int,
+            round_dir: Path,
+            worker_results,
+            artifacts,
+            repo_root: Path,
+            campaign=None,
+        ) -> AcceptanceReviewResult | None:
+            assert artifacts["graph_run"].endswith("graph_run.json")
+            assert artifacts["graph_profile"] == "verify_contract_graph"
+            assert len(artifacts["step_artifacts"]) == 4
+            return AcceptanceReviewResult(
+                status="pass",
+                summary="Acceptance graph completed.",
+                confidence=0.8,
+                evaluator="stub_acceptance",
+                tested_routes=["/"],
+                findings=[],
+                issue_proposals=[],
+                artifacts=dict(artifacts),
+            )
+
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=StubBuilderAdapter(),
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=factory,
+        context_assembler=StubAssembler(),
+        acceptance_evaluator=StubAcceptanceEvaluator(),
+    )
+
+    result = orchestrator.run_supervised(mission_id="mission-1", plan=_make_single_wave_plan())
+
+    assert result.completed is True
+    review_path = tmp_path / "docs/specs/mission-1/rounds/round-01/acceptance_review.json"
+    payload = json.loads(review_path.read_text(encoding="utf-8"))
+    assert payload["artifacts"]["graph_run"].endswith("graph_run.json")
+    assert payload["artifacts"]["graph_profile"] == "verify_contract_graph"
+    assert len(payload["artifacts"]["step_artifacts"]) == 4
+
+
 def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     tmp_path: Path, monkeypatch
 ) -> None:

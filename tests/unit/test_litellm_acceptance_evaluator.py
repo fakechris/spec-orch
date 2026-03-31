@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from spec_orch.domain.models import (
@@ -1413,3 +1414,35 @@ def test_acceptance_evaluator_finds_transcript_route_from_interaction_keys(
     assert result.status == "warn"
     assert result.findings[0].route == "/?mission=mission-3&mode=missions&tab=transcript"
     assert result.findings[0].critique_axis == "evidence_discoverability"
+
+
+def test_invoke_acceptance_graph_step_uses_supplied_step_prompts(tmp_path: Path) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_chat_completion(**kwargs):
+        captured["messages"] = kwargs["messages"]
+        return (
+            '{"decision":"continue","outputs":{},"next_transition":"",'
+            '"warnings":[],"review_markdown":"## Step"}'
+        )
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    raw = adapter.invoke_acceptance_graph_step(
+        system_prompt="STEP SYSTEM",
+        user_prompt="STEP USER",
+    )
+
+    assert json.loads(raw)["decision"] == "continue"
+    assert captured["messages"] == [
+        {"role": "system", "content": "STEP SYSTEM"},
+        {"role": "user", "content": "STEP USER"},
+    ]

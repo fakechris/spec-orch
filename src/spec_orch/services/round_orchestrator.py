@@ -22,6 +22,8 @@ from spec_orch.acceptance_core.routing import (
     AcceptanceSurfacePackRef,
     build_acceptance_routing_decision,
 )
+from spec_orch.acceptance_runtime.graph_registry import graph_definition_for
+from spec_orch.acceptance_runtime.runner import run_acceptance_graph
 from spec_orch.decision_core.interventions import build_intervention_from_record
 from spec_orch.decision_core.records import build_round_review_decision_record
 from spec_orch.decision_core.review_queue import append_intervention
@@ -834,6 +836,10 @@ class RoundOrchestrator:
             mission_id=mission_id,
             artifacts=acceptance_artifacts,
         )
+        routing_decision = self._build_acceptance_routing_decision(
+            mission_id=mission_id,
+            artifacts=acceptance_artifacts,
+        )
         browser_evidence = self._collect_acceptance_browser_evidence(
             mission_id=mission_id,
             round_id=round_id,
@@ -842,6 +848,16 @@ class RoundOrchestrator:
         )
         if browser_evidence is not None:
             acceptance_artifacts["browser_evidence"] = browser_evidence
+        graph_trace = self._run_acceptance_graph_trace(
+            mission_id=mission_id,
+            round_id=round_id,
+            round_dir=round_dir,
+            campaign=campaign,
+            routing_decision=routing_decision,
+            acceptance_artifacts=acceptance_artifacts,
+        )
+        if graph_trace:
+            acceptance_artifacts.update(graph_trace)
         try:
             result = self.acceptance_evaluator.evaluate_acceptance(
                 mission_id=mission_id,
@@ -882,6 +898,60 @@ class RoundOrchestrator:
                 exc_info=True,
             )
         return result
+
+    def _run_acceptance_graph_trace(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        round_dir: Path,
+        campaign: AcceptanceCampaign,
+        routing_decision: AcceptanceRoutingDecision,
+        acceptance_artifacts: dict[str, Any],
+    ) -> dict[str, Any]:
+        if self.acceptance_evaluator is None:
+            return {}
+        step_invoker = getattr(self.acceptance_evaluator, "invoke_acceptance_graph_step", None)
+        if not callable(step_invoker):
+            return {}
+        graph = graph_definition_for(routing_decision.graph_profile)
+        trace = run_acceptance_graph(
+            base_dir=round_dir,
+            run_id=f"acceptance-{routing_decision.graph_profile.value}",
+            graph=graph,
+            mission_id=mission_id,
+            round_id=round_id,
+            goal=campaign.goal,
+            target=f"mission:{mission_id}",
+            evidence=acceptance_artifacts,
+            compare_overlay=routing_decision.compare_overlay,
+            invoke=lambda system_prompt, user_prompt: step_invoker(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+            ),
+        )
+        normalized: dict[str, Any] = {"graph_profile": trace["graph_profile"]}
+        graph_run_path = Path(trace["graph_run"])
+        if graph_run_path.is_absolute():
+            try:
+                normalized["graph_run"] = str(graph_run_path.relative_to(self.repo_root))
+            except ValueError:
+                normalized["graph_run"] = str(graph_run_path)
+        else:
+            normalized["graph_run"] = str(graph_run_path)
+
+        step_artifacts: list[str] = []
+        for item in trace.get("step_artifacts", []):
+            path = Path(item)
+            if path.is_absolute():
+                try:
+                    step_artifacts.append(str(path.relative_to(self.repo_root)))
+                except ValueError:
+                    step_artifacts.append(str(path))
+            else:
+                step_artifacts.append(str(path))
+        normalized["step_artifacts"] = step_artifacts
+        return normalized
 
     def _collect_acceptance_browser_evidence(
         self,

@@ -428,12 +428,20 @@ def _gather_mission_acceptance_review(repo_root: Path, mission_id: str) -> dict[
         review_data = review.to_dict()
         judgments = [judgment.to_dict() for judgment in build_acceptance_judgments(review)]
         surface_pack = dashboard_surface_pack_v1(mission_id).to_dict()
+        graph_artifacts = {
+            "graph_run": review.artifacts.get("graph_run", ""),
+            "graph_profile": review.artifacts.get("graph_profile", ""),
+            "step_artifacts": list(review.artifacts.get("step_artifacts", []))
+            if isinstance(review.artifacts.get("step_artifacts"), list)
+            else [],
+        }
         review_data.update(
             {
                 "round_id": round_id,
                 "artifact_path": str(review_path.relative_to(repo_root)),
                 "judgments": judgments,
                 "surface_pack": surface_pack,
+                "graph_artifacts": graph_artifacts,
                 "candidate_findings": [
                     judgment
                     for judgment in judgments

@@ -110,12 +110,24 @@ class LiteLLMAcceptanceEvaluator:
         )
 
     def _call_model(self, prompt: str) -> str:
+        return self._call_model_messages(
+            system_prompt=_ACCEPTANCE_SYSTEM_PROMPT,
+            user_prompt=prompt,
+        )
+
+    def invoke_acceptance_graph_step(self, *, system_prompt: str, user_prompt: str) -> str:
+        return self._call_model_messages(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+        )
+
+    def _call_model_messages(self, *, system_prompt: str, user_prompt: str) -> str:
         if self._chat_completion is not None:
             response = self._chat_completion(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": _ACCEPTANCE_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
                 ],
                 temperature=self.temperature,
                 api_key=self.api_key,
@@ -134,8 +146,8 @@ class LiteLLMAcceptanceEvaluator:
         response = litellm.completion(
             model=self.model,
             messages=[
-                {"role": "system", "content": _ACCEPTANCE_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
             ],
             temperature=self.temperature,
             api_key=self.api_key,
