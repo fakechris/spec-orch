@@ -1,7 +1,7 @@
 # Epic 4-7 Program Plan After Epic 2-3 Merge
 
 **Date:** 2026-03-30  
-**Status:** Epic 4 semantic completion tranche closed for current phase; Epic 5 baseline aligned; Epic 6 baseline landed; Epic 7 landed  
+**Status:** Epic 4 semantic completion tranche closed for current phase; bounded acceptance runtime landed; Epic 5 baseline aligned; Epic 6 baseline landed; Epic 7 landed; current focus is post-refactor program reconciliation and stability acceptance  
 **Prerequisite baseline:** PR #163 merged (`runtime_core` + `decision_core` extraction complete for Epics 2-3)
 
 ## 1. Purpose
@@ -147,13 +147,15 @@ Epic 4 is now a stronger semantic baseline for the later epics rather than only
 a thin acceptance seam.
 
 Epic 4 is now semantically complete for the current program phase against the
-bounded completion criteria. The completion record is tracked in:
+bounded completion criteria. In addition, a bounded `acceptance_runtime/`
+graph-execution baseline is now landed in code. The completion record is
+tracked in:
 
 - `docs/plans/2026-03-30-epic-4-semantic-completion-tranche.md`
 
-What remains intentionally outside this phase is the full agentic graph/runtime
-expression of ACPX-inspired workflow tuning, stepwise prompt reveal, and
-per-step artifact execution semantics.
+What remains intentionally outside this phase is the full or unbounded ACPX
+agentic graph/runtime expression and broader workflow-tuning expansion beyond
+the bounded runtime now present in this phase.
 
 ## 3.2 Epic 5: Memory and Learning Linkage
 
