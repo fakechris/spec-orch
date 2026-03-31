@@ -25,6 +25,18 @@ from spec_orch.runtime_chain.models import (
     RuntimeSubjectKind,
 )
 from spec_orch.runtime_chain.store import append_chain_event, write_chain_status
+from spec_orch.runtime_core.observability.models import (
+    RuntimeBudgetVisibility,
+    RuntimeLiveSummary,
+    RuntimeProgressEvent,
+    RuntimeRecap,
+)
+from spec_orch.runtime_core.observability.store import (
+    append_progress_event,
+    append_recap,
+    write_live_summary,
+)
+from spec_orch.services.memory.service import MemoryService
 
 
 def run_acceptance_graph(
@@ -44,8 +56,28 @@ def run_acceptance_graph(
     chain_id: str | None = None,
     span_id: str | None = None,
     parent_span_id: str | None = None,
+    observability_root: Path | None = None,
+    memory_service: MemoryService | None = None,
 ) -> dict[str, Any]:
     subject_id = f"{mission_id}:round-{round_id}:acceptance-graph"
+    subject_key = subject_id
+    total_steps = len(graph.steps)
+    _write_observability_summary(
+        observability_root=observability_root,
+        summary=RuntimeLiveSummary(
+            subject_key=subject_key,
+            phase="started",
+            status_reason="acceptance_graph_started",
+            current_step_key="",
+            budget=_budget_visibility(
+                graph=graph,
+                completed_steps=0,
+                loop_budget=loop_budget,
+                remaining_loop_budget=loop_budget,
+            ),
+            updated_at=datetime.now(UTC).isoformat(),
+        ),
+    )
     _emit_chain_status(
         chain_root=chain_root,
         chain_id=chain_id,
@@ -99,6 +131,54 @@ def run_acceptance_graph(
             prior_outputs.update(result.outputs)
             persisted = write_step_artifact(run_dir, artifact_index, result)
             step_paths.append(persisted["json_path"])
+            completed_steps = len(step_paths)
+            budget = _budget_visibility(
+                graph=graph,
+                completed_steps=completed_steps,
+                loop_budget=loop_budget,
+                remaining_loop_budget=remaining_loop_budget,
+            )
+            _append_observability_progress(
+                observability_root=observability_root,
+                event=RuntimeProgressEvent(
+                    subject_key=subject_key,
+                    phase="running",
+                    step_key=step.key,
+                    message=f"Completed step {step.key}",
+                    budget=budget,
+                    artifact_refs={"step_artifact": persisted["json_path"]},
+                    updated_at=datetime.now(UTC).isoformat(),
+                ),
+            )
+            _write_observability_summary(
+                observability_root=observability_root,
+                summary=RuntimeLiveSummary(
+                    subject_key=subject_key,
+                    phase="running",
+                    status_reason="step_completed",
+                    current_step_key=step.key,
+                    budget=budget,
+                    artifact_refs={"last_step_artifact": persisted["json_path"]},
+                    updated_at=datetime.now(UTC).isoformat(),
+                ),
+            )
+            if memory_service is not None and memory_service.should_snapshot_session(
+                completed_steps
+            ):
+                facts = [
+                    line.strip() for line in result.review_markdown.splitlines() if line.strip()
+                ]
+                memory_service.record_session_snapshot(
+                    session_id=run_id,
+                    subject_kind="acceptance_graph",
+                    subject_id=subject_key,
+                    event_count=completed_steps,
+                    facts=facts[:6],
+                    artifact_refs={
+                        "step_artifact": persisted["json_path"],
+                        "graph_run": str(run_dir / "graph_run.json"),
+                    },
+                )
             artifact_index += 1
             next_transition = result.next_transition
             if next_transition == "candidate_review" and not _has_reviewable_observations(
@@ -119,6 +199,23 @@ def run_acceptance_graph(
                 continue
             step_index += 1
     except Exception:
+        _write_observability_summary(
+            observability_root=observability_root,
+            summary=RuntimeLiveSummary(
+                subject_key=subject_key,
+                phase="degraded",
+                status_reason="acceptance_graph_failed",
+                current_step_key=graph.steps[step_index].key if step_index < total_steps else "",
+                budget=_budget_visibility(
+                    graph=graph,
+                    completed_steps=len(step_paths),
+                    loop_budget=loop_budget,
+                    remaining_loop_budget=remaining_loop_budget,
+                ),
+                artifact_refs={"graph_run": str(run_dir / "graph_run.json")},
+                updated_at=datetime.now(UTC).isoformat(),
+            ),
+        )
         _emit_chain_status(
             chain_root=chain_root,
             chain_id=chain_id,
@@ -131,6 +228,38 @@ def run_acceptance_graph(
         )
         raise
 
+    final_budget = _budget_visibility(
+        graph=graph,
+        completed_steps=len(step_paths),
+        loop_budget=loop_budget,
+        remaining_loop_budget=remaining_loop_budget,
+    )
+    _write_observability_summary(
+        observability_root=observability_root,
+        summary=RuntimeLiveSummary(
+            subject_key=subject_key,
+            phase="completed",
+            status_reason="acceptance_graph_completed",
+            current_step_key=graph.steps[-1].key if graph.steps else "",
+            budget=final_budget,
+            artifact_refs={"graph_run": str(run_dir / "graph_run.json")},
+            updated_at=datetime.now(UTC).isoformat(),
+        ),
+    )
+    _append_observability_recap(
+        observability_root=observability_root,
+        recap=RuntimeRecap(
+            subject_key=subject_key,
+            title="Acceptance graph completed",
+            bullets=[
+                f"{len(step_paths)} steps completed",
+                f"final transition: {final_transition or 'none'}",
+                f"graph profile: {graph.profile.value}",
+            ],
+            artifact_refs={"graph_run": str(run_dir / "graph_run.json")},
+            updated_at=datetime.now(UTC).isoformat(),
+        ),
+    )
     _emit_chain_status(
         chain_root=chain_root,
         chain_id=chain_id,
@@ -159,6 +288,54 @@ def _has_reviewable_observations(prior_outputs: dict[str, Any]) -> bool:
         return True
     reviewable = prior_outputs.get("reviewable_observations")
     return isinstance(reviewable, list) and bool(reviewable)
+
+
+def _budget_visibility(
+    *,
+    graph: AcceptanceGraphProfileDefinition,
+    completed_steps: int,
+    loop_budget: int,
+    remaining_loop_budget: int,
+) -> RuntimeBudgetVisibility:
+    planned_steps = len(graph.steps)
+    return RuntimeBudgetVisibility(
+        budget_key=graph.profile.value,
+        planned_steps=planned_steps,
+        completed_steps=completed_steps,
+        remaining_steps=max(0, planned_steps - completed_steps),
+        loop_budget=max(0, loop_budget),
+        remaining_loop_budget=max(0, remaining_loop_budget),
+    )
+
+
+def _append_observability_progress(
+    *,
+    observability_root: Path | None,
+    event: RuntimeProgressEvent,
+) -> None:
+    if observability_root is None:
+        return
+    append_progress_event(observability_root, event)
+
+
+def _write_observability_summary(
+    *,
+    observability_root: Path | None,
+    summary: RuntimeLiveSummary,
+) -> None:
+    if observability_root is None:
+        return
+    write_live_summary(observability_root, summary)
+
+
+def _append_observability_recap(
+    *,
+    observability_root: Path | None,
+    recap: RuntimeRecap,
+) -> None:
+    if observability_root is None:
+        return
+    append_recap(observability_root, recap)
 
 
 def _emit_chain_status(

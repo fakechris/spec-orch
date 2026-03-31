@@ -1135,7 +1135,22 @@ class RoundOrchestrator:
         step_invoker = getattr(self.acceptance_evaluator, "invoke_acceptance_graph_step", None)
         if not callable(step_invoker):
             return {}
+        try:
+            from spec_orch.services.memory.service import get_memory_service
+
+            memory = get_memory_service(repo_root=self.repo_root)
+        except Exception:
+            memory = None
         graph = graph_definition_for(routing_decision.graph_profile)
+        observability_root = (
+            self.repo_root
+            / "docs"
+            / "specs"
+            / mission_id
+            / "operator"
+            / "observability"
+            / f"round-{round_id:02d}-acceptance-graph"
+        )
         trace = run_acceptance_graph(
             base_dir=round_dir,
             run_id=f"acceptance-{routing_decision.graph_profile.value}",
@@ -1154,6 +1169,8 @@ class RoundOrchestrator:
             chain_id=chain_id,
             span_id=f"{round_span_id}:acceptance-graph",
             parent_span_id=round_span_id,
+            observability_root=observability_root,
+            memory_service=memory,
         )
         normalized: dict[str, Any] = {"graph_profile": trace["graph_profile"]}
         graph_run_path = Path(trace["graph_run"])

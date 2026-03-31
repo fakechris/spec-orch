@@ -1,7 +1,14 @@
 # Runtime Chain Observability Epic
 
 > **Linear:** `SON-339`
-> **Status (2026-03-31):** Epic created in Linear. `SON-340` is in progress. `SON-341` through `SON-345` are backlog.
+> **Status (2026-03-31):** Baseline complete. `SON-340` through `SON-345` are implemented.
+
+> **Positioning note (2026-03-31):** This epic is now one slice of the broader
+> runtime package absorption program defined in
+> `docs/plans/2026-03-31-runtime-package-absorption-plan.md`. Runtime chain
+> observability remains the right starting seam because it improves diagnosis
+> efficiency immediately, but it should no longer be treated as the entire
+> runtime package story.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 

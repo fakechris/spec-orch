@@ -21,6 +21,7 @@ from spec_orch.services.memory._utils import list_summaries_compat
 from spec_orch.services.memory.analytics import MemoryAnalytics
 from spec_orch.services.memory.distiller import MemoryDistiller
 from spec_orch.services.memory.fs_provider import FileSystemMemoryProvider
+from spec_orch.services.memory.lifecycle import MemoryLifecycleManager, SessionMemorySnapshot
 from spec_orch.services.memory.protocol import MemoryProvider
 from spec_orch.services.memory.recorder import MemoryRecorder
 from spec_orch.services.memory.types import MemoryEntry, MemoryLayer, MemoryQuery
@@ -61,6 +62,7 @@ class MemoryService:
         self._analytics = MemoryAnalytics(self._provider)
         self._distiller = MemoryDistiller(self._provider)
         self._recorder = MemoryRecorder(self._provider)
+        self._lifecycle = MemoryLifecycleManager(self._memory_root / "_lifecycle", self._provider)
 
     @property
     def provider(self) -> MemoryProvider:
@@ -324,6 +326,41 @@ class MemoryService:
                 }
             )
         return journal
+
+    # -- lifecycle ----------------------------------------------------------
+
+    def should_snapshot_session(self, event_count: int, *, every_n_events: int = 2) -> bool:
+        return self._lifecycle.should_snapshot_session(event_count, every_n_events=every_n_events)
+
+    def record_session_snapshot(
+        self,
+        *,
+        session_id: str,
+        subject_kind: str,
+        subject_id: str,
+        event_count: int,
+        facts: list[str],
+        artifact_refs: dict[str, str] | None = None,
+    ) -> str:
+        snapshot = SessionMemorySnapshot(
+            snapshot_id=f"{session_id}-{event_count}",
+            session_id=session_id,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            event_count=event_count,
+            facts=list(facts),
+            artifact_refs=dict(artifact_refs or {}),
+        )
+        return self._lifecycle.record_session_snapshot(snapshot)
+
+    def reserve_shared_memory_write(self, freshness_key: str, *, ttl_seconds: int = 3600) -> bool:
+        return self._lifecycle.reserve_shared_memory_write(
+            freshness_key,
+            ttl_seconds=ttl_seconds,
+        )
+
+    def consolidation_lock(self, lock_name: str = "consolidation") -> Any:
+        return self._lifecycle.consolidation_lock(lock_name)
 
     # -- recorder delegates --------------------------------------------------
 

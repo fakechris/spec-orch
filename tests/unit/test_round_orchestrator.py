@@ -910,6 +910,14 @@ def test_run_supervised_records_acceptance_graph_trace_artifacts(tmp_path: Path)
     assert payload["artifacts"]["graph_run"].endswith("graph_run.json")
     assert payload["artifacts"]["graph_profile"] == "verify_contract_graph"
     assert len(payload["artifacts"]["step_artifacts"]) == 4
+    observability_root = (
+        tmp_path / "docs/specs/mission-1/operator/observability/round-01-acceptance-graph"
+    )
+    live_summary = json.loads(
+        (observability_root / "live_summary.json").read_text(encoding="utf-8")
+    )
+    assert live_summary["phase"] == "completed"
+    assert live_summary["budget"]["planned_steps"] == 4
 
 
 def test_run_supervised_continues_when_acceptance_graph_trace_fails(tmp_path: Path) -> None:

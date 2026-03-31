@@ -4,6 +4,12 @@ import json
 
 from spec_orch.acceptance_core.routing import AcceptanceGraphProfile
 from spec_orch.runtime_chain.store import read_chain_events
+from spec_orch.runtime_core.observability.store import (
+    read_live_summary,
+    read_progress_events,
+    read_recaps,
+)
+from spec_orch.services.memory.service import MemoryService, reset_memory_service
 
 
 def test_run_acceptance_graph_executes_steps_and_persists_trace(tmp_path) -> None:
@@ -260,3 +266,59 @@ def test_run_acceptance_graph_emits_runtime_chain_events(tmp_path) -> None:
 
     assert [event.phase.value for event in events] == ["started", "completed"]
     assert all(event.subject_kind.value == "acceptance" for event in events)
+
+
+def test_run_acceptance_graph_writes_observability_and_memory_snapshots(tmp_path) -> None:
+    from spec_orch.acceptance_runtime.graph_registry import graph_definition_for
+    from spec_orch.acceptance_runtime.runner import run_acceptance_graph
+
+    reset_memory_service()
+    memory = MemoryService(repo_root=tmp_path / "repo")
+
+    def _invoke(system_prompt: str, user_prompt: str) -> str:
+        payload = json.loads(user_prompt.split("\n", 3)[-1])
+        step_key = payload["step_key"]
+        next_transition = {
+            "contract_brief": "route_replay",
+            "route_replay": "assert_contract",
+            "assert_contract": "summarize_judgment",
+            "summarize_judgment": "",
+        }[step_key]
+        return json.dumps(
+            {
+                "decision": "continue" if next_transition else "complete",
+                "outputs": {f"{step_key}_notes": f"artifact for {step_key}"},
+                "next_transition": next_transition,
+                "warnings": [],
+                "review_markdown": f"## {step_key}\n- ok",
+            }
+        )
+
+    definition = graph_definition_for(AcceptanceGraphProfile.VERIFY_CONTRACT)
+    observability_root = tmp_path / "operator" / "observability"
+    run_acceptance_graph(
+        base_dir=tmp_path,
+        run_id="agr-observe",
+        graph=definition,
+        mission_id="mission-1",
+        round_id=1,
+        goal="Verify contract",
+        target="/?mission=mission-1&tab=transcript",
+        evidence={"browser_evidence": {"tested_routes": ["/"]}},
+        compare_overlay=False,
+        invoke=_invoke,
+        observability_root=observability_root,
+        memory_service=memory,
+    )
+
+    summary = read_live_summary(observability_root)
+    events = read_progress_events(observability_root)
+    recaps = read_recaps(observability_root)
+    working_keys = memory.list_keys(layer="working")
+
+    assert summary is not None
+    assert summary.phase == "completed"
+    assert summary.budget.planned_steps == 4
+    assert len(events) == 4
+    assert recaps[-1].title == "Acceptance graph completed"
+    assert any(key.startswith("session-snapshot-agr-observe") for key in working_keys)
