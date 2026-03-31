@@ -41,6 +41,11 @@ from spec_orch.runtime_chain.models import (
     RuntimeSubjectKind,
 )
 from spec_orch.runtime_chain.store import append_chain_event, write_chain_status
+from spec_orch.runtime_core.compaction.models import CompactionRestoreBundle
+from spec_orch.runtime_core.compaction.runner import (
+    evaluate_compaction_trigger,
+    run_memory_compaction,
+)
 from spec_orch.services.activity_logger import ActivityLogger
 from spec_orch.services.artifact_service import ArtifactService
 from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
@@ -1513,9 +1518,34 @@ class RunController:
                 )
 
             self._runs_since_compaction += 1
-            if self._runs_since_compaction >= self._COMPACT_EVERY_N_RUNS:
+            decision = evaluate_compaction_trigger(
+                observed_count=self._runs_since_compaction,
+                threshold=self._COMPACT_EVERY_N_RUNS,
+            )
+            if decision.trigger:
                 planner_cfg = self._load_planner_config_for_compact()
-                memory.compact(planner_config=planner_cfg)
+                compaction_root = (
+                    workspace / "telemetry" / "compaction"
+                    if workspace is not None
+                    else self.repo_root / ".spec_orch" / "compaction"
+                )
+                run_memory_compaction(
+                    root=compaction_root,
+                    memory_service=memory,
+                    trigger=decision,
+                    restore_bundle=CompactionRestoreBundle(
+                        restored_state={
+                            "issue_id": issue_id,
+                            "run_id": run_id,
+                            "human_acceptance": human_acceptance,
+                        },
+                        attachment_refs={
+                            "workspace": str(workspace) if workspace is not None else "",
+                        },
+                        discovered_tools=[],
+                    ),
+                    planner_config=planner_cfg,
+                )
                 self._runs_since_compaction = 0
         except Exception:
             logger.debug("Memory consolidation skipped", exc_info=True)

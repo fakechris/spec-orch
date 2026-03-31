@@ -227,3 +227,37 @@ This architecture absorption should be considered complete when:
 - operators can diagnose long work through one canonical runtime view
 - long context survival is a runtime-owned mechanism rather than an ad hoc prompt behavior
 - the remaining deep acceptance work is clearly product-layer work, not missing infrastructure
+
+## 9. Current Completion Status
+
+As of 2026-03-31, the first package-absorption tranche is implemented.
+
+### Implemented packages
+
+- `SON-348` Tool Runtime Package
+  - `runtime_core.tool_runtime` now owns registry, validation, permission gating, lifecycle
+    hooks, batch planning, and lifecycle telemetry.
+  - ACPX session ensure/cancel flows now run through this package.
+- `SON-349` Compaction Package
+  - `runtime_core.compaction` now owns trigger evaluation, restore bundles, boundary markers,
+    and compaction event/status persistence.
+  - `run_controller` now performs compaction through explicit runtime-owned decisions.
+- `SON-350` Memory Lifecycle Package
+  - `services.memory.lifecycle` now owns session snapshot cadence, consolidation locks, and
+    shared-memory freshness gating.
+  - `MemoryService` now exposes lifecycle methods instead of keeping this logic implicit.
+- `SON-351` Long-Task Observability Package
+  - `runtime_core.observability` now owns budget visibility, progress events, live summaries,
+    and human-readable recaps.
+- `SON-352` Acceptance Runtime Alignment
+  - `acceptance_runtime.runner` now consumes runtime-owned observability and memory lifecycle
+    packages.
+  - `round_orchestrator` now wires those package surfaces into real acceptance graph runs.
+
+### Verification snapshot
+
+- runtime package matrix: `42 passed`
+- acceptance/memory alignment matrix: `69 passed`
+- `ruff check`: pass
+- `ruff format --check`: pass
+- `mypy`: pass

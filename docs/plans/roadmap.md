@@ -99,14 +99,18 @@ tool runtime、compaction、memory lifecycle、long-task observability 这些
 - [Memory Package](2026-03-31-memory-package.md)
 - [Long-Task Observability Package](2026-03-31-long-task-observability-package.md)
 
+**状态**：第一轮 package absorption 已落地。`runtime_core.tool_runtime`、
+`runtime_core.compaction`、`runtime_core.observability`、`services.memory.lifecycle`
+和 `acceptance_runtime` 的消费接缝都已进入代码并通过本地验证。
+
 | 方向 | 说明 | Linear |
 |------|------|--------|
-| runtime package alignment | 以新计划统一 package 边界和执行顺序 | `SON-346`, `SON-347` |
-| tool runtime package | registry / validation / hooks / pairing / dynamic activation | `SON-348` |
-| compaction package | triggers / restore / retry / telemetry / boundaries | `SON-349` |
-| memory lifecycle package | cadence / write scope / consolidation / shared hygiene | `SON-350` |
-| observability completion | budget / stall / recap / step summaries | `SON-351` |
-| acceptance alignment | 让 acceptance runtime 消费 package，而不是自长一套 | `SON-352` |
+| runtime package alignment | 以新计划统一 package 边界和执行顺序 | `SON-346`, `SON-347` ✅ |
+| tool runtime package | registry / validation / hooks / pairing / dynamic activation | `SON-348` ✅ |
+| compaction package | triggers / restore / retry / telemetry / boundaries | `SON-349` ✅ |
+| memory lifecycle package | cadence / write scope / consolidation / shared hygiene | `SON-350` ✅ |
+| observability completion | budget / stall / recap / step summaries | `SON-351` ✅ |
+| acceptance alignment | 让 acceptance runtime 消费 package，而不是自长一套 | `SON-352` ✅ |
 
 ### Milestone 2: Memory vNext（SON-227）✅ DONE
 
