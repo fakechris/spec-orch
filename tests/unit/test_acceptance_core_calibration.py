@@ -261,6 +261,60 @@ def test_calibration_harness_reports_workflow_tuning_drift() -> None:
     assert comparison.workflow_tuning_drift["step_artifacts"] == "expected_step_artifacts_missing"
 
 
+def test_calibration_harness_reports_graph_transition_drift() -> None:
+    from spec_orch.acceptance_core.calibration import (
+        AcceptanceCalibrationFixture,
+        compare_review_to_fixture,
+    )
+
+    fixture = AcceptanceCalibrationFixture(
+        fixture_name="graph-transition-drift-demo",
+        review=AcceptanceReviewResult(
+            status="warn",
+            summary="Expected graph transition shape.",
+            confidence=0.8,
+            evaluator="acceptance_llm",
+            acceptance_mode="exploratory",
+            coverage_status="complete",
+            findings=[],
+            issue_proposals=[],
+            artifacts={},
+        ),
+        expected={
+            "graph_transitions": [
+                "surface_scan->guided_probe",
+                "guided_probe->candidate_review",
+                "candidate_review->summarize_judgment",
+            ]
+        },
+    )
+    actual = AcceptanceReviewResult(
+        status="warn",
+        summary="Actual graph skipped candidate review.",
+        confidence=0.8,
+        evaluator="acceptance_llm",
+        acceptance_mode="exploratory",
+        coverage_status="complete",
+        findings=[],
+        issue_proposals=[],
+        artifacts={
+            "graph_transitions": [
+                "surface_scan->guided_probe",
+                "guided_probe->summarize_judgment",
+            ]
+        },
+    )
+
+    comparison = compare_review_to_fixture(actual, fixture)
+
+    assert comparison.matches is False
+    assert comparison.workflow_tuning_drift["graph_transitions"] == "transition_path_mismatch"
+    assert comparison.graph_transition_drift["missing"] == [
+        "candidate_review->summarize_judgment",
+        "guided_probe->candidate_review",
+    ]
+
+
 def test_candidate_finding_qualifies_for_fixture_candidate_when_reviewed_repeatedly() -> None:
     from spec_orch.acceptance_core.calibration import qualifies_for_fixture_candidate
     from spec_orch.acceptance_core.models import (

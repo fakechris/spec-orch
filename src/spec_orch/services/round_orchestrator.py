@@ -951,6 +951,10 @@ class RoundOrchestrator:
             else:
                 step_artifacts.append(str(path))
         normalized["step_artifacts"] = step_artifacts
+        normalized["graph_transitions"] = [
+            str(item) for item in trace.get("graph_transitions", []) if str(item).strip()
+        ]
+        normalized["final_transition"] = str(trace.get("final_transition", "") or "")
         return normalized
 
     def _collect_acceptance_browser_evidence(

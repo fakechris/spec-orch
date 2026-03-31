@@ -31,6 +31,7 @@ def run_acceptance_graph(
     evidence: dict[str, Any],
     compare_overlay: bool,
     invoke: Callable[[str, str], str],
+    loop_budget: int = 1,
 ) -> dict[str, Any]:
     run = AcceptanceGraphRun(
         run_id=run_id,
@@ -46,7 +47,15 @@ def run_acceptance_graph(
     prior_outputs: dict[str, Any] = {}
     step_paths: list[str] = []
     final_transition = ""
-    for index, step in enumerate(graph.steps, start=1):
+    transitions: list[str] = []
+    step_index = 0
+    artifact_index = 1
+    remaining_loop_budget = max(0, loop_budget)
+    while step_index < len(graph.steps):
+        step = graph.steps[step_index]
+        if step.key == "candidate_review" and not _has_reviewable_observations(prior_outputs):
+            step_index += 1
+            continue
         step_input = AcceptanceStepInput(
             mission_id=mission_id,
             round_id=round_id,
@@ -65,13 +74,43 @@ def run_acceptance_graph(
             invoke=invoke,
         )
         prior_outputs.update(result.outputs)
-        persisted = write_step_artifact(run_dir, index, result)
+        persisted = write_step_artifact(run_dir, artifact_index, result)
         step_paths.append(persisted["json_path"])
-        final_transition = result.next_transition
+        artifact_index += 1
+        next_transition = result.next_transition
+        if next_transition == "candidate_review" and not _has_reviewable_observations(
+            prior_outputs
+        ):
+            next_transition = "summarize_judgment"
+        final_transition = next_transition
+        if next_transition:
+            transitions.append(f"{step.key}->{next_transition}")
+        if (
+            graph.loop_step_key
+            and step.key == graph.loop_step_key
+            and result.decision == "loop"
+            and next_transition == step.key
+            and remaining_loop_budget > 0
+        ):
+            remaining_loop_budget -= 1
+            continue
+        step_index += 1
 
     return {
         "graph_run": str(run_dir / "graph_run.json"),
         "graph_profile": graph.profile.value,
         "step_artifacts": step_paths,
+        "graph_transitions": transitions,
         "final_transition": final_transition,
     }
+
+
+def _has_reviewable_observations(prior_outputs: dict[str, Any]) -> bool:
+    observations = prior_outputs.get("observations")
+    if isinstance(observations, list) and observations:
+        return True
+    candidate_ids = prior_outputs.get("candidate_ids")
+    if isinstance(candidate_ids, list) and candidate_ids:
+        return True
+    reviewable = prior_outputs.get("reviewable_observations")
+    return isinstance(reviewable, list) and bool(reviewable)

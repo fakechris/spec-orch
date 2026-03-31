@@ -63,6 +63,7 @@ class AcceptanceCalibrationComparison:
     field_drift: dict[str, dict[str, Any]] = field(default_factory=dict)
     step_artifact_drift: dict[str, list[str]] = field(default_factory=dict)
     graph_profile_drift: dict[str, str] = field(default_factory=dict)
+    graph_transition_drift: dict[str, list[str]] = field(default_factory=dict)
     workflow_tuning_drift: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -79,6 +80,7 @@ class AcceptanceCalibrationComparison:
             "field_drift": dict(self.field_drift),
             "step_artifact_drift": {k: list(v) for k, v in self.step_artifact_drift.items()},
             "graph_profile_drift": dict(self.graph_profile_drift),
+            "graph_transition_drift": {k: list(v) for k, v in self.graph_transition_drift.items()},
             "workflow_tuning_drift": dict(self.workflow_tuning_drift),
         }
 
@@ -171,6 +173,7 @@ def compare_review_to_fixture(
     field_drift: dict[str, dict[str, Any]] = {}
     step_artifact_drift: dict[str, list[str]] = {}
     graph_profile_drift: dict[str, str] = {}
+    graph_transition_drift: dict[str, list[str]] = {}
     workflow_tuning_drift: dict[str, str] = {}
     if actual.status != expected_status:
         mismatches.append("status")
@@ -224,6 +227,21 @@ def compare_review_to_fixture(
                 workflow_tuning_drift["step_artifacts"] = "expected_step_artifacts_missing"
             elif unexpected:
                 workflow_tuning_drift["step_artifacts"] = "unexpected_step_artifacts_present"
+    expected_graph_transitions = fixture.expected.get("graph_transitions")
+    actual_graph_transitions = []
+    if isinstance(actual_artifacts.get("graph_transitions"), list):
+        actual_graph_transitions = [str(item) for item in actual_artifacts["graph_transitions"]]
+    if isinstance(expected_graph_transitions, list):
+        expected_transitions = [str(item) for item in expected_graph_transitions]
+        missing_transitions = sorted(set(expected_transitions) - set(actual_graph_transitions))
+        unexpected_transitions = sorted(set(actual_graph_transitions) - set(expected_transitions))
+        if missing_transitions or unexpected_transitions:
+            mismatches.append("graph_transitions")
+            graph_transition_drift = {
+                "missing": missing_transitions,
+                "unexpected": unexpected_transitions,
+            }
+            workflow_tuning_drift["graph_transitions"] = "transition_path_mismatch"
     return AcceptanceCalibrationComparison(
         fixture_name=fixture.fixture_name,
         matches=not mismatches,
@@ -237,6 +255,7 @@ def compare_review_to_fixture(
         field_drift=field_drift,
         step_artifact_drift=step_artifact_drift,
         graph_profile_drift=graph_profile_drift,
+        graph_transition_drift=graph_transition_drift,
         workflow_tuning_drift=workflow_tuning_drift,
     )
 

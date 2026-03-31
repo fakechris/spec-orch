@@ -434,6 +434,13 @@ def _gather_mission_acceptance_review(repo_root: Path, mission_id: str) -> dict[
             "step_artifacts": list(review.artifacts.get("step_artifacts", []))
             if isinstance(review.artifacts.get("step_artifacts"), list)
             else [],
+            "graph_transitions": list(review.artifacts.get("graph_transitions", []))
+            if isinstance(review.artifacts.get("graph_transitions"), list)
+            else [],
+            "step_count": len(review.artifacts.get("step_artifacts", []))
+            if isinstance(review.artifacts.get("step_artifacts"), list)
+            else 0,
+            "final_transition": str(review.artifacts.get("final_transition", "") or ""),
         }
         review_data.update(
             {

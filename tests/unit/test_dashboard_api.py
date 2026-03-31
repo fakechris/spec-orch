@@ -245,6 +245,7 @@ class TestDashboardAPI:
                             "docs/specs/mission-acceptance/rounds/round-02/acceptance_graph_runs/agr-1/steps/01-baseline_brief.json",
                             "docs/specs/mission-acceptance/rounds/round-02/acceptance_graph_runs/agr-1/steps/02-compare_evidence.json",
                         ],
+                        "final_transition": "summarize_judgment",
                     },
                     "campaign": {
                         "mode": "impact_sweep",
@@ -280,6 +281,8 @@ class TestDashboardAPI:
             == "tuned_dashboard_compare_graph"
         )
         assert len(data["latest_review"]["graph_artifacts"]["step_artifacts"]) == 2
+        assert data["latest_review"]["graph_artifacts"]["step_count"] == 2
+        assert data["latest_review"]["graph_artifacts"]["final_transition"] == "summarize_judgment"
         assert data["latest_review"]["review_route"] == (
             f"/?mission={mission_id}&mode=missions&tab=acceptance&round=2"
         )
