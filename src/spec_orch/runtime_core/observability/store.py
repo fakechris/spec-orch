@@ -4,15 +4,19 @@ import json
 from pathlib import Path
 
 from spec_orch.runtime_core.observability.models import (
+    RuntimeBatchSummary,
     RuntimeLiveSummary,
     RuntimeProgressEvent,
     RuntimeRecap,
+    RuntimeStepSummary,
 )
 from spec_orch.services.io import atomic_write_json
 
 PROGRESS_EVENTS_FILENAME = "progress_events.jsonl"
 LIVE_SUMMARY_FILENAME = "live_summary.json"
 RECAPS_FILENAME = "recaps.jsonl"
+STEP_SUMMARIES_FILENAME = "step_summaries.jsonl"
+BATCH_SUMMARIES_FILENAME = "batch_summaries.jsonl"
 
 
 def append_progress_event(root: Path, event: RuntimeProgressEvent) -> Path:
@@ -61,6 +65,50 @@ def append_recap(root: Path, recap: RuntimeRecap) -> Path:
     return path
 
 
+def append_step_summary(root: Path, summary: RuntimeStepSummary) -> Path:
+    path = Path(root) / STEP_SUMMARIES_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(summary.to_dict(), ensure_ascii=False) + "\n")
+    return path
+
+
+def read_step_summaries(root: Path) -> list[RuntimeStepSummary]:
+    path = Path(root) / STEP_SUMMARIES_FILENAME
+    if not path.exists():
+        return []
+    rows: list[RuntimeStepSummary] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        if isinstance(payload, dict):
+            rows.append(RuntimeStepSummary.from_dict(payload))
+    return rows
+
+
+def append_batch_summary(root: Path, summary: RuntimeBatchSummary) -> Path:
+    path = Path(root) / BATCH_SUMMARIES_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(summary.to_dict(), ensure_ascii=False) + "\n")
+    return path
+
+
+def read_batch_summaries(root: Path) -> list[RuntimeBatchSummary]:
+    path = Path(root) / BATCH_SUMMARIES_FILENAME
+    if not path.exists():
+        return []
+    rows: list[RuntimeBatchSummary] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        if isinstance(payload, dict):
+            rows.append(RuntimeBatchSummary.from_dict(payload))
+    return rows
+
+
 def read_recaps(root: Path) -> list[RuntimeRecap]:
     path = Path(root) / RECAPS_FILENAME
     if not path.exists():
@@ -79,10 +127,16 @@ __all__ = [
     "LIVE_SUMMARY_FILENAME",
     "PROGRESS_EVENTS_FILENAME",
     "RECAPS_FILENAME",
+    "STEP_SUMMARIES_FILENAME",
+    "BATCH_SUMMARIES_FILENAME",
+    "append_batch_summary",
     "append_progress_event",
     "append_recap",
+    "append_step_summary",
+    "read_batch_summaries",
     "read_live_summary",
     "read_progress_events",
     "read_recaps",
+    "read_step_summaries",
     "write_live_summary",
 ]

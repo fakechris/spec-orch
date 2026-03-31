@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from spec_orch.runtime_core.tool_runtime.activation import ToolActivationContext
 from spec_orch.runtime_core.tool_runtime.executor import execute_tool_request, plan_tool_batches
 from spec_orch.runtime_core.tool_runtime.hooks import HookDispatcher
 from spec_orch.runtime_core.tool_runtime.models import (
@@ -9,9 +10,15 @@ from spec_orch.runtime_core.tool_runtime.models import (
     ToolDefinition,
     ToolExecutionRequest,
     ToolPermissionClass,
+    ToolProgressEvent,
 )
+from spec_orch.runtime_core.tool_runtime.pairing import read_tool_pairings
 from spec_orch.runtime_core.tool_runtime.registry import ToolRegistry
-from spec_orch.runtime_core.tool_runtime.telemetry import read_tool_lifecycle_events
+from spec_orch.runtime_core.tool_runtime.telemetry import (
+    append_tool_progress_event,
+    read_tool_lifecycle_events,
+    read_tool_progress_events,
+)
 
 
 def test_execute_tool_request_validates_permissions_and_emits_lifecycle(
@@ -59,9 +66,12 @@ def test_execute_tool_request_validates_permissions_and_emits_lifecycle(
     assert calls == [{"value": "hello"}]
     assert hook_events == ["pre:demo.echo", "post:demo.echo"]
     lifecycle = read_tool_lifecycle_events(tmp_path)
+    pairings = read_tool_pairings(tmp_path)
     assert [event.phase for event in lifecycle] == ["started", "completed"]
     assert lifecycle[0].tool_name == "demo.echo"
     assert lifecycle[1].success is True
+    assert len(pairings) == 1
+    assert pairings[0].status == "completed"
 
 
 def test_execute_tool_request_blocks_missing_permission(tmp_path: Path) -> None:
@@ -88,6 +98,49 @@ def test_execute_tool_request_blocks_missing_permission(tmp_path: Path) -> None:
     assert "permission" in result.error.lower()
     lifecycle = read_tool_lifecycle_events(tmp_path)
     assert [event.phase for event in lifecycle] == ["blocked"]
+
+
+def test_execute_tool_request_runs_custom_validator(tmp_path: Path) -> None:
+    registry = ToolRegistry()
+
+    def _validator(arguments: dict[str, object]) -> dict[str, object]:
+        value = arguments.get("value", "")
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("value must be non-empty")
+        return {"value": value.upper()}
+
+    registry.register(
+        ToolDefinition(
+            name="demo.validated",
+            adapter=lambda arguments: arguments,
+            validator=_validator,
+            permission_class=ToolPermissionClass.READ_ONLY,
+        )
+    )
+
+    ok = execute_tool_request(
+        ToolExecutionRequest(
+            tool_name="demo.validated",
+            arguments={"value": "hello"},
+            allowed_permissions={ToolPermissionClass.READ_ONLY},
+            telemetry_root=tmp_path,
+        ),
+        registry=registry,
+    )
+    failed = execute_tool_request(
+        ToolExecutionRequest(
+            tool_name="demo.validated",
+            arguments={"value": ""},
+            allowed_permissions={ToolPermissionClass.READ_ONLY},
+            telemetry_root=tmp_path,
+        ),
+        registry=registry,
+    )
+
+    assert ok.success is True
+    assert ok.output == {"value": "HELLO"}
+    assert failed.success is False
+    assert "validation failed" in failed.error
 
 
 def test_execute_tool_request_denies_implicit_permissions(tmp_path: Path) -> None:
@@ -295,3 +348,55 @@ def test_execute_tool_request_swallows_failure_hook_exceptions(tmp_path: Path) -
     assert "adapter failed" in result.error
     lifecycle = read_tool_lifecycle_events(tmp_path)
     assert [event.phase for event in lifecycle] == ["started", "failed"]
+
+
+def test_tool_registry_filters_active_definitions() -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="demo.always",
+            adapter=lambda arguments: {},
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="demo.tagged",
+            adapter=lambda arguments: {},
+            activation_tags=("dashboard",),
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="demo.predicate",
+            adapter=lambda arguments: {},
+            activate_when=lambda context: bool(context.get("compare_overlay")),
+        )
+    )
+
+    active = registry.active_definitions(
+        ToolActivationContext(active_tags={"dashboard"}, metadata={"compare_overlay": True})
+    )
+
+    assert {definition.name for definition in active} == {
+        "demo.always",
+        "demo.tagged",
+        "demo.predicate",
+    }
+
+
+def test_tool_runtime_persists_progress_events(tmp_path: Path) -> None:
+    append_tool_progress_event(
+        tmp_path,
+        ToolProgressEvent(
+            tool_name="demo.echo",
+            request_id="toolreq-1",
+            message="Halfway there",
+            step="batch-1",
+        ),
+    )
+
+    events = read_tool_progress_events(tmp_path)
+
+    assert len(events) == 1
+    assert events[0].message == "Halfway there"
+    assert events[0].step == "batch-1"

@@ -5,9 +5,11 @@ import json
 from spec_orch.acceptance_core.routing import AcceptanceGraphProfile
 from spec_orch.runtime_chain.store import read_chain_events
 from spec_orch.runtime_core.observability.store import (
+    read_batch_summaries,
     read_live_summary,
     read_progress_events,
     read_recaps,
+    read_step_summaries,
 )
 from spec_orch.services.memory.service import MemoryService, reset_memory_service
 
@@ -220,6 +222,53 @@ def test_run_acceptance_graph_skips_candidate_review_without_reviewable_observat
     assert len(result["step_artifacts"]) == 3
 
 
+def test_run_acceptance_graph_batch_summary_uses_executed_steps_only(tmp_path) -> None:
+    from spec_orch.acceptance_runtime.graph_registry import graph_definition_for
+    from spec_orch.acceptance_runtime.runner import run_acceptance_graph
+
+    def _invoke(system_prompt: str, user_prompt: str) -> str:
+        payload = json.loads(user_prompt.split("\n", 3)[-1])
+        step_key = payload["step_key"]
+        next_transition = {
+            "surface_scan": "guided_probe",
+            "guided_probe": "candidate_review",
+            "summarize_judgment": "",
+        }[step_key]
+        return json.dumps(
+            {
+                "decision": "continue" if next_transition else "complete",
+                "outputs": {"notes": step_key},
+                "next_transition": next_transition,
+                "warnings": [],
+                "review_markdown": f"## {step_key}",
+            }
+        )
+
+    definition = graph_definition_for(AcceptanceGraphProfile.TUNED_EXPLORATORY)
+    observability_root = tmp_path / "operator" / "observability"
+    run_acceptance_graph(
+        base_dir=tmp_path,
+        run_id="agr-batch-summary",
+        graph=definition,
+        mission_id="mission-1",
+        round_id=1,
+        goal="Dogfood transcript UX",
+        target="/?mission=mission-1&tab=transcript",
+        evidence={"browser_evidence": {"tested_routes": ["/"]}},
+        compare_overlay=False,
+        invoke=_invoke,
+        observability_root=observability_root,
+    )
+
+    batch_summaries = read_batch_summaries(observability_root)
+
+    assert batch_summaries[-1].steps == [
+        "surface_scan",
+        "guided_probe",
+        "summarize_judgment",
+    ]
+
+
 def test_run_acceptance_graph_emits_runtime_chain_events(tmp_path) -> None:
     from spec_orch.acceptance_runtime.graph_registry import graph_definition_for
     from spec_orch.acceptance_runtime.runner import run_acceptance_graph
@@ -314,6 +363,8 @@ def test_run_acceptance_graph_writes_observability_and_memory_snapshots(tmp_path
     summary = read_live_summary(observability_root)
     events = read_progress_events(observability_root)
     recaps = read_recaps(observability_root)
+    step_summaries = read_step_summaries(observability_root)
+    batch_summaries = read_batch_summaries(observability_root)
     working_keys = memory.list_keys(layer="working")
 
     assert summary is not None
@@ -321,4 +372,13 @@ def test_run_acceptance_graph_writes_observability_and_memory_snapshots(tmp_path
     assert summary.budget.planned_steps == 4
     assert len(events) == 4
     assert recaps[-1].title == "Acceptance graph completed"
+    assert len(step_summaries) == 4
+    assert step_summaries[0].step_key == "contract_brief"
+    assert batch_summaries[-1].steps == [
+        "contract_brief",
+        "route_replay",
+        "assert_contract",
+        "summarize_judgment",
+    ]
+    assert events[-1].stall_signal.diminishing_returns is True
     assert any(key.startswith("session-snapshot-agr-observe") for key in working_keys)

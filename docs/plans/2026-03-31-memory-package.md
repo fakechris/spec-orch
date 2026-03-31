@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-31  
 **Program Fit:** Epics 3-6  
-**Status:** Recommended subsystem standard
+**Status:** Adopted subsystem standard
 
 ## Goal
 
@@ -214,3 +214,17 @@ The package should be considered complete when:
 - consolidation reduces duplication without corrupting state
 - shared memory has hygiene controls
 - later routing and acceptance systems can consume memory through stable APIs
+
+## Completion Snapshot
+
+This package is now absorbed into `services.memory.lifecycle` and exposed through
+`MemoryService`.
+
+Implemented baseline:
+
+- explicit session snapshot cadence decisions
+- append-only session memory snapshots with dedupe
+- consolidation locking with stale-lock reclamation
+- shared-memory freshness gates
+- shared-memory hygiene validation
+- provenance-aware shared-memory sync events

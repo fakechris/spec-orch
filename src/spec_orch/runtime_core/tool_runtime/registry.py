@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from spec_orch.runtime_core.tool_runtime.activation import (
+    ToolActivationContext,
+    tool_is_active,
+)
 from spec_orch.runtime_core.tool_runtime.models import ToolDefinition
 
 
@@ -18,6 +22,19 @@ class ToolRegistry:
         if canonical not in self._definitions:
             raise KeyError(name)
         return self._definitions[canonical]
+
+    def resolve_active(self, name: str, context: ToolActivationContext) -> ToolDefinition:
+        definition = self.resolve(name)
+        if not tool_is_active(definition, context):
+            raise KeyError(name)
+        return definition
+
+    def active_definitions(self, context: ToolActivationContext) -> list[ToolDefinition]:
+        return [
+            definition
+            for definition in self._definitions.values()
+            if tool_is_active(definition, context)
+        ]
 
     def __contains__(self, name: str) -> bool:
         canonical = self._aliases.get(name, name)

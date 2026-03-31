@@ -25,15 +25,26 @@ from spec_orch.runtime_chain.models import (
     RuntimeSubjectKind,
 )
 from spec_orch.runtime_chain.store import append_chain_event, write_chain_status
+from spec_orch.runtime_core.observability.budget import build_budget_visibility
 from spec_orch.runtime_core.observability.models import (
+    RuntimeBatchSummary,
     RuntimeBudgetVisibility,
     RuntimeLiveSummary,
     RuntimeProgressEvent,
     RuntimeRecap,
+    RuntimeStepSummary,
 )
+from spec_orch.runtime_core.observability.progress import (
+    build_batch_summary,
+    build_step_summary,
+    derive_stall_signal,
+)
+from spec_orch.runtime_core.observability.recap import build_runtime_recap
 from spec_orch.runtime_core.observability.store import (
+    append_batch_summary,
     append_progress_event,
     append_recap,
+    append_step_summary,
     write_live_summary,
 )
 from spec_orch.services.memory.service import MemoryService
@@ -100,6 +111,7 @@ def run_acceptance_graph(
 
     prior_outputs: dict[str, Any] = {}
     step_paths: list[str] = []
+    executed_steps: list[str] = []
     final_transition = ""
     transitions: list[str] = []
     step_index = 0
@@ -128,6 +140,7 @@ def run_acceptance_graph(
                 step_input=step_input,
                 invoke=invoke,
             )
+            executed_steps.append(step.key)
             prior_outputs.update(result.outputs)
             persisted = write_step_artifact(run_dir, artifact_index, result)
             step_paths.append(persisted["json_path"])
@@ -138,6 +151,12 @@ def run_acceptance_graph(
                 loop_budget=loop_budget,
                 remaining_loop_budget=remaining_loop_budget,
             )
+            stall_signal = derive_stall_signal(
+                repeated_steps=transitions.count(f"{step.key}->{step.key}")
+                + int(result.decision == "loop" and result.next_transition == step.key),
+                idle_seconds=0,
+                low_yield=step.key == "summarize_judgment",
+            )
             _append_observability_progress(
                 observability_root=observability_root,
                 event=RuntimeProgressEvent(
@@ -146,6 +165,17 @@ def run_acceptance_graph(
                     step_key=step.key,
                     message=f"Completed step {step.key}",
                     budget=budget,
+                    stall_signal=stall_signal,
+                    artifact_refs={"step_artifact": persisted["json_path"]},
+                    updated_at=datetime.now(UTC).isoformat(),
+                ),
+            )
+            _append_step_summary(
+                observability_root=observability_root,
+                summary=build_step_summary(
+                    subject_key=subject_key,
+                    step_key=step.key,
+                    summary=result.review_markdown.strip() or f"Completed step {step.key}",
                     artifact_refs={"step_artifact": persisted["json_path"]},
                     updated_at=datetime.now(UTC).isoformat(),
                 ),
@@ -158,6 +188,7 @@ def run_acceptance_graph(
                     status_reason="step_completed",
                     current_step_key=step.key,
                     budget=budget,
+                    stall_signal=stall_signal,
                     artifact_refs={"last_step_artifact": persisted["json_path"]},
                     updated_at=datetime.now(UTC).isoformat(),
                 ),
@@ -246,9 +277,20 @@ def run_acceptance_graph(
             updated_at=datetime.now(UTC).isoformat(),
         ),
     )
+    _append_batch_summary(
+        observability_root=observability_root,
+        summary=build_batch_summary(
+            subject_key=subject_key,
+            batch_key=f"{graph.profile.value}:full-run",
+            steps=list(executed_steps),
+            summary=f"Completed acceptance graph with {len(step_paths)} steps",
+            artifact_refs={"graph_run": str(run_dir / "graph_run.json")},
+            updated_at=datetime.now(UTC).isoformat(),
+        ),
+    )
     _append_observability_recap(
         observability_root=observability_root,
-        recap=RuntimeRecap(
+        recap=build_runtime_recap(
             subject_key=subject_key,
             title="Acceptance graph completed",
             bullets=[
@@ -298,11 +340,10 @@ def _budget_visibility(
     remaining_loop_budget: int,
 ) -> RuntimeBudgetVisibility:
     planned_steps = len(graph.steps)
-    return RuntimeBudgetVisibility(
+    return build_budget_visibility(
         budget_key=graph.profile.value,
         planned_steps=planned_steps,
         completed_steps=completed_steps,
-        remaining_steps=max(0, planned_steps - completed_steps),
         loop_budget=max(0, loop_budget),
         remaining_loop_budget=max(0, remaining_loop_budget),
     )
@@ -336,6 +377,26 @@ def _append_observability_recap(
     if observability_root is None:
         return
     append_recap(observability_root, recap)
+
+
+def _append_step_summary(
+    *,
+    observability_root: Path | None,
+    summary: RuntimeStepSummary,
+) -> None:
+    if observability_root is None:
+        return
+    append_step_summary(observability_root, summary)
+
+
+def _append_batch_summary(
+    *,
+    observability_root: Path | None,
+    summary: RuntimeBatchSummary,
+) -> None:
+    if observability_root is None:
+        return
+    append_batch_summary(observability_root, summary)
 
 
 def _emit_chain_status(

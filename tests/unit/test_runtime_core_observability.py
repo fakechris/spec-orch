@@ -1,17 +1,28 @@
 from __future__ import annotations
 
 from spec_orch.runtime_core.observability.models import (
+    RuntimeBatchSummary,
     RuntimeBudgetVisibility,
     RuntimeLiveSummary,
     RuntimeProgressEvent,
     RuntimeRecap,
+    RuntimeStepSummary,
+)
+from spec_orch.runtime_core.observability.progress import (
+    build_batch_summary,
+    build_step_summary,
+    derive_stall_signal,
 )
 from spec_orch.runtime_core.observability.store import (
+    append_batch_summary,
     append_progress_event,
     append_recap,
+    append_step_summary,
+    read_batch_summaries,
     read_live_summary,
     read_progress_events,
     read_recaps,
+    read_step_summaries,
     write_live_summary,
 )
 
@@ -77,3 +88,63 @@ def test_observability_store_persists_human_readable_recaps(tmp_path) -> None:
     assert len(recaps) == 1
     assert recaps[0].title == "Acceptance graph completed"
     assert recaps[0].artifact_refs["graph_run"] == "graph_run.json"
+
+
+def test_observability_store_persists_step_and_batch_summaries(tmp_path) -> None:
+    root = tmp_path / "observability"
+    append_step_summary(
+        root,
+        RuntimeStepSummary(
+            subject_key="mission-1:round-1:acceptance-graph",
+            step_key="guided_probe",
+            summary="Step captured two candidate observations",
+            artifact_refs={"step_artifact": "steps/02-guided_probe.json"},
+            updated_at="2026-03-31T12:01:00+00:00",
+        ),
+    )
+    append_batch_summary(
+        root,
+        RuntimeBatchSummary(
+            subject_key="mission-1:round-1:acceptance-graph",
+            batch_key="guided_probe_batch",
+            steps=["surface_scan", "guided_probe"],
+            summary="Discovery batch completed",
+            artifact_refs={"graph_run": "graph_run.json"},
+            updated_at="2026-03-31T12:02:00+00:00",
+        ),
+    )
+
+    step_summaries = read_step_summaries(root)
+    batch_summaries = read_batch_summaries(root)
+
+    assert len(step_summaries) == 1
+    assert step_summaries[0].step_key == "guided_probe"
+    assert step_summaries[0].artifact_refs["step_artifact"].endswith("guided_probe.json")
+    assert len(batch_summaries) == 1
+    assert batch_summaries[0].steps == ["surface_scan", "guided_probe"]
+    assert batch_summaries[0].summary == "Discovery batch completed"
+
+
+def test_observability_helpers_build_summaries_and_stall_signals() -> None:
+    stall = derive_stall_signal(repeated_steps=3, idle_seconds=10, low_yield=True)
+    step_summary = build_step_summary(
+        subject_key="mission-1:round-1:acceptance-graph",
+        step_key="candidate_review",
+        summary="Reviewed one promoted candidate",
+        artifact_refs={"review": "decision_review.json"},
+        updated_at="2026-03-31T12:03:00+00:00",
+    )
+    batch_summary = build_batch_summary(
+        subject_key="mission-1:round-1:acceptance-graph",
+        batch_key="review_batch",
+        steps=["candidate_review", "summarize_judgment"],
+        summary="Review batch completed cleanly",
+        artifact_refs={"graph_run": "graph_run.json"},
+        updated_at="2026-03-31T12:04:00+00:00",
+    )
+
+    assert stall.stalled is True
+    assert stall.reason == "repeated_step_loop"
+    assert stall.diminishing_returns is True
+    assert step_summary.artifact_refs["review"] == "decision_review.json"
+    assert batch_summary.steps == ["candidate_review", "summarize_judgment"]
