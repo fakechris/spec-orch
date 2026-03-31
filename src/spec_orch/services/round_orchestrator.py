@@ -404,7 +404,7 @@ class RoundOrchestrator:
             session_id = f"mission-{mission_id}-{packet.packet_id}"
             workspace = self._packet_workspace(mission_id, packet)
             workspace.mkdir(parents=True, exist_ok=True)
-            packet_span_id = f"{chain_id}:packet:{packet.packet_id}"
+            packet_span_id = f"{round_span_id}:packet:{packet.packet_id}"
             append_chain_event(
                 chain_root,
                 RuntimeChainEvent(

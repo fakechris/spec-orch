@@ -240,6 +240,88 @@ def test_run_supervised_pauses_on_ask_human(tmp_path: Path) -> None:
     ]
 
 
+def test_run_supervised_uses_unique_packet_spans_per_round(tmp_path: Path) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+    from spec_orch.services.workers.in_memory_worker_handle_factory import (
+        InMemoryWorkerHandleFactory,
+    )
+    from spec_orch.services.workers.oneshot_worker_handle import OneShotWorkerHandle
+
+    plan = ExecutionPlan(
+        plan_id="plan-repeat",
+        mission_id="mission-repeat",
+        waves=[
+            Wave(
+                wave_number=0,
+                description="Wave 0",
+                work_packets=[
+                    WorkPacket(packet_id="pkt-repeat", title="Task 1", builder_prompt="Do task 1")
+                ],
+            ),
+            Wave(
+                wave_number=1,
+                description="Wave 1",
+                work_packets=[
+                    WorkPacket(packet_id="pkt-repeat", title="Task 2", builder_prompt="Do task 2")
+                ],
+            ),
+        ],
+    )
+
+    class StubBuilderAdapter:
+        ADAPTER_NAME = "stub"
+        AGENT_NAME = "stub"
+
+        def run(self, *, issue, workspace: Path, run_id=None, event_logger=None) -> BuilderResult:
+            return BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=workspace / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            )
+
+    class StubSupervisor:
+        ADAPTER_NAME = "stub"
+
+        def review_round(
+            self, *, round_artifacts, plan, round_history, context=None
+        ) -> RoundDecision:
+            return RoundDecision(action=RoundAction.CONTINUE, summary="Continue")
+
+    class StubAssembler:
+        def assemble(self, spec, issue, workspace, memory=None, repo_root=None):
+            return {}
+
+    factory = InMemoryWorkerHandleFactory(
+        creator=lambda session_id, workspace: OneShotWorkerHandle(
+            session_id=session_id,
+            builder_adapter=StubBuilderAdapter(),
+        )
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=StubSupervisor(),
+        worker_factory=factory,
+        context_assembler=StubAssembler(),
+    )
+
+    result = orchestrator.run_supervised(mission_id="mission-repeat", plan=plan)
+
+    assert result.completed is True
+    chain_root = tmp_path / "docs/specs/mission-repeat/operator/runtime_chain"
+    packet_started_events = [
+        event
+        for event in read_chain_events(chain_root)
+        if event.subject_kind.value == "packet" and event.phase.value == "started"
+    ]
+    assert len(packet_started_events) == 2
+    assert {event.subject_id for event in packet_started_events} == {"pkt-repeat"}
+    assert len({event.span_id for event in packet_started_events}) == 2
+
+
 def test_run_supervised_enriches_supervisor_context_and_persists_visual_eval(
     tmp_path: Path,
 ) -> None:

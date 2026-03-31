@@ -71,7 +71,9 @@ ok "preflight completed"
 
 step "Run fixture issue through full pipeline"
 RUN_EXIT=0
-if ! uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve; then
+if uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve; then
+  :
+else
   RUN_EXIT=$?
   warn "spec-orch run exited with status ${RUN_EXIT}; materializing smoke report before failing"
 fi

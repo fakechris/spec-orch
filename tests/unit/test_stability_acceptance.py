@@ -16,6 +16,7 @@ def test_issue_start_smoke_script_reads_redirected_preflight_report() -> None:
 
     assert "/tmp/spec_orch_issue_start_preflight.json" in script
     assert 'repo_root / ".spec_orch" / "preflight.json"' not in script
+    assert 'if ! uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve; then' not in script
 
 
 def test_write_issue_start_acceptance_report_materializes_normalized_attempt(
