@@ -135,3 +135,44 @@ def test_candidate_finding_serializes_provenance_fields_from_review_sop() -> Non
     assert payload["graph_profile"] == "tuned_dashboard_compare_graph"
     assert payload["run_mode"] == "explore"
     assert payload["compare_overlay"] is True
+
+
+def test_observation_can_be_promoted_into_candidate_finding_with_governance_fields() -> None:
+    from spec_orch.acceptance_core.models import (
+        AcceptanceObservation,
+        promote_observation_to_candidate,
+    )
+
+    observation = AcceptanceObservation(
+        summary="Transcript empty state hides the retry cause.",
+        route="/?mission=demo&mode=missions&tab=transcript",
+        evidence_refs=["browser_evidence.json"],
+        critique_axis="evidence_discoverability",
+        operator_task="Inspect transcript entry point copy",
+        why_it_matters="Operators miss the first useful proof surface.",
+    )
+
+    candidate = promote_observation_to_candidate(
+        observation,
+        finding_id="candidate-obs-1",
+        claim="Transcript empty state hides the retry cause.",
+        confidence=0.73,
+        impact_if_true="high",
+        repro_status="suggestive_only",
+        hold_reason="Needs targeted replay before filing.",
+        promotion_test="Replay transcript empty-state path with retry cause visible.",
+        recommended_next_step="Run targeted compare replay before filing",
+        dedupe_key="dashboard:transcript_empty_state_retry_cause",
+        baseline_ref="fixture:dashboard-transcript-empty-state",
+        origin_step="transcript_empty_state_review",
+        graph_profile="tuned_dashboard_compare_graph",
+        run_mode="explore",
+        compare_overlay=True,
+        source_observation_id="obs-1",
+    )
+
+    assert candidate.finding_id == "candidate-obs-1"
+    assert candidate.source_observation_id == "obs-1"
+    assert candidate.critique_axis == "evidence_discoverability"
+    assert candidate.operator_task == "Inspect transcript entry point copy"
+    assert candidate.baseline_ref == "fixture:dashboard-transcript-empty-state"

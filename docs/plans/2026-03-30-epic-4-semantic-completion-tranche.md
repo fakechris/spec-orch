@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-30  
 **Epic:** Epic 4 — Acceptance Judgment and Calibration  
-**Status:** Open follow-up tranche after PR #164  
+**Status:** Completed for current program phase; full agentic graph runtime explicitly deferred  
 
 ## Goal
 
@@ -26,88 +26,83 @@ end:
   - disposition seam into `decision_core`
 - Epic 4 and Epic 5 baselines were merged in PR #164.
 
-## What Is Still Incomplete
+## What This Tranche Closed
 
 ### 1. Routing Policy Tightening
 
-Current state:
+Implemented in bounded form:
 
-- `AcceptanceRoutingInputs` and `AcceptanceRoutingDecision` exist
-- routing emits `base_run_mode`, `budget_profile`, `graph_profile`,
-  `evidence_plan`, and `risk_posture`
-
-Still missing:
-
-- constrained types for policy-critical knobs
-- stricter `compare_overlay` activation logic
-- stronger runtime expression of workflow-tuning availability
-- clearer enforcement of `recon` as conservative fallback policy
+- policy-critical knobs now use constrained enum-like types
+- `compare_overlay` only activates when compare intent is present **and**
+  baseline availability is true
+- `workflow_tuning_availability` is now a first-class routing input
+- high mutation risk now forces a conservative `recon` fallback with explicit
+  routing reason
 
 ### 2. Candidate-Finding Governance Completion
 
-Current state:
+Implemented in bounded form:
 
-- `candidate_finding` is a judgment class
-- canonical workflow states exist
-- provenance fields such as `finding_id`, `baseline_ref`, `origin_step`,
-  `graph_profile`, `run_mode`, and `compare_overlay` exist
-
-Still missing:
-
-- doc/code canonicalization around `finding_id`
-- explicit observation → candidate promotion seam
-- richer dismissal / supersession / reviewer-governance metadata
-- stronger review/progression helpers beyond minimum object storage
+- observation → candidate promotion now has an explicit helper seam
+- candidate findings now preserve governance metadata for:
+  - source observation
+  - reviewer identity
+  - review note
+  - dismissal reason
+  - supersession link
+- disposition helpers can now apply governance metadata directly onto
+  candidate findings
 
 ### 3. Calibration Harness Hardening
 
+Implemented in bounded form:
+
+- calibration harness now handles missing actual reviews without crashing
+- output now surfaces explicit `missing_review` mismatches
+- workflow-tuning-oriented drift now includes:
+  - graph-profile drift
+  - workflow-tuning note drift
+  - step-artifact drift
+
+## What Is Intentionally Deferred
+
+### ACPX-Inspired Workflow Runtime
+
 Current state:
 
-- compare calibration supports final status drift, field drift, step-artifact
-  drift, and graph-profile drift
+- `workflow tuning` and `graph_profile` are now part of the semantic layer
+- calibration and provenance can express workflow drift explicitly
 
-Still missing:
-
-- graceful handling for missing fixture reviews in harness execution
-- clearer fixture/step expectations as runtime-safe output rather than implicit
-  assumptions
-- stronger workflow-tuning-oriented drift interpretation
-
-### 4. ACPX-Inspired Workflow Semantics
-
-Current state:
-
-- `workflow tuning` and `graph_profile` are part of the semantic layer
-
-Still missing:
+Deferred beyond this tranche:
 
 - real graph/runtime activation based on tuned workflow availability
 - stepwise prompt reveal / per-step artifact runtime behavior
 - explicit graph-level observability beyond stored semantic fields
 
-This is intentionally not a new orchestration epic. It remains Epic 4 follow-up.
+This is intentionally not part of the current-program semantic completion gate.
+It should be treated as later runtime/orchestration work, not as missing Epic 4
+semantic closure.
 
 ## Completion Criteria
 
 Epic 4 should only be considered semantically complete for this phase when:
 
-- routing policy gaps above are either implemented or explicitly deferred into a
-  later named tranche
-- candidate-finding governance gaps above are either implemented or explicitly
-  deferred into a later named tranche
-- calibration harness safety gaps above are either implemented or explicitly
-  deferred into a later named tranche
-- ACPX-inspired workflow semantics are either implemented in bounded form or
-  explicitly reframed as post-Epic-6 work
+- routing policy gaps above are implemented in bounded form
+- candidate-finding governance gaps above are implemented in bounded form
+- calibration harness safety gaps above are implemented in bounded form
+- ACPX-inspired workflow semantics are explicitly reframed as later
+  runtime/orchestration work
+
+These criteria are now satisfied for the current program phase.
 
 ## Linear Follow-Up Mapping
 
 This tranche should remain visible in Linear even if implementation shifts to
-Epic 6 next. The minimum follow-up issue set is:
+later epics. The minimum follow-up issue set is:
 
 1. `Epic 4 follow-up: tighten routing policy semantics`
 2. `Epic 4 follow-up: complete candidate-finding governance seam`
 3. `Epic 4 follow-up: harden calibration harness and workflow drift handling`
 
-These issues should stay attached to Epic 4 rather than being silently absorbed
-into Epic 6.
+These issues should remain attached to Epic 4 history or be explicitly replaced
+by a later runtime/orchestration epic rather than being silently absorbed.

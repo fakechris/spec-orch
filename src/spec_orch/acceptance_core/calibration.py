@@ -63,6 +63,7 @@ class AcceptanceCalibrationComparison:
     field_drift: dict[str, dict[str, Any]] = field(default_factory=dict)
     step_artifact_drift: dict[str, list[str]] = field(default_factory=dict)
     graph_profile_drift: dict[str, str] = field(default_factory=dict)
+    workflow_tuning_drift: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -78,6 +79,7 @@ class AcceptanceCalibrationComparison:
             "field_drift": dict(self.field_drift),
             "step_artifact_drift": {k: list(v) for k, v in self.step_artifact_drift.items()},
             "graph_profile_drift": dict(self.graph_profile_drift),
+            "workflow_tuning_drift": dict(self.workflow_tuning_drift),
         }
 
 
@@ -169,6 +171,7 @@ def compare_review_to_fixture(
     field_drift: dict[str, dict[str, Any]] = {}
     step_artifact_drift: dict[str, list[str]] = {}
     graph_profile_drift: dict[str, str] = {}
+    workflow_tuning_drift: dict[str, str] = {}
     if actual.status != expected_status:
         mismatches.append("status")
     if actual_mode != expected_mode:
@@ -192,6 +195,16 @@ def compare_review_to_fixture(
                 "expected": str(expected_fields.get("graph_profile") or ""),
                 "actual": str(actual_fields.get("graph_profile") or ""),
             }
+            workflow_tuning_drift["graph_profile"] = "tuned_graph_mismatch"
+        if "workflow_tuning_notes" in expected_fields and actual_fields.get(
+            "workflow_tuning_notes"
+        ) != expected_fields.get("workflow_tuning_notes"):
+            mismatches.append("field:workflow_tuning_notes")
+            field_drift["workflow_tuning_notes"] = {
+                "expected": expected_fields.get("workflow_tuning_notes"),
+                "actual": actual_fields.get("workflow_tuning_notes"),
+            }
+            workflow_tuning_drift["workflow_tuning_notes"] = "tuning_notes_mismatch"
     expected_step_artifacts = fixture.expected.get("step_artifacts")
     actual_step_artifacts = []
     actual_artifacts = actual.artifacts if isinstance(actual.artifacts, dict) else {}
@@ -207,6 +220,10 @@ def compare_review_to_fixture(
                 "missing": missing,
                 "unexpected": unexpected,
             }
+            if missing:
+                workflow_tuning_drift["step_artifacts"] = "expected_step_artifacts_missing"
+            elif unexpected:
+                workflow_tuning_drift["step_artifacts"] = "unexpected_step_artifacts_present"
     return AcceptanceCalibrationComparison(
         fixture_name=fixture.fixture_name,
         matches=not mismatches,
@@ -220,6 +237,7 @@ def compare_review_to_fixture(
         field_drift=field_drift,
         step_artifact_drift=step_artifact_drift,
         graph_profile_drift=graph_profile_drift,
+        workflow_tuning_drift=workflow_tuning_drift,
     )
 
 
@@ -275,16 +293,44 @@ def run_acceptance_calibration_harness(
     fixture_names: list[str],
     actual_reviews: dict[str, AcceptanceReviewResult],
 ) -> dict[str, Any]:
-    comparisons = [
-        compare_review_to_fixture(actual_reviews[name], load_acceptance_calibration_fixture(name))
-        for name in fixture_names
-    ]
+    comparisons: list[AcceptanceCalibrationComparison] = []
+    missing_actual_reviews = 0
+    for name in fixture_names:
+        fixture = load_acceptance_calibration_fixture(name)
+        actual = actual_reviews.get(name)
+        if actual is None:
+            missing_actual_reviews += 1
+            comparisons.append(
+                AcceptanceCalibrationComparison(
+                    fixture_name=name,
+                    matches=False,
+                    mismatches=["missing_review"],
+                    expected_status=str(fixture.expected.get("status") or fixture.review.status),
+                    actual_status="missing_review",
+                    expected_acceptance_mode=str(
+                        fixture.expected.get("acceptance_mode")
+                        or fixture.review.acceptance_mode
+                        or ""
+                    ),
+                    actual_acceptance_mode="",
+                    expected_coverage_status=str(
+                        fixture.expected.get("coverage_status")
+                        or fixture.review.coverage_status
+                        or ""
+                    ),
+                    actual_coverage_status="",
+                    workflow_tuning_drift={"review": "missing_actual_review"},
+                )
+            )
+            continue
+        comparisons.append(compare_review_to_fixture(actual, fixture))
     mismatched = [item for item in comparisons if not item.matches]
     return {
         "summary": {
             "total": len(comparisons),
             "matched": len(comparisons) - len(mismatched),
             "mismatched": len(mismatched),
+            "missing_actual_reviews": missing_actual_reviews,
         },
         "comparisons": [item.to_dict() for item in comparisons],
     }

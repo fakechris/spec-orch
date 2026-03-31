@@ -1,7 +1,7 @@
 # Epic 4-7 Program Plan After Epic 2-3 Merge
 
 **Date:** 2026-03-30  
-**Status:** Epic 4 semantic baseline landed but completion tranche remains; Epic 5 baseline aligned; Epic 6 baseline landed; Epic 7 pending  
+**Status:** Epic 4 semantic completion tranche closed for current phase; Epic 5 baseline aligned; Epic 6 baseline landed; Epic 7 landed  
 **Prerequisite baseline:** PR #163 merged (`runtime_core` + `decision_core` extraction complete for Epics 2-3)
 
 ## 1. Purpose
@@ -146,10 +146,14 @@ Current status:
 Epic 4 is now a stronger semantic baseline for the later epics rather than only
 a thin acceptance seam.
 
-However, Epic 4 is not yet "design-complete" against the three canonical
-references. The remaining gaps are tracked in:
+Epic 4 is now semantically complete for the current program phase against the
+bounded completion criteria. The completion record is tracked in:
 
 - `docs/plans/2026-03-30-epic-4-semantic-completion-tranche.md`
+
+What remains intentionally outside this phase is the full agentic graph/runtime
+expression of ACPX-inspired workflow tuning, stepwise prompt reveal, and
+per-step artifact execution semantics.
 
 ## 3.2 Epic 5: Memory and Learning Linkage
 
@@ -253,7 +257,7 @@ What now exists:
   - `evolution_journal.jsonl`
 
 Epic 6 therefore no longer depends on future ad hoc evolution semantics.
-Epic 7 can now be planned against a repo that has:
+Epic 7 was planned and landed against a repo that has:
 
 - normalized execution evidence
 - normalized decision evidence

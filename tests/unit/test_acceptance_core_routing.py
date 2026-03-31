@@ -163,6 +163,55 @@ def test_routing_surfaces_internal_inputs_and_workflow_tuning_profile() -> None:
     assert decision.surface_pack_ref is None
 
 
+def test_compare_overlay_requires_relevant_baseline_signal() -> None:
+    from spec_orch.acceptance_core.models import AcceptanceRunMode
+    from spec_orch.acceptance_core.routing import (
+        AcceptanceRequest,
+        build_acceptance_routing_decision,
+    )
+
+    decision = build_acceptance_routing_decision(
+        AcceptanceRequest(
+            goal="Compare this new surface with something older.",
+            target="mission:demo",
+            constraints=["dashboard only"],
+        ),
+        contract_strength="strong",
+        surface_familiarity="known",
+        baseline_available=False,
+    )
+
+    assert decision.compare_overlay is False
+    assert decision.base_run_mode is AcceptanceRunMode.VERIFY
+    assert decision.budget_profile == "verify_tight"
+
+
+def test_high_mutation_risk_forces_conservative_recon_fallback() -> None:
+    from spec_orch.acceptance_core.models import AcceptanceRunMode
+    from spec_orch.acceptance_core.routing import (
+        AcceptanceRequest,
+        build_acceptance_routing_decision,
+    )
+
+    decision = build_acceptance_routing_decision(
+        AcceptanceRequest(
+            goal="Dogfood this approval panel from an operator perspective.",
+            target="mission:demo",
+            constraints=["write surface"],
+        ),
+        contract_strength="medium",
+        surface_familiarity="known",
+        baseline_available=False,
+        mutation_risk="high",
+        workflow_tuning_availability="tuned_graph",
+    )
+
+    assert decision.base_run_mode is AcceptanceRunMode.RECON
+    assert decision.risk_posture == "conservative"
+    assert decision.recon_fallback_reason == "high_mutation_risk"
+    assert "surface_scan" in decision.evidence_plan
+
+
 def test_launcher_exposes_fresh_acpx_surface_pack_ref() -> None:
     from spec_orch.dashboard.launcher import _fresh_acpx_acceptance_surface_pack_ref
 

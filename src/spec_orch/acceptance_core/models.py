@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any
 
@@ -52,6 +52,11 @@ class CandidateFinding:
     graph_profile: str = ""
     run_mode: str = ""
     compare_overlay: bool = False
+    source_observation_id: str = ""
+    reviewer_identity: str = ""
+    review_note: str = ""
+    dismissal_reason: str = ""
+    superseded_by: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -75,6 +80,11 @@ class CandidateFinding:
             "graph_profile": self.graph_profile,
             "run_mode": self.run_mode,
             "compare_overlay": self.compare_overlay,
+            "source_observation_id": self.source_observation_id,
+            "reviewer_identity": self.reviewer_identity,
+            "review_note": self.review_note,
+            "dismissal_reason": self.dismissal_reason,
+            "superseded_by": self.superseded_by,
         }
 
 
@@ -122,6 +132,67 @@ class AcceptanceJudgment:
             "candidate": self.candidate.to_dict() if self.candidate is not None else None,
             "observation": (self.observation.to_dict() if self.observation is not None else None),
         }
+
+
+def promote_observation_to_candidate(
+    observation: AcceptanceObservation,
+    *,
+    finding_id: str,
+    claim: str,
+    confidence: float,
+    impact_if_true: str,
+    repro_status: str,
+    hold_reason: str,
+    promotion_test: str,
+    recommended_next_step: str,
+    dedupe_key: str,
+    baseline_ref: str = "",
+    origin_step: str = "",
+    graph_profile: str = "",
+    run_mode: str = "",
+    compare_overlay: bool = False,
+    source_observation_id: str = "",
+) -> CandidateFinding:
+    return CandidateFinding(
+        finding_id=finding_id,
+        claim=claim,
+        surface=observation.critique_axis or observation.route or "",
+        route=observation.route,
+        evidence_refs=list(observation.evidence_refs),
+        confidence=confidence,
+        impact_if_true=impact_if_true,
+        repro_status=repro_status,
+        hold_reason=hold_reason,
+        promotion_test=promotion_test,
+        recommended_next_step=recommended_next_step,
+        dedupe_key=dedupe_key,
+        critique_axis=observation.critique_axis,
+        operator_task=observation.operator_task,
+        why_it_matters=observation.why_it_matters,
+        baseline_ref=baseline_ref,
+        origin_step=origin_step,
+        graph_profile=graph_profile,
+        run_mode=run_mode,
+        compare_overlay=compare_overlay,
+        source_observation_id=source_observation_id,
+    )
+
+
+def apply_candidate_governance(
+    candidate: CandidateFinding,
+    *,
+    reviewer_identity: str = "",
+    review_note: str = "",
+    dismissal_reason: str = "",
+    superseded_by: str = "",
+) -> CandidateFinding:
+    return replace(
+        candidate,
+        reviewer_identity=reviewer_identity or candidate.reviewer_identity,
+        review_note=review_note or candidate.review_note,
+        dismissal_reason=dismissal_reason or candidate.dismissal_reason,
+        superseded_by=superseded_by or candidate.superseded_by,
+    )
 
 
 def run_mode_from_legacy_acceptance_mode(
@@ -224,6 +295,8 @@ __all__ = [
     "AcceptanceRunMode",
     "AcceptanceWorkflowState",
     "CandidateFinding",
+    "apply_candidate_governance",
     "build_acceptance_judgments",
+    "promote_observation_to_candidate",
     "run_mode_from_legacy_acceptance_mode",
 ]

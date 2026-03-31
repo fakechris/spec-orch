@@ -195,6 +195,72 @@ def test_calibration_harness_aggregates_fixture_comparisons() -> None:
     assert result["comparisons"][1]["matches"] is False
 
 
+def test_calibration_harness_gracefully_reports_missing_actual_review() -> None:
+    from spec_orch.acceptance_core.calibration import run_acceptance_calibration_harness
+
+    result = run_acceptance_calibration_harness(
+        fixture_names=["feature_scoped_launcher_regression"],
+        actual_reviews={},
+    )
+
+    assert result["summary"]["total"] == 1
+    assert result["summary"]["matched"] == 0
+    assert result["summary"]["mismatched"] == 1
+    assert result["summary"]["missing_actual_reviews"] == 1
+    assert result["comparisons"][0]["fixture_name"] == "feature_scoped_launcher_regression"
+    assert "missing_review" in result["comparisons"][0]["mismatches"]
+
+
+def test_calibration_harness_reports_workflow_tuning_drift() -> None:
+    from spec_orch.acceptance_core.calibration import (
+        AcceptanceCalibrationFixture,
+        compare_review_to_fixture,
+    )
+
+    fixture = AcceptanceCalibrationFixture(
+        fixture_name="workflow-drift-demo",
+        review=AcceptanceReviewResult(
+            status="warn",
+            summary="Expected tuned graph review.",
+            confidence=0.8,
+            evaluator="acceptance_llm",
+            acceptance_mode="exploratory",
+            coverage_status="complete",
+            findings=[],
+            issue_proposals=[],
+            artifacts={},
+        ),
+        expected={
+            "field_expectations": {
+                "graph_profile": "tuned_dashboard_compare_graph",
+                "workflow_tuning_notes": ["compare overlay expected"],
+            },
+            "step_artifacts": ["browser_evidence.json", "step:transcript-empty-state"],
+        },
+    )
+    actual = AcceptanceReviewResult(
+        status="warn",
+        summary="Actual review used a weaker graph.",
+        confidence=0.8,
+        evaluator="acceptance_llm",
+        acceptance_mode="exploratory",
+        coverage_status="complete",
+        findings=[],
+        issue_proposals=[],
+        artifacts={
+            "graph_profile": "exploratory_probe_graph",
+            "workflow_tuning_notes": [],
+            "step_artifacts": ["browser_evidence.json"],
+        },
+    )
+
+    comparison = compare_review_to_fixture(actual, fixture)
+
+    assert comparison.matches is False
+    assert comparison.workflow_tuning_drift["graph_profile"] == "tuned_graph_mismatch"
+    assert comparison.workflow_tuning_drift["step_artifacts"] == "expected_step_artifacts_missing"
+
+
 def test_candidate_finding_qualifies_for_fixture_candidate_when_reviewed_repeatedly() -> None:
     from spec_orch.acceptance_core.calibration import qualifies_for_fixture_candidate
     from spec_orch.acceptance_core.models import (
