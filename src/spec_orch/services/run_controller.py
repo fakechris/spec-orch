@@ -441,7 +441,41 @@ class RunController:
             )
 
         if existing_snapshot is not None:
-            auto_approve_spec_snapshot(existing_snapshot)
+            try:
+                auto_approve_spec_snapshot(existing_snapshot)
+            except ValueError as exc:
+                self._event_logger.log_and_emit(
+                    activity_logger=activity_logger,
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=issue.issue_id,
+                    component="spec",
+                    event_type="spec_snapshot_auto_approve_failed",
+                    message=(
+                        "Existing spec snapshot cannot be auto-approved "
+                        f"(v{existing_snapshot.version}): {exc}"
+                    ),
+                    data={
+                        "version": existing_snapshot.version,
+                        "approved": False,
+                        "error": str(exc),
+                    },
+                )
+                RunReportWriter.persist_state(
+                    workspace,
+                    issue,
+                    run_id,
+                    RunState.SPEC_DRAFTING,
+                )
+                return self._stub_result(
+                    issue,
+                    workspace,
+                    RunState.SPEC_DRAFTING,
+                    message=(
+                        "Spec has unresolved blocking questions. "
+                        "Use 'advance' after answering them."
+                    ),
+                )
             write_spec_snapshot(workspace, existing_snapshot)
             self._event_logger.log_and_emit(
                 activity_logger=activity_logger,

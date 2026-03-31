@@ -13,7 +13,6 @@ def write_spec_snapshot(workspace: Path, snapshot: SpecSnapshot) -> Path:
     path = workspace / "spec_snapshot.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     data = asdict(snapshot)
-    data["issue"]["context"] = asdict(snapshot.issue.context)
     data["issue"]["intent"] = snapshot.issue.summary
     atomic_write_json(path, data, default=str)
     return path
@@ -40,6 +39,10 @@ def read_spec_snapshot(workspace: Path) -> SpecSnapshot | None:
         verification_commands=data["issue"].get("verification_commands", {}),
         context=context,
         acceptance_criteria=data["issue"].get("acceptance_criteria", []),
+        mission_id=data["issue"].get("mission_id"),
+        spec_section=data["issue"].get("spec_section"),
+        run_class=data["issue"].get("run_class"),
+        labels=data["issue"].get("labels", []),
     )
     questions = [
         Question(
@@ -79,7 +82,7 @@ def create_initial_snapshot(issue: Issue, *, approved: bool = False) -> SpecSnap
 
 
 def approve_spec_snapshot(snapshot: SpecSnapshot, *, approved_by: str) -> SpecSnapshot:
-    """Approve a snapshot and bump its version once blocking questions are resolved."""
+    """Approve a snapshot in place once blocking questions are resolved."""
     if snapshot.has_unresolved_blocking_questions():
         raise ValueError("cannot approve snapshot: unresolved blocking questions remain")
     snapshot.approved = True

@@ -6,6 +6,8 @@ from spec_orch.contract_core.snapshots import (
     approve_spec_snapshot,
     auto_approve_spec_snapshot,
     create_initial_snapshot,
+    read_spec_snapshot,
+    write_spec_snapshot,
 )
 from spec_orch.domain.models import Issue, IssueContext, Question
 
@@ -16,6 +18,10 @@ def _sample_issue() -> Issue:
         title="Contract core snapshot",
         summary="Check snapshot helpers.",
         context=IssueContext(),
+        mission_id="mission-123",
+        spec_section="spec.section",
+        run_class="feature",
+        labels=["doc-only", "needs-review"],
     )
 
 
@@ -54,3 +60,16 @@ def test_auto_approve_spec_snapshot_bumps_version_without_approver() -> None:
     assert updated.approved is True
     assert updated.approved_by is None
     assert updated.version == 2
+
+
+def test_spec_snapshot_round_trip_preserves_issue_metadata(tmp_path) -> None:
+    snapshot = create_initial_snapshot(_sample_issue(), approved=False)
+
+    write_spec_snapshot(tmp_path, snapshot)
+    restored = read_spec_snapshot(tmp_path)
+
+    assert restored is not None
+    assert restored.issue.mission_id == "mission-123"
+    assert restored.issue.spec_section == "spec.section"
+    assert restored.issue.run_class == "feature"
+    assert restored.issue.labels == ["doc-only", "needs-review"]
