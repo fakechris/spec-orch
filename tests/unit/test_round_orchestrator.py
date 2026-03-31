@@ -913,7 +913,9 @@ def test_run_supervised_records_acceptance_graph_trace_artifacts(tmp_path: Path)
     observability_root = (
         tmp_path / "docs/specs/mission-1/operator/observability/round-01-acceptance-graph"
     )
-    live_summary = json.loads((observability_root / "live_summary.json").read_text(encoding="utf-8"))
+    live_summary = json.loads(
+        (observability_root / "live_summary.json").read_text(encoding="utf-8")
+    )
     assert live_summary["phase"] == "completed"
     assert live_summary["budget"]["planned_steps"] == 4
 

@@ -6,9 +6,12 @@ def test_runtime_core_package_exposes_skeleton_modules() -> None:
 
     assert runtime_core.__all__ == [
         "adapters",
+        "compaction",
         "models",
+        "observability",
         "paths",
         "readers",
+        "tool_runtime",
         "writers",
     ]
 

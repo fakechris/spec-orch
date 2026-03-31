@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 
 from spec_orch.runtime_core.tool_runtime.hooks import HookDispatcher
@@ -13,6 +14,8 @@ from spec_orch.runtime_core.tool_runtime.models import (
 from spec_orch.runtime_core.tool_runtime.permissions import evaluate_permission
 from spec_orch.runtime_core.tool_runtime.registry import ToolRegistry
 from spec_orch.runtime_core.tool_runtime.telemetry import append_tool_lifecycle_event
+
+logger = logging.getLogger(__name__)
 
 
 def execute_tool_request(
@@ -169,4 +172,11 @@ def plan_tool_batches(
 def _emit(request: ToolExecutionRequest, event: ToolLifecycleEvent) -> None:
     if request.telemetry_root is None:
         return
-    append_tool_lifecycle_event(request.telemetry_root, event)
+    try:
+        append_tool_lifecycle_event(request.telemetry_root, event)
+    except Exception:
+        logger.debug(
+            "tool lifecycle emission failed for %s",
+            request.tool_name,
+            exc_info=True,
+        )

@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from spec_orch.runtime_core.tool_runtime.models import ToolLifecycleEvent
 
 TOOL_LIFECYCLE_FILENAME = "tool_lifecycle.jsonl"
+logger = logging.getLogger(__name__)
 
 
 def append_tool_lifecycle_event(root: Path, event: ToolLifecycleEvent) -> Path:
     path = Path(root) / TOOL_LIFECYCLE_FILENAME
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+    except OSError:
+        logger.debug("tool lifecycle telemetry write failed: %s", path, exc_info=True)
     return path
 
 
