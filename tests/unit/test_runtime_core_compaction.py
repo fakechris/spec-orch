@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from spec_orch.runtime_core.compaction.models import (
     CompactionBoundary,
     CompactionRestoreBundle,
@@ -41,6 +43,13 @@ class _FakeMemoryService:
             }
         )
         return {"removed": 2, "retained": 5, "distilled": 1}
+
+
+class _FileExistsMemoryService:
+    def compact(
+        self, *, max_age_days: int, summarize: bool, planner_config: dict | None
+    ) -> dict[str, int]:
+        raise FileExistsError("real file exists failure")
 
 
 def test_evaluate_compaction_trigger_uses_explicit_threshold() -> None:
@@ -201,3 +210,15 @@ def test_run_memory_compaction_recursion_guard_blocks_reentry(tmp_path: Path) ->
         assert "recursion guard" in str(exc)
     else:
         raise AssertionError("expected RuntimeError")
+
+
+def test_run_memory_compaction_does_not_mask_guarded_fileexistserror(tmp_path: Path) -> None:
+    decision = evaluate_compaction_trigger(observed_count=10, threshold=10)
+
+    with pytest.raises(FileExistsError, match="real file exists failure"):
+        run_memory_compaction(
+            root=tmp_path,
+            memory_service=_FileExistsMemoryService(),
+            trigger=decision,
+            restore_bundle=CompactionRestoreBundle(),
+        )

@@ -158,9 +158,10 @@ def _compaction_guard(root: Path):
         with guard_path.open("x", encoding="utf-8") as handle:
             handle.write(json.dumps({"created_at": uuid.uuid4().hex}, ensure_ascii=False))
             handle.flush()
-        yield
     except FileExistsError as exc:
         raise RuntimeError("compaction recursion guard active") from exc
+    try:
+        yield
     finally:
         guard_path.unlink(missing_ok=True)
 

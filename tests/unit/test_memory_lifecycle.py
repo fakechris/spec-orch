@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from unittest.mock import patch
 
@@ -148,3 +149,18 @@ def test_memory_lifecycle_reclaims_stale_lock(tmp_path: Path) -> None:
     stale_lock.write_text("2000-01-01T00:00:00+00:00", encoding="utf-8")
 
     assert manager.reserve_shared_memory_write("acceptance:route:/dashboard") is True
+
+
+def test_memory_lifecycle_shared_memory_sync_uses_stable_content_hash(tmp_path: Path) -> None:
+    provider = FileSystemMemoryProvider(tmp_path / "memory")
+    manager = MemoryLifecycleManager(tmp_path / "memory" / "_lifecycle", provider)
+
+    event = manager.record_shared_memory_sync(
+        sync_id="sync-1",
+        repo_scope="spec-orch",
+        source="acceptance",
+        freshness_key="acceptance:route:/dashboard",
+        content="stable content",
+    )
+
+    assert event.content_hash == hashlib.sha256(b"stable content").hexdigest()[:16]

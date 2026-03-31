@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from contextlib import contextmanager
@@ -232,7 +233,7 @@ class MemoryLifecycleManager:
             source=source,
             freshness_key=freshness_key,
             status=status if allowed else f"blocked:{reason}",
-            content_hash=str(abs(hash(content))),
+            content_hash=hashlib.sha256(content.encode("utf-8")).hexdigest()[:16],
         )
         path = self._root / "shared_memory_sync.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
