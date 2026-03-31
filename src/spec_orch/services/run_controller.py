@@ -6,6 +6,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
 
+from spec_orch.contract_core.snapshots import (
+    auto_approve_spec_snapshot,
+    create_initial_snapshot,
+    read_spec_snapshot,
+    write_spec_snapshot,
+)
 from spec_orch.decision_core.inventory import decision_point_for_flow_router_source
 from spec_orch.domain.compliance import (
     default_turn_contract_compliance,
@@ -44,11 +50,6 @@ from spec_orch.services.run_artifact_service import RunArtifactService
 from spec_orch.services.run_event_logger import RunEventLogger
 from spec_orch.services.run_progress import RunProgressSnapshot
 from spec_orch.services.run_report_writer import RunReportWriter
-from spec_orch.services.spec_snapshot_service import (
-    create_initial_snapshot,
-    read_spec_snapshot,
-    write_spec_snapshot,
-)
 from spec_orch.services.telemetry_service import TelemetryService
 from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.workspace_service import WorkspaceService
@@ -440,8 +441,41 @@ class RunController:
             )
 
         if existing_snapshot is not None:
-            existing_snapshot.approved = True
-            existing_snapshot.version += 1
+            try:
+                auto_approve_spec_snapshot(existing_snapshot)
+            except ValueError as exc:
+                self._event_logger.log_and_emit(
+                    activity_logger=activity_logger,
+                    workspace=workspace,
+                    run_id=run_id,
+                    issue_id=issue.issue_id,
+                    component="spec",
+                    event_type="spec_snapshot_auto_approve_failed",
+                    message=(
+                        "Existing spec snapshot cannot be auto-approved "
+                        f"(v{existing_snapshot.version}): {exc}"
+                    ),
+                    data={
+                        "version": existing_snapshot.version,
+                        "approved": False,
+                        "error": str(exc),
+                    },
+                )
+                RunReportWriter.persist_state(
+                    workspace,
+                    issue,
+                    run_id,
+                    RunState.SPEC_DRAFTING,
+                )
+                return self._stub_result(
+                    issue,
+                    workspace,
+                    RunState.SPEC_DRAFTING,
+                    message=(
+                        "Spec has unresolved blocking questions. "
+                        "Use 'advance' after answering them."
+                    ),
+                )
             write_spec_snapshot(workspace, existing_snapshot)
             self._event_logger.log_and_emit(
                 activity_logger=activity_logger,

@@ -9,7 +9,19 @@ import typer
 
 from spec_orch.cli import app
 from spec_orch.cli._helpers import _edit_fixture_json
-from spec_orch.domain.models import Decision, Finding, Question
+from spec_orch.contract_core.decisions import (
+    add_snapshot_question,
+    answer_snapshot_question,
+    question_status_rows,
+)
+from spec_orch.contract_core.importers import load_spec_structure, supported_import_formats
+from spec_orch.contract_core.snapshots import (
+    approve_spec_snapshot,
+    create_initial_snapshot,
+    read_spec_snapshot,
+    write_spec_snapshot,
+)
+from spec_orch.domain.models import Finding
 from spec_orch.services.finding_store import (
     append_finding,
     fingerprint_from,
@@ -17,11 +29,6 @@ from spec_orch.services.finding_store import (
     resolve_finding,
 )
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
-from spec_orch.services.spec_snapshot_service import (
-    create_initial_snapshot,
-    read_spec_snapshot,
-    write_spec_snapshot,
-)
 from spec_orch.services.workspace_service import WorkspaceService
 
 findings_app = typer.Typer()
@@ -178,11 +185,9 @@ def list_questions(
     if not snapshot.questions:
         typer.echo("no questions")
         return
-    answered_ids = {d.question_id for d in snapshot.decisions}
-    for q in snapshot.questions:
-        status = "answered" if q.id in answered_ids else "open"
-        blocking = " [blocking]" if q.blocking else ""
-        typer.echo(f"{q.id} [{q.category}]{blocking} ({status}) {q.text}")
+    for question_id, category, blocking, status, text in question_status_rows(snapshot):
+        blocking_label = " [blocking]" if blocking else ""
+        typer.echo(f"{question_id} [{category}]{blocking_label} ({status}) {text}")
 
 
 @questions_app.command("add")
@@ -202,15 +207,13 @@ def add_question(
         issue = issue_source.load(issue_id)
         snapshot = create_initial_snapshot(issue)
     qid = f"q-{uuid4().hex[:8]}"
-    snapshot.questions.append(
-        Question(
-            id=qid,
-            asked_by=asked_by,
-            target="user",
-            category=category,
-            blocking=blocking,
-            text=text,
-        )
+    add_snapshot_question(
+        snapshot,
+        text=text,
+        category=category,
+        blocking=blocking,
+        asked_by=asked_by,
+        question_id=qid,
     )
     write_spec_snapshot(workspace, snapshot)
     typer.echo(f"added question {qid}")
@@ -230,20 +233,17 @@ def answer_question(
     if snapshot is None:
         typer.echo("no spec snapshot found")
         raise typer.Exit(1)
-    matching = [q for q in snapshot.questions if q.id == question_id]
-    if not matching:
-        typer.echo(f"question not found: {question_id}")
-        raise typer.Exit(1)
-    matching[0].answer = answer
-    matching[0].answered_by = decided_by
-    snapshot.decisions.append(
-        Decision(
+    try:
+        answer_snapshot_question(
+            snapshot,
             question_id=question_id,
             answer=answer,
             decided_by=decided_by,
             timestamp=datetime.now(UTC).isoformat(),
         )
-    )
+    except ValueError as exc:
+        typer.echo(f"question not found: {question_id}")
+        raise typer.Exit(1) from exc
     write_spec_snapshot(workspace, snapshot)
     typer.echo(f"answered {question_id}")
 
@@ -291,9 +291,7 @@ def spec_approve(
     if snapshot.has_unresolved_blocking_questions():
         typer.echo("cannot approve: unresolved blocking questions remain")
         raise typer.Exit(1)
-    snapshot.approved = True
-    snapshot.approved_by = approved_by
-    snapshot.version += 1
+    approve_spec_snapshot(snapshot, approved_by=approved_by)
     write_spec_snapshot(workspace, snapshot)
     typer.echo(f"spec approved (v{snapshot.version}) by {approved_by}")
 
@@ -337,21 +335,17 @@ def spec_import(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
 ) -> None:
     """Import a spec from an external format (spec-kit, ears, bdd) and create a mission."""
-    from spec_orch.spec_import.parser import PARSER_REGISTRY
-
-    parser = PARSER_REGISTRY.get(format_id)
-    if parser is None:
-        supported = ", ".join(PARSER_REGISTRY.supported_formats())
-        typer.echo(f"Error: unsupported format '{format_id}'. Supported: {supported}", err=True)
-        raise typer.Exit(code=1)
-
     source_path = Path(path)
     if not source_path.exists():
         typer.echo(f"Error: path not found: {path}", err=True)
         raise typer.Exit(code=1)
 
     try:
-        spec_structure = parser.parse(source_path)
+        spec_structure = load_spec_structure(format_id, source_path)
+    except ValueError as exc:
+        supported = ", ".join(supported_import_formats())
+        typer.echo(f"Error: unsupported format '{format_id}'. Supported: {supported}", err=True)
+        raise typer.Exit(code=1) from exc
     except Exception as exc:
         typer.echo(f"Error parsing {format_id}: {exc}", err=True)
         raise typer.Exit(code=1) from exc

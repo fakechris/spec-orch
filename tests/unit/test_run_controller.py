@@ -3,10 +3,12 @@ from pathlib import Path
 
 import pytest
 
+from spec_orch.contract_core.snapshots import create_initial_snapshot, write_spec_snapshot
 from spec_orch.domain.models import (
     BuilderResult,
     Issue,
     IssueContext,
+    Question,
     RunState,
     validate_transition,
 )
@@ -332,6 +334,41 @@ def test_get_state_returns_persisted_state(tmp_path: Path) -> None:
     controller = RunController(repo_root=tmp_path, require_spec_approval=False)
     controller.run_issue("SPC-GS")
     assert controller.get_state("SPC-GS") == RunState.GATE_EVALUATED
+
+
+def test_run_issue_does_not_crash_when_auto_approve_is_blocked(tmp_path: Path) -> None:
+    fixtures_dir = tmp_path / "fixtures" / "issues"
+    fixtures_dir.mkdir(parents=True)
+    (fixtures_dir / "SPC-BLOCK.json").write_text(
+        json.dumps(
+            {
+                "issue_id": "SPC-BLOCK",
+                "title": "Blocked snapshot",
+                "summary": "Existing snapshot has unresolved blocking questions.",
+            }
+        )
+    )
+    controller = RunController(repo_root=tmp_path, require_spec_approval=False)
+    issue = controller.issue_source.load("SPC-BLOCK")
+    workspace = controller.workspace_service.prepare_issue_workspace(issue.issue_id)
+    snapshot = create_initial_snapshot(issue, approved=False)
+    snapshot.questions.append(
+        Question(
+            id="q-blocking",
+            asked_by="planner",
+            target="user",
+            category="requirement",
+            blocking=True,
+            text="Need a decision",
+        )
+    )
+    write_spec_snapshot(workspace, snapshot)
+
+    result = controller.run_issue("SPC-BLOCK")
+
+    assert result.state == RunState.SPEC_DRAFTING
+    assert result.builder.skipped is True
+    assert result.gate.failed_conditions == ["pre_build"]
 
 
 def test_validate_transition_rejects_illegal_move() -> None:

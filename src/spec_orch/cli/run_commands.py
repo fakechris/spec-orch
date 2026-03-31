@@ -13,6 +13,7 @@ from spec_orch.cli._helpers import (
     _linear_writeback_on_pr,
     _make_controller,
 )
+from spec_orch.contract_core.snapshots import read_spec_snapshot
 from spec_orch.services.workspace_service import WorkspaceService
 
 
@@ -75,7 +76,6 @@ def accept_issue(
         detect_deviations,
         write_deviations,
     )
-    from spec_orch.services.spec_snapshot_service import read_spec_snapshot
 
     ws = WorkspaceService(repo_root=Path(repo_root))
     workspace = ws.issue_workspace_path(issue_id)
