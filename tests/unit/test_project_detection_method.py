@@ -90,3 +90,16 @@ def test_generate_toml_defaults_to_local_reviewer_without_key(monkeypatch) -> No
     profile = ProjectProfile(language="python", verification={"test": ["pytest"]})
     toml_text = generate_toml_config(profile)
     assert 'adapter = "local"' in toml_text
+
+
+def test_generate_toml_uses_shared_model_catalog_defaults() -> None:
+    profile = ProjectProfile(language="python", verification={"test": ["pytest"]})
+
+    toml_text = generate_toml_config(profile)
+
+    assert "[llm]" in toml_text
+    assert 'default_model_chain = "default_reasoning"' in toml_text
+    assert "[models.default_reasoning]" in toml_text
+    assert "[model_chains.default_reasoning]" in toml_text
+    assert "[planner]" in toml_text
+    assert "# inherits [llm].default_model_chain unless overridden" in toml_text

@@ -142,6 +142,43 @@ agent = "opencode"
 model = "minimax/MiniMax-M2.5"
 ```
 
+### Multi-Model Defaults And Fallback Chains
+
+Define models once, compose a named chain, then let roles inherit it:
+
+```toml
+[llm]
+default_model_chain = "default_reasoning"
+
+[models.minimax_reasoning]
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+
+[models.fireworks_kimi]
+model = "accounts/fireworks/routers/kimi-k2p5-turbo"
+api_type = "anthropic"
+api_key_env = "ANTHROPIC_AUTH_TOKEN"
+api_base_env = "ANTHROPIC_BASE_URL"
+
+[model_chains.default_reasoning]
+primary = "minimax_reasoning"
+fallbacks = ["fireworks_kimi"]
+
+[planner]
+
+[supervisor]
+adapter = "litellm"
+
+[acceptance_evaluator]
+adapter = "litellm"
+```
+
+Fallbacks are used only for transient provider errors such as `429`, `529`,
+overload, timeout, or temporary unavailability. Missing credentials or missing
+base URLs remain explicit configuration failures.
+
 ### Gate System
 
 Configurable merge conditions with profiles (full / standard / hotfix):

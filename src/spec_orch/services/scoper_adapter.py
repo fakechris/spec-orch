@@ -6,6 +6,7 @@ import json
 import os
 import shlex
 import subprocess
+import time
 import uuid
 from typing import Any
 
@@ -16,6 +17,7 @@ from spec_orch.domain.models import (
     Wave,
     WorkPacket,
 )
+from spec_orch.services.litellm_profile import ResolvedLiteLLMProfile
 
 _SCOPER_SYSTEM_PROMPT = """\
 You are a technical scoper for SpecOrch.
@@ -68,6 +70,9 @@ class LiteLLMScoperAdapter:
         api_key: str | None = None,
         api_base: str | None = None,
         temperature: float = 0.3,
+        max_retries: int = 2,
+        retry_backoff_seconds: float = 1.0,
+        model_chain: list[ResolvedLiteLLMProfile] | None = None,
         token_command: str | None = None,
         evidence_context: str | None = None,
         scoper_hints: str | None = None,
@@ -75,13 +80,22 @@ class LiteLLMScoperAdapter:
         if api_type not in self.VALID_API_TYPES:
             raise ValueError(f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}")
         self.api_type = api_type
-        if "/" in model:
-            self.model = model
+        self.model_chain = list(model_chain or [])
+        if self.model_chain:
+            primary = self.model_chain[0]
+            self.model = primary.model
+            self._static_api_key = primary.api_key or os.environ.get("SPEC_ORCH_LLM_API_KEY")
+            self.api_base = primary.api_base or os.environ.get("SPEC_ORCH_LLM_API_BASE")
         else:
-            self.model = f"{api_type}/{model}"
-        self._static_api_key = api_key or os.environ.get("SPEC_ORCH_LLM_API_KEY")
-        self.api_base = api_base or os.environ.get("SPEC_ORCH_LLM_API_BASE")
+            if "/" in model:
+                self.model = model
+            else:
+                self.model = f"{api_type}/{model}"
+            self._static_api_key = api_key or os.environ.get("SPEC_ORCH_LLM_API_KEY")
+            self.api_base = api_base or os.environ.get("SPEC_ORCH_LLM_API_BASE")
         self.temperature = temperature
+        self.max_retries = max(0, max_retries)
+        self.retry_backoff_seconds = max(0.0, retry_backoff_seconds)
         self._token_command = token_command
         self._evidence_context = evidence_context
         self._scoper_hints = scoper_hints
@@ -168,21 +182,41 @@ class LiteLLMScoperAdapter:
                 "analysis:\n\n" + self._scoper_hints
             )
 
-        kwargs: dict[str, Any] = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_msg},
-            ],
-            "temperature": self.temperature,
-        }
-        if self.api_key:
-            kwargs["api_key"] = self.api_key
-        if self.api_base:
-            kwargs["api_base"] = self.api_base
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_msg},
+        ]
+        profiles = self.model_chain or [self._default_profile()]
+        last_exc: Exception | None = None
+        for profile in profiles:
+            kwargs: dict[str, Any] = {
+                "model": profile.model,
+                "messages": messages,
+                "temperature": self.temperature,
+            }
+            if profile.api_key:
+                kwargs["api_key"] = profile.api_key
+            if profile.api_base:
+                kwargs["api_base"] = profile.api_base
 
-        response = litellm.completion(**kwargs)
-        return self._parse_response(response, mission)
+            attempt = 0
+            while True:
+                try:
+                    response = litellm.completion(**kwargs)
+                    return self._parse_response(response, mission)
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt < self.max_retries and _is_transient_litellm_error(exc):
+                        attempt += 1
+                        if self.retry_backoff_seconds > 0:
+                            time.sleep(self.retry_backoff_seconds * attempt)
+                        continue
+                    if not _is_transient_litellm_error(exc):
+                        raise
+                    break
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("No scoper model profile configured")
 
     def _parse_response(
         self,
@@ -233,3 +267,42 @@ class LiteLLMScoperAdapter:
             waves=waves,
             status=PlanStatus.DRAFT,
         )
+
+    def _default_profile(self) -> ResolvedLiteLLMProfile:
+        return ResolvedLiteLLMProfile(
+            model=self.model,
+            api_type=self.api_type,
+            api_key=self.api_key or "",
+            api_base=self.api_base or "",
+            api_key_env="",
+            api_base_env="",
+            slot="primary",
+        )
+
+
+def _is_transient_litellm_error(exc: Exception) -> bool:
+    if isinstance(exc, TimeoutError):
+        return True
+    message = str(exc).lower()
+    transient_markers = (
+        "overloaded_error",
+        "rate limit",
+        "rate_limit",
+        "429",
+        "529",
+        "temporarily unavailable",
+        "service unavailable",
+        "server overloaded",
+        "try again later",
+    )
+    fatal_markers = (
+        "invalid x-api-key",
+        "authentication_error",
+        "unauthorized",
+        "forbidden",
+        "invalid api key",
+        "missing_api_base",
+    )
+    if any(marker in message for marker in fatal_markers):
+        return False
+    return any(marker in message for marker in transient_markers)

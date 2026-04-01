@@ -19,13 +19,30 @@ agent = "opencode"
 model = "minimax/MiniMax-M2.5"
 timeout_seconds = 1800
 
+[llm]
+default_model_chain = "default_reasoning"
+
+[models.minimax_reasoning]
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+
+[models.fireworks_kimi]
+model = "accounts/fireworks/routers/kimi-k2p5-turbo"
+api_type = "anthropic"
+api_key_env = "ANTHROPIC_AUTH_TOKEN"
+api_base_env = "ANTHROPIC_BASE_URL"
+
+[model_chains.default_reasoning]
+primary = "minimax_reasoning"
+fallbacks = ["fireworks_kimi"]
+
 [reviewer]
 adapter = "local"
 # --- To use LLM-driven review with MiniMax (OpenAI-compat mode): ---
 # adapter = "llm"
-# model = "openai/MiniMax-M2.5"
-# api_key_env = "MINIMAX_API_KEY"
-# api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+# # inherits [llm].default_model_chain
 
 [memory]
 provider = "filesystem_qdrant"
@@ -37,23 +54,14 @@ collection = "spec_orch_memory"
 embedding_model = "BAAI/bge-small-zh-v1.5"
 
 [planner]
-model = "MiniMax-M2.7-highspeed"
-api_type = "anthropic"
-api_key_env = "MINIMAX_API_KEY"
-api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+# inherits [llm].default_model_chain
 
 [supervisor]
 adapter = "litellm"
-model = "MiniMax-M2.7-highspeed"
-api_key_env = "MINIMAX_API_KEY"
-api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
 max_rounds = 12
 
 [acceptance_evaluator]
 adapter = "litellm"
-model = "MiniMax-M2.7-highspeed"
-api_key_env = "MINIMAX_API_KEY"
-api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
 auto_file_issues = false
 min_confidence = 0.85
 min_severity = "high"

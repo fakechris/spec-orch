@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 from spec_orch.domain.models import (
@@ -224,6 +225,70 @@ def test_supervisor_adapter_normalizes_model_and_falls_back_to_minimax_envs(
     assert captured_kwargs["api_base"] == "https://api.minimaxi.com/anthropic"
 
 
+def test_supervisor_adapter_falls_back_to_secondary_model_on_transient_overload(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.litellm_profile import ResolvedLiteLLMProfile
+    from spec_orch.services.litellm_supervisor_adapter import LiteLLMSupervisorAdapter
+
+    seen_bases: list[str] = []
+
+    def fake_chat_completion(**kwargs):
+        seen_bases.append(str(kwargs.get("api_base") or ""))
+        if kwargs.get("api_base") == "https://primary.example":
+            raise RuntimeError("529 overloaded_error: primary unavailable")
+        return """# Review
+
+```json
+{
+  "action": "stop",
+  "reason_code": "done",
+  "summary": "Fallback supervisor succeeded.",
+  "confidence": 0.82
+}
+```"""
+
+    adapter = LiteLLMSupervisorAdapter(
+        repo_root=tmp_path,
+        model="ignored",
+        chat_completion=fake_chat_completion,
+        request_timeout_seconds=9.0,
+        max_retries=0,
+        retry_backoff_seconds=0.0,
+        model_chain=[
+            ResolvedLiteLLMProfile(
+                model="anthropic/MiniMax-M2.7-highspeed",
+                api_type="anthropic",
+                api_key="primary-key",
+                api_base="https://primary.example",
+                api_key_env="MINIMAX_API_KEY",
+                api_base_env="MINIMAX_ANTHROPIC_BASE_URL",
+                slot="primary",
+            ),
+            ResolvedLiteLLMProfile(
+                model="anthropic/accounts/fireworks/routers/kimi-k2p5-turbo",
+                api_type="anthropic",
+                api_key="fallback-key",
+                api_base="https://fallback.example",
+                api_key_env="ANTHROPIC_AUTH_TOKEN",
+                api_base_env="ANTHROPIC_BASE_URL",
+                slot="fallback-1",
+            ),
+        ],
+    )
+
+    decision = adapter.review_round(
+        round_artifacts=RoundArtifacts(round_id=5, mission_id="mission-5"),
+        plan=ExecutionPlan(plan_id="plan-5", mission_id="mission-5"),
+        round_history=[],
+        context=None,
+    )
+
+    assert seen_bases == ["https://primary.example", "https://fallback.example"]
+    assert decision.action is RoundAction.STOP
+    assert decision.summary == "Fallback supervisor succeeded."
+
+
 def test_supervisor_adapter_logs_memory_write_failures_without_breaking_review(
     tmp_path: Path, monkeypatch, caplog
 ) -> None:
@@ -424,6 +489,91 @@ def test_supervisor_adapter_times_out_to_retry_when_round_has_failed_packets(
     assert decision.action is RoundAction.RETRY
     assert decision.reason_code == "supervisor_timeout_round_needs_retry"
     assert "timed out" in decision.summary.lower()
+
+
+def test_supervisor_adapter_hard_deadline_interrupts_stuck_model_call(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.litellm_supervisor_adapter import LiteLLMSupervisorAdapter
+
+    def fake_chat_completion(**kwargs):
+        time.sleep(0.2)
+        return "never reached"
+
+    adapter = LiteLLMSupervisorAdapter(
+        repo_root=tmp_path,
+        model="test/model",
+        chat_completion=fake_chat_completion,
+        request_timeout_seconds=0.01,
+    )
+
+    decision = adapter.review_round(
+        round_artifacts=RoundArtifacts(
+            round_id=8,
+            mission_id="mission-8",
+            builder_reports=[
+                {"packet_id": "pkt-1", "succeeded": True},
+            ],
+            gate_verdicts=[
+                {"packet_id": "pkt-1", "mergeable": True, "failed_conditions": []},
+            ],
+        ),
+        plan=ExecutionPlan(plan_id="plan-8", mission_id="mission-8"),
+        round_history=[],
+        context=None,
+    )
+
+    assert decision.action is RoundAction.CONTINUE
+    assert decision.reason_code == "supervisor_timeout_all_mergeable"
+
+
+def test_supervisor_adapter_ignores_fresh_smoke_lint_gap_not_in_round_contract(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.litellm_supervisor_adapter import LiteLLMSupervisorAdapter
+
+    round_dir = tmp_path / "docs" / "specs" / "fresh-acpx-1" / "rounds" / "round-02"
+    round_dir.mkdir(parents=True, exist_ok=True)
+    (round_dir / "task.spec.md").write_text(
+        "# Fresh ACPX Mission E2E Narrow Smoke\n\n"
+        "## Acceptance Criteria\n\n"
+        "- The mission can be launched and produce fresh round artifacts.\n"
+        "- Post-run workflow replay can validate the resulting dashboard surfaces.\n",
+        encoding="utf-8",
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Review
+
+```json
+{
+  "action": "ask_human",
+  "reason_code": "verification_gap_lint_typecheck_missing",
+  "summary": "The acceptance criteria explicitly require lint and typecheck passes, but only shallow token checks ran.",
+  "confidence": 0.35
+}
+```"""
+
+    adapter = LiteLLMSupervisorAdapter(
+        repo_root=tmp_path,
+        model="test/model",
+        chat_completion=fake_chat_completion,
+    )
+
+    decision = adapter.review_round(
+        round_artifacts=RoundArtifacts(
+            round_id=2,
+            mission_id="fresh-acpx-1",
+            builder_reports=[{"packet_id": "pkt-1", "succeeded": True}],
+            gate_verdicts=[{"packet_id": "pkt-1", "mergeable": True, "failed_conditions": []}],
+        ),
+        plan=ExecutionPlan(plan_id="plan-fresh", mission_id="fresh-acpx-1"),
+        round_history=[],
+        context=None,
+    )
+
+    assert decision.action is RoundAction.CONTINUE
+    assert decision.reason_code == "verification_gap_not_in_round_contract"
 
 
 def test_supervisor_system_prompt_includes_constitution() -> None:

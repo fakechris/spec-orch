@@ -274,6 +274,90 @@ def test_build_round_orchestrator_passes_acpx_worker_robustness_knobs(
     assert captured_factory["max_session_age_seconds"] == 900.0
 
 
+def test_build_planner_inherits_default_model_chain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = DaemonConfig(
+        {
+            "llm": {"default_model_chain": "reasoning"},
+            "models": {
+                "minimax": {
+                    "model": "MiniMax-M2.7-highspeed",
+                    "api_type": "anthropic",
+                    "api_key_env": "MINIMAX_API_KEY",
+                    "api_base_env": "MINIMAX_ANTHROPIC_BASE_URL",
+                }
+            },
+            "model_chains": {"reasoning": {"primary": "minimax"}},
+            "planner": {},
+        }
+    )
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    captured: dict[str, object] = {}
+
+    class StubPlanner:
+        ADAPTER_NAME = "litellm"
+
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setenv("MINIMAX_API_KEY", "minimax-key")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+    monkeypatch.setattr(
+        "spec_orch.services.litellm_planner_adapter.LiteLLMPlannerAdapter",
+        StubPlanner,
+    )
+
+    planner = daemon._build_planner()
+
+    assert isinstance(planner, StubPlanner)
+    assert captured["model"] == "anthropic/MiniMax-M2.7-highspeed"
+    assert captured["model_chain"]
+
+
+def test_build_round_orchestrator_inherits_supervisor_default_model_chain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = DaemonConfig(
+        {
+            "llm": {"default_model_chain": "reasoning"},
+            "models": {
+                "minimax": {
+                    "model": "MiniMax-M2.7-highspeed",
+                    "api_type": "anthropic",
+                    "api_key_env": "MINIMAX_API_KEY",
+                    "api_base_env": "MINIMAX_ANTHROPIC_BASE_URL",
+                }
+            },
+            "model_chains": {"reasoning": {"primary": "minimax"}},
+            "supervisor": {"adapter": "litellm"},
+        }
+    )
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    captured_supervisor: dict[str, object] = {}
+
+    class StubRoundOrchestrator:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    monkeypatch.setenv("MINIMAX_API_KEY", "minimax-key")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+    monkeypatch.setattr(
+        "spec_orch.services.litellm_supervisor_adapter.LiteLLMSupervisorAdapter",
+        lambda **kwargs: captured_supervisor.update(kwargs) or object(),
+    )
+    monkeypatch.setattr(
+        "spec_orch.services.round_orchestrator.RoundOrchestrator",
+        StubRoundOrchestrator,
+    )
+
+    orchestrator = daemon._build_round_orchestrator()
+
+    assert isinstance(orchestrator, StubRoundOrchestrator)
+    assert captured_supervisor["model"] == "anthropic/MiniMax-M2.7-highspeed"
+    assert captured_supervisor["model_chain"]
+
+
 def test_daemon_poll_and_run_skips_locked(tmp_path: Path) -> None:
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)

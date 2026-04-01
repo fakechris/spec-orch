@@ -278,10 +278,26 @@ def generate_toml_config(profile: ProjectProfile, *, profile_level: str = "stand
     lines.append("timeout_seconds = 1800")
     lines.append("")
 
+    lines.append("[llm]")
+    lines.append('default_model_chain = "default_reasoning"')
+    lines.append("")
+
+    lines.append("[models.default_reasoning]")
+    lines.append('model = "claude-sonnet-4-20250514"')
+    lines.append('api_type = "anthropic"')
+    lines.append('api_key_env = "SPEC_ORCH_LLM_API_KEY"')
+    lines.append('api_base_env = "SPEC_ORCH_LLM_API_BASE"')
+    lines.append("")
+
+    lines.append("[model_chains.default_reasoning]")
+    lines.append('primary = "default_reasoning"')
+    lines.append("fallbacks = []")
+    lines.append("")
+
     llm_key_available = bool(os.environ.get("SPEC_ORCH_LLM_API_KEY"))
     lines.append("[reviewer]")
     if llm_key_available:
-        lines.append('adapter = "llm"  # LLM key detected; using LLM-based review')
+        lines.append('adapter = "llm"  # LLM key detected; inherits [llm].default_model_chain')
         lines.append('# adapter = "local"  # fallback: write JSON verdict only')
     else:
         lines.append('adapter = "local"  # Set SPEC_ORCH_LLM_API_KEY to enable LLM review')
@@ -290,9 +306,7 @@ def generate_toml_config(profile: ProjectProfile, *, profile_level: str = "stand
 
     if profile_level in ("standard", "full"):
         lines.append("[planner]")
-        lines.append('model = "anthropic/claude-sonnet-4-20250514"')
-        lines.append('api_key_env = "SPEC_ORCH_LLM_API_KEY"')
-        lines.append('api_base_env = "SPEC_ORCH_LLM_API_BASE"')
+        lines.append("# inherits [llm].default_model_chain unless overridden")
         lines.append("")
 
     lines.append("[github]")

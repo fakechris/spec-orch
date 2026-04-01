@@ -5,10 +5,13 @@ from __future__ import annotations
 import json
 import logging
 import re
+import signal
+import time
 from dataclasses import asdict, is_dataclass
 from datetime import UTC, datetime
+from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from spec_orch.decision_core.records import build_round_review_decision_record
 from spec_orch.decision_core.review_queue import write_round_decision_record
@@ -32,6 +35,7 @@ from spec_orch.services.constitutions import (
 )
 from spec_orch.services.io import atomic_write_json, atomic_write_text
 from spec_orch.services.litellm_profile import (
+    ResolvedLiteLLMProfile,
     normalize_litellm_model,
     resolve_litellm_api_base,
     resolve_litellm_api_key,
@@ -57,6 +61,66 @@ The JSON must include:
 )
 
 
+class _SupervisorModelTimeout(TimeoutError):
+    pass
+
+
+def _with_signal_timeout(timeout_seconds: float):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if timeout_seconds <= 0:
+                return func(*args, **kwargs)
+            previous_handler = signal.getsignal(signal.SIGALRM)
+
+            def _handle_timeout(_signum, _frame):
+                raise _SupervisorModelTimeout(
+                    f"Supervisor model call exceeded {timeout_seconds:.1f}s hard deadline"
+                )
+
+            signal.signal(signal.SIGALRM, _handle_timeout)
+            signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
+            try:
+                return func(*args, **kwargs)
+            finally:
+                signal.setitimer(signal.ITIMER_REAL, 0.0)
+                signal.signal(signal.SIGALRM, previous_handler)
+
+        return wrapper
+
+    return decorator
+
+
+def _is_transient_litellm_error(exc: Exception) -> bool:
+    if isinstance(exc, _SupervisorModelTimeout):
+        return False
+    if isinstance(exc, TimeoutError):
+        return True
+    message = str(exc).lower()
+    transient_markers = (
+        "overloaded_error",
+        "rate limit",
+        "rate_limit",
+        "429",
+        "529",
+        "temporarily unavailable",
+        "service unavailable",
+        "server overloaded",
+        "try again later",
+    )
+    fatal_markers = (
+        "invalid x-api-key",
+        "authentication_error",
+        "unauthorized",
+        "forbidden",
+        "invalid api key",
+        "missing_api_base",
+    )
+    if any(marker in message for marker in fatal_markers):
+        return False
+    return any(marker in message for marker in transient_markers)
+
+
 class LiteLLMSupervisorAdapter:
     ADAPTER_NAME = "litellm"
     VALID_API_TYPES = ("anthropic", "openai")
@@ -71,17 +135,29 @@ class LiteLLMSupervisorAdapter:
         api_base: str | None = None,
         temperature: float = 0.1,
         request_timeout_seconds: float = 120.0,
+        max_retries: int = 2,
+        retry_backoff_seconds: float = 1.0,
+        model_chain: list[ResolvedLiteLLMProfile] | None = None,
         chat_completion: Any | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
         if api_type not in self.VALID_API_TYPES:
             raise ValueError(f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}")
         self.api_type = api_type
-        self.model = normalize_litellm_model(model, api_type=api_type)
-        self.api_key = resolve_litellm_api_key(api_key=api_key, api_type=api_type)
-        self.api_base = resolve_litellm_api_base(api_base=api_base, api_type=api_type)
+        self.model_chain = list(model_chain or [])
+        if self.model_chain:
+            primary = self.model_chain[0]
+            self.model = primary.model
+            self.api_key = primary.api_key or None
+            self.api_base = primary.api_base or None
+        else:
+            self.model = normalize_litellm_model(model, api_type=api_type)
+            self.api_key = resolve_litellm_api_key(api_key=api_key, api_type=api_type)
+            self.api_base = resolve_litellm_api_base(api_base=api_base, api_type=api_type)
         self.temperature = temperature
         self.request_timeout_seconds = request_timeout_seconds
+        self.max_retries = max(0, max_retries)
+        self.retry_backoff_seconds = max(0.0, retry_backoff_seconds)
         self._chat_completion = chat_completion
 
     def review_round(
@@ -114,6 +190,11 @@ class LiteLLMSupervisorAdapter:
         try:
             raw_output = self._call_model(prompt)
             review_text, decision = self._parse_output(raw_output)
+            review_text, decision = self._normalize_decision_against_round_contract(
+                round_artifacts=round_artifacts,
+                review_text=review_text,
+                decision=decision,
+            )
         except Exception as exc:
             logger.warning(
                 "supervisor model call failed; using deterministic fallback",
@@ -240,40 +321,75 @@ class LiteLLMSupervisorAdapter:
         )
 
     def _call_model(self, prompt: str) -> str:
-        if self._chat_completion is not None:
-            response = self._chat_completion(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": _SUPERVISOR_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=self.temperature,
-                timeout=self.request_timeout_seconds,
-                api_key=self.api_key,
-                api_base=self.api_base,
-            )
-            return self._extract_text(response)
+        @_with_signal_timeout(self._hard_deadline_seconds())
+        def _bounded_call() -> str:
+            return self._call_model_unbounded(prompt)
 
-        try:
-            import litellm
-        except ImportError as exc:
-            raise ImportError(
-                "litellm is required for LiteLLMSupervisorAdapter. "
-                "Install with: pip install spec-orch[planner]"
-            ) from exc
+        return cast(str, _bounded_call())
 
-        response = litellm.completion(
+    def _hard_deadline_seconds(self) -> float:
+        # Give the model call a narrow grace window beyond the nominal request timeout,
+        # but keep the deadline meaningfully bounded for short test and recovery paths.
+        grace_seconds = min(5.0, max(0.01, self.request_timeout_seconds * 0.1))
+        return max(0.01, self.request_timeout_seconds + grace_seconds)
+
+    def _call_model_unbounded(self, prompt: str) -> str:
+        messages = [
+            {"role": "system", "content": _SUPERVISOR_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ]
+        profiles = self.model_chain or [self._default_profile()]
+        last_exc: Exception | None = None
+        for profile in profiles:
+            kwargs = {
+                "model": profile.model,
+                "messages": messages,
+                "temperature": self.temperature,
+                "timeout": self.request_timeout_seconds,
+                "api_key": profile.api_key or None,
+                "api_base": profile.api_base or None,
+            }
+            attempt = 0
+            while True:
+                try:
+                    if self._chat_completion is not None:
+                        response = self._chat_completion(**kwargs)
+                        return self._extract_text(response)
+
+                    try:
+                        import litellm
+                    except ImportError as exc:
+                        raise ImportError(
+                            "litellm is required for LiteLLMSupervisorAdapter. "
+                            "Install with: pip install spec-orch[planner]"
+                        ) from exc
+
+                    response = litellm.completion(**kwargs)
+                    return self._extract_text(response)
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt < self.max_retries and _is_transient_litellm_error(exc):
+                        attempt += 1
+                        if self.retry_backoff_seconds > 0:
+                            time.sleep(self.retry_backoff_seconds * attempt)
+                        continue
+                    if not _is_transient_litellm_error(exc):
+                        raise
+                    break
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("No supervisor model profile configured")
+
+    def _default_profile(self) -> ResolvedLiteLLMProfile:
+        return ResolvedLiteLLMProfile(
             model=self.model,
-            messages=[
-                {"role": "system", "content": _SUPERVISOR_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=self.temperature,
-            timeout=self.request_timeout_seconds,
-            api_key=self.api_key,
-            api_base=self.api_base,
+            api_type=self.api_type,
+            api_key=self.api_key or "",
+            api_base=self.api_base or "",
+            api_key_env="",
+            api_base_env="",
+            slot="primary",
         )
-        return self._extract_text(response)
 
     def _fallback_for_model_error(
         self,
@@ -341,6 +457,69 @@ class LiteLLMSupervisorAdapter:
             f"Fallback decision: `{decision.action.value}` (`{decision.reason_code}`)."
         )
         return review, decision
+
+    def _normalize_decision_against_round_contract(
+        self,
+        *,
+        round_artifacts: RoundArtifacts,
+        review_text: str,
+        decision: RoundDecision,
+    ) -> tuple[str, RoundDecision]:
+        if decision.action is not RoundAction.ASK_HUMAN:
+            return review_text, decision
+        if decision.reason_code != "verification_gap_lint_typecheck_missing":
+            return review_text, decision
+        if self._round_contract_mentions_lint_or_typecheck(
+            round_artifacts.mission_id, round_artifacts.round_id
+        ):
+            return review_text, decision
+        if not self._all_builder_and_gate_reports_clear(round_artifacts):
+            return review_text, decision
+
+        normalized = RoundDecision(
+            action=RoundAction.CONTINUE,
+            reason_code="verification_gap_not_in_round_contract",
+            summary=(
+                "Supervisor flagged a lint/typecheck verification gap, but the round "
+                "contract does not require those checks and all recorded builder/gate "
+                "artifacts are clear. Continuing deterministically."
+            ),
+            confidence=0.25,
+        )
+        if review_text:
+            review_text = (
+                f"{review_text}\n\n"
+                "### Deterministic Normalization\n\n"
+                "- The round contract does not explicitly require lint or typecheck.\n"
+                "- All recorded builder reports succeeded.\n"
+                "- All recorded gate verdicts are mergeable.\n"
+                "- The supervisor decision was normalized to avoid a false human block."
+            )
+        return review_text, normalized
+
+    def _all_builder_and_gate_reports_clear(self, round_artifacts: RoundArtifacts) -> bool:
+        builder_reports = [
+            report for report in round_artifacts.builder_reports if isinstance(report, dict)
+        ]
+        gate_verdicts = [
+            verdict for verdict in round_artifacts.gate_verdicts if isinstance(verdict, dict)
+        ]
+        return (
+            bool(builder_reports)
+            and bool(gate_verdicts)
+            and all(bool(report.get("succeeded")) for report in builder_reports)
+            and all(bool(verdict.get("mergeable")) for verdict in gate_verdicts)
+        )
+
+    def _round_contract_mentions_lint_or_typecheck(self, mission_id: str, round_id: int) -> bool:
+        task_spec_path = self._round_dir(mission_id, round_id) / "task.spec.md"
+        if not task_spec_path.exists():
+            return False
+        try:
+            task_spec = task_spec_path.read_text(encoding="utf-8").lower()
+        except OSError:
+            return False
+        return "lint" in task_spec or "typecheck" in task_spec
 
     def _build_prompt(
         self,

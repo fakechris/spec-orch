@@ -209,6 +209,46 @@ class TestAdapterFactory:
         reviewer = create_reviewer(tmp_path, toml_override=toml)
         assert reviewer.ADAPTER_NAME == "llm"
 
+    def test_llm_reviewer_inherits_default_model_chain(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setenv("MINIMAX_API_KEY", "minimax-key")
+        monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+        monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "fireworks-token")
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://api.fireworks.ai/inference")
+
+        toml = {
+            "llm": {"default_model_chain": "review-default"},
+            "models": {
+                "minimax": {
+                    "model": "MiniMax-M2.7-highspeed",
+                    "api_type": "anthropic",
+                    "api_key_env": "MINIMAX_API_KEY",
+                    "api_base_env": "MINIMAX_ANTHROPIC_BASE_URL",
+                },
+                "fireworks": {
+                    "model": "accounts/fireworks/routers/kimi-k2p5-turbo",
+                    "api_type": "anthropic",
+                    "api_key_env": "ANTHROPIC_AUTH_TOKEN",
+                    "api_base_env": "ANTHROPIC_BASE_URL",
+                },
+            },
+            "model_chains": {
+                "review-default": {
+                    "primary": "minimax",
+                    "fallbacks": ["fireworks"],
+                }
+            },
+            "reviewer": {"adapter": "llm"},
+        }
+
+        reviewer = create_reviewer(tmp_path, toml_override=toml)
+
+        assert reviewer.ADAPTER_NAME == "llm"
+        assert reviewer.model == "anthropic/MiniMax-M2.7-highspeed"
+        assert len(reviewer.model_chain) == 2
+        assert (
+            reviewer.model_chain[1].model == "anthropic/accounts/fireworks/routers/kimi-k2p5-turbo"
+        )
+
     def test_unknown_reviewer_raises(self, tmp_path: Path):
         toml = {"reviewer": {"adapter": "nonexistent"}}
         with pytest.raises(ValueError, match="Unknown reviewer adapter"):
@@ -493,6 +533,13 @@ class TestLLMReviewAdapter:
         summary = adapter.initialize(issue_id="TEST-1", workspace=tmp_path)
         assert summary.verdict == "pass"
         assert summary.reviewed_by == "llm-reviewer"
+
+    def test_auth_error_is_not_treated_as_transient(self) -> None:
+        from spec_orch.services.llm_review_adapter import _is_transient_litellm_error
+
+        err = RuntimeError("authentication_error: invalid x-api-key after 429-style proxy rewrite")
+
+        assert _is_transient_litellm_error(err) is False
 
     def test_review_manual_override(self, tmp_path: Path):
         from spec_orch.services.llm_review_adapter import LLMReviewAdapter

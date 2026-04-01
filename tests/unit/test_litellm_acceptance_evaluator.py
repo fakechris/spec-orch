@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 from spec_orch.domain.models import (
@@ -358,6 +359,156 @@ def test_acceptance_evaluator_times_out_to_warn_fallback(tmp_path: Path) -> None
     assert [event.phase.value for event in events] == ["started", "degraded"]
     assert status is not None
     assert status.phase.value == "degraded"
+
+
+def test_acceptance_evaluator_retries_transient_overload_then_succeeds(tmp_path: Path) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    calls = {"count": 0}
+
+    def fake_chat_completion(**kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise RuntimeError("529 overloaded_error: provider busy")
+        return """# Acceptance Review
+
+```json
+{
+  "status": "pass",
+  "summary": "Recovered after retry.",
+  "confidence": 0.9,
+  "evaluator": "acceptance_llm",
+  "tested_routes": ["/"],
+  "findings": [],
+  "issue_proposals": [],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+        retry_backoff_seconds=0.0,
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-retry",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/mission-retry/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={},
+        repo_root=tmp_path,
+    )
+
+    assert calls["count"] == 2
+    assert result.status == "pass"
+    assert result.summary == "Recovered after retry."
+
+
+def test_acceptance_evaluator_does_not_retry_auth_errors(tmp_path: Path) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    calls = {"count": 0}
+
+    def fake_chat_completion(**kwargs):
+        calls["count"] += 1
+        raise RuntimeError("authentication_error: invalid x-api-key")
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+        retry_backoff_seconds=0.0,
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-auth",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/mission-auth/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={},
+        repo_root=tmp_path,
+    )
+
+    assert calls["count"] == 1
+    assert result.status == "warn"
+    assert "invalid x-api-key" in result.summary
+
+
+def test_acceptance_evaluator_falls_back_to_secondary_model_on_transient_overload(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+    from spec_orch.services.litellm_profile import ResolvedLiteLLMProfile
+
+    seen_bases: list[str] = []
+
+    def fake_chat_completion(**kwargs):
+        seen_bases.append(str(kwargs.get("api_base") or ""))
+        if kwargs.get("api_base") == "https://primary.example":
+            raise RuntimeError("529 overloaded_error: primary unavailable")
+        return """# Acceptance Review
+
+```json
+{
+  "status": "pass",
+  "summary": "Fallback model succeeded.",
+  "confidence": 0.88,
+  "evaluator": "acceptance_llm",
+  "tested_routes": ["/"],
+  "findings": [],
+  "issue_proposals": [],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="ignored",
+        chat_completion=fake_chat_completion,
+        retry_backoff_seconds=0.0,
+        max_retries=0,
+        model_chain=[
+            ResolvedLiteLLMProfile(
+                model="anthropic/MiniMax-M2.7-highspeed",
+                api_type="anthropic",
+                api_key="primary-key",
+                api_base="https://primary.example",
+                api_key_env="MINIMAX_API_KEY",
+                api_base_env="MINIMAX_ANTHROPIC_BASE_URL",
+                slot="primary",
+            ),
+            ResolvedLiteLLMProfile(
+                model="anthropic/accounts/fireworks/routers/kimi-k2p5-turbo",
+                api_type="anthropic",
+                api_key="fallback-key",
+                api_base="https://fallback.example",
+                api_key_env="ANTHROPIC_AUTH_TOKEN",
+                api_base_env="ANTHROPIC_BASE_URL",
+                slot="fallback-1",
+            ),
+        ],
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-fallback",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/mission-fallback/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={},
+        repo_root=tmp_path,
+    )
+
+    assert seen_bases == ["https://primary.example", "https://fallback.example"]
+    assert result.status == "pass"
+    assert result.summary == "Fallback model succeeded."
 
 
 def test_acceptance_evaluator_emits_completed_runtime_chain_status(tmp_path: Path) -> None:
@@ -1542,3 +1693,32 @@ def test_invoke_acceptance_graph_step_uses_supplied_step_prompts(tmp_path: Path)
         {"role": "system", "content": "STEP SYSTEM"},
         {"role": "user", "content": "STEP USER"},
     ]
+
+
+def test_invoke_acceptance_graph_step_hard_deadline_interrupts_stuck_model_call(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        time.sleep(0.2)
+        return '{"decision":"continue"}'
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+        request_timeout_seconds=0.01,
+    )
+
+    try:
+        adapter.invoke_acceptance_graph_step(
+            system_prompt="STEP SYSTEM",
+            user_prompt="STEP USER",
+        )
+    except TimeoutError:
+        pass
+    else:
+        raise AssertionError("Expected acceptance graph step invoke to time out")

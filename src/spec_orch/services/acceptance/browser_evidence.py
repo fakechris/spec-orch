@@ -130,6 +130,7 @@ def collect_playwright_browser_evidence(
     round_dir: Path,
     paths: list[str] | None = None,
     interaction_plans: dict[str, list[AcceptanceInteractionStep]] | None = None,
+    output_name: str = "browser_evidence.json",
 ) -> dict[str, Any] | None:
     request = build_acceptance_browser_request_from_env(
         mission_id=mission_id,
@@ -150,5 +151,5 @@ def collect_playwright_browser_evidence(
     evidence["page_errors"].extend(
         {"path": failure["path"], "message": failure["message"]} for failure in failures
     )
-    atomic_write_json(round_dir / "browser_evidence.json", evidence)
+    atomic_write_json(round_dir / output_name, evidence)
     return evidence

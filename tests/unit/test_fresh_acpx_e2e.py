@@ -170,6 +170,418 @@ def test_write_fresh_acpx_mission_report_separates_proof_layers(tmp_path: Path) 
     assert report["markdown_path"].endswith("fresh_acpx_mission_e2e_report.md")
 
 
+def test_run_fresh_exploratory_acceptance_review_uses_exploratory_campaign(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from spec_orch.domain.models import (
+        AcceptanceCampaign,
+        AcceptanceFinding,
+        AcceptanceMode,
+        AcceptanceReviewResult,
+    )
+    from spec_orch.services.fresh_acpx_e2e import run_fresh_exploratory_acceptance_review
+
+    repo_root = tmp_path
+    monkeypatch.delenv("SPEC_ORCH_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("SPEC_ORCH_LLM_API_BASE", raising=False)
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+    mission_id = "fresh-acpx-1"
+    round_dir = repo_root / "docs" / "specs" / mission_id / "rounds" / "round-02"
+    round_dir.mkdir(parents=True, exist_ok=True)
+    (round_dir / "round_summary.json").write_text(
+        json.dumps({"round_id": 2}) + "\n",
+        encoding="utf-8",
+    )
+
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "spec_orch.services.fresh_acpx_e2e.build_fresh_exploratory_artifacts",
+        lambda **kwargs: {
+            "mission": {"mission_id": mission_id},
+            "browser_evidence": {"status": "ok"},
+            "review_routes": {"overview": "/?mission=fresh-acpx-1&tab=overview"},
+        },
+    )
+
+    class FakeOrchestrator:
+        def __init__(self, *, repo_root: Path, **_: object) -> None:
+            captured["orchestrator_repo_root"] = repo_root
+
+        def _build_acceptance_campaign(self, *, mission_id: str, artifacts: dict, mode_override):
+            captured["mode_override"] = mode_override
+            captured["campaign_artifacts"] = artifacts
+            return AcceptanceCampaign(
+                mode=AcceptanceMode.EXPLORATORY,
+                goal="Dogfood the output from an operator perspective.",
+                primary_routes=["/"],
+                critique_focus=["discoverability gaps"],
+                filing_policy="hold_ux_concerns_for_operator_review",
+            )
+
+    class FakeEvaluator:
+        def __init__(
+            self,
+            *,
+            repo_root: Path,
+            model: str,
+            api_type: str,
+            api_key: str | None = None,
+            api_base: str | None = None,
+        ) -> None:
+            captured["evaluator_repo_root"] = repo_root
+            captured["model"] = model
+            captured["api_type"] = api_type
+            captured["api_key"] = api_key
+            captured["api_base"] = api_base
+
+        def evaluate_acceptance(self, **kwargs):
+            captured["campaign"] = kwargs["campaign"]
+            return AcceptanceReviewResult(
+                status="pass",
+                summary="Found one operator-facing discoverability issue.",
+                confidence=0.82,
+                evaluator="fake_acceptance",
+                findings=[
+                    AcceptanceFinding(
+                        severity="medium",
+                        summary="Acceptance tab label is hard to discover.",
+                        critique_axis="discoverability gaps",
+                        operator_task="inspect mission acceptance evidence",
+                        why_it_matters="Operators may miss deeper evidence surfaces.",
+                    )
+                ],
+                acceptance_mode="exploratory",
+                coverage_status="complete",
+                recommended_next_step="Review mission tab labeling and hierarchy.",
+            )
+
+    monkeypatch.setattr(
+        "spec_orch.services.round_orchestrator.RoundOrchestrator",
+        FakeOrchestrator,
+    )
+    monkeypatch.setattr(
+        "spec_orch.services.acceptance.litellm_acceptance_evaluator.LiteLLMAcceptanceEvaluator",
+        FakeEvaluator,
+    )
+
+    report = run_fresh_exploratory_acceptance_review(
+        repo_root=repo_root,
+        mission_id=mission_id,
+        round_dir=round_dir,
+        mission_payload={"mission_id": mission_id, "title": "Fresh mission"},
+        browser_evidence={"status": "ok"},
+    )
+
+    saved = json.loads(
+        (round_dir / "exploratory_acceptance_review.json").read_text(encoding="utf-8")
+    )
+    assert report["status"] == "pass"
+    assert saved["acceptance_mode"] == "exploratory"
+    assert saved["findings"][0]["critique_axis"] == "discoverability gaps"
+    assert saved["recommended_next_step"] == "Review mission tab labeling and hierarchy."
+    assert captured["mode_override"] is AcceptanceMode.EXPLORATORY
+    assert isinstance(captured["campaign"], AcceptanceCampaign)
+    assert captured["campaign"].filing_policy == "hold_ux_concerns_for_operator_review"
+    assert captured["api_key"] == "sk-minimax"
+    assert captured["api_base"] == "https://api.minimaxi.com/anthropic"
+
+
+def test_run_fresh_exploratory_acceptance_review_inherits_acceptance_api_base_from_config(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from spec_orch.domain.models import AcceptanceCampaign, AcceptanceMode, AcceptanceReviewResult
+    from spec_orch.services.fresh_acpx_e2e import run_fresh_exploratory_acceptance_review
+
+    repo_root = tmp_path
+    (repo_root / "spec-orch.toml").write_text(
+        """
+[acceptance_evaluator]
+adapter = "litellm"
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+
+    mission_id = "fresh-acpx-1"
+    round_dir = repo_root / "docs" / "specs" / mission_id / "rounds" / "round-02"
+    round_dir.mkdir(parents=True, exist_ok=True)
+    (round_dir / "round_summary.json").write_text('{"round_id": 2}\n', encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "spec_orch.services.fresh_acpx_e2e.build_fresh_exploratory_artifacts",
+        lambda **kwargs: {"mission": {"mission_id": mission_id}, "browser_evidence": {}},
+    )
+
+    class FakeOrchestrator:
+        def __init__(self, *, repo_root: Path, **_: object) -> None:
+            pass
+
+        def _build_acceptance_campaign(self, *, mission_id: str, artifacts: dict, mode_override):
+            return AcceptanceCampaign(
+                mode=AcceptanceMode.EXPLORATORY,
+                goal="Dogfood the output from an operator perspective.",
+                primary_routes=["/"],
+            )
+
+    class FakeEvaluator:
+        def __init__(
+            self,
+            *,
+            repo_root: Path,
+            model: str,
+            api_type: str,
+            api_key: str | None = None,
+            api_base: str | None = None,
+        ) -> None:
+            captured["model"] = model
+            captured["api_type"] = api_type
+            captured["api_key"] = api_key
+            captured["api_base"] = api_base
+
+        def evaluate_acceptance(self, **kwargs):
+            return AcceptanceReviewResult(
+                status="pass",
+                summary="Exploratory review succeeded.",
+                confidence=0.9,
+                evaluator="fake_acceptance",
+            )
+
+    monkeypatch.setattr("spec_orch.services.round_orchestrator.RoundOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(
+        "spec_orch.services.acceptance.litellm_acceptance_evaluator.LiteLLMAcceptanceEvaluator",
+        FakeEvaluator,
+    )
+
+    report = run_fresh_exploratory_acceptance_review(
+        repo_root=repo_root,
+        mission_id=mission_id,
+        round_dir=round_dir,
+        mission_payload={"mission_id": mission_id},
+        browser_evidence={"status": "ok"},
+    )
+
+    assert report["status"] == "pass"
+    assert captured["model"] == "anthropic/MiniMax-M2.7-highspeed"
+    assert captured["api_type"] == "anthropic"
+    assert captured["api_key"] == "sk-minimax"
+    assert captured["api_base"] == "https://api.minimaxi.com/anthropic"
+
+
+def test_run_fresh_exploratory_acceptance_review_reports_config_error_when_minimax_base_missing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from spec_orch.domain.models import AcceptanceCampaign, AcceptanceMode
+    from spec_orch.services.fresh_acpx_e2e import run_fresh_exploratory_acceptance_review
+
+    repo_root = tmp_path
+    (repo_root / "spec-orch.toml").write_text(
+        """
+[acceptance_evaluator]
+adapter = "litellm"
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
+    monkeypatch.delenv("MINIMAX_ANTHROPIC_BASE_URL", raising=False)
+    monkeypatch.delenv("SPEC_ORCH_LLM_API_BASE", raising=False)
+
+    mission_id = "fresh-acpx-1"
+    round_dir = repo_root / "docs" / "specs" / mission_id / "rounds" / "round-02"
+    round_dir.mkdir(parents=True, exist_ok=True)
+    (round_dir / "round_summary.json").write_text('{"round_id": 2}\n', encoding="utf-8")
+
+    monkeypatch.setattr(
+        "spec_orch.services.fresh_acpx_e2e.build_fresh_exploratory_artifacts",
+        lambda **kwargs: {"mission": {"mission_id": mission_id}, "browser_evidence": {}},
+    )
+
+    class FakeOrchestrator:
+        def __init__(self, *, repo_root: Path, **_: object) -> None:
+            pass
+
+        def _build_acceptance_campaign(self, *, mission_id: str, artifacts: dict, mode_override):
+            return AcceptanceCampaign(
+                mode=AcceptanceMode.EXPLORATORY,
+                goal="Dogfood the output from an operator perspective.",
+                primary_routes=["/"],
+            )
+
+    class ShouldNotConstructEvaluator:
+        def __init__(self, **kwargs) -> None:
+            raise AssertionError("Evaluator should not be constructed when config is invalid")
+
+    monkeypatch.setattr("spec_orch.services.round_orchestrator.RoundOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(
+        "spec_orch.services.acceptance.litellm_acceptance_evaluator.LiteLLMAcceptanceEvaluator",
+        ShouldNotConstructEvaluator,
+    )
+
+    report = run_fresh_exploratory_acceptance_review(
+        repo_root=repo_root,
+        mission_id=mission_id,
+        round_dir=round_dir,
+        mission_payload={"mission_id": mission_id},
+        browser_evidence={"status": "ok"},
+    )
+
+    assert report["status"] == "warn"
+    assert report["summary"] == "Exploratory acceptance configuration is incomplete."
+    assert report["findings"][0]["summary"] == "Acceptance evaluator configuration is incomplete."
+    assert "MINIMAX_ANTHROPIC_BASE_URL" in report["findings"][0]["details"]
+    assert report["artifacts"]["acceptance_evaluator_config"]["api_base_present"] is False
+    assert (
+        report["recommended_next_step"]
+        == "Set the acceptance evaluator API base and rerun exploratory critique."
+    )
+
+
+def test_run_fresh_exploratory_acceptance_review_collects_deeper_browser_evidence(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from spec_orch.domain.models import AcceptanceCampaign, AcceptanceMode, AcceptanceReviewResult
+    from spec_orch.services.fresh_acpx_e2e import run_fresh_exploratory_acceptance_review
+
+    repo_root = tmp_path
+    (repo_root / "spec-orch.toml").write_text(
+        """
+[acceptance_evaluator]
+adapter = "litellm"
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+    monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_URL", "http://127.0.0.1:8426")
+
+    mission_id = "fresh-acpx-1"
+    round_dir = repo_root / "docs" / "specs" / mission_id / "rounds" / "round-02"
+    round_dir.mkdir(parents=True, exist_ok=True)
+    (round_dir / "round_summary.json").write_text('{"round_id": 2}\n', encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "spec_orch.services.fresh_acpx_e2e.build_fresh_exploratory_artifacts",
+        lambda **kwargs: {
+            "mission": {"mission_id": mission_id},
+            "browser_evidence": {"tested_routes": ["/"], "interactions": {"/": []}},
+            "review_routes": {
+                "overview": f"/?mission={mission_id}&mode=missions&tab=overview",
+                "transcript": f"/?mission={mission_id}&mode=missions&tab=transcript",
+            },
+        },
+    )
+
+    class FakeOrchestrator:
+        def __init__(self, *, repo_root: Path, **_: object) -> None:
+            pass
+
+        def _build_acceptance_campaign(self, *, mission_id: str, artifacts: dict, mode_override):
+            return AcceptanceCampaign(
+                mode=AcceptanceMode.EXPLORATORY,
+                goal="Dogfood the output from an operator perspective.",
+                primary_routes=["/"],
+                related_routes=[f"/?mission={mission_id}&mode=missions&tab=transcript"],
+                filing_policy="auto_file_broken_flows_only",
+                exploration_budget="bounded",
+            )
+
+    def fake_collect_browser_evidence(**kwargs):
+        captured["browser_paths"] = kwargs["paths"]
+        captured["browser_output_name"] = kwargs["output_name"]
+        captured["browser_interaction_plans"] = kwargs["interaction_plans"]
+        return {
+            "tested_routes": kwargs["paths"],
+            "interactions": {
+                f"/?mission={mission_id}&mode=missions&tab=transcript": [
+                    {
+                        "action": "click_selector",
+                        "target": '[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                        "status": "passed",
+                    },
+                    {
+                        "action": "click_selector",
+                        "target": '[data-automation-target="packet-row"]',
+                        "status": "failed",
+                        "message": "click_selector failed: timeout",
+                    },
+                ]
+            },
+            "console_errors": [],
+            "page_errors": [],
+            "screenshots": {},
+            "artifact_paths": {"round_dir": str(kwargs["round_dir"])},
+        }
+
+    class FakeEvaluator:
+        def __init__(self, **kwargs) -> None:
+            pass
+
+        def evaluate_acceptance(self, **kwargs):
+            captured["campaign"] = kwargs["campaign"]
+            captured["artifacts"] = kwargs["artifacts"]
+            return AcceptanceReviewResult(
+                status="warn",
+                summary="Exploratory critique found a discoverability issue.",
+                confidence=0.85,
+                evaluator="fake_acceptance",
+                acceptance_mode="exploratory",
+                coverage_status="complete",
+            )
+
+    monkeypatch.setattr("spec_orch.services.round_orchestrator.RoundOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(
+        "spec_orch.services.fresh_acpx_e2e.collect_playwright_browser_evidence",
+        fake_collect_browser_evidence,
+    )
+    monkeypatch.setattr(
+        "spec_orch.services.acceptance.litellm_acceptance_evaluator.LiteLLMAcceptanceEvaluator",
+        FakeEvaluator,
+    )
+
+    report = run_fresh_exploratory_acceptance_review(
+        repo_root=repo_root,
+        mission_id=mission_id,
+        round_dir=round_dir,
+        mission_payload={"mission_id": mission_id},
+        browser_evidence={"status": "ok"},
+    )
+
+    assert report["status"] == "warn"
+    assert captured["browser_output_name"] == "exploratory_browser_evidence.json"
+    assert f"/?mission={mission_id}&mode=missions&tab=transcript" in captured["browser_paths"]
+    assert captured["campaign"].filing_policy == "hold_ux_concerns_for_operator_review"
+    assert captured["campaign"].exploration_budget == "wide"
+    assert captured["campaign"].critique_focus
+    assert captured["artifacts"]["workflow_browser_evidence"]["tested_routes"] == ["/"]
+    assert (
+        captured["artifacts"]["browser_evidence"]["interactions"][
+            f"/?mission={mission_id}&mode=missions&tab=transcript"
+        ][1]["target"]
+        == '[data-automation-target="packet-row"]'
+    )
+
+
 def test_run_fresh_execution_once_advances_lifecycle_and_records_daemon_run(
     tmp_path: Path,
     monkeypatch,

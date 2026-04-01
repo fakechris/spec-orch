@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import json
 import re
+import signal
+import time
 from dataclasses import replace
 from datetime import UTC, datetime
+from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from spec_orch.acceptance_core.models import AcceptanceJudgment, build_acceptance_judgments
 from spec_orch.domain.models import (
@@ -31,6 +34,7 @@ from spec_orch.services.constitutions import (
     build_role_system_prompt,
 )
 from spec_orch.services.litellm_profile import (
+    ResolvedLiteLLMProfile,
     normalize_litellm_model,
     resolve_litellm_api_base,
     resolve_litellm_api_key,
@@ -62,6 +66,66 @@ def normalize_acceptance_judgments(result: AcceptanceReviewResult) -> list[Accep
     return build_acceptance_judgments(result)
 
 
+class _AcceptanceModelTimeout(TimeoutError):
+    pass
+
+
+def _with_signal_timeout(timeout_seconds: float):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if timeout_seconds <= 0:
+                return func(*args, **kwargs)
+            previous_handler = signal.getsignal(signal.SIGALRM)
+
+            def _handle_timeout(_signum, _frame):
+                raise _AcceptanceModelTimeout(
+                    f"Acceptance model call exceeded {timeout_seconds:.2f}s hard deadline"
+                )
+
+            signal.signal(signal.SIGALRM, _handle_timeout)
+            signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
+            try:
+                return func(*args, **kwargs)
+            finally:
+                signal.setitimer(signal.ITIMER_REAL, 0.0)
+                signal.signal(signal.SIGALRM, previous_handler)
+
+        return wrapper
+
+    return decorator
+
+
+def _is_transient_litellm_error(exc: Exception) -> bool:
+    if isinstance(exc, _AcceptanceModelTimeout):
+        return False
+    if isinstance(exc, TimeoutError):
+        return True
+    message = str(exc).lower()
+    transient_markers = (
+        "overloaded_error",
+        "rate limit",
+        "rate_limit",
+        "429",
+        "529",
+        "temporarily unavailable",
+        "service unavailable",
+        "server overloaded",
+        "try again later",
+    )
+    fatal_markers = (
+        "invalid x-api-key",
+        "authentication_error",
+        "unauthorized",
+        "forbidden",
+        "invalid api key",
+        "missing_api_base",
+    )
+    if any(marker in message for marker in fatal_markers):
+        return False
+    return any(marker in message for marker in transient_markers)
+
+
 class LiteLLMAcceptanceEvaluator:
     ADAPTER_NAME = "litellm_acceptance"
     VALID_API_TYPES = ("anthropic", "openai")
@@ -76,17 +140,29 @@ class LiteLLMAcceptanceEvaluator:
         api_base: str | None = None,
         temperature: float = 0.1,
         request_timeout_seconds: float = 120.0,
+        max_retries: int = 2,
+        retry_backoff_seconds: float = 1.0,
+        model_chain: list[ResolvedLiteLLMProfile] | None = None,
         chat_completion: Any | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
         if api_type not in self.VALID_API_TYPES:
             raise ValueError(f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}")
         self.api_type = api_type
-        self.model = normalize_litellm_model(model, api_type=api_type)
-        self.api_key = resolve_litellm_api_key(api_key=api_key, api_type=api_type)
-        self.api_base = resolve_litellm_api_base(api_base=api_base, api_type=api_type)
+        self.model_chain = list(model_chain or [])
+        if self.model_chain:
+            primary = self.model_chain[0]
+            self.model = primary.model
+            self.api_key = primary.api_key or None
+            self.api_base = primary.api_base or None
+        else:
+            self.model = normalize_litellm_model(model, api_type=api_type)
+            self.api_key = resolve_litellm_api_key(api_key=api_key, api_type=api_type)
+            self.api_base = resolve_litellm_api_base(api_base=api_base, api_type=api_type)
         self.temperature = temperature
         self.request_timeout_seconds = request_timeout_seconds
+        self.max_retries = max(0, max_retries)
+        self.retry_backoff_seconds = max(0.0, retry_backoff_seconds)
         self._chat_completion = chat_completion
 
     def evaluate_acceptance(
@@ -174,40 +250,76 @@ class LiteLLMAcceptanceEvaluator:
         )
 
     def _call_model_messages(self, *, system_prompt: str, user_prompt: str) -> str:
-        if self._chat_completion is not None:
-            response = self._chat_completion(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=self.temperature,
-                timeout=self.request_timeout_seconds,
-                api_key=self.api_key,
-                api_base=self.api_base,
+        @_with_signal_timeout(self._hard_deadline_seconds())
+        def _bounded_call() -> str:
+            return self._call_model_messages_unbounded(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
             )
-            return self._extract_text(response)
 
-        try:
-            import litellm
-        except ImportError as exc:
-            raise ImportError(
-                "litellm is required for LiteLLMAcceptanceEvaluator. "
-                "Install with: pip install spec-orch[planner]"
-            ) from exc
+        return cast(str, _bounded_call())
 
-        response = litellm.completion(
+    def _hard_deadline_seconds(self) -> float:
+        grace_seconds = min(5.0, max(0.01, self.request_timeout_seconds * 0.1))
+        return max(0.01, self.request_timeout_seconds + grace_seconds)
+
+    def _call_model_messages_unbounded(self, *, system_prompt: str, user_prompt: str) -> str:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        profiles = self.model_chain or [self._default_profile()]
+        last_exc: Exception | None = None
+        for profile in profiles:
+            kwargs = {
+                "model": profile.model,
+                "messages": messages,
+                "temperature": self.temperature,
+                "timeout": self.request_timeout_seconds,
+                "api_key": profile.api_key or None,
+                "api_base": profile.api_base or None,
+            }
+            attempt = 0
+            while True:
+                try:
+                    if self._chat_completion is not None:
+                        response = self._chat_completion(**kwargs)
+                        return self._extract_text(response)
+
+                    try:
+                        import litellm
+                    except ImportError as exc:
+                        raise ImportError(
+                            "litellm is required for LiteLLMAcceptanceEvaluator. "
+                            "Install with: pip install spec-orch[planner]"
+                        ) from exc
+
+                    response = litellm.completion(**kwargs)
+                    return self._extract_text(response)
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt < self.max_retries and _is_transient_litellm_error(exc):
+                        attempt += 1
+                        if self.retry_backoff_seconds > 0:
+                            time.sleep(self.retry_backoff_seconds * attempt)
+                        continue
+                    if not _is_transient_litellm_error(exc):
+                        raise
+                    break
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("No acceptance evaluator model profile configured")
+
+    def _default_profile(self) -> ResolvedLiteLLMProfile:
+        return ResolvedLiteLLMProfile(
             model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=self.temperature,
-            timeout=self.request_timeout_seconds,
-            api_key=self.api_key,
-            api_base=self.api_base,
+            api_type=self.api_type,
+            api_key=self.api_key or "",
+            api_base=self.api_base or "",
+            api_key_env="",
+            api_base_env="",
+            slot="primary",
         )
-        return self._extract_text(response)
 
     def _fallback_for_model_error(self, exc: Exception) -> AcceptanceReviewResult:
         message = str(exc).strip() or exc.__class__.__name__

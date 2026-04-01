@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import subprocess
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -17,6 +17,11 @@ from typing import Any
 from spec_orch.domain.compliance import default_turn_contract_compliance
 from spec_orch.domain.models import Issue, IssueContext, ReviewSummary
 from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.litellm_profile import (
+    ResolvedLiteLLMProfile,
+    resolve_litellm_api_base,
+    resolve_litellm_api_key,
+)
 from spec_orch.services.node_context_registry import get_node_context_spec
 
 logger = logging.getLogger(__name__)
@@ -49,13 +54,25 @@ class LLMReviewAdapter:
         temperature: float = 0.2,
         max_diff_chars: int = 60_000,
         max_spec_chars: int = 10_000,
+        max_retries: int = 2,
+        retry_backoff_seconds: float = 1.0,
+        model_chain: list[ResolvedLiteLLMProfile] | None = None,
     ) -> None:
-        self.model = model or "anthropic/claude-sonnet-4-20250514"
-        self._api_key = api_key or os.environ.get("SPEC_ORCH_LLM_API_KEY")
-        self.api_base = api_base or os.environ.get("SPEC_ORCH_LLM_API_BASE")
+        self.model_chain = list(model_chain or [])
+        if self.model_chain:
+            primary = self.model_chain[0]
+            self.model = primary.model
+            self._api_key = primary.api_key or resolve_litellm_api_key(api_key=api_key)
+            self.api_base = primary.api_base or resolve_litellm_api_base(api_base=api_base)
+        else:
+            self.model = model or "anthropic/claude-sonnet-4-20250514"
+            self._api_key = resolve_litellm_api_key(api_key=api_key)
+            self.api_base = resolve_litellm_api_base(api_base=api_base)
         self.temperature = temperature
         self.max_diff_chars = max_diff_chars
         self.max_spec_chars = max_spec_chars
+        self.max_retries = max(0, max_retries)
+        self.retry_backoff_seconds = max(0.0, retry_backoff_seconds)
         self._context_assembler = ContextAssembler()
 
     def initialize(
@@ -391,20 +408,15 @@ class LLMReviewAdapter:
         user_msg += f"## Diff\n\n```diff\n{diff}\n```"
 
         kwargs: dict[str, Any] = {
-            "model": self.model,
             "messages": [
                 {"role": "system", "content": _REVIEW_SYSTEM_PROMPT},
                 {"role": "user", "content": user_msg},
             ],
             "temperature": self.temperature,
         }
-        if self._api_key:
-            kwargs["api_key"] = self._api_key
-        if self.api_base:
-            kwargs["api_base"] = self.api_base
 
         try:
-            response = litellm.completion(**kwargs)
+            response = self._completion_with_fallback(litellm.completion, **kwargs)
             choices = getattr(response, "choices", None) or []
             if not choices:
                 return {"verdict": "uncertain", "summary": "Empty LLM response", "issues": []}
@@ -420,6 +432,45 @@ class LLMReviewAdapter:
         except Exception:
             logger.warning("LLM review call failed", exc_info=True)
             return {"verdict": "uncertain", "summary": "LLM call failed", "issues": []}
+
+    def _completion_with_fallback(self, completion_fn: Any, **kwargs: Any) -> Any:
+        profiles = self.model_chain or [self._default_profile()]
+        last_exc: Exception | None = None
+        for profile in profiles:
+            profile_kwargs = dict(kwargs)
+            profile_kwargs["model"] = profile.model
+            if profile.api_key:
+                profile_kwargs["api_key"] = profile.api_key
+            if profile.api_base:
+                profile_kwargs["api_base"] = profile.api_base
+            attempt = 0
+            while True:
+                try:
+                    return completion_fn(**profile_kwargs)
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt < self.max_retries and _is_transient_litellm_error(exc):
+                        attempt += 1
+                        if self.retry_backoff_seconds > 0:
+                            time.sleep(self.retry_backoff_seconds * attempt)
+                        continue
+                    if not _is_transient_litellm_error(exc):
+                        raise
+                    break
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("No reviewer model profile configured")
+
+    def _default_profile(self) -> ResolvedLiteLLMProfile:
+        return ResolvedLiteLLMProfile(
+            model=self.model,
+            api_type="anthropic",
+            api_key=self._api_key or "",
+            api_base=self.api_base or "",
+            api_key_env="",
+            api_base_env="",
+            slot="primary",
+        )
 
     def _write_report(
         self,
@@ -448,3 +499,32 @@ class LLMReviewAdapter:
             )
             + "\n"
         )
+
+
+def _is_transient_litellm_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    transient_markers = (
+        "rate limit",
+        "too many requests",
+        "429",
+        "529",
+        "overloaded",
+        "overloaded_error",
+        "temporarily unavailable",
+        "timeout",
+        "timed out",
+        "connection reset",
+        "connection aborted",
+        "service unavailable",
+    )
+    fatal_markers = (
+        "invalid x-api-key",
+        "authentication_error",
+        "unauthorized",
+        "forbidden",
+        "invalid api key",
+        "missing_api_base",
+    )
+    if any(marker in message for marker in fatal_markers):
+        return False
+    return any(marker in message for marker in transient_markers)

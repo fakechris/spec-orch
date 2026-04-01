@@ -1630,7 +1630,7 @@ class RunController:
 
     def _load_planner_config_for_compact(self) -> dict[str, Any] | None:
         """Load [planner] config from TOML for memory distillation."""
-        import os
+        from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 
         toml_path = self.repo_root / "spec-orch.toml"
         if not toml_path.exists():
@@ -1642,16 +1642,13 @@ class RunController:
         cfg = raw.get("planner")
         if not isinstance(cfg, dict):
             return None
-        result: dict[str, Any] = {}
-        if cfg.get("model"):
-            result["model"] = cfg["model"]
-        if cfg.get("api_type"):
-            result["api_type"] = cfg["api_type"]
-        if cfg.get("api_key_env"):
-            result["api_key"] = os.environ.get(cfg["api_key_env"], "")
-        if cfg.get("api_base_env"):
-            result["api_base"] = os.environ.get(cfg["api_base_env"], "")
-        return result
+        result = resolve_role_litellm_settings(
+            raw,
+            section_name="planner",
+            default_model=str(cfg.get("model", "")),
+            default_api_type=str(cfg.get("api_type", "anthropic")),
+        )
+        return result if result.get("model") else None
 
     def _maybe_trigger_evolution(self, workspace: Path) -> None:
         """Run the evolution cycle if configured and threshold is met."""

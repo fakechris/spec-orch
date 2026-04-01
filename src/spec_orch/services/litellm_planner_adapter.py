@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import shlex
 import subprocess
+import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,6 +25,7 @@ from spec_orch.domain.models import (
     SpecSnapshot,
 )
 from spec_orch.services.litellm_profile import (
+    ResolvedLiteLLMProfile,
     normalize_litellm_model,
     resolve_litellm_api_base,
     resolve_litellm_api_key,
@@ -106,16 +108,34 @@ class LiteLLMPlannerAdapter:
         temperature: float = 0.3,
         token_command: str | None = None,
         enable_prompt_caching: bool = True,
+        max_retries: int = 2,
+        retry_backoff_seconds: float = 1.0,
+        model_chain: list[ResolvedLiteLLMProfile] | None = None,
     ) -> None:
         if api_type not in self.VALID_API_TYPES:
             raise ValueError(f"api_type must be one of {self.VALID_API_TYPES}, got {api_type!r}")
         self.api_type = api_type
-        self.model = normalize_litellm_model(model, api_type=api_type)
-        self._static_api_key = resolve_litellm_api_key(api_key=api_key, api_type=api_type)
-        self.api_base = resolve_litellm_api_base(api_base=api_base, api_type=api_type)
+        self.model_chain = list(model_chain or [])
+        if self.model_chain:
+            primary = self.model_chain[0]
+            self.model = primary.model
+            self._static_api_key = primary.api_key or resolve_litellm_api_key(
+                api_key=api_key,
+                api_type=api_type,
+            )
+            self.api_base = primary.api_base or resolve_litellm_api_base(
+                api_base=api_base,
+                api_type=api_type,
+            )
+        else:
+            self.model = normalize_litellm_model(model, api_type=api_type)
+            self._static_api_key = resolve_litellm_api_key(api_key=api_key, api_type=api_type)
+            self.api_base = resolve_litellm_api_base(api_base=api_base, api_type=api_type)
         self.temperature = temperature
         self._token_command = token_command
         self.enable_prompt_caching = enable_prompt_caching
+        self.max_retries = max(0, max_retries)
+        self.retry_backoff_seconds = max(0.0, retry_backoff_seconds)
         self._cache_metrics: dict[str, int] = {
             "cache_read_input_tokens": 0,
             "cache_creation_input_tokens": 0,
@@ -175,7 +195,6 @@ class LiteLLMPlannerAdapter:
             ]
 
         kwargs: dict[str, Any] = {
-            "model": self.model,
             "messages": [
                 {"role": "system", "content": system_content},
                 {"role": "user", "content": user_message},
@@ -184,12 +203,7 @@ class LiteLLMPlannerAdapter:
             "tools": _TOOLS,
             "tool_choice": {"type": "function", "function": {"name": "submit_plan_output"}},
         }
-        if self.api_key:
-            kwargs["api_key"] = self.api_key
-        if self.api_base:
-            kwargs["api_base"] = self.api_base
-
-        response = litellm.completion(**kwargs)
+        response = self._completion_with_fallback(litellm.completion, **kwargs)
         self._record_cache_metrics(response)
         return self._parse_response(response, issue, existing_snapshot)
 
@@ -350,7 +364,6 @@ class LiteLLMPlannerAdapter:
         )
 
         kwargs: dict[str, Any] = {
-            "model": self.model,
             "messages": [
                 {
                     "role": "system",
@@ -360,12 +373,7 @@ class LiteLLMPlannerAdapter:
             ],
             "temperature": self.temperature,
         }
-        if self.api_key:
-            kwargs["api_key"] = self.api_key
-        if self.api_base:
-            kwargs["api_base"] = self.api_base
-
-        response = litellm.completion(**kwargs)
+        response = self._completion_with_fallback(litellm.completion, **kwargs)
         content = response.choices[0].message.content or ""
 
         try:
@@ -414,19 +422,13 @@ class LiteLLMPlannerAdapter:
             ) from exc
 
         kwargs: dict[str, Any] = {
-            "model": self.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": self.temperature,
         }
-        if self.api_key:
-            kwargs["api_key"] = self.api_key
-        if self.api_base:
-            kwargs["api_base"] = self.api_base
-
-        response = litellm.completion(**kwargs)
+        response = self._completion_with_fallback(litellm.completion, **kwargs)
         return response.choices[0].message.content or ""
 
     def brainstorm(
@@ -474,16 +476,10 @@ class LiteLLMPlannerAdapter:
         ]
 
         kwargs: dict[str, Any] = {
-            "model": self.model,
             "messages": messages,
             "temperature": self.temperature,
         }
-        if self.api_key:
-            kwargs["api_key"] = self.api_key
-        if self.api_base:
-            kwargs["api_base"] = self.api_base
-
-        response = litellm.completion(**kwargs)
+        response = self._completion_with_fallback(litellm.completion, **kwargs)
         return response.choices[0].message.content or ""
 
     def summarise_to_spec(
@@ -524,17 +520,51 @@ class LiteLLMPlannerAdapter:
         ]
 
         kwargs: dict[str, Any] = {
-            "model": self.model,
             "messages": messages,
             "temperature": 0.2,
         }
-        if self.api_key:
-            kwargs["api_key"] = self.api_key
-        if self.api_base:
-            kwargs["api_base"] = self.api_base
-
-        response = litellm.completion(**kwargs)
+        response = self._completion_with_fallback(litellm.completion, **kwargs)
         return response.choices[0].message.content or ""
+
+    def _completion_with_fallback(self, completion_fn: Any, **kwargs: Any) -> Any:
+        profiles = self.model_chain or [self._default_profile()]
+        last_exc: Exception | None = None
+        for profile in profiles:
+            profile_kwargs = dict(kwargs)
+            profile_kwargs["model"] = profile.model
+            if profile.api_key:
+                profile_kwargs["api_key"] = profile.api_key
+            if profile.api_base:
+                profile_kwargs["api_base"] = profile.api_base
+
+            attempt = 0
+            while True:
+                try:
+                    return completion_fn(**profile_kwargs)
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt < self.max_retries and _is_transient_litellm_error(exc):
+                        attempt += 1
+                        if self.retry_backoff_seconds > 0:
+                            time.sleep(self.retry_backoff_seconds * attempt)
+                        continue
+                    if not _is_transient_litellm_error(exc):
+                        raise
+                    break
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("No planner model profile configured")
+
+    def _default_profile(self) -> ResolvedLiteLLMProfile:
+        return ResolvedLiteLLMProfile(
+            model=self.model,
+            api_type=self.api_type,
+            api_key=self.api_key or "",
+            api_base=self.api_base or "",
+            api_key_env="",
+            api_base_env="",
+            slot="primary",
+        )
 
     @staticmethod
     def _issue_payload(issue: Issue) -> dict[str, Any]:
@@ -580,3 +610,32 @@ class LiteLLMPlannerAdapter:
             approved_by=None,
             issue=draft_issue,
         )
+
+
+def _is_transient_litellm_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    transient_markers = (
+        "rate limit",
+        "too many requests",
+        "429",
+        "529",
+        "overloaded",
+        "overloaded_error",
+        "temporarily unavailable",
+        "timeout",
+        "timed out",
+        "connection reset",
+        "connection aborted",
+        "service unavailable",
+    )
+    fatal_markers = (
+        "invalid x-api-key",
+        "authentication_error",
+        "unauthorized",
+        "forbidden",
+        "invalid api key",
+        "missing_api_base",
+    )
+    if any(marker in message for marker in fatal_markers):
+        return False
+    return any(marker in message for marker in transient_markers)
