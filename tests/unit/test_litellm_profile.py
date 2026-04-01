@@ -155,6 +155,38 @@ def test_resolve_role_litellm_settings_prefers_model_ref_over_global_default(mon
     assert settings["model_chain"][0].slot == "primary"
 
 
+def test_resolve_role_litellm_settings_ignores_standalone_api_type_for_default_chain(
+    monkeypatch,
+) -> None:
+    from spec_orch.services.litellm_profile import resolve_role_litellm_settings
+
+    monkeypatch.setenv("MINIMAX_API_KEY", "minimax-key")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+
+    raw = {
+        "llm": {"default_model_chain": "reasoning"},
+        "models": {
+            "minimax": {
+                "model": "MiniMax-M2.7-highspeed",
+                "api_type": "anthropic",
+                "api_key_env": "MINIMAX_API_KEY",
+                "api_base_env": "MINIMAX_ANTHROPIC_BASE_URL",
+            }
+        },
+        "model_chains": {
+            "reasoning": {
+                "primary": "minimax",
+            }
+        },
+        "planner": {"api_type": "anthropic"},
+    }
+
+    settings = resolve_role_litellm_settings(raw, section_name="planner")
+
+    assert settings["model"] == "anthropic/MiniMax-M2.7-highspeed"
+    assert len(settings["model_chain"]) == 1
+
+
 def test_normalize_litellm_model_preserves_provider_prefixed_model() -> None:
     from spec_orch.services.litellm_profile import normalize_litellm_model
 

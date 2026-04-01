@@ -307,7 +307,6 @@ def _has_inline_litellm_config(cfg: dict[str, Any]) -> bool:
         key in cfg
         for key in (
             "model",
-            "api_type",
             "api_key_env",
             "api_base_env",
             "fallbacks",
