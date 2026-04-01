@@ -152,6 +152,47 @@ def test_plan_show_cli(tmp_path: Path):
     assert "Setup DB" in result.output
 
 
+def test_plan_mission_passes_model_chain_to_scoper(tmp_path: Path):
+    from spec_orch.cli.mission_commands import plan_mission
+
+    captured: dict[str, object] = {}
+
+    class FakeScoper:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def scope(self, *, mission, codebase_context):
+            return ExecutionPlan(plan_id="p-1", mission_id=mission.mission_id)
+
+    repo = tmp_path
+    spec_dir = repo / "docs/specs/m-1"
+    spec_dir.mkdir(parents=True)
+    (spec_dir / "spec.md").write_text("spec")
+
+    mission = Mission(mission_id="m-1", title="Mission", spec_path="docs/specs/m-1/spec.md")
+    model_chain = [object(), object()]
+
+    with (
+        patch("spec_orch.services.mission_service.MissionService") as mission_service_cls,
+        patch("spec_orch.services.scoper_adapter.LiteLLMScoperAdapter", FakeScoper),
+        patch("spec_orch.services.promotion_service.save_plan"),
+        patch("spec_orch.cli.mission_commands._show_next_step"),
+        patch("spec_orch.cli.mission_commands._load_planner_config") as load_cfg,
+    ):
+        mission_service_cls.return_value.get_mission.return_value = mission
+        load_cfg.return_value = {
+            "model": "anthropic/MiniMax-M2.7-highspeed",
+            "api_type": "anthropic",
+            "api_key": "key",
+            "api_base": "https://primary.example",
+            "model_chain": model_chain,
+        }
+
+        plan_mission("m-1", repo_root=repo)
+
+    assert captured["model_chain"] is model_chain
+
+
 def test_promote_cli_local(tmp_path: Path):
     wp = WorkPacket(packet_id="wp-1", title="Task")
     plan = ExecutionPlan(

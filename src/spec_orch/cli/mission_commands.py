@@ -81,6 +81,7 @@ def plan_mission(
         api_type=planner_cfg.get("api_type", "anthropic"),
         api_key=planner_cfg.get("api_key"),
         api_base=planner_cfg.get("api_base"),
+        model_chain=planner_cfg.get("model_chain"),
         token_command=planner_cfg.get("token_command"),
         evidence_context=evidence_ctx,
         scoper_hints=hints_ctx,
