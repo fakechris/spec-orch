@@ -35,6 +35,7 @@ from .launcher import _launch_mission as _launcher_launch_mission
 from .missions import _gather_inbox as _missions_gather_inbox
 from .missions import _gather_lifecycle_states as _missions_gather_lifecycle_states
 from .missions import _gather_mission_detail as _missions_gather_mission_detail
+from .missions import _gather_mission_runtime_chain as _missions_gather_mission_runtime_chain
 from .missions import _gather_missions as _missions_gather_missions
 from .surfaces import _gather_approval_queue as _surfaces_gather_approval_queue
 from .surfaces import _gather_mission_acceptance_review as _surfaces_gather_mission_acceptance
@@ -84,6 +85,7 @@ _gather_round_evidence_blocks = _transcript_gather_round_evidence_blocks
 _gather_missions = _missions_gather_missions
 _gather_inbox = _missions_gather_inbox
 _gather_mission_detail = _missions_gather_mission_detail
+_gather_mission_runtime_chain = _missions_gather_mission_runtime_chain
 _gather_lifecycle_states = _missions_gather_lifecycle_states
 _gather_launcher_readiness = _launcher_gather_launcher_readiness
 _create_mission_draft = _launcher_create_mission_draft
@@ -1088,6 +1090,7 @@ function renderContextRail(detail) {
   const visualQa = selectedMissionVisualQa || detail.visual_qa || {};
   const acceptance = selectedMissionAcceptance || detail.acceptance_review || {};
   const costs = selectedMissionCosts || detail.costs || {};
+  const runtimeChain = detail.runtime_chain || {};
   rail.innerHTML = `
     <div class="mission-section">
       <h3>Lifecycle</h3>
@@ -1115,6 +1118,19 @@ function renderContextRail(detail) {
       <h3>Approval workspace</h3>
       <div class="context-list">
         ${approvalRequest ? renderApprovalWorkspace(approvalRequest, approvalHistory, approvalState, mission.mission_id || '', 'context-rail') : '<div class="empty-panel">No active approval request.</div>'}
+      </div>
+    </div>
+    <div class="mission-section">
+      <h3>Runtime chain</h3>
+      <div class="context-list">
+        <div class="context-card">
+          <div class="context-title">${escHtml(runtimeChain?.status || 'missing')}</div>
+          <div class="context-meta">
+            <span class="detail-chip">${escHtml(runtimeChain?.current_status?.phase || 'missing')}</span>
+            <span>${escHtml(runtimeChain?.current_status?.status_reason || 'none')}</span>
+          </div>
+          <div class="context-meta">${escHtml(String(runtimeChain?.recent_events?.length || 0))} recent events</div>
+        </div>
       </div>
     </div>
     <div class="mission-section">

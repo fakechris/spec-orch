@@ -207,6 +207,17 @@ def register_routes(app: FastAPI, root: Path) -> None:
             return JSONResponse({"error": "not found"}, status_code=404)
         return JSONResponse(detail)
 
+    @app.get("/api/missions/{mission_id}/runtime-chain")
+    async def api_mission_runtime_chain(mission_id: str) -> JSONResponse:
+        detail = dashboard_app._gather_mission_detail(root, mission_id)
+        if detail is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        payload = detail.get("runtime_chain") or {
+            "mission_id": mission_id,
+            "status": "missing",
+        }
+        return JSONResponse(payload)
+
     @app.get("/api/missions/{mission_id}/visual-qa")
     async def api_mission_visual_qa(mission_id: str) -> JSONResponse:
         return JSONResponse(dashboard_app._gather_mission_visual_qa(root, mission_id))

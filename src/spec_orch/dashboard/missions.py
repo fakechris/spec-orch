@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from spec_orch.runtime_chain.store import read_chain_events, read_chain_status
 from spec_orch.runtime_core.readers import read_round_supervision_cycle
 from spec_orch.services.mission_service import MissionService
 from spec_orch.services.pipeline_checker import check_pipeline
@@ -127,6 +128,39 @@ def _mission_sort_phase_rank(mission: dict[str, Any]) -> int:
 def _mission_sort_timestamp(mission: dict[str, Any]) -> str:
     value = mission.get("sort_timestamp", "")
     return value if isinstance(value, str) else ""
+
+
+def _gather_mission_runtime_chain(
+    repo_root: Path,
+    mission_id: str,
+    *,
+    event_limit: int = 20,
+) -> dict[str, Any]:
+    chain_root = repo_root / "docs" / "specs" / mission_id / "operator" / "runtime_chain"
+    status_error = False
+    try:
+        current_status = read_chain_status(chain_root)
+    except Exception:
+        current_status = None
+        status_error = True
+    try:
+        recent_events = read_chain_events(chain_root)[-event_limit:]
+    except Exception:
+        recent_events = []
+        status_error = True
+    if status_error:
+        status = "corrupt"
+    elif current_status is not None or recent_events:
+        status = "present"
+    else:
+        status = "missing"
+    return {
+        "mission_id": mission_id,
+        "chain_root": str(chain_root.relative_to(repo_root)),
+        "status": status,
+        "current_status": current_status.to_dict() if current_status is not None else None,
+        "recent_events": [event.to_dict() for event in recent_events],
+    }
 
 
 def _gather_missions(repo_root: Path) -> list[dict[str, Any]]:
@@ -334,6 +368,7 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
     visual_qa = _gather_mission_visual_qa(repo_root, mission_id)
     acceptance_review = _gather_mission_acceptance_review(repo_root, mission_id)
     costs = _gather_mission_costs(repo_root, mission_id)
+    runtime_chain = _gather_mission_runtime_chain(repo_root, mission_id)
 
     rounds_dir = repo_root / "docs/specs" / mission_id / "rounds"
     round_summaries: list[dict[str, Any]] = []
@@ -454,6 +489,7 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
         "visual_qa": visual_qa,
         "acceptance_review": acceptance_review,
         "costs": costs,
+        "runtime_chain": runtime_chain,
         "artifacts": {
             "spec": str((repo_root / mission.spec_path).relative_to(repo_root)),
             "plan": str(plan_path.relative_to(repo_root)) if plan_path.exists() else None,
@@ -474,5 +510,6 @@ __all__ = [
     "_gather_inbox",
     "_gather_lifecycle_states",
     "_gather_mission_detail",
+    "_gather_mission_runtime_chain",
     "_gather_missions",
 ]
