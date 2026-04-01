@@ -18,6 +18,7 @@ from spec_orch.cli._helpers import (
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
 from spec_orch.services.io import atomic_write_json
 from spec_orch.services.litellm_profile import resolve_role_litellm_settings
+from spec_orch.services.model_probe import probe_model_compliance
 
 config_app = typer.Typer()
 app.add_typer(config_app, name="config")
@@ -173,6 +174,69 @@ def selftest_cmd(
         typer.echo(f"Report: {selftest_path}")
 
     if counts.get("fail", 0) > 0:
+        raise typer.Exit(1)
+
+
+@app.command("model-probe")
+def model_probe_cmd(
+    model: str = typer.Option(..., "--model", help="Model identifier to probe."),
+    transport: str = typer.Option(
+        "litellm",
+        "--transport",
+        help="Probe transport. Supported: litellm, anthropic-http.",
+    ),
+    api_type: str = typer.Option(
+        "anthropic",
+        "--api-type",
+        help="Provider type used for model normalization and env fallback lookup.",
+    ),
+    api_key: str | None = typer.Option(None, "--api-key", help="Explicit API key override."),
+    api_base: str | None = typer.Option(None, "--api-base", help="Explicit API base override."),
+    api_key_env: str | None = typer.Option(
+        None,
+        "--api-key-env",
+        help="Environment variable name containing the API key.",
+    ),
+    api_base_env: str | None = typer.Option(
+        None,
+        "--api-base-env",
+        help="Environment variable name containing the API base URL.",
+    ),
+    max_tokens: int = typer.Option(400, "--max-tokens", help="Max tokens per probe request."),
+    timeout_seconds: float = typer.Option(
+        30.0,
+        "--timeout-seconds",
+        help="Request timeout per probe case.",
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit raw JSON report."),
+) -> None:
+    """Probe a model for exact-text and structured-output compliance."""
+    report = probe_model_compliance(
+        model=model,
+        transport=transport,
+        api_type=api_type,
+        api_key=api_key,
+        api_base=api_base,
+        api_key_env=api_key_env,
+        api_base_env=api_base_env,
+        max_tokens=max_tokens,
+        timeout_seconds=timeout_seconds,
+    )
+
+    if json_output:
+        typer.echo(json.dumps(report, indent=2, ensure_ascii=False))
+    else:
+        typer.echo(
+            f"Model probe: {report['model']} via {report['transport']} "
+            f"({report['summary']['passed']}/{report['summary']['total']} passed)"
+        )
+        for result in report["results"]:
+            status = "PASS" if result.get("ok") else "FAIL"
+            typer.echo(f"[{status}] {result['name']}")
+            if result.get("failure_reason"):
+                typer.echo(f"       {result['failure_reason']}")
+
+    if report["summary"]["failed"] > 0:
         raise typer.Exit(1)
 
 

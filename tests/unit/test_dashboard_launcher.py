@@ -63,7 +63,7 @@ adapter = "acpx_codex"
     assert ready["builder"]["ready"] is True
 
 
-def test_launcher_readiness_falls_back_to_minimax_env_aliases(
+def test_launcher_readiness_requires_explicit_slot_envs_when_configured(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -102,8 +102,8 @@ adapter = "acpx"
     monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
 
     readiness = _gather_launcher_readiness(repo)
-    assert readiness["planner"]["ready"] is True
-    assert readiness["supervisor"]["ready"] is True
+    assert readiness["planner"]["ready"] is False
+    assert readiness["supervisor"]["ready"] is False
 
 
 def test_launcher_readiness_falls_back_to_linear_token_alias(
@@ -412,6 +412,145 @@ def test_approve_and_plan_mission_injects_fresh_verification_commands(
         }
         for commands in packet_commands
     )
+
+
+def test_approve_and_plan_mission_merges_isolated_fresh_verification_packets(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import _approve_and_plan_mission, _create_mission_draft
+
+    mission_id = "fresh-acpx-merge-plan"
+
+    _create_mission_draft(
+        repo,
+        {
+            "title": "Fresh Merge Plan",
+            "mission_id": mission_id,
+            "intent": "Generate a fresh-acpx plan that would otherwise verify in a second workspace.",
+            "acceptance_criteria": [],
+            "constraints": [],
+        },
+    )
+
+    def fake_plan(root: Path, mission_id: str) -> dict:
+        payload = {
+            "plan_id": "plan-fresh-merge",
+            "mission_id": mission_id,
+            "status": "draft",
+            "waves": [
+                {
+                    "wave_number": 0,
+                    "description": "Fresh smoke",
+                    "work_packets": [
+                        {
+                            "packet_id": "contract-scaffold",
+                            "title": "Scaffold TypeScript contract files",
+                            "files_in_scope": [
+                                "src/contracts/mission_types.ts",
+                                "src/contracts/artifact_types.ts",
+                            ],
+                            "builder_prompt": "Create the two contract files.",
+                            "verification_commands": {},
+                        },
+                        {
+                            "packet_id": "contract-verification",
+                            "title": "Verify the contracts compile",
+                            "files_in_scope": [
+                                "src/contracts/mission_types.ts",
+                                "src/contracts/artifact_types.ts",
+                            ],
+                            "builder_prompt": "Run TypeScript compiler (tsc --noEmit) and ESLint on the newly created contract files.",
+                            "verification_commands": {},
+                        },
+                    ],
+                }
+            ],
+        }
+        (root / "docs" / "specs" / mission_id / "plan.json").write_text(
+            json.dumps(payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return payload
+
+    monkeypatch.setattr("spec_orch.dashboard.launcher._generate_plan_for_mission", fake_plan)
+
+    result = _approve_and_plan_mission(repo, mission_id)
+
+    packets = result["plan"]["waves"][0]["work_packets"]
+    assert len(packets) == 1
+    assert packets[0]["packet_id"] == "contract-scaffold"
+    assert "TypeScript compiler" in packets[0]["builder_prompt"]
+
+
+def test_approve_and_plan_mission_merges_verify_packet_named_for_lint_typecheck(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import _approve_and_plan_mission, _create_mission_draft
+
+    mission_id = "fresh-acpx-verify-name-plan"
+
+    _create_mission_draft(
+        repo,
+        {
+            "title": "Fresh Verify Name Plan",
+            "mission_id": mission_id,
+            "intent": "Generate a fresh-acpx plan with a separate verify packet.",
+            "acceptance_criteria": [],
+            "constraints": [],
+        },
+    )
+
+    def fake_plan(root: Path, mission_id: str) -> dict:
+        payload = {
+            "plan_id": "plan-fresh-verify-name",
+            "mission_id": mission_id,
+            "status": "draft",
+            "waves": [
+                {
+                    "wave_number": 0,
+                    "description": "Fresh smoke",
+                    "work_packets": [
+                        {
+                            "packet_id": "scaffold-contracts",
+                            "title": "Scaffold TypeScript contract files",
+                            "files_in_scope": [
+                                "src/contracts/mission_types.ts",
+                                "src/contracts/artifact_types.ts",
+                            ],
+                            "builder_prompt": "Create the contract files.",
+                            "verification_commands": {},
+                        },
+                        {
+                            "packet_id": "verify-contracts",
+                            "title": "Verify contract files with lint and typecheck",
+                            "files_in_scope": [
+                                "src/contracts/mission_types.ts",
+                                "src/contracts/artifact_types.ts",
+                            ],
+                            "depends_on": ["scaffold-contracts"],
+                            "builder_prompt": "Run lint and TypeScript typecheck on the contract files.",
+                            "verification_commands": {},
+                        },
+                    ],
+                }
+            ],
+        }
+        (root / "docs" / "specs" / mission_id / "plan.json").write_text(
+            json.dumps(payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return payload
+
+    monkeypatch.setattr("spec_orch.dashboard.launcher._generate_plan_for_mission", fake_plan)
+
+    result = _approve_and_plan_mission(repo, mission_id)
+
+    packets = result["plan"]["waves"][0]["work_packets"]
+    assert len(packets) == 1
+    assert packets[0]["packet_id"] == "scaffold-contracts"
+    assert "typecheck" in packets[0]["builder_prompt"].lower()
 
 
 def test_create_linear_issue_for_mission_records_launch_metadata(
@@ -798,3 +937,98 @@ max_rounds = 12
     assert result["launch"]["runner"]["status"] == "daemon_running"
     assert calls == [("plan_complete", "launch-me"), ("auto_advance", "launch-me")]
     assert launched == []
+
+
+def test_launch_mission_accepts_supervisor_default_model_chain(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import _launch_mission
+
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-test")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "fb-test")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://ark.cn-beijing.volces.com/api/coding")
+
+    class FakeState:
+        def __init__(self, phase: str) -> None:
+            self.phase = phase
+
+        def to_dict(self) -> dict[str, str]:
+            return {"mission_id": "launch-me", "phase": self.phase}
+
+    class FakeLifecycleManager:
+        def __init__(self, _root: Path) -> None:
+            return None
+
+        def plan_complete(self, mission_id: str, issue_ids: list[str]) -> FakeState:
+            assert mission_id == "launch-me"
+            assert issue_ids == ["LOCAL-1"]
+            return FakeState("planned")
+
+        def auto_advance(self, mission_id: str) -> FakeState:
+            assert mission_id == "launch-me"
+            return FakeState("executing")
+
+    plan_path = repo / "docs" / "specs" / "launch-me"
+    plan_path.mkdir(parents=True)
+    (repo / "spec-orch.toml").write_text(
+        """
+[llm]
+default_model_chain = "default_reasoning"
+
+[models.minimax_reasoning]
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+
+[models.doubao_seed_code]
+model = "doubao-seed-2.0-code"
+api_type = "anthropic"
+api_key_env = "ANTHROPIC_AUTH_TOKEN"
+api_base_env = "ANTHROPIC_BASE_URL"
+
+[model_chains.default_reasoning]
+primary = "minimax_reasoning"
+fallbacks = ["doubao_seed_code"]
+
+[supervisor]
+adapter = "litellm"
+max_rounds = 12
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    (plan_path / "plan.json").write_text(
+        json.dumps(
+            {
+                "plan_id": "plan-1",
+                "mission_id": "launch-me",
+                "status": "draft",
+                "waves": [
+                    {
+                        "wave_number": 1,
+                        "description": "Wave",
+                        "work_packets": [{"packet_id": "pkt-1", "title": "LOCAL-1"}],
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "spec_orch.dashboard.launcher.MissionLifecycleManager",
+        FakeLifecycleManager,
+    )
+    monkeypatch.setattr("spec_orch.dashboard.launcher._daemon_is_active", lambda root: False)
+    monkeypatch.setattr(
+        "spec_orch.dashboard.launcher._start_background_mission_runner",
+        lambda root, mission_id: True,
+    )
+
+    result = _launch_mission(repo, "launch-me")
+
+    assert result["state"]["phase"] == "executing"

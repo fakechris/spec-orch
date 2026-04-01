@@ -530,6 +530,8 @@ class LiteLLMPlannerAdapter:
         profiles = self.model_chain or [self._default_profile()]
         last_exc: Exception | None = None
         for profile in profiles:
+            if not profile.is_usable:
+                continue
             profile_kwargs = dict(kwargs)
             profile_kwargs["model"] = profile.model
             if profile.api_key:

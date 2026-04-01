@@ -183,6 +183,107 @@ Reject this run.
     assert result.campaign.mode is AcceptanceMode.IMPACT_SWEEP
 
 
+def test_acceptance_evaluator_normalizes_lenient_doubao_style_payload(tmp_path: Path) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """### Acceptance Review
+Transcript flow is usable, but transcript entry remains weak for operators.
+
+```json
+{
+  "status": "conditional_accept",
+  "summary": "Basic workflow validation complete; transcript entry weakness noted for resolution prior to full acceptance.",
+  "confidence": "medium",
+  "evaluator": "Transcript Workflow Validator",
+  "tested_routes": ["/?tab=transcript"],
+  "findings": ["Transcript entry is weak"],
+  "issue_proposals": ["Clarify transcript entry point"],
+  "artifacts": []
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-doubao",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/mission-doubao/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={"browser_evidence": {"tested_routes": ["/?tab=transcript"], "page_errors": []}},
+        repo_root=tmp_path,
+    )
+
+    assert result.status == "warn"
+    assert result.confidence == 0.7
+    assert result.findings
+    assert result.findings[0].summary == "Transcript entry is weak"
+    assert result.issue_proposals
+    assert result.issue_proposals[0].title == "Clarify transcript entry point"
+    assert result.artifacts == {}
+
+
+def test_acceptance_evaluator_skips_unusable_primary_profile(tmp_path: Path) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+    from spec_orch.services.litellm_profile import ResolvedLiteLLMProfile
+
+    calls: list[str] = []
+
+    def fake_chat_completion(**kwargs):
+        calls.append(kwargs["model"])
+        return """Review
+```json
+{"status":"pass","summary":"ok","confidence":0.9,"evaluator":"probe","findings":[],"issue_proposals":[],"artifacts":{}}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="ignored",
+        api_type="anthropic",
+        model_chain=[
+            ResolvedLiteLLMProfile(
+                model="anthropic/MiniMax-M2.7-highspeed",
+                api_type="anthropic",
+                api_key="",
+                api_base="",
+                api_key_env="MINIMAX_API_KEY",
+                api_base_env="MINIMAX_ANTHROPIC_BASE_URL",
+                slot="primary",
+            ),
+            ResolvedLiteLLMProfile(
+                model="anthropic/doubao-seed-2.0-code",
+                api_type="anthropic",
+                api_key="ok",
+                api_base="https://ark.cn-beijing.volces.com/api/coding",
+                api_key_env="ANTHROPIC_AUTH_TOKEN",
+                api_base_env="ANTHROPIC_BASE_URL",
+                slot="fallback-1",
+            ),
+        ],
+        chat_completion=fake_chat_completion,
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-fallback",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/mission-fallback/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={},
+        repo_root=tmp_path,
+    )
+
+    assert result.status == "pass"
+    assert calls == ["anthropic/doubao-seed-2.0-code"]
+
+
 def test_acceptance_evaluator_prefers_deterministic_campaign_and_browser_routes(
     tmp_path: Path,
 ) -> None:
@@ -1169,6 +1270,111 @@ def test_acceptance_evaluator_replaces_low_signal_exploratory_transcript_gap_out
     assert result.issue_proposals[0].route == "/?mission=mission-1&mode=missions&tab=transcript"
     assert result.issue_proposals[0].hold_reason
     assert "empty-state" in result.issue_proposals[0].summary
+
+
+def test_acceptance_evaluator_drops_coverage_only_exploratory_proposals_for_untested_routes(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "warn",
+  "summary": "Transcript surface reveals one useful operator issue.",
+  "confidence": 0.86,
+  "evaluator": "acceptance_llm",
+  "tested_routes": [
+    "/",
+    "/?mission=mission-3&mode=missions&tab=transcript"
+  ],
+  "findings": [
+    {
+      "severity": "operator_experience",
+      "summary": "Transcript evidence entry is hard to discover",
+      "details": "Operators can reach transcript filters but not deeper evidence.",
+      "expected": "A first-time operator can move into packet-level evidence.",
+      "actual": "The bounded replay stops at transcript controls.",
+      "route": "/?mission=mission-3&mode=missions&tab=transcript",
+      "critique_axis": "evidence_discoverability",
+      "operator_task": "open packet-level transcript evidence",
+      "why_it_matters": "Operators can stall before reaching mission evidence."
+    }
+  ],
+  "issue_proposals": [
+    {
+      "title": "Clarify transcript packet selection entry point",
+      "summary": "Operators need a clearer affordance for packet-level transcript evidence.",
+      "severity": "high",
+      "confidence": 0.86,
+      "route": "/?mission=mission-3&mode=missions&tab=transcript",
+      "critique_axis": "evidence_discoverability",
+      "operator_task": "open packet-level transcript evidence",
+      "why_it_matters": "Operators should reach evidence without prior context.",
+      "hold_reason": "Exploratory UX critique should be reviewed before automatic filing."
+    },
+    {
+      "title": "Approvals tab operator affordances not validated in this round",
+      "summary": "Approvals tab operator affordances not validated in this round",
+      "severity": "",
+      "confidence": 0.0,
+      "route": "/?mission=mission-3&mode=missions&tab=approvals"
+    }
+  ],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.EXPLORATORY,
+        goal="Dogfood transcript discoverability from an operator perspective.",
+        primary_routes=["/", "/?mission=mission-3&mode=missions&tab=transcript"],
+        related_routes=["/?mission=mission-3&mode=missions&tab=approvals"],
+        filing_policy="hold_ux_concerns_for_operator_review",
+        exploration_budget="wide",
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-3",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/mission-3/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={
+            "browser_evidence": {
+                "tested_routes": [
+                    "/",
+                    "/?mission=mission-3&mode=missions&tab=transcript",
+                ],
+                "interactions": {
+                    "/?mission=mission-3&mode=missions&tab=transcript": [
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                            "status": "passed",
+                        }
+                    ]
+                },
+                "page_errors": [],
+                "console_errors": [],
+            }
+        },
+        repo_root=tmp_path,
+        campaign=campaign,
+    )
+
+    assert len(result.issue_proposals) == 1
+    assert result.issue_proposals[0].route == "/?mission=mission-3&mode=missions&tab=transcript"
+    assert "Approvals tab operator affordances not validated" not in result.issue_proposals[0].title
 
 
 def test_acceptance_evaluator_replaces_generic_browser_error_proposal_on_transcript_gap(

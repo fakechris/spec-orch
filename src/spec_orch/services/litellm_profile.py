@@ -65,9 +65,7 @@ def resolve_configured_or_fallback_env(
     if kind not in {"api_key", "api_base"}:
         raise ValueError(f"kind must be 'api_key' or 'api_base', got {kind!r}")
     if env_name:
-        value = os.environ.get(env_name)
-        if value:
-            return value
+        return os.environ.get(env_name, "")
     fallbacks = _api_key_fallbacks(api_type) if kind == "api_key" else _api_base_fallbacks(api_type)
     for fallback in fallbacks:
         value = os.environ.get(fallback)
@@ -92,6 +90,12 @@ class ResolvedLiteLLMProfile:
             "api_key": self.api_key or None,
             "api_base": self.api_base or None,
         }
+
+    @property
+    def is_usable(self) -> bool:
+        if self.api_key_env and not self.api_key:
+            return False
+        return not (self.api_base_env and not self.api_base)
 
 
 def resolve_role_litellm_profile_chain(

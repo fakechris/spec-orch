@@ -6,8 +6,10 @@
 #   ./tests/e2e/fresh_acpx_mission_smoke.sh
 #
 # Full mode:
-#   MINIMAX_API_KEY=$KEY MINIMAX_ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic \
-#     ./tests/e2e/fresh_acpx_mission_smoke.sh --full
+#   ./tests/e2e/fresh_acpx_mission_smoke.sh --full
+#
+# The script sources .env when present and resolves planner/supervisor/
+# acceptance_evaluator credentials from spec-orch.toml model chains.
 #
 # Full mode exercises:
 #   1. fresh mission bootstrap via launcher helpers
@@ -55,28 +57,57 @@ cd "$REPO_ROOT"
 if [ "$FULL_MODE" != true ]; then
   warn "Dry-run only. This script expects a configured local SpecOrch repo with:"
   echo "  - spec-orch.toml present"
-  echo "  - planner/supervisor/acceptance env vars available"
+  echo "  - planner/supervisor/acceptance model credentials resolvable"
   echo "  - dashboard deps installed"
   echo "  - ACPX builder executable available"
   echo
   echo "To run full mode:"
-  echo "  MINIMAX_API_KEY=\$KEY MINIMAX_ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic \\"
-  echo "    ./tests/e2e/fresh_acpx_mission_smoke.sh --full"
+  echo "  ./tests/e2e/fresh_acpx_mission_smoke.sh --full"
   exit 0
 fi
 
 [ -f spec-orch.toml ] || fail "spec-orch.toml missing"
-[ -n "${MINIMAX_API_KEY:-}" ] || fail "MINIMAX_API_KEY required for --full mode"
-if [ -z "${MINIMAX_ANTHROPIC_BASE_URL:-}" ]; then
-  export MINIMAX_ANTHROPIC_BASE_URL="https://api.minimaxi.com/anthropic"
-  warn "MINIMAX_ANTHROPIC_BASE_URL missing; defaulting to ${MINIMAX_ANTHROPIC_BASE_URL}"
+
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
 fi
-if [ -z "${SPEC_ORCH_LLM_API_KEY:-}" ]; then
-  export SPEC_ORCH_LLM_API_KEY="$MINIMAX_API_KEY"
-fi
-if [ -z "${SPEC_ORCH_LLM_API_BASE:-}" ]; then
-  export SPEC_ORCH_LLM_API_BASE="$MINIMAX_ANTHROPIC_BASE_URL"
-fi
+
+step "Validate model-chain credentials for full mode"
+uv run --python 3.13 python - <<'PY'
+import tomllib
+from pathlib import Path
+
+from spec_orch.services.litellm_profile import resolve_role_litellm_settings
+
+raw = tomllib.loads(Path("spec-orch.toml").read_text(encoding="utf-8"))
+
+
+def usable_count(role: str) -> int:
+    settings = resolve_role_litellm_settings(raw, section_name=role)
+    chain = settings.get("model_chain") or []
+    return sum(1 for profile in chain if getattr(profile, "is_usable", False))
+
+
+missing: list[str] = []
+for role in ("planner", "supervisor"):
+    if usable_count(role) == 0:
+        missing.append(role)
+
+acceptance_cfg = raw.get("acceptance_evaluator", {})
+if not isinstance(acceptance_cfg, dict):
+    acceptance_cfg = {}
+if acceptance_cfg.get("adapter", "litellm") == "litellm" and usable_count("acceptance_evaluator") == 0:
+    missing.append("acceptance_evaluator")
+
+if missing:
+    raise SystemExit(
+        "missing usable model-chain credentials for full mode: " + ", ".join(missing)
+    )
+PY
+ok "model-chain credentials resolved"
 
 step "Validate fresh E2E runtime dependencies"
 uv run --python 3.13 python - <<'PY'
