@@ -137,12 +137,27 @@ def _gather_mission_runtime_chain(
     event_limit: int = 20,
 ) -> dict[str, Any]:
     chain_root = repo_root / "docs" / "specs" / mission_id / "operator" / "runtime_chain"
-    current_status = read_chain_status(chain_root)
-    recent_events = read_chain_events(chain_root)[-event_limit:]
+    status_error = False
+    try:
+        current_status = read_chain_status(chain_root)
+    except Exception:
+        current_status = None
+        status_error = True
+    try:
+        recent_events = read_chain_events(chain_root)[-event_limit:]
+    except Exception:
+        recent_events = []
+        status_error = True
+    if status_error:
+        status = "corrupt"
+    elif current_status is not None or recent_events:
+        status = "present"
+    else:
+        status = "missing"
     return {
         "mission_id": mission_id,
         "chain_root": str(chain_root.relative_to(repo_root)),
-        "status": "present" if current_status is not None else "missing",
+        "status": status,
         "current_status": current_status.to_dict() if current_status is not None else None,
         "recent_events": [event.to_dict() for event in recent_events],
     }

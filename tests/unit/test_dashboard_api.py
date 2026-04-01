@@ -312,6 +312,8 @@ class TestDashboardAPI:
         assert payload["mission_id"] == mission_id
         assert payload["status"] == "present"
         assert payload["current_status"]["chain_id"] == "chain-mission-runtime-chain-endpoint"
+        assert len(payload["recent_events"]) == 2
+        assert payload["recent_events"][0]["status_reason"] == "round_started"
         assert payload["recent_events"][-1]["status_reason"] == "acceptance_waiting_on_model"
 
     def test_mission_runtime_chain_endpoint_returns_missing_shape_when_absent(
@@ -347,6 +349,95 @@ class TestDashboardAPI:
         payload = response.json()
         assert payload["mission_id"] == mission_id
         assert payload["status"] == "missing"
+        assert payload["current_status"] is None
+        assert payload["recent_events"] == []
+
+    def test_mission_runtime_chain_endpoint_returns_present_when_only_events_exist(
+        self,
+        client,
+        repo: Path,
+    ) -> None:
+        mission_id = "mission-runtime-chain-events-only"
+        specs = repo / "docs" / "specs" / mission_id
+        runtime_chain_dir = specs / "operator" / "runtime_chain"
+        specs.mkdir(parents=True)
+        runtime_chain_dir.mkdir(parents=True)
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Mission Runtime Chain Events Only",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-31T00:00:00+00:00",
+                    "approved_at": "2026-03-31T00:10:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Mission Runtime Chain Events Only\n", encoding="utf-8")
+        append_chain_event(
+            runtime_chain_dir,
+            RuntimeChainEvent(
+                chain_id="chain-mission-runtime-chain-events-only",
+                span_id="chain-mission-runtime-chain-events-only:acceptance",
+                parent_span_id="chain-mission-runtime-chain-events-only:round-1",
+                subject_kind=RuntimeSubjectKind.ACCEPTANCE,
+                subject_id=mission_id,
+                phase=ChainPhase.HEARTBEAT,
+                status_reason="acceptance_waiting_on_model",
+                updated_at="2026-03-31T09:01:00+00:00",
+            ),
+        )
+
+        response = client.get(f"/api/missions/{mission_id}/runtime-chain")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "present"
+        assert payload["current_status"] is None
+        assert len(payload["recent_events"]) == 1
+
+    def test_mission_runtime_chain_endpoint_returns_corrupt_when_files_are_malformed(
+        self,
+        client,
+        repo: Path,
+    ) -> None:
+        mission_id = "mission-runtime-chain-corrupt"
+        specs = repo / "docs" / "specs" / mission_id
+        runtime_chain_dir = specs / "operator" / "runtime_chain"
+        specs.mkdir(parents=True)
+        runtime_chain_dir.mkdir(parents=True)
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Mission Runtime Chain Corrupt",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-03-31T00:00:00+00:00",
+                    "approved_at": "2026-03-31T00:10:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Mission Runtime Chain Corrupt\n", encoding="utf-8")
+        (runtime_chain_dir / "chain_status.json").write_text("{not-json", encoding="utf-8")
+        (runtime_chain_dir / "chain_events.jsonl").write_text("{not-json\n", encoding="utf-8")
+
+        response = client.get(f"/api/missions/{mission_id}/runtime-chain")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "corrupt"
         assert payload["current_status"] is None
         assert payload["recent_events"] == []
 
