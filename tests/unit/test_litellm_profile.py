@@ -153,3 +153,9 @@ def test_resolve_role_litellm_settings_prefers_model_ref_over_global_default(mon
     assert settings["model"] == "anthropic/accounts/fireworks/routers/kimi-k2p5-turbo"
     assert len(settings["model_chain"]) == 1
     assert settings["model_chain"][0].slot == "primary"
+
+
+def test_normalize_litellm_model_preserves_provider_prefixed_model() -> None:
+    from spec_orch.services.litellm_profile import normalize_litellm_model
+
+    assert normalize_litellm_model("google/gemini-pro", api_type="anthropic") == "google/gemini-pro"

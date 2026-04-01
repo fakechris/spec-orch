@@ -4,9 +4,26 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
+_LITELLM_PROVIDER_PREFIXES = {
+    "anthropic",
+    "openai",
+    "azure",
+    "azure_ai",
+    "bedrock",
+    "cohere",
+    "gemini",
+    "google",
+    "groq",
+    "mistral",
+    "ollama",
+    "openrouter",
+    "vertex_ai",
+}
+
 
 def normalize_litellm_model(model: str, *, api_type: str = "anthropic") -> str:
-    if model.startswith(("anthropic/", "openai/")):
+    provider, _, _rest = model.partition("/")
+    if provider in _LITELLM_PROVIDER_PREFIXES:
         return model
     return f"{api_type}/{model}"
 

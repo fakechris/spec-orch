@@ -182,6 +182,8 @@ def test_run_fresh_exploratory_acceptance_review_uses_exploratory_campaign(
     from spec_orch.services.fresh_acpx_e2e import run_fresh_exploratory_acceptance_review
 
     repo_root = tmp_path
+    monkeypatch.delenv("SPEC_ORCH_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("SPEC_ORCH_LLM_API_BASE", raising=False)
     monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
     monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
     mission_id = "fresh-acpx-1"

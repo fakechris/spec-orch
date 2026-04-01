@@ -303,14 +303,14 @@ class SpecOrchDaemon:
         that ``token_command`` tokens are refreshed on every ``plan()`` call,
         not just once at daemon startup.
         """
-        if not self.config.planner_model:
-            return None
         planner_settings = resolve_role_litellm_settings(
             self.config._raw,
             section_name="planner",
-            default_model=self.config.planner_model,
+            default_model=self.config.planner_model or "",
             default_api_type=self.config.planner_api_type,
         )
+        if not planner_settings.get("model"):
+            return None
         model_chain = planner_settings["model_chain"]
         api_key = planner_settings["api_key"] or None
         api_base = planner_settings["api_base"] or None
@@ -333,15 +333,14 @@ class SpecOrchDaemon:
             return None
 
     def _build_round_orchestrator(self) -> Any | None:
-        if not self.config.supervisor_model:
-            return None
-
         supervisor_settings = resolve_role_litellm_settings(
             self.config._raw,
             section_name="supervisor",
-            default_model=self.config.supervisor_model,
+            default_model=self.config.supervisor_model or "",
             default_api_type=self.config.supervisor_api_type,
         )
+        if not supervisor_settings.get("model"):
+            return None
         supervisor_chain = supervisor_settings["model_chain"]
         api_key = supervisor_settings["api_key"] or None
         api_base = supervisor_settings["api_base"] or None
