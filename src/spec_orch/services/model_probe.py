@@ -82,16 +82,18 @@ def probe_model_compliance(
     max_tokens: int = 400,
     timeout_seconds: float = 30.0,
 ) -> dict[str, Any]:
-    resolved_api_key = api_key or resolve_configured_or_fallback_env(
+    resolved_api_key: str | None = api_key or resolve_configured_or_fallback_env(
         api_key_env,
         api_type=api_type,
         kind="api_key",
     )
-    resolved_api_base = api_base or resolve_configured_or_fallback_env(
+    resolved_api_base: str | None = api_base or resolve_configured_or_fallback_env(
         api_base_env,
         api_type=api_type,
         kind="api_base",
     )
+    resolved_api_key = resolved_api_key or None
+    resolved_api_base = resolved_api_base or None
     results: list[dict[str, Any]] = []
 
     for case_name, prompt in _probe_cases():
@@ -237,6 +239,8 @@ def _invoke_anthropic_http(
     max_tokens: int,
     timeout_seconds: float,
 ) -> str:
+    if not api_key:
+        raise RuntimeError("anthropic-http transport requires api_key")
     if not api_base:
         raise RuntimeError("anthropic-http transport requires api_base")
     response = httpx.post(

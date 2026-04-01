@@ -91,3 +91,33 @@ def test_model_probe_cli_json_output(monkeypatch) -> None:
     assert payload["model"] == "accounts/fireworks/routers/kimi-k2p5-turbo"
     assert payload["summary"]["failed"] == 1
     assert payload["results"][1]["name"] == "strict_json"
+
+
+def test_probe_model_compliance_reports_missing_api_key_for_anthropic_http(
+    monkeypatch,
+) -> None:
+    from spec_orch.services.model_probe import probe_model_compliance
+
+    for env_name in (
+        "SPEC_ORCH_LLM_API_KEY",
+        "MINIMAX_API_KEY",
+        "MINIMAX_CN_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "ANTHROPIC_API_KEY",
+    ):
+        monkeypatch.delenv(env_name, raising=False)
+
+    payload = probe_model_compliance(
+        model="doubao-seed-2.0-code",
+        transport="anthropic-http",
+        api_type="anthropic",
+        api_key_env="ANTHROPIC_AUTH_TOKEN",
+        api_base="https://ark.cn-beijing.volces.com/api/coding",
+    )
+
+    assert payload["api_key_present"] is False
+    assert payload["summary"]["failed"] == 4
+    assert all(
+        item["failure_reason"] == "anthropic-http transport requires api_key"
+        for item in payload["results"]
+    )

@@ -63,7 +63,7 @@ adapter = "acpx_codex"
     assert ready["builder"]["ready"] is True
 
 
-def test_launcher_readiness_falls_back_to_minimax_env_aliases(
+def test_launcher_readiness_requires_explicit_slot_envs_when_configured(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -102,8 +102,8 @@ adapter = "acpx"
     monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
 
     readiness = _gather_launcher_readiness(repo)
-    assert readiness["planner"]["ready"] is True
-    assert readiness["supervisor"]["ready"] is True
+    assert readiness["planner"]["ready"] is False
+    assert readiness["supervisor"]["ready"] is False
 
 
 def test_launcher_readiness_falls_back_to_linear_token_alias(
