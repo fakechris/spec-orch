@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import logging
 import re
 import subprocess
 from pathlib import Path
 
 _VALID_ISSUE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+logger = logging.getLogger(__name__)
 
 
 class WorkspaceService:
@@ -61,13 +63,20 @@ class WorkspaceService:
         return result.returncode == 0
 
     def _prune_worktrees(self) -> None:
-        subprocess.run(
+        result = subprocess.run(
             ["git", "worktree", "prune"],
             cwd=self.repo_root,
-            check=True,
+            check=False,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
         )
+        if result.returncode != 0:
+            logger.warning(
+                "git worktree prune failed under %s: %s",
+                self.repo_root,
+                result.stderr.strip() or f"exit {result.returncode}",
+            )
 
     def _run_git(self, *args: str) -> None:
         subprocess.run(

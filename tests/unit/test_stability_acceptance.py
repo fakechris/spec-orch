@@ -18,8 +18,9 @@ def test_issue_start_smoke_script_reads_redirected_preflight_report() -> None:
     assert 'repo_root / ".spec_orch" / "preflight.json"' not in script
     assert "PREFLIGHT_EXIT=0" in script
     assert "spec-orch chain status --issue-id" in script
-    assert "python - <<'PY' \"$ISSUE_ID\" \"$RUN_EXIT\"" in script
+    assert 'python - <<\'PY\' "$ISSUE_ID" "$RUN_EXIT"' in script
     assert "run_exit_code = int(sys.argv[2])" in script
+    assert "except (OSError, json.JSONDecodeError):" in script
     assert (
         'if ! uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve; then'
         not in script
@@ -28,12 +29,9 @@ def test_issue_start_smoke_script_reads_redirected_preflight_report() -> None:
 
 def test_issue_start_smoke_fixture_uses_bounded_builder_prompt() -> None:
     fixture = json.loads(
-        (
-            Path(__file__).resolve().parents[2]
-            / "fixtures"
-            / "issues"
-            / "SPC-1.json"
-        ).read_text(encoding="utf-8")
+        (Path(__file__).resolve().parents[2] / "fixtures" / "issues" / "SPC-1.json").read_text(
+            encoding="utf-8"
+        )
     )
 
     prompt = fixture.get("builder_prompt")
@@ -41,6 +39,10 @@ def test_issue_start_smoke_fixture_uses_bounded_builder_prompt() -> None:
     assert "prototype pipeline" not in prompt.lower()
     assert ".spec_orch_smoke/issue_start_builder.txt" in prompt
     assert "do not invoke `spec-orch`" in prompt.lower()
+    verification_commands = fixture.get("verification_commands")
+    assert isinstance(verification_commands, dict)
+    assert set(verification_commands) == {"smoke_check", "build"}
+    assert ".spec_orch_smoke/issue_start_builder.txt" in verification_commands["smoke_check"][-1]
 
 
 def test_mission_harness_polls_runtime_chain_status_while_fresh_run_executes() -> None:
@@ -132,7 +134,7 @@ def test_write_issue_start_acceptance_report_materializes_normalized_attempt(
     )
 
 
-def test_write_issue_start_acceptance_report_uses_smoke_exit_code_not_gate_verdict(
+def test_write_issue_start_acceptance_report_requires_succeeded_attempt(
     tmp_path: Path,
 ) -> None:
     from spec_orch.services.stability_acceptance import write_issue_start_acceptance_report
@@ -179,7 +181,7 @@ def test_write_issue_start_acceptance_report_uses_smoke_exit_code_not_gate_verdi
     )
 
     report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
-    assert report_json["status"] == "pass"
+    assert report_json["status"] == "fail"
     assert report_json["attempt"]["outcome"]["status"] == "failed"
 
 

@@ -144,8 +144,10 @@ class AcpxBuilderAdapter:
         atomic_write_json(report_path, report_data)
 
         metadata = {
-            "turn_contract_compliance": default_turn_contract_compliance(),
             **result.metadata,
+            "turn_contract_compliance": result.metadata.get(
+                "turn_contract_compliance", default_turn_contract_compliance()
+            ),
             "session_name": session_id,
         }
         return BuilderResult(
