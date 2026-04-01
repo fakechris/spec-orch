@@ -1,10 +1,11 @@
 # Program Reconciliation And Stability Acceptance Plan
 
-> **Status note (2026-03-30):** Tranche S1 completed. Tranche S2 is implemented
-> as the canonical matrix plus updated operator guides. Tranche S3, the
-> first-pass S4 baseline, and the S5 status-refresh baseline are all landed:
-> issue-start, mission-start, dashboard/UI, exploratory acceptance, and a
-> consolidated status page now all have canonical entrypoints.
+> **Status note (2026-04-01):** Tranche S1 through S5 are landed. The canonical
+> harness entrypoints exist for issue-start, mission-start, dashboard/UI, and
+> exploratory acceptance, and runtime-chain status is fully integrated through
+> `SON-339`. The current remaining red path is not a new system regression: the
+> latest `issue_start` full rerun is blocked by missing local run-mode
+> environment prerequisites (`.env` + `SPEC_ORCH_LLM_API_KEY`).
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
@@ -187,13 +188,12 @@ This epic should only be considered complete when:
 ## 7. Follow-On Epic
 
 The first full fresh-mission reruns surfaced a new infrastructure gap: runtime
-observability is still fragmented even though the stability harness now exists.
+observability was still fragmented even though the stability harness existed.
 
-The canonical follow-on epic for that work is:
+That follow-on epic is:
 
 - `SON-339` / `docs/plans/2026-03-31-runtime-chain-observability-epic.md`
 
-That epic is not “more acceptance testing.” It is the runtime support seam that
-lets operators and harnesses answer where the system is currently waiting
-without manually stitching together worker telemetry, round summaries,
-supervisor state, and acceptance artifacts.
+It is now implemented. Operators and harnesses can answer where the system is
+currently waiting without manually stitching together worker telemetry, round
+summaries, supervisor state, and acceptance artifacts.

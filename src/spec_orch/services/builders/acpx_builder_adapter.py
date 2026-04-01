@@ -15,9 +15,9 @@ Usage via spec-orch.toml::
 
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
-import threading
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -30,10 +30,10 @@ from spec_orch.services.workers._acpx_utils import (
     build_acpx_command,
     build_acpx_env,
     cancel_acpx_session,
-    collect_stdout_events,
     drain_stderr,
     ensure_acpx_session,
 )
+from spec_orch.services.workers.acpx_worker_handle import AcpxWorkerHandle
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,10 @@ class AcpxBuilderAdapter:
         executable: str = "npx",
         acpx_package: str = "acpx",
         absolute_timeout_seconds: float = 1800.0,
+        startup_timeout_seconds: float = 30.0,
+        idle_progress_timeout_seconds: float = 60.0,
+        completion_quiet_period_seconds: float = 2.0,
+        max_retries: int = 1,
     ) -> None:
         self.agent = agent
         self.AGENT_NAME = agent
@@ -71,6 +75,10 @@ class AcpxBuilderAdapter:
         self.executable = executable
         self.acpx_package = acpx_package
         self.absolute_timeout_seconds = absolute_timeout_seconds
+        self.startup_timeout_seconds = startup_timeout_seconds
+        self.idle_progress_timeout_seconds = idle_progress_timeout_seconds
+        self.completion_quiet_period_seconds = completion_quiet_period_seconds
+        self.max_retries = max_retries
 
     def can_handle(self, issue: Issue) -> bool:
         return True
@@ -97,101 +105,58 @@ class AcpxBuilderAdapter:
     ) -> BuilderResult:
         prompt = issue.builder_prompt or issue.summary
         full_prompt = f"{PREAMBLE}\n\n{prompt}"
-
-        cmd = self._build_command(full_prompt)
-        raw_events: list[dict[str, Any]] = []
-        stdout_lines: list[str] = []
-
-        env = self._build_env()
-
-        try:
-            process = subprocess.Popen(
-                cmd,
-                cwd=workspace,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                env=env,
-            )
-        except FileNotFoundError:
-            return BuilderResult(
-                succeeded=False,
-                command=cmd,
-                stdout="",
-                stderr=f"ACPX executable not found: {self.executable}",
-                report_path=workspace / "builder_report.json",
-                adapter=self.ADAPTER_NAME,
-                agent=self.AGENT_NAME,
-            )
-
-        stderr_lines: list[str] = []
-
-        def _read_stdout() -> None:
-            collect_stdout_events(
-                process,
-                stdout_lines=stdout_lines,
-                raw_events=raw_events,
-                event_logger=event_logger,
-            )
-
-        stdout_thread = threading.Thread(target=_read_stdout, daemon=True)
-        stderr_thread = threading.Thread(
-            target=self._drain_stderr,
-            args=(process, stderr_lines),
-            daemon=True,
+        session_id = self.session_name or f"builder-{run_id or issue.issue_id.lower()}"
+        handle = AcpxWorkerHandle(
+            session_id=session_id,
+            agent=self.agent,
+            model=self.model,
+            permissions=self.permissions,
+            executable=self.executable,
+            acpx_package=self.acpx_package,
+            absolute_timeout_seconds=self.absolute_timeout_seconds,
+            startup_timeout_seconds=self.startup_timeout_seconds,
+            idle_progress_timeout_seconds=self.idle_progress_timeout_seconds,
+            completion_quiet_period_seconds=self.completion_quiet_period_seconds,
+            max_retries=self.max_retries,
         )
-        stdout_thread.start()
-        stderr_thread.start()
+        result = handle.send(
+            prompt=full_prompt,
+            workspace=workspace,
+            event_logger=event_logger,
+        )
 
-        timed_out = False
-        try:
-            process.wait(timeout=self.absolute_timeout_seconds)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
-            timed_out = True
-
-        stdout_thread.join(timeout=5)
-        stderr_thread.join(timeout=5)
-
-        if timed_out:
-            return BuilderResult(
-                succeeded=False,
-                command=cmd,
-                stdout="".join(stdout_lines),
-                stderr=f"Timeout after {self.absolute_timeout_seconds}s",
-                report_path=workspace / "builder_report.json",
-                adapter=self.ADAPTER_NAME,
-                agent=self.AGENT_NAME,
-            )
-
-        stderr_text = "".join(stderr_lines)
-
-        compliance = default_turn_contract_compliance()
-        succeeded = process.returncode == 0
-
-        report_path = workspace / "builder_report.json"
-        report_data = {
-            "adapter": self.ADAPTER_NAME,
-            "agent": self.AGENT_NAME,
-            "acpx_agent": self.agent,
-            "model": self.model,
-            "succeeded": succeeded,
-            "exit_code": process.returncode,
-            "event_count": len(raw_events),
-            "session_name": self.session_name,
-        }
+        report_path = result.report_path
+        report_data: dict[str, Any] = {}
+        if report_path.exists():
+            try:
+                report_data = json.loads(report_path.read_text(encoding="utf-8"))
+            except ValueError:
+                report_data = {}
+        report_data.update(
+            {
+                "adapter": self.ADAPTER_NAME,
+                "agent": self.AGENT_NAME,
+                "acpx_agent": self.agent,
+                "model": self.model,
+                "session_name": session_id,
+            }
+        )
         atomic_write_json(report_path, report_data)
 
+        metadata = {
+            "turn_contract_compliance": default_turn_contract_compliance(),
+            **result.metadata,
+            "session_name": session_id,
+        }
         return BuilderResult(
-            succeeded=succeeded,
-            command=cmd,
-            stdout="".join(stdout_lines),
-            stderr=stderr_text,
+            succeeded=result.succeeded,
+            command=result.command,
+            stdout=result.stdout,
+            stderr=result.stderr,
             report_path=report_path,
             adapter=self.ADAPTER_NAME,
             agent=self.AGENT_NAME,
-            metadata={"turn_contract_compliance": compliance},
+            metadata=metadata,
         )
 
     def map_events(self, raw_events: list[dict[str, Any]]) -> list[BuilderEvent]:

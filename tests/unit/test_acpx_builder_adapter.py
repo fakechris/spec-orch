@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from spec_orch.domain.models import Issue
+from spec_orch.domain.models import BuilderResult, Issue
 from spec_orch.services.acpx_builder_adapter import AcpxBuilderAdapter
 
 
@@ -368,20 +368,23 @@ class TestMixedEvents:
 
 
 class TestRun:
-    @patch("spec_orch.services.acpx_builder_adapter.subprocess.Popen")
-    def test_run_success(self, mock_popen: MagicMock, tmp_path: Path) -> None:
-        mock_process = MagicMock()
-        mock_process.stdout = iter(
-            [
-                '{"type": "text", "params": {"text": "working"}}\n',
-                '{"type": "result", "params": {"text": "done"}}\n',
-            ]
+    @patch("spec_orch.services.acpx_builder_adapter.AcpxWorkerHandle.send")
+    def test_run_success(self, mock_send: MagicMock, tmp_path: Path) -> None:
+        report_path = tmp_path / "builder_report.json"
+        report_path.write_text(
+            '{"adapter":"acpx_worker","agent":"opencode","succeeded":true}\n',
+            encoding="utf-8",
         )
-        mock_process.stderr = iter([])
-        mock_process.returncode = 0
-        mock_process.wait.return_value = 0
-        mock_popen.return_value = mock_process
-
+        mock_send.return_value = BuilderResult(
+            succeeded=True,
+            command=["npx", "acpx"],
+            stdout="done",
+            stderr="",
+            report_path=report_path,
+            adapter="acpx_worker",
+            agent="opencode",
+            metadata={"terminal_reason": "event_completed"},
+        )
         adapter = AcpxBuilderAdapter(agent="opencode")
         result = adapter.run(issue=_make_issue(), workspace=tmp_path)
 
@@ -389,31 +392,31 @@ class TestRun:
         assert result.adapter == "acpx"
         assert result.agent == "opencode"
         assert (tmp_path / "builder_report.json").exists()
+        assert '"adapter": "acpx"' in report_path.read_text(encoding="utf-8")
 
-    @patch("spec_orch.services.acpx_builder_adapter.subprocess.Popen")
-    def test_run_failure(self, mock_popen: MagicMock, tmp_path: Path) -> None:
-        mock_process = MagicMock()
-        mock_process.stdout = iter(['{"type": "error", "params": {"message": "crash"}}\n'])
-        mock_process.stderr = iter(["error output\n"])
-        mock_process.returncode = 1
-        mock_process.wait.return_value = 1
-        mock_popen.return_value = mock_process
-
+    @patch("spec_orch.services.acpx_builder_adapter.AcpxWorkerHandle.send")
+    def test_run_failure(self, mock_send: MagicMock, tmp_path: Path) -> None:
+        report_path = tmp_path / "builder_report.json"
+        report_path.write_text(
+            '{"adapter":"acpx_worker","agent":"codex","succeeded":false}\n',
+            encoding="utf-8",
+        )
+        mock_send.return_value = BuilderResult(
+            succeeded=False,
+            command=["npx", "acpx"],
+            stdout="",
+            stderr="error output\n",
+            report_path=report_path,
+            adapter="acpx_worker",
+            agent="codex",
+            metadata={"terminal_reason": "idle_timeout"},
+        )
         adapter = AcpxBuilderAdapter(agent="codex")
         result = adapter.run(issue=_make_issue(), workspace=tmp_path)
 
         assert result.succeeded is False
         assert result.agent == "codex"
-
-    @patch(
-        "spec_orch.services.acpx_builder_adapter.subprocess.Popen",
-        side_effect=FileNotFoundError("npx not found"),
-    )
-    def test_run_executable_not_found(self, mock_popen: MagicMock, tmp_path: Path) -> None:
-        adapter = AcpxBuilderAdapter()
-        result = adapter.run(issue=_make_issue(), workspace=tmp_path)
-        assert result.succeeded is False
-        assert "not found" in result.stderr
+        assert result.adapter == "acpx"
 
 
 class TestAdapterFactory:

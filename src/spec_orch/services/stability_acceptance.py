@@ -80,6 +80,7 @@ def write_issue_start_acceptance_report(
     issue_id: str,
     fixture_issue_id: str,
     preflight_report: dict[str, Any],
+    run_exit_code: int,
 ) -> dict[str, str]:
     repo_root = Path(repo_root).resolve()
     workspace = WorkspaceService(repo_root=repo_root).issue_workspace_path(issue_id)
@@ -89,8 +90,7 @@ def write_issue_start_acceptance_report(
     if (
         isinstance(preflight_report.get("summary"), dict)
         and int(preflight_report["summary"].get("fail", 0)) == 0
-        and attempt is not None
-        and str(attempt.outcome.status) == "succeeded"
+        and run_exit_code == 0
     ):
         status = "pass"
 
@@ -100,6 +100,7 @@ def write_issue_start_acceptance_report(
         "fixture_issue_id": fixture_issue_id,
         "workspace": str(workspace),
         "preflight": preflight_report,
+        "run_exit_code": run_exit_code,
         "attempt": _dataclass_payload(attempt) if attempt is not None else None,
         "runtime_chain": _runtime_chain_summary(workspace / "telemetry" / "runtime_chain"),
     }

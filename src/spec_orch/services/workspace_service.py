@@ -21,6 +21,7 @@ class WorkspaceService:
             return workspace
 
         workspace.parent.mkdir(parents=True, exist_ok=True)
+        self._prune_worktrees()
         branch_name = f"issue/{issue_id.lower()}"
         if self._branch_exists(branch_name):
             self._run_git("worktree", "add", str(workspace), branch_name)
@@ -58,6 +59,15 @@ class WorkspaceService:
             text=True,
         )
         return result.returncode == 0
+
+    def _prune_worktrees(self) -> None:
+        subprocess.run(
+            ["git", "worktree", "prune"],
+            cwd=self.repo_root,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
     def _run_git(self, *args: str) -> None:
         subprocess.run(
