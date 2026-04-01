@@ -14,7 +14,7 @@ from spec_orch.acceptance_core.routing import AcceptanceSurfacePackRef
 from spec_orch.services.fresh_verification import build_fresh_verification_commands
 from spec_orch.services.lifecycle_manager import MissionLifecycleManager
 from spec_orch.services.linear_client import LinearClient, resolve_linear_token
-from spec_orch.services.litellm_profile import resolve_configured_or_fallback_env
+from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 from spec_orch.services.mission_service import MissionService
 from spec_orch.services.promotion_service import load_plan
 from spec_orch.services.resource_loader import load_json_resource
@@ -176,6 +176,65 @@ def _inject_fresh_plan_verification_commands(plan: dict[str, Any]) -> bool:
     return changed
 
 
+def _merge_isolated_fresh_verification_packets(plan: dict[str, Any]) -> bool:
+    changed = False
+    for wave in plan.get("waves", []):
+        if not isinstance(wave, dict):
+            continue
+        work_packets = wave.get("work_packets", [])
+        if not isinstance(work_packets, list) or len(work_packets) < 2:
+            continue
+        normalized_packets: list[dict[str, Any]] = []
+        for packet in work_packets:
+            if not isinstance(packet, dict):
+                normalized_packets.append(packet)
+                continue
+            if normalized_packets:
+                previous = normalized_packets[-1]
+                packet_files = list(packet.get("files_in_scope", []))
+                previous_files = list(previous.get("files_in_scope", []))
+                builder_prompt = str(packet.get("builder_prompt", ""))
+                title = str(packet.get("title", "")).lower()
+                verify_signals = (
+                    "tsc" in builder_prompt.lower()
+                    or "eslint" in builder_prompt.lower()
+                    or "typecheck" in builder_prompt.lower()
+                    or "lint" in builder_prompt.lower()
+                    or "verify" in title
+                    or bool(packet.get("depends_on"))
+                )
+                if (
+                    packet_files
+                    and previous_files
+                    and set(packet_files).issubset(set(previous_files))
+                    and verify_signals
+                ):
+                    previous_prompt = str(previous.get("builder_prompt", "")).strip()
+                    verify_prompt = builder_prompt.strip()
+                    merged_prompt = previous_prompt
+                    if verify_prompt and verify_prompt not in previous_prompt:
+                        merged_prompt = (
+                            f"{previous_prompt}\n\nAfter scaffolding, {verify_prompt}"
+                            if previous_prompt
+                            else verify_prompt
+                        )
+                    previous["builder_prompt"] = merged_prompt
+                    previous_criteria = previous.setdefault("acceptance_criteria", [])
+                    if isinstance(previous_criteria, list):
+                        for item in packet.get("acceptance_criteria", []):
+                            if item not in previous_criteria:
+                                previous_criteria.append(item)
+                    previous_commands = previous.setdefault("verification_commands", {})
+                    if isinstance(previous_commands, dict):
+                        for key, value in packet.get("verification_commands", {}).items():
+                            previous_commands.setdefault(key, value)
+                    changed = True
+                    continue
+            normalized_packets.append(packet)
+        wave["work_packets"] = normalized_packets
+    return changed
+
+
 def _build_fresh_acpx_mission_request(
     repo_root: Path,
     *,
@@ -227,31 +286,27 @@ def _gather_launcher_readiness(repo_root: Path) -> dict[str, Any]:
     token_env, _team_key = _get_linear_settings(repo_root)
     valid_api_types = {"anthropic", "openai"}
 
-    planner_api_type = str(planner_cfg.get("api_type", "anthropic")).strip().lower()
+    planner_settings = resolve_role_litellm_settings(
+        raw,
+        section_name="planner",
+        default_model=str(planner_cfg.get("model", "")),
+        default_api_type=str(planner_cfg.get("api_type", "anthropic")),
+    )
+    planner_api_type = str(planner_settings.get("api_type", "anthropic")).strip().lower()
     planner_api_type_valid = planner_api_type in valid_api_types
-    planner_key = resolve_configured_or_fallback_env(
-        str(planner_cfg.get("api_key_env", "")) or None,
-        api_type=planner_api_type,
-        kind="api_key",
-    )
-    planner_base = resolve_configured_or_fallback_env(
-        str(planner_cfg.get("api_base_env", "")) or None,
-        api_type=planner_api_type,
-        kind="api_base",
-    )
+    planner_key = str(planner_settings.get("api_key") or "")
+    planner_base = str(planner_settings.get("api_base") or "")
 
-    supervisor_api_type = str(supervisor_cfg.get("api_type", "anthropic")).strip().lower()
+    supervisor_settings = resolve_role_litellm_settings(
+        raw,
+        section_name="supervisor",
+        default_model=str(supervisor_cfg.get("model", "")),
+        default_api_type=str(supervisor_cfg.get("api_type", "anthropic")),
+    )
+    supervisor_api_type = str(supervisor_settings.get("api_type", "anthropic")).strip().lower()
     supervisor_api_type_valid = supervisor_api_type in valid_api_types
-    supervisor_key = resolve_configured_or_fallback_env(
-        str(supervisor_cfg.get("api_key_env", "")) or None,
-        api_type=supervisor_api_type,
-        kind="api_key",
-    )
-    supervisor_base = resolve_configured_or_fallback_env(
-        str(supervisor_cfg.get("api_base_env", "")) or None,
-        api_type=supervisor_api_type,
-        kind="api_base",
-    )
+    supervisor_key = str(supervisor_settings.get("api_key") or "")
+    supervisor_base = str(supervisor_settings.get("api_base") or "")
     try:
         supervisor_max_rounds = int(supervisor_cfg.get("max_rounds", 0))
     except (TypeError, ValueError):
@@ -272,11 +327,11 @@ def _gather_launcher_readiness(repo_root: Path) -> dict[str, Any]:
         "planner": {
             "ready": (
                 planner_api_type_valid
-                and bool(planner_cfg.get("model"))
+                and bool(planner_settings.get("model"))
                 and bool(planner_key)
                 and bool(planner_base)
             ),
-            "model": planner_cfg.get("model"),
+            "model": planner_settings.get("model"),
             "api_type": planner_api_type,
             "error": "" if planner_api_type_valid else "invalid api_type",
         },
@@ -284,12 +339,12 @@ def _gather_launcher_readiness(repo_root: Path) -> dict[str, Any]:
             "ready": (
                 supervisor_api_type_valid
                 and bool(supervisor_cfg.get("adapter"))
-                and bool(supervisor_cfg.get("model"))
+                and bool(supervisor_settings.get("model"))
                 and bool(supervisor_key)
                 and bool(supervisor_base)
                 and 0 < supervisor_max_rounds <= 1000
             ),
-            "model": supervisor_cfg.get("model"),
+            "model": supervisor_settings.get("model"),
             "api_type": supervisor_api_type,
             "error": "" if supervisor_api_type_valid else "invalid api_type",
         },
@@ -351,13 +406,14 @@ def _approve_and_plan_mission(repo_root: Path, mission_id: str) -> dict[str, Any
     svc = MissionService(repo_root)
     mission = svc.approve_mission(mission_id)
     plan = _generate_plan_for_mission(repo_root, mission_id)
-    if _is_fresh_acpx_mission(repo_root, mission_id) and _inject_fresh_plan_verification_commands(
-        plan
-    ):
-        (repo_root / "docs" / "specs" / mission_id / "plan.json").write_text(
-            json.dumps(plan, indent=2) + "\n",
-            encoding="utf-8",
-        )
+    if _is_fresh_acpx_mission(repo_root, mission_id):
+        changed = _inject_fresh_plan_verification_commands(plan)
+        changed = _merge_isolated_fresh_verification_packets(plan) or changed
+        if changed:
+            (repo_root / "docs" / "specs" / mission_id / "plan.json").write_text(
+                json.dumps(plan, indent=2) + "\n",
+                encoding="utf-8",
+            )
     return {
         "mission_id": mission.mission_id,
         "approved_at": mission.approved_at,

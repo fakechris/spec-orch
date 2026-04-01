@@ -10,6 +10,24 @@ def test_resolve_configured_or_fallback_env_rejects_invalid_kind() -> None:
         resolve_configured_or_fallback_env(None, kind="apiKey")
 
 
+def test_resolve_configured_or_fallback_env_does_not_cross_fallback_when_explicit_env_missing(
+    monkeypatch,
+) -> None:
+    from spec_orch.services.litellm_profile import resolve_configured_or_fallback_env
+
+    monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
+    monkeypatch.setenv("SPEC_ORCH_LLM_API_KEY", "global-key")
+
+    assert (
+        resolve_configured_or_fallback_env(
+            "MINIMAX_API_KEY",
+            kind="api_key",
+            api_type="anthropic",
+        )
+        == ""
+    )
+
+
 def test_resolve_litellm_profile_chain_includes_primary_and_fallbacks(monkeypatch) -> None:
     from spec_orch.services.litellm_profile import resolve_litellm_profile_chain
 
@@ -191,3 +209,19 @@ def test_normalize_litellm_model_preserves_provider_prefixed_model() -> None:
     from spec_orch.services.litellm_profile import normalize_litellm_model
 
     assert normalize_litellm_model("google/gemini-pro", api_type="anthropic") == "google/gemini-pro"
+
+
+def test_resolved_profile_is_not_usable_when_explicit_envs_are_missing() -> None:
+    from spec_orch.services.litellm_profile import ResolvedLiteLLMProfile
+
+    profile = ResolvedLiteLLMProfile(
+        model="anthropic/MiniMax-M2.7-highspeed",
+        api_type="anthropic",
+        api_key="",
+        api_base="",
+        api_key_env="MINIMAX_API_KEY",
+        api_base_env="MINIMAX_ANTHROPIC_BASE_URL",
+        slot="primary",
+    )
+
+    assert profile.is_usable is False

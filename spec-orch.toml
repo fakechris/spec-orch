@@ -28,15 +28,15 @@ api_type = "anthropic"
 api_key_env = "MINIMAX_API_KEY"
 api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
 
-[models.fireworks_kimi]
-model = "accounts/fireworks/routers/kimi-k2p5-turbo"
+[models.doubao_seed_code]
+model = "doubao-seed-2.0-code"
 api_type = "anthropic"
 api_key_env = "ANTHROPIC_AUTH_TOKEN"
 api_base_env = "ANTHROPIC_BASE_URL"
 
 [model_chains.default_reasoning]
 primary = "minimax_reasoning"
-fallbacks = ["fireworks_kimi"]
+fallbacks = ["doubao_seed_code"]
 
 [reviewer]
 adapter = "local"

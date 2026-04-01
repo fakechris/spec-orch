@@ -271,6 +271,8 @@ class LiteLLMAcceptanceEvaluator:
         profiles = self.model_chain or [self._default_profile()]
         last_exc: Exception | None = None
         for profile in profiles:
+            if not profile.is_usable:
+                continue
             kwargs = {
                 "model": profile.model,
                 "messages": messages,
@@ -386,6 +388,7 @@ class LiteLLMAcceptanceEvaluator:
             payload = json.loads(json_blob)
             if not isinstance(payload, dict) or not payload.get("status"):
                 raise ValueError("Acceptance evaluator JSON payload missing required status")
+            payload = self._normalize_lenient_payload_schema(payload)
             return review_text, AcceptanceReviewResult.from_dict(payload)
         except Exception:
             fallback = AcceptanceReviewResult(
@@ -401,6 +404,50 @@ class LiteLLMAcceptanceEvaluator:
                 ],
             )
             return raw_output.strip() or "Acceptance evaluator parsing failed.", fallback
+
+    @staticmethod
+    def _normalize_lenient_payload_schema(payload: dict[str, Any]) -> dict[str, Any]:
+        normalized = dict(payload)
+        status = LiteLLMAcceptanceEvaluator._clean_text(normalized.get("status")).lower()
+        status_aliases = {
+            "conditional_accept": "warn",
+            "accepted_with_issues": "warn",
+            "accepted_with_concerns": "warn",
+            "rejected": "fail",
+            "reject": "fail",
+            "accepted": "pass",
+        }
+        if status in status_aliases:
+            normalized["status"] = status_aliases[status]
+
+        findings = normalized.get("findings", [])
+        if isinstance(findings, list):
+            normalized["findings"] = [
+                item
+                if isinstance(item, dict)
+                else {"severity": "medium", "summary": str(item).strip()}
+                for item in findings
+                if str(item).strip()
+            ]
+
+        proposals = normalized.get("issue_proposals", [])
+        if isinstance(proposals, list):
+            normalized["issue_proposals"] = [
+                item
+                if isinstance(item, dict)
+                else {
+                    "title": str(item).strip(),
+                    "summary": str(item).strip(),
+                    "severity": "medium",
+                }
+                for item in proposals
+                if str(item).strip()
+            ]
+
+        if not isinstance(normalized.get("artifacts"), dict):
+            normalized["artifacts"] = {}
+
+        return normalized
 
     @staticmethod
     def _normalize_result(
@@ -608,6 +655,14 @@ class LiteLLMAcceptanceEvaluator:
             if result.untested_expected_routes
             else [route for route in expected_routes if route not in tested_routes]
         )
+        filtered_issue_proposals = [
+            proposal
+            for proposal in result.issue_proposals
+            if not LiteLLMAcceptanceEvaluator._is_coverage_only_untested_route_proposal(
+                proposal,
+                untested_expected_routes=untested_expected_routes,
+            )
+        ]
         recommended_next_step = result.recommended_next_step
         if not recommended_next_step and untested_expected_routes:
             recommended_next_step = "Expand route coverage before filing lower-confidence findings."
@@ -617,8 +672,51 @@ class LiteLLMAcceptanceEvaluator:
             acceptance_mode=campaign.mode.value,
             coverage_status=coverage_status,
             untested_expected_routes=untested_expected_routes,
+            issue_proposals=filtered_issue_proposals,
             recommended_next_step=recommended_next_step,
             campaign=campaign,
+        )
+
+    @staticmethod
+    def _is_coverage_only_untested_route_proposal(
+        proposal: AcceptanceIssueProposal,
+        *,
+        untested_expected_routes: list[str],
+    ) -> bool:
+        route = LiteLLMAcceptanceEvaluator._clean_text(proposal.route)
+        if not route or route not in untested_expected_routes:
+            return False
+
+        critique_axis = LiteLLMAcceptanceEvaluator._clean_text(proposal.critique_axis)
+        operator_task = LiteLLMAcceptanceEvaluator._clean_text(proposal.operator_task)
+        why_it_matters = LiteLLMAcceptanceEvaluator._clean_text(proposal.why_it_matters)
+        hold_reason = LiteLLMAcceptanceEvaluator._clean_text(proposal.hold_reason)
+        expected = LiteLLMAcceptanceEvaluator._clean_text(proposal.expected)
+        actual = LiteLLMAcceptanceEvaluator._clean_text(proposal.actual)
+        summary = LiteLLMAcceptanceEvaluator._clean_text(proposal.summary).lower()
+        title = LiteLLMAcceptanceEvaluator._clean_text(proposal.title).lower()
+        if any(
+            [
+                critique_axis,
+                operator_task,
+                why_it_matters,
+                hold_reason,
+                expected,
+                actual,
+                proposal.repro_steps,
+                proposal.artifact_paths,
+            ]
+        ):
+            return False
+
+        return any(
+            marker in f"{title} {summary}"
+            for marker in (
+                "not validated in this round",
+                "not covered in this round",
+                "not exercised in this round",
+                "not reviewed in this round",
+            )
         )
 
     @staticmethod

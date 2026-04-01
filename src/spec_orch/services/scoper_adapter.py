@@ -189,6 +189,8 @@ class LiteLLMScoperAdapter:
         profiles = self.model_chain or [self._default_profile()]
         last_exc: Exception | None = None
         for profile in profiles:
+            if not profile.is_usable:
+                continue
             kwargs: dict[str, Any] = {
                 "model": profile.model,
                 "messages": messages,
