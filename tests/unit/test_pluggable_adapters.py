@@ -534,6 +534,13 @@ class TestLLMReviewAdapter:
         assert summary.verdict == "pass"
         assert summary.reviewed_by == "llm-reviewer"
 
+    def test_auth_error_is_not_treated_as_transient(self) -> None:
+        from spec_orch.services.llm_review_adapter import _is_transient_litellm_error
+
+        err = RuntimeError("authentication_error: invalid x-api-key after 429-style proxy rewrite")
+
+        assert _is_transient_litellm_error(err) is False
+
     def test_review_manual_override(self, tmp_path: Path):
         from spec_orch.services.llm_review_adapter import LLMReviewAdapter
 

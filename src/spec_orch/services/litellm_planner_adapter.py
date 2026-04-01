@@ -628,4 +628,14 @@ def _is_transient_litellm_error(exc: Exception) -> bool:
         "connection aborted",
         "service unavailable",
     )
+    fatal_markers = (
+        "invalid x-api-key",
+        "authentication_error",
+        "unauthorized",
+        "forbidden",
+        "invalid api key",
+        "missing_api_base",
+    )
+    if any(marker in message for marker in fatal_markers):
+        return False
     return any(marker in message for marker in transient_markers)

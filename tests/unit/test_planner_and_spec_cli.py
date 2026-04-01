@@ -628,6 +628,14 @@ def test_litellm_planner_adapter_falls_back_to_secondary_model_on_transient_over
     assert seen_bases == ["https://primary.example", "https://fallback.example"]
 
 
+def test_litellm_planner_adapter_auth_error_is_not_treated_as_transient() -> None:
+    from spec_orch.services.litellm_planner_adapter import _is_transient_litellm_error
+
+    err = RuntimeError("authentication_error: invalid x-api-key after 429-style proxy rewrite")
+
+    assert _is_transient_litellm_error(err) is False
+
+
 # ───────── advance_to_completion + answer_questions ─────────
 
 
