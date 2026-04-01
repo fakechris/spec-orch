@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import logging
 import re
 import subprocess
 from pathlib import Path
 
 _VALID_ISSUE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+logger = logging.getLogger(__name__)
 
 
 class WorkspaceService:
@@ -21,6 +23,7 @@ class WorkspaceService:
             return workspace
 
         workspace.parent.mkdir(parents=True, exist_ok=True)
+        self._prune_worktrees()
         branch_name = f"issue/{issue_id.lower()}"
         if self._branch_exists(branch_name):
             self._run_git("worktree", "add", str(workspace), branch_name)
@@ -58,6 +61,22 @@ class WorkspaceService:
             text=True,
         )
         return result.returncode == 0
+
+    def _prune_worktrees(self) -> None:
+        result = subprocess.run(
+            ["git", "worktree", "prune"],
+            cwd=self.repo_root,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if result.returncode != 0:
+            logger.warning(
+                "git worktree prune failed under %s: %s",
+                self.repo_root,
+                result.stderr.strip() or f"exit {result.returncode}",
+            )
 
     def _run_git(self, *args: str) -> None:
         subprocess.run(

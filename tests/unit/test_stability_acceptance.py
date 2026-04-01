@@ -18,10 +18,31 @@ def test_issue_start_smoke_script_reads_redirected_preflight_report() -> None:
     assert 'repo_root / ".spec_orch" / "preflight.json"' not in script
     assert "PREFLIGHT_EXIT=0" in script
     assert "spec-orch chain status --issue-id" in script
+    assert 'python - <<\'PY\' "$ISSUE_ID" "$RUN_EXIT"' in script
+    assert "run_exit_code = int(sys.argv[2])" in script
+    assert "except (OSError, json.JSONDecodeError):" in script
     assert (
         'if ! uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve; then'
         not in script
     )
+
+
+def test_issue_start_smoke_fixture_uses_bounded_builder_prompt() -> None:
+    fixture = json.loads(
+        (Path(__file__).resolve().parents[2] / "fixtures" / "issues" / "SPC-1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    prompt = fixture.get("builder_prompt")
+    assert isinstance(prompt, str)
+    assert "prototype pipeline" not in prompt.lower()
+    assert ".spec_orch_smoke/issue_start_builder.txt" in prompt
+    assert "do not invoke `spec-orch`" in prompt.lower()
+    verification_commands = fixture.get("verification_commands")
+    assert isinstance(verification_commands, dict)
+    assert set(verification_commands) == {"smoke_check", "build"}
+    assert ".spec_orch_smoke/issue_start_builder.txt" in verification_commands["smoke_check"][-1]
 
 
 def test_mission_harness_polls_runtime_chain_status_while_fresh_run_executes() -> None:
@@ -99,6 +120,7 @@ def test_write_issue_start_acceptance_report_materializes_normalized_attempt(
         issue_id="SPC-1",
         fixture_issue_id="SPC-1",
         preflight_report={"summary": {"pass": 4, "fail": 0, "warn": 0}},
+        run_exit_code=0,
     )
 
     report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
@@ -110,6 +132,57 @@ def test_write_issue_start_acceptance_report_materializes_normalized_attempt(
     assert report_json["attempt"]["outcome"]["artifacts"]["manifest"]["path"].endswith(
         "run_artifact/manifest.json"
     )
+
+
+def test_write_issue_start_acceptance_report_requires_succeeded_attempt(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import write_issue_start_acceptance_report
+
+    workspace = tmp_path / ".spec_orch_runs" / "SPC-1"
+    _write_json(
+        workspace / "report.json",
+        {
+            "issue_id": "SPC-1",
+            "title": "Smoke issue",
+            "state": "gate_evaluated",
+            "mergeable": False,
+            "failed_conditions": ["builder", "verification"],
+        },
+    )
+    _write_json(
+        workspace / "run_artifact" / "live.json",
+        {
+            "run_id": "run-spc-1",
+            "issue_id": "SPC-1",
+            "builder": {"adapter": "acpx", "succeeded": False},
+            "verification": {"lint": {"exit_code": 1}},
+            "review": {"verdict": "pending"},
+        },
+    )
+    _write_json(
+        workspace / "run_artifact" / "conclusion.json",
+        {
+            "run_id": "run-spc-1",
+            "issue_id": "SPC-1",
+            "state": "gate_evaluated",
+            "verdict": "fail",
+            "mergeable": False,
+            "failed_conditions": ["builder", "verification"],
+        },
+    )
+
+    report = write_issue_start_acceptance_report(
+        repo_root=tmp_path,
+        issue_id="SPC-1",
+        fixture_issue_id="SPC-1",
+        preflight_report={"summary": {"pass": 4, "fail": 0, "warn": 0}},
+        run_exit_code=0,
+    )
+
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+    assert report_json["status"] == "fail"
+    assert report_json["attempt"]["outcome"]["status"] == "failed"
 
 
 def test_write_mission_start_acceptance_report_preserves_fresh_report(

@@ -1,0 +1,44 @@
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+from spec_orch.services.workspace_service import WorkspaceService
+
+
+def _git(repo_root: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_prepare_issue_workspace_recovers_from_missing_registered_worktree(
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    _git(repo_root, "init", "-b", "main")
+    _git(repo_root, "config", "user.name", "SpecOrch")
+    _git(repo_root, "config", "user.email", "spec-orch@example.com")
+    (repo_root / "README.md").write_text("hello\n", encoding="utf-8")
+    _git(repo_root, "add", "README.md")
+    _git(repo_root, "commit", "-m", "init")
+
+    service = WorkspaceService(repo_root=repo_root)
+
+    workspace = service.prepare_issue_workspace("SPC-1")
+    assert workspace.exists()
+
+    backup = repo_root / ".worktrees" / "SPC-1.bak"
+    workspace.rename(backup)
+    assert not workspace.exists()
+
+    recovered = service.prepare_issue_workspace("SPC-1")
+
+    assert recovered == workspace
+    assert recovered.exists()
+    assert (recovered / ".git").exists()

@@ -102,7 +102,7 @@ else
 fi
 
 step "Materialize issue-start acceptance report"
-uv run --python 3.13 python - <<'PY' "$ISSUE_ID"
+uv run --python 3.13 python - <<'PY' "$ISSUE_ID" "$RUN_EXIT"
 import json
 import sys
 from pathlib import Path
@@ -111,13 +111,22 @@ from spec_orch.services.stability_acceptance import write_issue_start_acceptance
 
 repo_root = Path(".").resolve()
 issue_id = sys.argv[1]
+run_exit_code = int(sys.argv[2])
 preflight_path = Path("/tmp/spec_orch_issue_start_preflight.json")
-preflight = json.loads(preflight_path.read_text(encoding="utf-8")) if preflight_path.exists() else {}
+try:
+    preflight = (
+        json.loads(preflight_path.read_text(encoding="utf-8"))
+        if preflight_path.exists()
+        else {}
+    )
+except (OSError, json.JSONDecodeError):
+    preflight = {}
 report = write_issue_start_acceptance_report(
     repo_root=repo_root,
     issue_id=issue_id,
     fixture_issue_id=issue_id,
     preflight_report=preflight,
+    run_exit_code=run_exit_code,
 )
 print(json.dumps(report))
 PY

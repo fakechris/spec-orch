@@ -2,10 +2,13 @@
   "issue_id": "SPC-1",
   "title": "Build MVP runner",
   "summary": "Run one local fixture issue through the prototype pipeline.",
+  "builder_prompt": "Issue-start smoke task. Work only inside this issue workspace.\n\n1. Create or overwrite `.spec_orch_smoke/issue_start_builder.txt`.\n2. Write exactly three lines:\n   - `issue_id=SPC-1`\n   - `smoke=issue_start_builder`\n   - `workspace_ok=yes`\n3. Do not modify `src/` or `tests/`.\n4. Do not invoke `spec-orch`, daemon commands, or nested pipeline commands.\n5. After writing the file, run the configured verification commands and report the results.",
   "verification_commands": {
-    "lint": ["{python}", "-m", "ruff", "check", "src/"],
-    "typecheck": ["{python}", "-m", "mypy", "src/"],
-    "test": ["{python}", "-m", "pytest", "-q"],
-    "build": ["{python}", "-c", "print('build ok')"]
+    "smoke_check": [
+      "{python}",
+      "-c",
+      "from pathlib import Path; p=Path('.spec_orch_smoke/issue_start_builder.txt'); expected='issue_id=SPC-1\\nsmoke=issue_start_builder\\nworkspace_ok=yes\\n'; actual=p.read_text(encoding='utf-8'); assert actual == expected, actual"
+    ],
+    "build": ["{python}", "-c", "print('issue-start smoke build ok')"]
   }
 }

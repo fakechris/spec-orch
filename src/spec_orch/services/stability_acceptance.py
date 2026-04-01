@@ -80,17 +80,24 @@ def write_issue_start_acceptance_report(
     issue_id: str,
     fixture_issue_id: str,
     preflight_report: dict[str, Any],
+    run_exit_code: int,
 ) -> dict[str, str]:
     repo_root = Path(repo_root).resolve()
     workspace = WorkspaceService(repo_root=repo_root).issue_workspace_path(issue_id)
     attempt = read_issue_execution_attempt(workspace)
+    attempt_payload = _dataclass_payload(attempt) if attempt is not None else None
+    attempt_status = ""
+    if isinstance(attempt_payload, dict):
+        outcome = attempt_payload.get("outcome", {})
+        if isinstance(outcome, dict):
+            attempt_status = str(outcome.get("status", "")).strip().lower()
 
     status = "fail"
     if (
         isinstance(preflight_report.get("summary"), dict)
         and int(preflight_report["summary"].get("fail", 0)) == 0
-        and attempt is not None
-        and str(attempt.outcome.status) == "succeeded"
+        and run_exit_code == 0
+        and attempt_status == "succeeded"
     ):
         status = "pass"
 
@@ -100,7 +107,8 @@ def write_issue_start_acceptance_report(
         "fixture_issue_id": fixture_issue_id,
         "workspace": str(workspace),
         "preflight": preflight_report,
-        "attempt": _dataclass_payload(attempt) if attempt is not None else None,
+        "run_exit_code": run_exit_code,
+        "attempt": attempt_payload,
         "runtime_chain": _runtime_chain_summary(workspace / "telemetry" / "runtime_chain"),
     }
     report_dir = repo_root / ".spec_orch" / "acceptance"
