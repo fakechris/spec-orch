@@ -12,6 +12,7 @@ from .missions import (
     _gather_inbox,
     _gather_lifecycle_states,
     _gather_mission_detail,
+    _gather_mission_runtime_chain,
     _gather_missions,
 )
 from .surfaces import (
@@ -30,6 +31,7 @@ __all__ = [
     "_gather_launcher_readiness",
     "_gather_mission_costs",
     "_gather_mission_detail",
+    "_gather_mission_runtime_chain",
     "_gather_mission_visual_qa",
     "_gather_missions",
     "_gather_packet_transcript",

@@ -324,6 +324,16 @@ def test_dashboard_context_rail_review_buttons_use_internal_route_helper() -> No
     assert "renderInternalRouteButton(costs.review_route, 'Open cost review')" in source
 
 
+def test_dashboard_context_rail_renders_runtime_chain_section() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert "<h3>Runtime chain</h3>" in source
+    assert "const runtimeChain = detail.runtime_chain || {};" in source
+    assert "runtimeChain?.current_status?.phase" in source
+    assert "runtimeChain?.recent_events?.length || 0" in source
+
+
 def test_dashboard_secondary_mission_actions_expose_automation_targets() -> None:
     app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
     source = app_path.read_text(encoding="utf-8")
