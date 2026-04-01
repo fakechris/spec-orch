@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import logging
-import os
 import shlex
 from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.protocols import BuilderAdapter, IssueSource, ReviewAdapter
+from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 
 logger = logging.getLogger(__name__)
 
@@ -132,21 +132,21 @@ def create_reviewer(
     elif adapter_name == "llm":
         from spec_orch.services.llm_review_adapter import LLMReviewAdapter
 
-        model = cfg.get("model")
-        api_key = None
-        if env := cfg.get("api_key_env"):
-            api_key = os.environ.get(env)
-        api_base = None
-        if env := cfg.get("api_base_env"):
-            api_base = os.environ.get(env)
+        settings = resolve_role_litellm_settings(
+            raw,
+            section_name="reviewer",
+            default_model=str(cfg.get("model", "")),
+            default_api_type=str(cfg.get("api_type", "anthropic")),
+        )
 
         return LLMReviewAdapter(
-            model=model,
-            api_key=api_key,
-            api_base=api_base,
+            model=str(settings["model"]) or None,
+            api_key=str(settings["api_key"]) or None,
+            api_base=str(settings["api_base"]) or None,
             temperature=float(cfg.get("temperature", 0.2)),
             max_diff_chars=int(cfg.get("max_diff_chars", 60_000)),
             max_spec_chars=int(cfg.get("max_spec_chars", 10_000)),
+            model_chain=settings["model_chain"],
         )
 
     elif adapter_name in _REVIEWER_REGISTRY:

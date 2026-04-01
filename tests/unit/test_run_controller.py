@@ -1255,3 +1255,50 @@ def test_run_issue_reruns_on_corrupted_report(tmp_path: Path) -> None:
     assert snap2 is not None
     builder_stages = [s for s in snap2.stages if s.stage == "builder"]
     assert len(builder_stages) == 2, "Builder should re-execute when report is corrupted"
+
+
+def test_load_planner_config_for_compact_inherits_default_model_chain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from spec_orch.services.run_controller import RunController
+
+    monkeypatch.setenv("MINIMAX_API_KEY", "minimax-key")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "fireworks-token")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://api.fireworks.ai/inference")
+
+    (tmp_path / "spec-orch.toml").write_text(
+        """
+[llm]
+default_model_chain = "reasoning"
+
+[models.minimax]
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+
+[models.fireworks]
+model = "accounts/fireworks/routers/kimi-k2p5-turbo"
+api_type = "anthropic"
+api_key_env = "ANTHROPIC_AUTH_TOKEN"
+api_base_env = "ANTHROPIC_BASE_URL"
+
+[model_chains.reasoning]
+primary = "minimax"
+fallbacks = ["fireworks"]
+
+[planner]
+adapter = "litellm"
+""",
+        encoding="utf-8",
+    )
+
+    controller = RunController(repo_root=tmp_path)
+
+    cfg = controller._load_planner_config_for_compact()
+
+    assert cfg is not None
+    assert cfg["model"] == "anthropic/MiniMax-M2.7-highspeed"
+    assert len(cfg["model_chain"]) == 2
+    assert cfg["model_chain"][1].model == "anthropic/accounts/fireworks/routers/kimi-k2p5-turbo"

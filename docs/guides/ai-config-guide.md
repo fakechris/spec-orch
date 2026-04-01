@@ -25,6 +25,52 @@ spec-orch config check
 
 All configuration lives in a single TOML file at the project root.
 
+## Recommended LLM Configuration Shape
+
+Use three layers for LiteLLM-powered roles:
+
+1. `[models.<id>]` defines provider/model/env once
+2. `[model_chains.<id>]` defines primary + fallback order
+3. `[llm].default_model_chain` lets empty role sections inherit a working chain
+
+```toml
+[llm]
+default_model_chain = "default_reasoning"
+
+[models.minimax_reasoning]
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+
+[models.fireworks_kimi]
+model = "accounts/fireworks/routers/kimi-k2p5-turbo"
+api_type = "anthropic"
+api_key_env = "ANTHROPIC_AUTH_TOKEN"
+api_base_env = "ANTHROPIC_BASE_URL"
+
+[model_chains.default_reasoning]
+primary = "minimax_reasoning"
+fallbacks = ["fireworks_kimi"]
+
+[planner]
+
+[supervisor]
+adapter = "litellm"
+
+[acceptance_evaluator]
+adapter = "litellm"
+```
+
+Resolution order:
+
+1. role `model_chain`
+2. role `model_ref`
+3. role inline `model/api_* / fallbacks`
+4. `[llm].default_model_chain`
+5. `[llm].default_model_ref`
+6. provider env fallback chain
+
 ---
 
 ## `[issue]` — Issue Source
@@ -139,10 +185,18 @@ Enables the mission execute-review-decide loop. This is used by mission executio
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `adapter` | string | — | `litellm` |
+| `model_chain` | string | inherits `[llm].default_model_chain` | Named chain |
+| `model_ref` | string | inherits `[llm].default_model_ref` | Named single model |
 | `model` | string | — | Model used for round review |
 | `api_key_env` | string | — | Environment variable for supervisor API key |
 | `api_base_env` | string | — | Environment variable for supervisor API base |
 | `max_rounds` | int | `20` | Maximum mission rounds before fail-fast |
+
+### Multi-Model Pattern
+
+Fail over only on transient provider failures such as `429`, `529`, overload,
+timeout, or temporary unavailability. Do not fail over on invalid credentials
+or missing base URL.
 
 ---
 
@@ -151,6 +205,8 @@ Enables the mission execute-review-decide loop. This is used by mission executio
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `adapter` | string | `"local"` | `local` or `llm` |
+| `model_chain` | string | inherits `[llm].default_model_chain` | Named chain for `llm` adapter |
+| `model_ref` | string | inherits `[llm].default_model_ref` | Named single model |
 | `model` | string | — | LLM model (for `llm` adapter) |
 | `api_key_env` | string | — | Env var for API key |
 | `api_base_env` | string | — | Env var for API base URL |
@@ -161,11 +217,16 @@ Enables the mission execute-review-decide loop. This is used by mission executio
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| `model_chain` | string | inherits `[llm].default_model_chain` | Named chain |
+| `model_ref` | string | inherits `[llm].default_model_ref` | Named single model |
 | `model` | string | — | Full `provider/model` string |
 | `api_type` | string | `"anthropic"` | `anthropic` or `openai` |
 | `api_key_env` | string | — | Env var for API key |
 | `api_base_env` | string | — | Env var for API base URL |
 | `token_command` | string | — | Shell command to fetch token dynamically |
+
+If `[planner]` is empty, it still works when `[llm].default_model_chain` or
+`[llm].default_model_ref` is configured.
 
 ---
 
@@ -245,6 +306,20 @@ typecheck = ["{python}", "-m", "mypy", "src/"]
 test = ["{python}", "-m", "pytest", "-q"]
 build = ["{python}", "-c", "print('build ok')"]
 ```
+
+---
+
+## Multi-Model Checklist
+
+When an AI assistant configures spec-orch, prefer this checklist:
+
+1. Verify the primary model works on its own.
+2. Add one shared chain instead of repeating per-role fallback blocks.
+3. Ensure each model definition has both:
+   - `api_key_env`
+   - `api_base_env`
+4. Prefer Anthropic-compatible chains for Anthropic-compatible primaries.
+5. Treat auth/config failures as setup bugs, not retry/fallback events.
 
 ### Node.js / TypeScript
 
@@ -349,12 +424,13 @@ build = ["npx", "nx", "run-many", "--target=build"]
 
 1. When `adapter = "acpx"`, you should also set `agent` (defaults to `"opencode"`)
 2. When `adapter = "acpx_<name>"`, do NOT set `agent` separately (it's implied)
-3. When `[reviewer] adapter = "llm"`, `model` is required
+3. When `[reviewer] adapter = "llm"`, the reviewer needs a resolvable model via
+   `model_chain`, `model_ref`, inline `model`, or `[llm]` defaults
 4. When `[issue] source = "linear"`, `[linear]` section must be configured with valid `token_env`
 5. `[verification]` steps are optional — omitted steps auto-pass the gate
 6. The `{python}` token only works in `[verification]` commands, not in `[builder]`
-7. `[planner] model` is required for AI-assisted planning (question answering, spec generation)
-8. `[supervisor] model` is required if you want daemon mission execution to use the supervised round loop
+7. `[planner]` needs a resolvable model via section override or `[llm]` defaults
+8. `[supervisor]` needs a resolvable model via section override or `[llm]` defaults if you want daemon mission execution to use the supervised round loop
 
 ---
 

@@ -21,6 +21,7 @@ from spec_orch.services.io import atomic_write_json
 from spec_orch.services.linear_client import LinearClient
 from spec_orch.services.linear_issue_source import LinearIssueSource
 from spec_orch.services.linear_write_back import LinearWriteBackService
+from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 from spec_orch.services.mission_execution_service import MissionExecutionService
 from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.reaction_engine import (
@@ -304,14 +305,15 @@ class SpecOrchDaemon:
         """
         if not self.config.planner_model:
             return None
-
-        api_key: str | None = None
-        if self.config.planner_api_key_env:
-            api_key = os.environ.get(self.config.planner_api_key_env)
-
-        api_base: str | None = None
-        if self.config.planner_api_base_env:
-            api_base = os.environ.get(self.config.planner_api_base_env)
+        planner_settings = resolve_role_litellm_settings(
+            self.config._raw,
+            section_name="planner",
+            default_model=self.config.planner_model,
+            default_api_type=self.config.planner_api_type,
+        )
+        model_chain = planner_settings["model_chain"]
+        api_key = planner_settings["api_key"] or None
+        api_base = planner_settings["api_base"] or None
 
         try:
             from spec_orch.services.litellm_planner_adapter import (
@@ -319,11 +321,12 @@ class SpecOrchDaemon:
             )
 
             return LiteLLMPlannerAdapter(
-                model=self.config.planner_model,
-                api_type=self.config.planner_api_type,
+                model=str(planner_settings["model"]),
+                api_type=str(planner_settings["api_type"]),
                 api_key=api_key,
                 api_base=api_base,
                 token_command=self.config.planner_token_command,
+                model_chain=model_chain,
             )
         except ImportError:
             print("[daemon] litellm not installed, planner disabled")
@@ -333,13 +336,15 @@ class SpecOrchDaemon:
         if not self.config.supervisor_model:
             return None
 
-        api_key: str | None = None
-        if self.config.supervisor_api_key_env:
-            api_key = os.environ.get(self.config.supervisor_api_key_env)
-
-        api_base: str | None = None
-        if self.config.supervisor_api_base_env:
-            api_base = os.environ.get(self.config.supervisor_api_base_env)
+        supervisor_settings = resolve_role_litellm_settings(
+            self.config._raw,
+            section_name="supervisor",
+            default_model=self.config.supervisor_model,
+            default_api_type=self.config.supervisor_api_type,
+        )
+        supervisor_chain = supervisor_settings["model_chain"]
+        api_key = supervisor_settings["api_key"] or None
+        api_base = supervisor_settings["api_base"] or None
 
         if self.config.supervisor_adapter not in (None, "litellm"):
             raise ValueError(f"Unsupported supervisor adapter: {self.config.supervisor_adapter!r}")
@@ -361,10 +366,11 @@ class SpecOrchDaemon:
 
         supervisor = LiteLLMSupervisorAdapter(
             repo_root=self.repo_root,
-            model=self.config.supervisor_model,
-            api_type=self.config.supervisor_api_type,
+            model=str(supervisor_settings["model"]),
+            api_type=str(supervisor_settings["api_type"]),
             api_key=api_key,
             api_base=api_base,
+            model_chain=supervisor_chain,
         )
 
         builder_cfg = self.config._raw.get("builder", {})
@@ -420,16 +426,18 @@ class SpecOrchDaemon:
                 f"{self.config.supervisor_visual_evaluator_adapter!r}"
             )
 
-        acceptance_api_key: str | None = None
-        if self.config.acceptance_evaluator_api_key_env:
-            acceptance_api_key = os.environ.get(self.config.acceptance_evaluator_api_key_env)
-
-        acceptance_api_base: str | None = None
-        if self.config.acceptance_evaluator_api_base_env:
-            acceptance_api_base = os.environ.get(self.config.acceptance_evaluator_api_base_env)
+        acceptance_settings = resolve_role_litellm_settings(
+            self.config._raw,
+            section_name="acceptance_evaluator",
+            default_model=self.config.acceptance_evaluator_model or "",
+            default_api_type=self.config.acceptance_evaluator_api_type,
+        )
+        acceptance_chain = acceptance_settings["model_chain"]
+        acceptance_api_key = acceptance_settings["api_key"] or None
+        acceptance_api_base = acceptance_settings["api_base"] or None
 
         acceptance_evaluator: Any | None = None
-        if self.config.acceptance_evaluator_model:
+        if acceptance_settings["model"]:
             if self.config.acceptance_evaluator_adapter not in (None, "litellm"):
                 raise ValueError(
                     "Unsupported acceptance evaluator adapter: "
@@ -437,10 +445,11 @@ class SpecOrchDaemon:
                 )
             acceptance_evaluator = LiteLLMAcceptanceEvaluator(
                 repo_root=self.repo_root,
-                model=self.config.acceptance_evaluator_model,
-                api_type=self.config.acceptance_evaluator_api_type,
+                model=str(acceptance_settings["model"]),
+                api_type=str(acceptance_settings["api_type"]),
                 api_key=acceptance_api_key,
                 api_base=acceptance_api_base,
+                model_chain=acceptance_chain,
             )
 
         acceptance_filer: Any | None = None

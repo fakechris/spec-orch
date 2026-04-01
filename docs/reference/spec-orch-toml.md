@@ -87,11 +87,74 @@ Notes:
 - Mission round-loop workers reuse ACPX sessions by `mission-<mission_id>-<packet_id>` when `[supervisor]` is enabled.
 - `session_name` on `[builder]` still applies to the single-issue builder path.
 
+## `[llm]`
+
+Global defaults for LiteLLM-powered roles. Recommended shape:
+
+1. define reusable models once under `[models.<id>]`
+2. compose primary/fallback order under `[model_chains.<id>]`
+3. let `planner`, `supervisor`, `acceptance_evaluator`, and `reviewer` inherit `default_model_chain`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `default_model_chain` | string | — | Named chain inherited by roles when their section does not override model config |
+| `default_model_ref` | string | — | Named single model inherited when no chain is configured |
+
+### `[models.<id>]`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `model` | string | — | Provider/model or bare model name |
+| `api_type` | string | `"anthropic"` | `anthropic` or `openai` |
+| `api_key_env` | string | provider fallback chain | Environment variable for API key |
+| `api_base_env` | string | provider fallback chain | Environment variable for API base URL |
+
+### `[model_chains.<id>]`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `primary` | string | — | Model id from `[models.<id>]` |
+| `fallbacks` | list[string] | `[]` | Ordered model ids used only for transient failures |
+
+Role inheritance order:
+
+1. section `model_chain`
+2. section `model_ref`
+3. section inline `model/api_* / fallbacks`
+4. `[llm].default_model_chain`
+5. `[llm].default_model_ref`
+6. provider env fallback chain
+
+Example:
+
+```toml
+[llm]
+default_model_chain = "default_reasoning"
+
+[models.minimax_reasoning]
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+
+[models.fireworks_kimi]
+model = "accounts/fireworks/routers/kimi-k2p5-turbo"
+api_type = "anthropic"
+api_key_env = "ANTHROPIC_AUTH_TOKEN"
+api_base_env = "ANTHROPIC_BASE_URL"
+
+[model_chains.default_reasoning]
+primary = "minimax_reasoning"
+fallbacks = ["fireworks_kimi"]
+```
+
 ## [reviewer]
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `adapter` | string | `"local"` | Reviewer adapter: `local`, `llm`, `github` |
+| `model_chain` | string | inherits `[llm].default_model_chain` | Named model chain for `llm` adapter |
+| `model_ref` | string | inherits `[llm].default_model_ref` | Named single model for `llm` adapter |
 | `model` | string | — | LLM model for `llm` adapter (e.g. `openai/gpt-4o`, `minimax/MiniMax-M2.5`) |
 | `api_key_env` | string | — | Environment variable for reviewer API key |
 | `api_base_env` | string | — | Environment variable for reviewer API base URL |
@@ -103,21 +166,47 @@ Notes:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| `model_chain` | string | inherits `[llm].default_model_chain` | Named model chain |
+| `model_ref` | string | inherits `[llm].default_model_ref` | Named single model |
 | `model` | string | — | LLM model for planning. Full provider/model string (e.g. `anthropic/claude-sonnet-4-20250514`) or bare name auto-prefixed with `api_type` |
 | `api_type` | string | `"anthropic"` | API type: `anthropic`, `openai` |
 | `api_key_env` | string | — | Environment variable for planner API key |
 | `api_base_env` | string | — | Environment variable for planner API base URL |
 | `token_command` | string | — | Shell command to fetch API token dynamically |
 
+If `[planner]` is otherwise empty, planning still works when `[llm].default_model_chain`
+or `[llm].default_model_ref` is configured.
+
+### `[[planner.fallbacks]]`
+
+Optional fallback model chain. Fallbacks are tried in order only for transient
+provider failures such as `429`, `529`, overload, timeout, or temporary
+unavailability. Auth/configuration errors do not fail over.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `model` | string | — | Fallback model for the planner |
+| `api_type` | string | inherits primary | `anthropic` or `openai` |
+| `api_key_env` | string | provider fallback chain | Environment variable for fallback API key |
+| `api_base_env` | string | provider fallback chain | Environment variable for fallback API base URL |
+
 ## [supervisor]
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `adapter` | string | — | Supervisor adapter. Currently `litellm` is supported. |
+| `model_chain` | string | inherits `[llm].default_model_chain` | Named model chain |
+| `model_ref` | string | inherits `[llm].default_model_ref` | Named single model |
 | `model` | string | — | LLM model used for mission round review. |
 | `api_key_env` | string | — | Environment variable for supervisor API key. |
 | `api_base_env` | string | — | Environment variable for supervisor API base URL. |
 | `max_rounds` | int | `20` | Maximum execute-review-decide rounds before mission failure. |
+
+### `[[supervisor.fallbacks]]`
+
+Optional fallback model chain for supervisor review. Fallbacks are only used
+for transient provider failures. They are not used for invalid credentials or
+missing configuration.
 
 When `[supervisor]` is configured, mission execution uses the supervised round loop:
 
@@ -207,12 +296,21 @@ create Linear issues for high-confidence failures.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `adapter` | string | — | Acceptance evaluator adapter. Currently `litellm` is supported. |
+| `model_chain` | string | inherits `[llm].default_model_chain` | Named model chain |
+| `model_ref` | string | inherits `[llm].default_model_ref` | Named single model |
 | `model` | string | — | LLM model used for independent acceptance review. |
 | `api_key_env` | string | — | Environment variable for evaluator API key. |
 | `api_base_env` | string | — | Environment variable for evaluator API base URL. |
 | `auto_file_issues` | bool | `false` | Whether to auto-file Linear issues from accepted proposals. |
 | `min_confidence` | float | `0.8` | Minimum confidence required for auto-filing. |
 | `min_severity` | string | `"high"` | Minimum severity required for auto-filing. |
+
+### `[[acceptance_evaluator.fallbacks]]`
+
+Optional fallback model chain for acceptance evaluation. Fallbacks are only
+used for transient provider failures. Provider auth/config errors remain
+structured failures so the operator can fix the config instead of silently
+switching models.
 
 Acceptance artifacts are written under:
 
@@ -233,6 +331,48 @@ auto_file_issues = true
 min_confidence = 0.85
 min_severity = "high"
 ```
+
+## Multi-Model Fallback Example
+
+Prefer named chains over repeating inline fallback blocks in every role:
+
+```toml
+[llm]
+default_model_chain = "default_reasoning"
+
+[models.minimax_reasoning]
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+
+[models.fireworks_kimi]
+model = "accounts/fireworks/routers/kimi-k2p5-turbo"
+api_type = "anthropic"
+api_key_env = "ANTHROPIC_AUTH_TOKEN"
+api_base_env = "ANTHROPIC_BASE_URL"
+
+[model_chains.default_reasoning]
+primary = "minimax_reasoning"
+fallbacks = ["fireworks_kimi"]
+
+[planner]
+
+[supervisor]
+adapter = "litellm"
+
+[acceptance_evaluator]
+adapter = "litellm"
+```
+
+Recommended conventions:
+
+- Define each provider/model once under `[models.<id>]`.
+- Reuse one shared chain unless a role truly needs a different route.
+- Use fallbacks only for availability/rate-limit recovery.
+- Keep the provider contract compatible within a chain when possible.
+- Prefer routing auth/config failures back to the operator instead of silently
+  switching providers.
 
 ## [github]
 

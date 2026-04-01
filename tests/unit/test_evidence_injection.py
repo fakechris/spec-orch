@@ -78,6 +78,121 @@ class TestScoperEvidenceInjection:
         system_msg = call_kwargs["messages"][0]["content"]
         assert system_msg == _SCOPER_SYSTEM_PROMPT
 
+    def test_scoper_retries_transient_overload_then_succeeds(self) -> None:
+        import sys
+
+        from spec_orch.domain.models import Mission
+
+        mock_litellm = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = '{"waves": []}'
+        mock_litellm.completion.side_effect = [
+            RuntimeError("529 overloaded_error: provider busy"),
+            mock_response,
+        ]
+
+        scoper = LiteLLMScoperAdapter(retry_backoff_seconds=0.0)
+        mission = Mission(
+            mission_id="test",
+            title="Retry Mission",
+            acceptance_criteria=[],
+            constraints=[],
+        )
+        with patch.dict(sys.modules, {"litellm": mock_litellm}):
+            plan = scoper.scope(
+                mission=mission, codebase_context={"spec_content": "", "file_tree": ""}
+            )
+
+        assert plan.mission_id == "test"
+        assert mock_litellm.completion.call_count == 2
+
+    def test_scoper_does_not_retry_auth_errors(self) -> None:
+        import sys
+
+        from spec_orch.domain.models import Mission
+
+        mock_litellm = MagicMock()
+        mock_litellm.completion.side_effect = RuntimeError(
+            "authentication_error: invalid x-api-key"
+        )
+
+        scoper = LiteLLMScoperAdapter(retry_backoff_seconds=0.0)
+        mission = Mission(
+            mission_id="test",
+            title="Auth Mission",
+            acceptance_criteria=[],
+            constraints=[],
+        )
+        with patch.dict(sys.modules, {"litellm": mock_litellm}):
+            try:
+                scoper.scope(
+                    mission=mission, codebase_context={"spec_content": "", "file_tree": ""}
+                )
+            except RuntimeError as exc:
+                assert "invalid x-api-key" in str(exc)
+            else:
+                raise AssertionError("expected auth failure")
+
+        assert mock_litellm.completion.call_count == 1
+
+    def test_scoper_falls_back_to_secondary_model_on_transient_overload(self) -> None:
+        import sys
+
+        from spec_orch.domain.models import Mission
+        from spec_orch.services.litellm_profile import ResolvedLiteLLMProfile
+
+        seen_bases: list[str] = []
+        mock_litellm = MagicMock()
+
+        def fake_completion(**kwargs):
+            seen_bases.append(str(kwargs.get("api_base") or ""))
+            if kwargs.get("api_base") == "https://primary.example":
+                raise RuntimeError("529 overloaded_error: primary unavailable")
+            mock_response = MagicMock()
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message.content = '{"waves": []}'
+            return mock_response
+
+        mock_litellm.completion.side_effect = fake_completion
+        scoper = LiteLLMScoperAdapter(
+            max_retries=0,
+            retry_backoff_seconds=0.0,
+            model_chain=[
+                ResolvedLiteLLMProfile(
+                    model="anthropic/MiniMax-M2.7-highspeed",
+                    api_type="anthropic",
+                    api_key="primary-key",
+                    api_base="https://primary.example",
+                    api_key_env="MINIMAX_API_KEY",
+                    api_base_env="MINIMAX_ANTHROPIC_BASE_URL",
+                    slot="primary",
+                ),
+                ResolvedLiteLLMProfile(
+                    model="anthropic/accounts/fireworks/routers/kimi-k2p5-turbo",
+                    api_type="anthropic",
+                    api_key="fallback-key",
+                    api_base="https://fallback.example",
+                    api_key_env="ANTHROPIC_AUTH_TOKEN",
+                    api_base_env="ANTHROPIC_BASE_URL",
+                    slot="fallback-1",
+                ),
+            ],
+        )
+        mission = Mission(
+            mission_id="test",
+            title="Fallback Mission",
+            acceptance_criteria=[],
+            constraints=[],
+        )
+        with patch.dict(sys.modules, {"litellm": mock_litellm}):
+            plan = scoper.scope(
+                mission=mission, codebase_context={"spec_content": "", "file_tree": ""}
+            )
+
+        assert plan.mission_id == "test"
+        assert seen_bases == ["https://primary.example", "https://fallback.example"]
+
 
 class TestReadinessCheckerEvidenceInjection:
     def test_no_evidence_default(self) -> None:

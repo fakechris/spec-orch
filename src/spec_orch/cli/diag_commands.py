@@ -17,6 +17,7 @@ from spec_orch.cli._helpers import (
 )
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
 from spec_orch.services.io import atomic_write_json
+from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 
 config_app = typer.Typer()
 app.add_typer(config_app, name="config")
@@ -219,11 +220,17 @@ def config_check(
     )
     builder_agent = builder.get("agent") if isinstance(builder, dict) else None
     builder_model = builder.get("model") if isinstance(builder, dict) else None
-    planner_model = planner.get("model") if isinstance(planner, dict) else None
-    planner_api_type = (
-        planner.get("api_type", "anthropic") if isinstance(planner, dict) else "anthropic"
+    planner_settings = resolve_role_litellm_settings(
+        raw if isinstance(raw, dict) else {},
+        section_name="planner",
+        default_model=str(planner.get("model", "")) if isinstance(planner, dict) else "",
+        default_api_type=(
+            str(planner.get("api_type", "anthropic")) if isinstance(planner, dict) else "anthropic"
+        ),
     )
-    planner_api_key_env = planner.get("api_key_env") if isinstance(planner, dict) else None
+    planner_model = str(planner_settings.get("model") or "")
+    planner_api_type = str(planner_settings.get("api_type") or "anthropic")
+    planner_api_key_env = str(planner_settings.get("api_key_env") or "")
 
     reviewer = raw.get("reviewer", {}) if isinstance(raw, dict) else {}
     reviewer_adapter = reviewer.get("adapter", "local") if isinstance(reviewer, dict) else "local"

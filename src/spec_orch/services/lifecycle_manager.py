@@ -18,6 +18,7 @@ from spec_orch.domain.models import Issue, IssueContext
 from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.event_bus import EventBus, get_event_bus
 from spec_orch.services.io import atomic_write_json
+from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 from spec_orch.services.mission_execution_service import MissionExecutionService
 from spec_orch.services.node_context_registry import get_node_context_spec
 
@@ -348,6 +349,7 @@ class MissionLifecycleManager:
             api_type=cfg.get("api_type", "anthropic"),
             api_key=cfg.get("api_key"),
             api_base=cfg.get("api_base"),
+            model_chain=cfg.get("model_chain"),
             token_command=cfg.get("token_command"),
             evidence_context=evidence_ctx,
         )
@@ -415,18 +417,25 @@ class MissionLifecycleManager:
         if not config_path.exists():
             return None
         try:
-            import os
             import tomllib
 
             with config_path.open("rb") as f:
                 raw = tomllib.load(f)
-            cfg: dict[str, Any] = raw.get("planner", {})
+            planner_cfg = raw.get("planner", {})
+            cfg = resolve_role_litellm_settings(
+                raw,
+                section_name="planner",
+                default_model=(
+                    str(planner_cfg.get("model", "")) if isinstance(planner_cfg, dict) else ""
+                ),
+                default_api_type=(
+                    str(planner_cfg.get("api_type", "anthropic"))
+                    if isinstance(planner_cfg, dict)
+                    else "anthropic"
+                ),
+            )
             if not cfg.get("model"):
                 return None
-            if env := cfg.get("api_key_env"):
-                cfg["api_key"] = os.environ.get(env)
-            if env := cfg.get("api_base_env"):
-                cfg["api_base"] = os.environ.get(env)
             return cfg
         except Exception:
             logger.exception("Failed to load planner config")

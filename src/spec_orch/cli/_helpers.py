@@ -15,6 +15,8 @@ from typing import IO, Any
 
 import typer
 
+from spec_orch.services.litellm_profile import resolve_role_litellm_settings
+
 # ---------------------------------------------------------------------------
 # Version helpers
 # ---------------------------------------------------------------------------
@@ -158,14 +160,26 @@ def _run_preflight(
                 raw = tomllib.load(f)
             _add("config", "pass", f"spec-orch.toml loaded ({len(raw)} sections)")
             planner_cfg = raw.get("planner", {})
-            planner_model = planner_cfg.get("model") if isinstance(planner_cfg, dict) else None
+            planner_settings = resolve_role_litellm_settings(
+                raw,
+                section_name="planner",
+                default_model=(
+                    str(planner_cfg.get("model", "")) if isinstance(planner_cfg, dict) else ""
+                ),
+                default_api_type=(
+                    str(planner_cfg.get("api_type", "anthropic"))
+                    if isinstance(planner_cfg, dict)
+                    else "anthropic"
+                ),
+            )
+            planner_model = planner_settings.get("model")
             if planner_model:
                 _add("planner_model", "pass", f"model = {planner_model}")
             else:
                 _add(
                     "planner_model",
                     "warn",
-                    "[planner] model not configured",
+                    "planner model not configured",
                     "Run 'spec-orch init --reconfigure' or edit spec-orch.toml",
                 )
         except Exception as exc:
@@ -345,7 +359,17 @@ def _build_planner_from_toml(repo_root: Path) -> Any:
         return None
 
     planner_cfg = raw.get("planner", {})
-    model = planner_cfg.get("model")
+    settings = resolve_role_litellm_settings(
+        raw,
+        section_name="planner",
+        default_model=str(planner_cfg.get("model", "")) if isinstance(planner_cfg, dict) else "",
+        default_api_type=(
+            str(planner_cfg.get("api_type", "anthropic"))
+            if isinstance(planner_cfg, dict)
+            else "anthropic"
+        ),
+    )
+    model = settings.get("model")
     if not model:
         _planner_logger.info(
             "[planner] model not set in spec-orch.toml; planner disabled. "
@@ -353,7 +377,6 @@ def _build_planner_from_toml(repo_root: Path) -> Any:
         )
         return None
 
-    api_key: str | None = None
     api_key_env = planner_cfg.get("api_key_env")
     if api_key_env:
         api_key = os.environ.get(api_key_env)
@@ -365,23 +388,22 @@ def _build_planner_from_toml(repo_root: Path) -> Any:
                 api_key_env,
             )
 
-    api_base: str | None = None
-    api_base_env = planner_cfg.get("api_base_env")
-    if api_base_env:
-        api_base = os.environ.get(api_base_env)
-
     token_command = planner_cfg.get("token_command")
-    api_type = planner_cfg.get("api_type", "anthropic")
+    api_type = settings.get("api_type", planner_cfg.get("api_type", "anthropic"))
+    model_chain = settings.get("model_chain", [])
+    api_key = settings.get("api_key") or None
+    api_base = settings.get("api_base") or None
 
     try:
         from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
 
         return LiteLLMPlannerAdapter(
-            model=model,
+            model=str(model),
             api_type=api_type,
             api_key=api_key,
             api_base=api_base,
             token_command=token_command,
+            model_chain=model_chain,
         )
     except ImportError:
         _planner_logger.warning(
@@ -432,19 +454,30 @@ def _load_conversation_planner(
         with open(toml_path, "rb") as f:
             raw = tomllib.load(f)
         planner_cfg = raw.get("planner", {})
-        model = planner_cfg.get("model")
+        settings = resolve_role_litellm_settings(
+            raw,
+            section_name="planner",
+            default_model=(
+                str(planner_cfg.get("model", "")) if isinstance(planner_cfg, dict) else ""
+            ),
+            default_api_type=(
+                str(planner_cfg.get("api_type", "anthropic"))
+                if isinstance(planner_cfg, dict)
+                else "anthropic"
+            ),
+        )
+        model = settings.get("model")
         if not model:
             return None
-        api_key_env = planner_cfg.get("api_key_env")
-        api_base_env = planner_cfg.get("api_base_env")
         token_command = planner_cfg.get("token_command")
-        api_type = planner_cfg.get("api_type", "anthropic")
+        api_type = settings.get("api_type", planner_cfg.get("api_type", "anthropic"))
+        model_chain = settings.get("model_chain", [])
 
         from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
 
-        api_key = os.environ.get(api_key_env) if api_key_env else None
+        api_key = settings.get("api_key") or None
         if not api_key and not token_command:
-            hint_env = api_key_env or "SPEC_ORCH_LLM_API_KEY"
+            hint_env = planner_cfg.get("api_key_env") or "SPEC_ORCH_LLM_API_KEY"
             typer.echo(
                 f"Warning: environment variable '{hint_env}' is not set.\n"
                 f"  The LLM planner will not work until you provide an API key.\n"
@@ -454,11 +487,12 @@ def _load_conversation_planner(
             )
 
         return LiteLLMPlannerAdapter(
-            model=model,
+            model=str(model),
             api_type=api_type,
             api_key=api_key,
-            api_base=os.environ.get(api_base_env) if api_base_env else None,
+            api_base=settings.get("api_base") or None,
             token_command=token_command,
+            model_chain=model_chain,
         )
     except (ImportError, FileNotFoundError, tomllib.TOMLDecodeError):
         return None
@@ -476,16 +510,24 @@ def _load_planner_config(repo_root: Path) -> dict[str, Any]:
         return {}
     planner_cfg = raw.get("planner", {})
     result: dict[str, Any] = {}
-    if planner_cfg.get("model"):
-        result["model"] = planner_cfg["model"]
-    if planner_cfg.get("api_type"):
-        result["api_type"] = planner_cfg["api_type"]
-    api_key_env = planner_cfg.get("api_key_env")
-    if api_key_env:
-        result["api_key"] = os.environ.get(api_key_env)
-    api_base_env = planner_cfg.get("api_base_env")
-    if api_base_env:
-        result["api_base"] = os.environ.get(api_base_env)
+    settings = resolve_role_litellm_settings(
+        raw,
+        section_name="planner",
+        default_model=str(planner_cfg.get("model", "")) if isinstance(planner_cfg, dict) else "",
+        default_api_type=(
+            str(planner_cfg.get("api_type", "anthropic"))
+            if isinstance(planner_cfg, dict)
+            else "anthropic"
+        ),
+    )
+    if settings.get("model"):
+        result["model"] = settings["model"]
+    if settings.get("api_type"):
+        result["api_type"] = settings["api_type"]
+    if settings.get("model_chain"):
+        result["api_key"] = settings["api_key"]
+        result["api_base"] = settings["api_base"]
+        result["model_chain"] = settings["model_chain"]
     result["token_command"] = planner_cfg.get("token_command")
     return result
 

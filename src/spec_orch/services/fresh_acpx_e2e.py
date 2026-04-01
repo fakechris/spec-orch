@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import inspect
 import json
+import os
 import time
+import tomllib
+from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
-from spec_orch.domain.models import AcceptanceReviewResult
+from spec_orch.domain.models import AcceptanceFinding, AcceptanceReviewResult
+from spec_orch.services.acceptance.browser_evidence import collect_playwright_browser_evidence
+from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -24,10 +30,159 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def _load_raw_config(repo_root: Path) -> dict[str, Any]:
+    config_path = Path(repo_root) / "spec-orch.toml"
+    if not config_path.exists():
+        return {}
+    try:
+        with config_path.open("rb") as handle:
+            raw = tomllib.load(handle)
+    except (FileNotFoundError, tomllib.TOMLDecodeError, OSError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _resolve_exploratory_acceptance_settings(repo_root: Path) -> dict[str, Any]:
+    raw = _load_raw_config(repo_root)
+    cfg = raw.get("acceptance_evaluator", {})
+    if not isinstance(cfg, dict):
+        cfg = {}
+    settings = resolve_role_litellm_settings(
+        raw,
+        section_name="acceptance_evaluator",
+        default_model=str(cfg.get("model", "MiniMax-M2.7-highspeed")).strip()
+        or "MiniMax-M2.7-highspeed",
+        default_api_type=str(cfg.get("api_type", "anthropic")).strip().lower() or "anthropic",
+    )
+    return {
+        "adapter": str(cfg.get("adapter", "litellm")).strip() or "litellm",
+        "model": settings["model"],
+        "api_type": settings["api_type"],
+        "api_key_env": settings["api_key_env"],
+        "api_base_env": settings["api_base_env"],
+        "api_key": settings["api_key"],
+        "api_base": settings["api_base"],
+        "model_chain": settings["model_chain"],
+    }
+
+
+def _exploratory_acceptance_config_error(settings: dict[str, Any]) -> AcceptanceReviewResult | None:
+    api_type = str(settings.get("api_type", "")).strip().lower()
+    model = str(settings.get("model", "")).strip()
+    api_key = str(settings.get("api_key", "")).strip()
+    api_base = str(settings.get("api_base", "")).strip()
+    api_base_env = str(settings.get("api_base_env", "")).strip() or "SPEC_ORCH_LLM_API_BASE"
+    model_name = model.split("/", 1)[1] if "/" in model else model
+    needs_minimax_base = api_type == "anthropic" and model_name.lower().startswith("minimax-")
+    if not (needs_minimax_base and api_key and not api_base):
+        return None
+    detail = (
+        "Resolved acceptance evaluator settings require an anthropic-compatible API base, "
+        f"but none was found. model={model!r}, api_type={api_type!r}, "
+        f"api_key_present={bool(api_key)}, api_base_env={api_base_env!r}. "
+        "Set MINIMAX_ANTHROPIC_BASE_URL or SPEC_ORCH_LLM_API_BASE before rerunning "
+        "exploratory critique."
+    )
+    return AcceptanceReviewResult(
+        status="warn",
+        summary="Exploratory acceptance configuration is incomplete.",
+        confidence=0.98,
+        evaluator="exploratory_acceptance_config_guard",
+        findings=[
+            AcceptanceFinding(
+                severity="high",
+                summary="Acceptance evaluator configuration is incomplete.",
+                details=detail,
+                why_it_matters=(
+                    "The second-stage exploratory critique cannot produce product findings "
+                    "until its provider configuration is valid."
+                ),
+            )
+        ],
+        artifacts={
+            "acceptance_evaluator_config": {
+                "model": model,
+                "api_type": api_type,
+                "api_key_present": bool(api_key),
+                "api_base_present": bool(api_base),
+                "api_base_env": api_base_env,
+                "config_error": "missing_api_base",
+            }
+        },
+        acceptance_mode="exploratory",
+        coverage_status="partial",
+        recommended_next_step=(
+            "Set the acceptance evaluator API base and rerun exploratory critique."
+        ),
+    )
+
+
+def _finalize_exploratory_campaign(campaign: Any) -> Any:
+    critique_focus = list(getattr(campaign, "critique_focus", []) or [])
+    if not critique_focus:
+        critique_focus = [
+            "evidence_discoverability",
+            "task_continuity",
+            "operator_confidence",
+            "information_hierarchy",
+        ]
+    filing_policy = getattr(campaign, "filing_policy", "") or ""
+    if filing_policy == "auto_file_broken_flows_only":
+        filing_policy = "hold_ux_concerns_for_operator_review"
+    exploration_budget = getattr(campaign, "exploration_budget", "") or ""
+    if exploration_budget == "bounded":
+        exploration_budget = "wide"
+    return replace(
+        campaign,
+        critique_focus=critique_focus,
+        filing_policy=filing_policy,
+        exploration_budget=exploration_budget,
+    )
+
+
+def _collect_exploratory_browser_evidence(
+    *,
+    mission_id: str,
+    round_id: int,
+    round_dir: Path,
+    campaign: Any,
+) -> dict[str, Any] | None:
+    if not os.environ.get("SPEC_ORCH_VISUAL_EVAL_URL", "").strip():
+        return None
+    routes = list(getattr(campaign, "primary_routes", []) or [])
+    related_routes = list(getattr(campaign, "related_routes", []) or [])
+    related_route_budget = int(getattr(campaign, "related_route_budget", 0) or 0)
+    if related_route_budget > 0:
+        routes.extend(related_routes[:related_route_budget])
+    else:
+        routes.extend(related_routes)
+    if not routes:
+        return None
+    return collect_playwright_browser_evidence(
+        mission_id=mission_id,
+        round_id=round_id,
+        round_dir=round_dir,
+        paths=routes,
+        interaction_plans=dict(getattr(campaign, "interaction_plans", {}) or {}),
+        output_name="exploratory_browser_evidence.json",
+    )
+
+
 def _build_execution_lifecycle_manager(repo_root: Path) -> Any:
     from spec_orch.dashboard.launcher import _build_execution_lifecycle_manager as _build_manager
 
     return _build_manager(repo_root)
+
+
+def _invoke_supported_kwargs(func: Any, **kwargs: Any) -> Any:
+    try:
+        signature = inspect.signature(func)
+    except (TypeError, ValueError):
+        return func(**kwargs)
+    supported_kwargs = {
+        name: value for name, value in kwargs.items() if name in signature.parameters
+    }
+    return func(**supported_kwargs)
 
 
 def _probe_dashboard(url: str, timeout_seconds: float) -> dict[str, Any]:
@@ -227,6 +382,106 @@ def build_fresh_exploratory_artifacts(
         artifacts["round_summary"] = round_summary
 
     return artifacts
+
+
+def run_fresh_exploratory_acceptance_review(
+    *,
+    repo_root: Path,
+    mission_id: str,
+    round_dir: Path,
+    mission_payload: dict[str, Any],
+    browser_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    from spec_orch.domain.models import AcceptanceMode
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    repo_root = Path(repo_root).resolve()
+    round_dir = Path(round_dir).resolve()
+    artifacts = build_fresh_exploratory_artifacts(
+        repo_root=repo_root,
+        mission_id=mission_id,
+        round_dir=round_dir,
+        mission_payload=mission_payload,
+        browser_evidence=browser_evidence,
+    )
+    orchestrator = RoundOrchestrator(
+        repo_root=repo_root,
+        supervisor=cast(Any, object()),
+        worker_factory=cast(Any, object()),
+        context_assembler=cast(Any, object()),
+    )
+    campaign = orchestrator._build_acceptance_campaign(
+        mission_id=mission_id,
+        artifacts=artifacts,
+        mode_override=AcceptanceMode.EXPLORATORY,
+    )
+    campaign = _finalize_exploratory_campaign(campaign)
+
+    round_summary = _read_json(round_dir / "round_summary.json")
+    raw_round_id = round_summary.get("round_id")
+    try:
+        round_id = int(str(raw_round_id))
+    except (TypeError, ValueError):
+        try:
+            round_id = int(str(round_dir.name).split("-")[-1])
+        except (TypeError, ValueError):
+            round_id = 0
+
+    settings = _resolve_exploratory_acceptance_settings(repo_root)
+    config_error = _exploratory_acceptance_config_error(settings)
+    if config_error is not None:
+        payload = config_error.to_dict()
+        _write_json(round_dir / "exploratory_acceptance_review.json", payload)
+        return payload
+
+    refreshed_browser_evidence = _collect_exploratory_browser_evidence(
+        mission_id=mission_id,
+        round_id=round_id,
+        round_dir=round_dir,
+        campaign=campaign,
+    )
+    if refreshed_browser_evidence is not None:
+        prior_browser_evidence = artifacts.get("browser_evidence")
+        if isinstance(prior_browser_evidence, dict) and prior_browser_evidence:
+            artifacts["workflow_browser_evidence"] = dict(prior_browser_evidence)
+        artifacts["browser_evidence"] = refreshed_browser_evidence
+
+    evaluator = _invoke_supported_kwargs(
+        LiteLLMAcceptanceEvaluator,
+        repo_root=repo_root,
+        model=str(settings["model"]),
+        api_type=str(settings["api_type"]),
+        api_key=str(settings["api_key"]) or None,
+        api_base=str(settings["api_base"]) or None,
+        model_chain=settings.get("model_chain"),
+    )
+    result = evaluator.evaluate_acceptance(
+        mission_id=mission_id,
+        round_id=round_id,
+        round_dir=round_dir,
+        worker_results=[],
+        artifacts=artifacts,
+        repo_root=repo_root,
+        campaign=campaign,
+    )
+    payload = result.to_dict()
+    if not isinstance(payload, dict):
+        payload = {}
+    acceptance_config = payload.setdefault("artifacts", {}).setdefault(
+        "acceptance_evaluator_config",
+        {},
+    )
+    if isinstance(acceptance_config, dict):
+        acceptance_config.setdefault("model", str(settings["model"]))
+        acceptance_config.setdefault("api_type", str(settings["api_type"]))
+        acceptance_config.setdefault("api_key_present", bool(str(settings["api_key"]).strip()))
+        acceptance_config.setdefault("api_base_present", bool(str(settings["api_base"]).strip()))
+        acceptance_config.setdefault("api_base_env", str(settings["api_base_env"]))
+    _write_json(round_dir / "exploratory_acceptance_review.json", payload)
+    return payload
 
 
 def write_fresh_acpx_mission_report(

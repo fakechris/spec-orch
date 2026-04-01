@@ -568,6 +568,66 @@ def test_litellm_planner_adapter_raises_without_litellm():
         adapter.plan(issue=issue, workspace=Path("/tmp"))
 
 
+def test_litellm_planner_adapter_falls_back_to_secondary_model_on_transient_overload():
+    import sys
+
+    from spec_orch.services.litellm_planner_adapter import LiteLLMPlannerAdapter
+    from spec_orch.services.litellm_profile import ResolvedLiteLLMProfile
+
+    issue = _make_issue()
+    seen_bases: list[str] = []
+
+    mock_litellm = MagicMock()
+
+    def fake_completion(**kwargs):
+        seen_bases.append(str(kwargs.get("api_base") or ""))
+        if kwargs.get("api_base") == "https://primary.example":
+            raise RuntimeError("529 overloaded_error: primary unavailable")
+        mock_tool_call = MagicMock()
+        mock_tool_call.function.arguments = json.dumps({"questions": [], "spec_summary": None})
+        mock_message = MagicMock()
+        mock_message.tool_calls = [mock_tool_call]
+        mock_message.content = None
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+        return mock_response
+
+    mock_litellm.completion.side_effect = fake_completion
+    adapter = LiteLLMPlannerAdapter(
+        model="ignored",
+        max_retries=0,
+        retry_backoff_seconds=0.0,
+        model_chain=[
+            ResolvedLiteLLMProfile(
+                model="anthropic/MiniMax-M2.7-highspeed",
+                api_type="anthropic",
+                api_key="primary-key",
+                api_base="https://primary.example",
+                api_key_env="MINIMAX_API_KEY",
+                api_base_env="MINIMAX_ANTHROPIC_BASE_URL",
+                slot="primary",
+            ),
+            ResolvedLiteLLMProfile(
+                model="anthropic/accounts/fireworks/routers/kimi-k2p5-turbo",
+                api_type="anthropic",
+                api_key="fallback-key",
+                api_base="https://fallback.example",
+                api_key_env="ANTHROPIC_AUTH_TOKEN",
+                api_base_env="ANTHROPIC_BASE_URL",
+                slot="fallback-1",
+            ),
+        ],
+    )
+
+    with patch.dict(sys.modules, {"litellm": mock_litellm}):
+        result = adapter.plan(issue=issue, workspace=Path("/tmp"))
+
+    assert result.questions == []
+    assert seen_bases == ["https://primary.example", "https://fallback.example"]
+
+
 # ───────── advance_to_completion + answer_questions ─────────
 
 
