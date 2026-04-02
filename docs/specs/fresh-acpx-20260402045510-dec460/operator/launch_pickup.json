@@ -1,0 +1,65 @@
+{
+  "mission_id": "fresh-acpx-20260402045510-dec460",
+  "proof_type": "fresh_launch_pickup",
+  "launch_result": {
+    "mission_id": "fresh-acpx-20260402045510-dec460",
+    "state": {
+      "mission_id": "fresh-acpx-20260402045510-dec460",
+      "phase": "executing",
+      "issue_ids": [
+        "LOCAL-FRESH-ACPX-20260402045510-DEC460-1",
+        "LOCAL-FRESH-ACPX-20260402045510-DEC460-2"
+      ],
+      "completed_issues": [],
+      "error": null,
+      "updated_at": "2026-04-02T04:55:37.858170+00:00",
+      "current_round": 0,
+      "round_orchestrator_state": {}
+    },
+    "launch": {
+      "last_launch": {
+        "state": {
+          "mission_id": "fresh-acpx-20260402045510-dec460",
+          "phase": "executing",
+          "issue_ids": [
+            "LOCAL-FRESH-ACPX-20260402045510-DEC460-1",
+            "LOCAL-FRESH-ACPX-20260402045510-DEC460-2"
+          ],
+          "completed_issues": [],
+          "error": null,
+          "updated_at": "2026-04-02T04:55:37.858170+00:00",
+          "current_round": 0,
+          "round_orchestrator_state": {}
+        }
+      },
+      "runner": {
+        "status": "foreground_required"
+      }
+    },
+    "background_runner_started": false
+  },
+  "daemon_run": {
+    "mission_id": "fresh-acpx-20260402045510-dec460",
+    "proof_type": "fresh_execution",
+    "runner_status": "finished",
+    "state": {
+      "mission_id": "fresh-acpx-20260402045510-dec460",
+      "phase": "executing",
+      "issue_ids": [
+        "LOCAL-FRESH-ACPX-20260402045510-DEC460-1",
+        "LOCAL-FRESH-ACPX-20260402045510-DEC460-2"
+      ],
+      "completed_issues": [],
+      "error": null,
+      "updated_at": "2026-04-02T04:55:37.858170+00:00",
+      "current_round": 2,
+      "round_orchestrator_state": {
+        "paused": true,
+        "blocking_questions": [
+          "Should the import_smoke verification path be corrected to use './mission_types' (or './artifact_types') instead of './src/contracts/X'?",
+          "Should the scope tracking for fresh-acpx-002 realized_files be reconciled with the confirmed manifest path?"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,243 @@
+{
+  "status": "pass",
+  "issue_id": "SPC-1",
+  "fixture_issue_id": "SPC-1",
+  "workspace": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/.worktrees/SPC-1",
+  "preflight": {
+    "checks": [
+      {
+        "name": "python",
+        "status": "pass",
+        "message": "Python 3.13"
+      },
+      {
+        "name": "git",
+        "status": "pass",
+        "message": "/usr/bin/git"
+      },
+      {
+        "name": "core_deps",
+        "status": "pass",
+        "message": "typer, httpx, pyyaml"
+      },
+      {
+        "name": "planner_deps",
+        "status": "pass",
+        "message": "litellm"
+      },
+      {
+        "name": "dashboard_deps",
+        "status": "pass",
+        "message": "fastapi, uvicorn, websockets"
+      },
+      {
+        "name": "dotenv",
+        "status": "warn",
+        "message": ".env not found",
+        "fix": "cp .env.example .env && $EDITOR .env"
+      },
+      {
+        "name": "config",
+        "status": "pass",
+        "message": "spec-orch.toml loaded (15 sections)"
+      },
+      {
+        "name": "planner_model",
+        "status": "pass",
+        "message": "model = anthropic/MiniMax-M2.7-highspeed"
+      },
+      {
+        "name": "planner_auth",
+        "status": "pass",
+        "message": "planner credentials resolved (1 usable model-chain profile(s))"
+      }
+    ],
+    "summary": {
+      "pass": 8,
+      "warn": 1,
+      "fail": 0
+    },
+    "ready": [
+      "run",
+      "discuss",
+      "plan",
+      "dashboard"
+    ],
+    "not_ready": [
+      "daemon"
+    ]
+  },
+  "run_exit_code": 0,
+  "attempt": {
+    "attempt_id": "run_SPC-1_20260402T053249Z_033dee4f",
+    "unit_kind": "issue",
+    "unit_id": "SPC-1",
+    "owner_kind": "run_controller",
+    "continuity_kind": "file_backed_run",
+    "workspace_root": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/.worktrees/SPC-1",
+    "outcome": {
+      "unit_kind": "issue",
+      "owner_kind": "run_controller",
+      "status": "failed",
+      "build": {
+        "succeeded": true,
+        "skipped": false,
+        "command": [
+          "npx",
+          "-y",
+          "acpx",
+          "--format",
+          "json",
+          "--approve-all",
+          "--model",
+          "minimax/MiniMax-M2.5",
+          "opencode",
+          "-s",
+          "builder-run_SPC-1_20260402T053249Z_033dee4f",
+          "You are the SpecOrch mission worker for this workspace. Continue implementation directly and keep file paths relative to cwd.\n\nYou are the SpecOrch builder for this issue workspace. Your current working directory IS the project root \u2014 all file paths must be relative to it. Move directly into implementation and verification. Minimize workflow narration and process summaries.\n\n## Task\nIssue-start smoke task. Work only inside this issue workspace.\n\n1. Create or overwrite `.spec_orch_smoke/issue_start_builder.txt`.\n2. Write exactly three lines:\n   - `issue_id=SPC-1`\n   - `smoke=issue_start_builder`\n   - `workspace_ok=yes`\n3. Do not modify `src/` or `tests/`.\n4. Do not invoke `spec-orch`, daemon commands, or nested pipeline commands.\n5. After writing the file, run the configured verification commands and report the results.\n\n## Verification Commands\n- smoke_check: `{python} -c from pathlib import Path; p=Path('.spec_orch_smoke/issue_start_builder.txt'); expected='issue_id=SPC-1\\nsmoke=issue_start_builder\\nworkspace_ok=yes\\n'; actual=p.read_text(encoding='utf-8'); assert actual == expected, actual`\n- build: `{python} -c print('issue-start smoke build ok')`\n\n## Spec\n# Build MVP runner\n\n## Intent\n- Issue: SPC-1\n- Title: Build MVP runner\n\n## Boundaries\n- MVP prototype only\n"
+        ],
+        "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/.worktrees/SPC-1/builder_report.json",
+        "adapter": "acpx",
+        "agent": "opencode",
+        "metadata": {
+          "turn_contract_compliance": {
+            "compliant": true,
+            "first_action_seen": false,
+            "first_action_method": null,
+            "first_action_excerpt": null,
+            "violations": []
+          },
+          "adapter": "acpx_worker",
+          "agent": "opencode",
+          "model": "minimax/MiniMax-M2.5",
+          "succeeded": true,
+          "exit_code": 0,
+          "event_count": 91,
+          "session_name": "builder-run_SPC-1_20260402T053249Z_033dee4f",
+          "terminal_reason": "process_exit_success",
+          "commands_completed": 0,
+          "files_changed": [
+            ".spec_orch_smoke/issue_start_builder.txt"
+          ],
+          "retry_count": 0,
+          "session_reused": false,
+          "session_recycled": false,
+          "session_health": "healthy",
+          "chain_id": null,
+          "span_id": null,
+          "parent_span_id": null,
+          "run_id": "run_SPC-1_20260402T053249Z_033dee4f"
+        }
+      },
+      "verification": {
+        "smoke_check": {
+          "exit_code": 0,
+          "command": [
+            "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/.venv/bin/python3",
+            "-c",
+            "from pathlib import Path; p=Path('.spec_orch_smoke/issue_start_builder.txt'); expected='issue_id=SPC-1\\nsmoke=issue_start_builder\\nworkspace_ok=yes\\n'; actual=p.read_text(encoding='utf-8'); assert actual == expected, actual"
+          ]
+        },
+        "build": {
+          "exit_code": 0,
+          "command": [
+            "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/.venv/bin/python3",
+            "-c",
+            "print('issue-start smoke build ok')"
+          ]
+        }
+      },
+      "review": {
+        "verdict": "pending",
+        "reviewed_by": null,
+        "report_path": ".worktrees/SPC-1/review_report.json"
+      },
+      "gate": {
+        "state": "gate_evaluated",
+        "verdict": "fail",
+        "mergeable": false,
+        "failed_conditions": [
+          "human_acceptance",
+          "review"
+        ]
+      },
+      "artifacts": {
+        "workspace_root": {
+          "key": "workspace_root",
+          "scope": "leaf",
+          "producer_kind": "workspace_service",
+          "subject_kind": "issue",
+          "carrier_kind": "directory",
+          "path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/.worktrees/SPC-1"
+        },
+        "manifest": {
+          "key": "manifest",
+          "scope": "leaf",
+          "producer_kind": "run_artifact_service",
+          "subject_kind": "issue",
+          "carrier_kind": "json",
+          "path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/.worktrees/SPC-1/run_artifact/manifest.json"
+        },
+        "builder_report": {
+          "key": "builder_report",
+          "scope": "leaf",
+          "producer_kind": "builder_adapter",
+          "subject_kind": "issue",
+          "carrier_kind": "json",
+          "path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/.worktrees/SPC-1/builder_report.json"
+        },
+        "event_log": {
+          "key": "event_log",
+          "scope": "leaf",
+          "producer_kind": "activity_logger",
+          "subject_kind": "issue",
+          "carrier_kind": "jsonl",
+          "path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/.worktrees/SPC-1/run_artifact/events.jsonl"
+        },
+        "review_report": {
+          "key": "review_report",
+          "scope": "leaf",
+          "producer_kind": "review_adapter",
+          "subject_kind": "issue",
+          "carrier_kind": "json",
+          "path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/.worktrees/SPC-1/review_report.json"
+        },
+        "gate_report": {
+          "key": "gate_report",
+          "scope": "leaf",
+          "producer_kind": "run_artifact_service",
+          "subject_kind": "issue",
+          "carrier_kind": "json",
+          "path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/.worktrees/SPC-1/run_artifact/conclusion.json"
+        },
+        "verification_report": {
+          "key": "verification_report",
+          "scope": "leaf",
+          "producer_kind": "run_artifact_service",
+          "subject_kind": "issue",
+          "carrier_kind": "json",
+          "path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/.worktrees/SPC-1/run_artifact/live.json"
+        }
+      }
+    },
+    "continuity_id": "run_SPC-1_20260402T053249Z_033dee4f",
+    "attempt_state": "completed",
+    "started_at": null,
+    "completed_at": null
+  },
+  "runtime_chain": {
+    "chain_id": "run_SPC-1_20260402T053249Z_033dee4f",
+    "active_span_id": "run_SPC-1_20260402T053249Z_033dee4f:issue:gate",
+    "subject_kind": "issue",
+    "subject_id": "SPC-1",
+    "phase": "degraded",
+    "status_reason": "gate_blocked",
+    "session_refs": {},
+    "artifact_refs": {
+      "report": ".worktrees/SPC-1/report.json",
+      "explain": ".worktrees/SPC-1/explain.md"
+    },
+    "updated_at": "2026-04-02T05:33:57.898749+00:00",
+    "chain_root": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/.worktrees/SPC-1/telemetry/runtime_chain"
+  }
+}

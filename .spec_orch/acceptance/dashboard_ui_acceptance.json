@@ -1,0 +1,30 @@
+{
+  "status": "pass",
+  "command": "./tests/e2e/dashboard_ui_acceptance.sh --full",
+  "suite_summary": {
+    "status": "pass",
+    "selected_tests": [
+      "test_launcher_readiness_endpoint",
+      "test_acceptance_review_endpoint_surfaces_latest_review_and_filed_issues",
+      "test_mission_detail_endpoint_surfaces_approval_request",
+      "test_visual_qa_endpoint_aggregates_round_findings",
+      "test_visual_qa_endpoint_links_back_to_packet_transcripts",
+      "test_costs_endpoint_aggregates_worker_reports",
+      "test_approvals_endpoint_returns_dedicated_queue",
+      "test_approvals_batch_action_endpoint_processes_multiple_items",
+      "test_dashboard_package_exposes_api_helpers",
+      "test_dashboard_package_exposes_surface_helpers",
+      "test_dashboard_package_exposes_route_registrar",
+      "test_dashboard_package_exposes_shell_template"
+    ],
+    "surface_summary": {
+      "launcher": "pass",
+      "mission_detail": "pass",
+      "acceptance_review": "pass",
+      "visual_qa": "pass",
+      "costs": "pass",
+      "approvals": "pass",
+      "shell": "pass"
+    }
+  }
+}

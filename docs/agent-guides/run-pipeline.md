@@ -68,6 +68,25 @@ finding taxonomy 当前约定为：
 3. rerun 同一路径，直到 top-level report 可信。
 4. 再把剩余 finding 分流到 `n2n_bug` 或 `ux_gap`。
 5. 每修一轮，再 rerun 同一路径，用 `source_run` 对比前后结果。
+6. 当 canonical suite 形成正式版本基线后，把该版本写入 `docs/acceptance-history/` 归档。
+
+正式版本归档当前应至少包含：
+
+- `docs/acceptance-history/index.json`
+- `docs/acceptance-history/releases/<release_id>/manifest.json`
+- `summary.md`
+- `status.json`
+- `findings.json`
+- `source_runs.json`
+- `artifacts.json`
+
+这层 archive 不是可选留证据，而是未来 dashboard / workbench / showcase
+要消费的历史数据底座。
+
+当前这套 release acceptance history/archive program 在 Linear 中对应：
+
+- `SON-419` `[Epic] Release Acceptance History and Archive`
+- `SON-420`..`SON-424`
 
 ## Pipeline 阶段
 

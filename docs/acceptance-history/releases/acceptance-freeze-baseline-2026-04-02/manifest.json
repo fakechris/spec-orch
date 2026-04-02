@@ -1,0 +1,38 @@
+{
+  "release_id": "acceptance-freeze-baseline-2026-04-02",
+  "release_label": "Acceptance Freeze Baseline 2026-04-02",
+  "created_at": "2026-04-02T05:56:00Z",
+  "git_commit": "6ddaa16f07b8878e0c50ca3105e1ba9f79d3a45a",
+  "git_branch": "acceptance-freeze-baseline",
+  "acceptance_suite_version": "formal-acceptance-v1",
+  "overall_status": "pass",
+  "reported_checks": 4,
+  "total_checks": 4,
+  "checks": {
+    "issue_start": "pass",
+    "mission_start": "pass",
+    "dashboard_ui": "pass",
+    "exploratory": "pass"
+  },
+  "source_runs": {
+    "issue_start": "SPC-1",
+    "mission_start": "fresh-acpx-20260402045510-dec460",
+    "dashboard_ui": "dashboard-ui-local",
+    "exploratory": "fresh-acpx-20260402054507-93e48f"
+  },
+  "artifacts": {
+    "status_json": ".spec_orch/acceptance/stability_acceptance_status.json",
+    "status_markdown": "docs/plans/2026-03-30-stability-acceptance-status.md",
+    "summary_markdown": "docs/acceptance-history/releases/acceptance-freeze-baseline-2026-04-02/summary.md",
+    "findings_json": "docs/acceptance-history/releases/acceptance-freeze-baseline-2026-04-02/findings.json",
+    "source_runs_json": "docs/acceptance-history/releases/acceptance-freeze-baseline-2026-04-02/source_runs.json",
+    "artifacts_json": "docs/acceptance-history/releases/acceptance-freeze-baseline-2026-04-02/artifacts.json"
+  },
+  "lineage": {
+    "program": "acceptance-freeze",
+    "notes": [
+      "This is the first formal archived acceptance bundle.",
+      "It establishes the baseline contract for future dashboard and showcase history surfaces."
+    ]
+  }
+}

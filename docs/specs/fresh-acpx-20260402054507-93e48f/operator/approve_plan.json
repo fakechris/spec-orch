@@ -1,0 +1,138 @@
+{
+  "mission_id": "fresh-acpx-20260402054507-93e48f",
+  "approved_at": "2026-04-02T05:45:08.151893+00:00",
+  "status": "approved",
+  "plan": {
+    "plan_id": "plan-fd6fe9cd",
+    "mission_id": "fresh-acpx-20260402054507-93e48f",
+    "waves": [
+      {
+        "wave_number": 0,
+        "description": "Contract Freeze / Scaffold - Minimal TypeScript contract files for fresh ACPX mission proof",
+        "work_packets": [
+          {
+            "packet_id": "scaffold-mission-types",
+            "title": "Scaffold mission_types.ts contract",
+            "spec_section": "Interface Contracts",
+            "run_class": "feature",
+            "files_in_scope": [
+              "src/contracts/mission_types.ts"
+            ],
+            "files_out_of_scope": [],
+            "depends_on": [],
+            "acceptance_criteria": [
+              "File created at src/contracts/mission_types.ts",
+              "Contains minimal Mission type definitions",
+              "Exports sufficient types for fresh mission creation",
+              "Can be imported by worker runtime without errors"
+            ],
+            "verification_commands": {
+              "scaffold_exists": [
+                "{python}",
+                "-c",
+                "from pathlib import Path\nimport sys\npaths = ['src/contracts/mission_types.ts']\nmissing = [rel for rel in paths if not Path(rel).is_file()]\nif missing:\n    sys.stderr.write(f'missing={missing}\\n')\n    raise SystemExit(1)\n"
+              ],
+              "typescript_contract_tokens": [
+                "{python}",
+                "-c",
+                "from pathlib import Path\nimport sys\npaths = ['src/contracts/mission_types.ts']\nrequired = ('export ', 'interface ', 'type ', 'enum ')\ninvalid = []\nfor rel in paths:\n    text = Path(rel).read_text(encoding='utf-8')\n    if not any(token in text for token in required):\n        invalid.append(rel)\nif invalid:\n    sys.stderr.write(f'missing_contract_tokens={invalid}\\n')\n    raise SystemExit(1)\n"
+              ],
+              "typescript_schema_surface": [
+                "{python}",
+                "-c",
+                "from pathlib import Path\nimport sys\npaths = ['src/contracts/mission_types.ts']\nsurface_tokens = (\n    'Schema',\n    'schema',\n    'export interface ',\n    'export type ',\n    'export const ',\n)\ninvalid = []\nfor rel in paths:\n    text = Path(rel).read_text(encoding='utf-8')\n    if not any(token in text for token in surface_tokens):\n        invalid.append(rel)\nif invalid:\n    sys.stderr.write(f'missing_schema_surface={invalid}\\n')\n    raise SystemExit(1)\n"
+              ],
+              "typescript_typecheck": [
+                "tsc",
+                "--noEmit",
+                "--target",
+                "es2022",
+                "--module",
+                "esnext",
+                "--moduleResolution",
+                "bundler",
+                "--skipLibCheck",
+                "src/contracts/mission_types.ts"
+              ],
+              "typescript_lint_smoke": [
+                "{python}",
+                "-c",
+                "from pathlib import Path\nimport sys\npaths = ['src/contracts/mission_types.ts']\nissues = []\nfor rel in paths:\n    text = Path(rel).read_text(encoding='utf-8')\n    lines = text.splitlines()\n    trailing = [idx + 1 for idx, line in enumerate(lines) if line.rstrip() != line]\n    tabs = [idx + 1 for idx, line in enumerate(lines) if '\\t' in line]\n    if trailing:\n        issues.append(f'{rel}:trailing_whitespace={trailing}')\n    if tabs:\n        issues.append(f'{rel}:tabs={tabs}')\n    if text and not text.endswith('\\n'):\n        issues.append(f'{rel}:missing_terminal_newline')\nif issues:\n    sys.stderr.write('lint_smoke_failed=' + ';'.join(issues) + '\\n')\n    raise SystemExit(1)\n"
+              ],
+              "typescript_import_smoke": [
+                "{python}",
+                "-c",
+                "from pathlib import Path\nimport subprocess\nimport sys\ntargets = ['src/contracts/mission_types.ts']\nimport_smoke_path = Path('src/contracts/import_smoke.ts')\nimport_smoke_path.write_text(\"import * as contract_1 from './src/contracts/mission_types';\\nvoid [contract_1];\\n\", encoding='utf-8')\ncommand = [\n    'tsc',\n    '--noEmit',\n    '--target', 'es2022',\n    '--module', 'esnext',\n    '--moduleResolution', 'bundler',\n    '--skipLibCheck',\n    *targets,\n    import_smoke_path.as_posix(),\n]\nraise SystemExit(subprocess.run(command, check=False).returncode)\n"
+              ]
+            },
+            "builder_prompt": "Create src/contracts/mission_types.ts with minimal TypeScript type definitions needed for a fresh ACPX mission. Include at minimum: Mission interface, MissionStatus enum, and any required metadata types. Keep exports minimal and focused.",
+            "linear_issue_id": null
+          },
+          {
+            "packet_id": "scaffold-artifact-types",
+            "title": "Scaffold artifact_types.ts contract",
+            "spec_section": "Interface Contracts",
+            "run_class": "feature",
+            "files_in_scope": [
+              "src/contracts/artifact_types.ts"
+            ],
+            "files_out_of_scope": [],
+            "depends_on": [],
+            "acceptance_criteria": [
+              "File created at src/contracts/artifact_types.ts",
+              "Contains minimal Artifact type definitions",
+              "Exports sufficient types for round artifact production",
+              "Compatible with mission_types.ts imports"
+            ],
+            "verification_commands": {
+              "scaffold_exists": [
+                "{python}",
+                "-c",
+                "from pathlib import Path\nimport sys\npaths = ['src/contracts/artifact_types.ts']\nmissing = [rel for rel in paths if not Path(rel).is_file()]\nif missing:\n    sys.stderr.write(f'missing={missing}\\n')\n    raise SystemExit(1)\n"
+              ],
+              "typescript_contract_tokens": [
+                "{python}",
+                "-c",
+                "from pathlib import Path\nimport sys\npaths = ['src/contracts/artifact_types.ts']\nrequired = ('export ', 'interface ', 'type ', 'enum ')\ninvalid = []\nfor rel in paths:\n    text = Path(rel).read_text(encoding='utf-8')\n    if not any(token in text for token in required):\n        invalid.append(rel)\nif invalid:\n    sys.stderr.write(f'missing_contract_tokens={invalid}\\n')\n    raise SystemExit(1)\n"
+              ],
+              "typescript_schema_surface": [
+                "{python}",
+                "-c",
+                "from pathlib import Path\nimport sys\npaths = ['src/contracts/artifact_types.ts']\nsurface_tokens = (\n    'Schema',\n    'schema',\n    'export interface ',\n    'export type ',\n    'export const ',\n)\ninvalid = []\nfor rel in paths:\n    text = Path(rel).read_text(encoding='utf-8')\n    if not any(token in text for token in surface_tokens):\n        invalid.append(rel)\nif invalid:\n    sys.stderr.write(f'missing_schema_surface={invalid}\\n')\n    raise SystemExit(1)\n"
+              ],
+              "typescript_typecheck": [
+                "tsc",
+                "--noEmit",
+                "--target",
+                "es2022",
+                "--module",
+                "esnext",
+                "--moduleResolution",
+                "bundler",
+                "--skipLibCheck",
+                "src/contracts/artifact_types.ts"
+              ],
+              "typescript_lint_smoke": [
+                "{python}",
+                "-c",
+                "from pathlib import Path\nimport sys\npaths = ['src/contracts/artifact_types.ts']\nissues = []\nfor rel in paths:\n    text = Path(rel).read_text(encoding='utf-8')\n    lines = text.splitlines()\n    trailing = [idx + 1 for idx, line in enumerate(lines) if line.rstrip() != line]\n    tabs = [idx + 1 for idx, line in enumerate(lines) if '\\t' in line]\n    if trailing:\n        issues.append(f'{rel}:trailing_whitespace={trailing}')\n    if tabs:\n        issues.append(f'{rel}:tabs={tabs}')\n    if text and not text.endswith('\\n'):\n        issues.append(f'{rel}:missing_terminal_newline')\nif issues:\n    sys.stderr.write('lint_smoke_failed=' + ';'.join(issues) + '\\n')\n    raise SystemExit(1)\n"
+              ],
+              "typescript_import_smoke": [
+                "{python}",
+                "-c",
+                "from pathlib import Path\nimport subprocess\nimport sys\ntargets = ['src/contracts/artifact_types.ts']\nimport_smoke_path = Path('src/contracts/import_smoke.ts')\nimport_smoke_path.write_text(\"import * as contract_1 from './src/contracts/artifact_types';\\nvoid [contract_1];\\n\", encoding='utf-8')\ncommand = [\n    'tsc',\n    '--noEmit',\n    '--target', 'es2022',\n    '--module', 'esnext',\n    '--moduleResolution', 'bundler',\n    '--skipLibCheck',\n    *targets,\n    import_smoke_path.as_posix(),\n]\nraise SystemExit(subprocess.run(command, check=False).returncode)\n"
+              ]
+            },
+            "builder_prompt": "Create src/contracts/artifact_types.ts with minimal TypeScript type definitions needed for fresh round artifacts. Include at minimum: Artifact interface, ArtifactKind enum, and any required round-output types. Keep exports minimal and focused.",
+            "linear_issue_id": null
+          }
+        ]
+      }
+    ],
+    "status": "draft"
+  },
+  "plan_budget": {
+    "wave_count": 1,
+    "packet_count": 2
+  }
+}

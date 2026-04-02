@@ -1,0 +1,26 @@
+{
+  "round_id": 2,
+  "status": "decided",
+  "worker_results": [
+    {
+      "packet_id": "fresh-acpx-001",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/activity.log"
+    },
+    {
+      "packet_id": "fresh-acpx-002",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/activity.log"
+    }
+  ]
+}

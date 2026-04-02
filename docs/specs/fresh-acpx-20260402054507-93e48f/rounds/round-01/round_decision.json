@@ -1,0 +1,14 @@
+{
+  "action": "retry",
+  "reason_code": "partial_verification_failure_and_builder_error",
+  "summary": "Wave 0 partially produced. scaffold-mission-types contract file is valid but the import_smoke verification has a wrong relative path (imports './src/contracts/mission_types' from inside src/contracts/ itself). scaffold-artifact-types builder produced no files. Both packets need retry.",
+  "confidence": 0.45,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

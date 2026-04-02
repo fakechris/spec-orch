@@ -1,0 +1,51 @@
+{
+  "round_id": 2,
+  "wave_id": 0,
+  "status": "decided",
+  "started_at": "2026-04-02T05:00:31.285319+00:00",
+  "completed_at": "2026-04-02T05:01:48.809592+00:00",
+  "worker_results": [
+    {
+      "packet_id": "fresh-acpx-001",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/activity.log"
+    },
+    {
+      "packet_id": "fresh-acpx-002",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/activity.log"
+    }
+  ],
+  "decision": {
+    "action": "ask_human",
+    "reason_code": "VERIFICATION_HARNESS_BUG_PERSISTS_AFTER_ROUND_1_RETRY",
+    "summary": "Both packets scaffolded valid TypeScript contract files (typecheck \u2705, lint \u2705, schema_surface \u2705) but import_smoke fails due to double-nested path bug in the verification harness (importing './src/contracts/X' from a file already at src/contracts/X.ts). This is the same root cause identified in Round 1. The deliverables appear correct; the verification harness path construction needs correction at the system level before retry can succeed.",
+    "confidence": "high",
+    "affected_workers": [],
+    "artifacts": {
+      "harness_bug_evidence": {
+        "fresh-acpx-001": "TS2307: Cannot find module './src/contracts/mission_types'",
+        "fresh-acpx-002": "TS2307: Cannot find module './src/contracts/artifact_types'"
+      }
+    },
+    "session_ops": {
+      "reuse": [],
+      "spawn": [],
+      "cancel": []
+    },
+    "blocking_questions": [
+      "Should the import_smoke verification path be corrected to use './mission_types' (or './artifact_types') instead of './src/contracts/X'?",
+      "Should the scope tracking for fresh-acpx-002 realized_files be reconciled with the confirmed manifest path?"
+    ]
+  }
+}

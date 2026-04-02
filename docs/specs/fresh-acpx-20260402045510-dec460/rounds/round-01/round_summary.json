@@ -1,0 +1,43 @@
+{
+  "round_id": 1,
+  "wave_id": 0,
+  "status": "decided",
+  "started_at": "2026-04-02T04:55:38.573048+00:00",
+  "completed_at": "2026-04-02T04:58:39.829477+00:00",
+  "worker_results": [
+    {
+      "packet_id": "fresh-acpx-001",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/activity.log"
+    },
+    {
+      "packet_id": "fresh-acpx-002",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/activity.log"
+    }
+  ],
+  "decision": {
+    "action": "retry",
+    "reason_code": "VERIFICATION_HARNESS_BUG_WITH_OTHERWISE_PASSING_ASSETS",
+    "summary": "Both packets scaffolded successfully (typecheck ✅, lint ✅, contract_tokens ✅) but failed on import_smoke due to a path construction bug in the verification script (double-nested path './src/contracts/...' from a file already in src/contracts/). The actual contract files appear valid. Retrying with corrected import_smoke paths will confirm whether deliverables pass or if additional remediation is needed.",
+    "confidence": "moderate",
+    "affected_workers": [],
+    "artifacts": {},
+    "session_ops": {
+      "reuse": [],
+      "spawn": [],
+      "cancel": []
+    },
+    "blocking_questions": []
+  }
+}

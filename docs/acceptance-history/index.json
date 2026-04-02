@@ -1,0 +1,14 @@
+{
+  "releases": [
+    {
+      "release_id": "acceptance-freeze-baseline-2026-04-02",
+      "release_label": "Acceptance Freeze Baseline 2026-04-02",
+      "created_at": "2026-04-02T05:56:00Z",
+      "git_commit": "6ddaa16f07b8878e0c50ca3105e1ba9f79d3a45a",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/acceptance-freeze-baseline-2026-04-02"
+    }
+  ]
+}

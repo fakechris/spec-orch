@@ -1,0 +1,19 @@
+{
+  "record_id": "fresh-acpx-20260402045510-dec460-round-2-review",
+  "point_key": "mission.round.review",
+  "authority": "llm_owned",
+  "owner": "litellm_supervisor_adapter",
+  "selected_action": "ask_human",
+  "summary": "Both packets scaffolded valid TypeScript contract files (typecheck ✅, lint ✅, schema_surface ✅) but import_smoke fails due to double-nested path bug in the verification harness (importing './src/contracts/X' from a file already at src/contracts/X.ts). This is the same root cause identified in Round 1. The deliverables appear correct; the verification harness path construction needs correction at the system level before retry can succeed.",
+  "rationale": "",
+  "confidence": "high",
+  "context_artifacts": [
+    "docs/specs/fresh-acpx-20260402045510-dec460/rounds/round-02/supervisor_review.md",
+    "docs/specs/fresh-acpx-20260402045510-dec460/rounds/round-02/round_decision.json"
+  ],
+  "blocking_questions": [
+    "Should the import_smoke verification path be corrected to use './mission_types' (or './artifact_types') instead of './src/contracts/X'?",
+    "Should the scope tracking for fresh-acpx-002 realized_files be reconciled with the confirmed manifest path?"
+  ],
+  "created_at": "2026-04-02T05:01:48.750184+00:00"
+}

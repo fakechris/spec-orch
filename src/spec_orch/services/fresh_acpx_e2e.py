@@ -168,6 +168,26 @@ def _collect_exploratory_browser_evidence(
     )
 
 
+def _existing_browser_evidence_covers_campaign(
+    browser_evidence: dict[str, Any],
+    campaign: Any,
+) -> bool:
+    tested_routes = browser_evidence.get("tested_routes")
+    if not isinstance(tested_routes, list) or not tested_routes:
+        return False
+    covered_routes = {str(route).strip() for route in tested_routes if str(route).strip()}
+    if not covered_routes:
+        return False
+    required_routes = set(getattr(campaign, "primary_routes", []) or [])
+    related_routes = list(getattr(campaign, "related_routes", []) or [])
+    related_route_budget = int(getattr(campaign, "related_route_budget", 0) or 0)
+    if related_route_budget > 0:
+        required_routes.update(related_routes[:related_route_budget])
+    else:
+        required_routes.update(related_routes)
+    return required_routes.issubset(covered_routes)
+
+
 def _build_execution_lifecycle_manager(repo_root: Path) -> Any:
     from spec_orch.dashboard.launcher import _build_execution_lifecycle_manager as _build_manager
 
@@ -437,17 +457,23 @@ def run_fresh_exploratory_acceptance_review(
         _write_json(round_dir / "exploratory_acceptance_review.json", payload)
         return payload
 
-    refreshed_browser_evidence = _collect_exploratory_browser_evidence(
-        mission_id=mission_id,
-        round_id=round_id,
-        round_dir=round_dir,
-        campaign=campaign,
+    prior_browser_evidence = artifacts.get("browser_evidence")
+    should_recollect_browser_evidence = not (
+        isinstance(prior_browser_evidence, dict)
+        and prior_browser_evidence
+        and _existing_browser_evidence_covers_campaign(prior_browser_evidence, campaign)
     )
-    if refreshed_browser_evidence is not None:
-        prior_browser_evidence = artifacts.get("browser_evidence")
-        if isinstance(prior_browser_evidence, dict) and prior_browser_evidence:
-            artifacts["workflow_browser_evidence"] = dict(prior_browser_evidence)
-        artifacts["browser_evidence"] = refreshed_browser_evidence
+    if should_recollect_browser_evidence:
+        refreshed_browser_evidence = _collect_exploratory_browser_evidence(
+            mission_id=mission_id,
+            round_id=round_id,
+            round_dir=round_dir,
+            campaign=campaign,
+        )
+        if refreshed_browser_evidence is not None:
+            if isinstance(prior_browser_evidence, dict) and prior_browser_evidence:
+                artifacts["workflow_browser_evidence"] = dict(prior_browser_evidence)
+            artifacts["browser_evidence"] = refreshed_browser_evidence
 
     evaluator = _invoke_supported_kwargs(
         LiteLLMAcceptanceEvaluator,

@@ -586,6 +586,101 @@ api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
     )
 
 
+def test_run_fresh_exploratory_acceptance_review_reuses_existing_browser_evidence_when_covered(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from spec_orch.domain.models import AcceptanceCampaign, AcceptanceMode, AcceptanceReviewResult
+    from spec_orch.services.fresh_acpx_e2e import run_fresh_exploratory_acceptance_review
+
+    repo_root = tmp_path
+    (repo_root / "spec-orch.toml").write_text(
+        """
+[acceptance_evaluator]
+adapter = "litellm"
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+
+    mission_id = "fresh-acpx-1"
+    transcript_route = f"/?mission={mission_id}&mode=missions&tab=transcript"
+    round_dir = repo_root / "docs" / "specs" / mission_id / "rounds" / "round-02"
+    round_dir.mkdir(parents=True, exist_ok=True)
+    (round_dir / "round_summary.json").write_text('{"round_id": 2}\n', encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "spec_orch.services.fresh_acpx_e2e.build_fresh_exploratory_artifacts",
+        lambda **kwargs: {
+            "mission": {"mission_id": mission_id},
+            "browser_evidence": {
+                "tested_routes": ["/", transcript_route],
+                "interactions": {transcript_route: [{"action": "open", "status": "passed"}]},
+            },
+            "review_routes": {"transcript": transcript_route},
+        },
+    )
+
+    class FakeOrchestrator:
+        def __init__(self, *, repo_root: Path, **_: object) -> None:
+            pass
+
+        def _build_acceptance_campaign(self, *, mission_id: str, artifacts: dict, mode_override):
+            return AcceptanceCampaign(
+                mode=AcceptanceMode.EXPLORATORY,
+                goal="Dogfood the output from an operator perspective.",
+                primary_routes=["/"],
+                related_routes=[transcript_route],
+            )
+
+    def should_not_collect_browser_evidence(**kwargs):
+        raise AssertionError("existing browser evidence already covers the exploratory campaign")
+
+    class FakeEvaluator:
+        def __init__(self, **kwargs) -> None:
+            pass
+
+        def evaluate_acceptance(self, **kwargs):
+            captured["artifacts"] = kwargs["artifacts"]
+            return AcceptanceReviewResult(
+                status="pass",
+                summary="Existing browser evidence was sufficient.",
+                confidence=0.9,
+                evaluator="fake_acceptance",
+                acceptance_mode="exploratory",
+                coverage_status="complete",
+            )
+
+    monkeypatch.setattr("spec_orch.services.round_orchestrator.RoundOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(
+        "spec_orch.services.fresh_acpx_e2e.collect_playwright_browser_evidence",
+        should_not_collect_browser_evidence,
+    )
+    monkeypatch.setattr(
+        "spec_orch.services.acceptance.litellm_acceptance_evaluator.LiteLLMAcceptanceEvaluator",
+        FakeEvaluator,
+    )
+
+    report = run_fresh_exploratory_acceptance_review(
+        repo_root=repo_root,
+        mission_id=mission_id,
+        round_dir=round_dir,
+        mission_payload={"mission_id": mission_id},
+        browser_evidence={"status": "ignored"},
+    )
+
+    assert report["status"] == "pass"
+    assert "workflow_browser_evidence" not in captured["artifacts"]
+    assert captured["artifacts"]["browser_evidence"]["tested_routes"] == ["/", transcript_route]
+
+
 def test_run_fresh_execution_once_advances_lifecycle_and_records_daemon_run(
     tmp_path: Path,
     monkeypatch,

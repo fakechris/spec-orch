@@ -1,0 +1,16 @@
+{
+  "session_name": "mission-fresh-acpx-20260402054507-93e48f-scaffold-artifact-types-retry-1",
+  "terminal_reason": "process_exit_success",
+  "succeeded": true,
+  "retry_count": 0,
+  "event_count": 80,
+  "commands_completed": 0,
+  "files_changed": [
+    "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/src/contracts/artifact_types.ts"
+  ],
+  "session_reused": false,
+  "session_health": "healthy",
+  "chain_id": "chain_fresh-acpx-20260402054507-93e48f_20260402T054527Z_05d86d4f",
+  "span_id": "chain_fresh-acpx-20260402054507-93e48f_20260402T054527Z_05d86d4f:round:02:packet:scaffold-artifact-types:worker",
+  "parent_span_id": "chain_fresh-acpx-20260402054507-93e48f_20260402T054527Z_05d86d4f:round:02:packet:scaffold-artifact-types"
+}

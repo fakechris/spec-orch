@@ -1,0 +1,437 @@
+{
+  "status": "warn",
+  "summary": "Both contract files scaffolded successfully. All substantive checks passed (typecheck, lint, scaffold_exists, contract_tokens, schema_surface). The single failure (import_smoke) is a confirmed harness bug—double-nested import path './src/contracts/...' from a file already in src/contracts/. The retry decision is correct. Workflow replay for dashboard validation not executed in round 1, leaving coverage incomplete for the full campaign.",
+  "confidence": 0.0,
+  "evaluator": "acceptance_evaluator",
+  "findings": [],
+  "issue_proposals": [],
+  "artifacts": {
+    "proof_split": {
+      "fresh_execution": {
+        "proof_type": "fresh_execution",
+        "mission_bootstrap": {
+          "mission_id": "fresh-acpx-20260402045510-dec460",
+          "title": "Fresh ACPX Mission E2E Narrow Smoke",
+          "execution_mode": "fresh_acpx_mission",
+          "local_only": true,
+          "safe_cleanup": true,
+          "intent": "Create one fresh local-only mission that proves ACPX execution by scaffolding exactly two tiny TypeScript contract files under src/contracts: mission_types.ts and artifact_types.ts. The first fresh path must stay minimal and only produce enough round artifacts to prove fresh execution before post-run workflow replay.",
+          "acceptance_criteria": [
+            "A fresh mission can be created for this run.",
+            "The plan stays within one wave and at most two work packets.",
+            "The mission can be launched and produce fresh round artifacts.",
+            "Post-run workflow replay can validate the resulting dashboard surfaces."
+          ],
+          "constraints": [
+            "Keep the first fresh mission path narrow and local-only.",
+            "Do not reuse historical round artifacts as fresh proof.",
+            "Plan budget: at most 1 wave and at most 2 work packets.",
+            "Only touch src/contracts/mission_types.ts and src/contracts/artifact_types.ts inside worker workspaces.",
+            "Do not implement dashboard runtime changes, test harnesses, or replay engines during the fresh proof run."
+          ],
+          "metadata": {
+            "artifact_namespace": "fresh-acpx-mission-e2e",
+            "replay_type": "fresh_acpx_mission",
+            "max_waves": 1,
+            "max_packets": 2,
+            "fresh": true,
+            "generated_at": "2026-04-02T04:55:10.937630+00:00",
+            "mission_id_prefix": "fresh-acpx-",
+            "fresh_variant": "default",
+            "launcher_path": "approve_plan_launch",
+            "requires_linear": false
+          },
+          "post_run_campaign": {
+            "mode": "workflow",
+            "goal": "Validate the post-run dashboard workflow for a fresh ACPX mission.",
+            "primary_routes": [
+              "/",
+              "/?mode=missions",
+              "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=overview"
+            ],
+            "related_routes": [
+              "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=transcript",
+              "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=approvals",
+              "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=acceptance"
+            ],
+            "interaction_plans": {
+              "/": [
+                {
+                  "action": "click_selector",
+                  "target": "[data-automation-target=\"open-launcher\"]",
+                  "description": "Open the launcher from the dashboard header.",
+                  "value": "",
+                  "timeout_ms": 0
+                },
+                {
+                  "action": "click_selector",
+                  "target": "[data-automation-target=\"operator-mode\"][data-mode-key=\"missions\"]",
+                  "description": "Switch into the mission inventory.",
+                  "value": "",
+                  "timeout_ms": 0
+                }
+              ],
+              "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=overview": [
+                {
+                  "action": "click_selector",
+                  "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
+                  "description": "Open the transcript tab.",
+                  "value": "",
+                  "timeout_ms": 0
+                },
+                {
+                  "action": "click_selector",
+                  "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"acceptance\"]",
+                  "description": "Open the acceptance tab.",
+                  "value": "",
+                  "timeout_ms": 0
+                }
+              ]
+            },
+            "coverage_expectations": [
+              "launcher entry",
+              "mission inventory",
+              "fresh mission detail",
+              "post-run transcript",
+              "acceptance review"
+            ],
+            "required_interactions": [
+              "open launcher",
+              "switch into missions mode",
+              "inspect the fresh mission detail",
+              "open transcript and acceptance tabs"
+            ],
+            "min_primary_routes": 2,
+            "related_route_budget": 3,
+            "interaction_budget": "moderate",
+            "filing_policy": "auto_file_broken_flows_only",
+            "exploration_budget": "bounded",
+            "seed_routes": [],
+            "allowed_expansions": [],
+            "critique_focus": [],
+            "stop_conditions": [],
+            "evidence_budget": ""
+          }
+        },
+        "launch": {
+          "last_launch": {
+            "state": {
+              "mission_id": "fresh-acpx-20260402045510-dec460",
+              "phase": "executing",
+              "issue_ids": [
+                "LOCAL-FRESH-ACPX-20260402045510-DEC460-1",
+                "LOCAL-FRESH-ACPX-20260402045510-DEC460-2"
+              ],
+              "completed_issues": [],
+              "error": null,
+              "updated_at": "2026-04-02T04:55:37.858170+00:00",
+              "current_round": 0,
+              "round_orchestrator_state": {}
+            }
+          },
+          "runner": {
+            "status": "foreground_required"
+          },
+          "state": {
+            "mission_id": "fresh-acpx-20260402045510-dec460",
+            "phase": "executing",
+            "issue_ids": [
+              "LOCAL-FRESH-ACPX-20260402045510-DEC460-1",
+              "LOCAL-FRESH-ACPX-20260402045510-DEC460-2"
+            ],
+            "completed_issues": [],
+            "error": null,
+            "updated_at": "2026-04-02T04:55:37.858170+00:00",
+            "current_round": 0,
+            "round_orchestrator_state": {}
+          }
+        },
+        "daemon_run": {},
+        "fresh_round_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/rounds/round-01",
+        "builder_execution_summary": {
+          "builder_reports": [
+            {
+              "packet_id": "fresh-acpx-001",
+              "succeeded": true,
+              "adapter": "acpx_worker",
+              "agent": "opencode",
+              "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/builder_report.json"
+            },
+            {
+              "packet_id": "fresh-acpx-002",
+              "succeeded": true,
+              "adapter": "acpx_worker",
+              "agent": "opencode",
+              "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/builder_report.json"
+            }
+          ],
+          "worker_session_ids": [
+            "mission-fresh-acpx-20260402045510-dec460-fresh-acpx-001",
+            "mission-fresh-acpx-20260402045510-dec460-fresh-acpx-002"
+          ]
+        }
+      },
+      "workflow_replay": {
+        "proof_type": "workflow_replay",
+        "review_routes": {
+          "overview": "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=overview",
+          "transcript": "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=transcript&round=1",
+          "approvals": "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=approvals&round=1",
+          "visual_qa": "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=visual&round=1",
+          "costs": "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=costs&round=1",
+          "acceptance": "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=acceptance&round=1"
+        },
+        "workflow_assertions": [
+          "launcher panel can be opened from the header",
+          "needs attention mode can be selected from mission control",
+          "missions mode can be selected from mission control",
+          "decision queue mode can be selected from mission control",
+          "deep evidence mode can be selected from mission control",
+          "the target mission can be selected from the mission list",
+          "the transcript tab can be opened from mission detail",
+          "the approvals surface exposes actionable operator controls when present",
+          "the visual QA tab can be opened from mission detail",
+          "the acceptance tab can be opened from mission detail",
+          "the costs tab can be opened from mission detail"
+        ]
+      }
+    },
+    "fresh_execution": {
+      "proof_type": "fresh_execution",
+      "mission_bootstrap": {
+        "mission_id": "fresh-acpx-20260402045510-dec460",
+        "title": "Fresh ACPX Mission E2E Narrow Smoke",
+        "execution_mode": "fresh_acpx_mission",
+        "local_only": true,
+        "safe_cleanup": true,
+        "intent": "Create one fresh local-only mission that proves ACPX execution by scaffolding exactly two tiny TypeScript contract files under src/contracts: mission_types.ts and artifact_types.ts. The first fresh path must stay minimal and only produce enough round artifacts to prove fresh execution before post-run workflow replay.",
+        "acceptance_criteria": [
+          "A fresh mission can be created for this run.",
+          "The plan stays within one wave and at most two work packets.",
+          "The mission can be launched and produce fresh round artifacts.",
+          "Post-run workflow replay can validate the resulting dashboard surfaces."
+        ],
+        "constraints": [
+          "Keep the first fresh mission path narrow and local-only.",
+          "Do not reuse historical round artifacts as fresh proof.",
+          "Plan budget: at most 1 wave and at most 2 work packets.",
+          "Only touch src/contracts/mission_types.ts and src/contracts/artifact_types.ts inside worker workspaces.",
+          "Do not implement dashboard runtime changes, test harnesses, or replay engines during the fresh proof run."
+        ],
+        "metadata": {
+          "artifact_namespace": "fresh-acpx-mission-e2e",
+          "replay_type": "fresh_acpx_mission",
+          "max_waves": 1,
+          "max_packets": 2,
+          "fresh": true,
+          "generated_at": "2026-04-02T04:55:10.937630+00:00",
+          "mission_id_prefix": "fresh-acpx-",
+          "fresh_variant": "default",
+          "launcher_path": "approve_plan_launch",
+          "requires_linear": false
+        },
+        "post_run_campaign": {
+          "mode": "workflow",
+          "goal": "Validate the post-run dashboard workflow for a fresh ACPX mission.",
+          "primary_routes": [
+            "/",
+            "/?mode=missions",
+            "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=overview"
+          ],
+          "related_routes": [
+            "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=transcript",
+            "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=approvals",
+            "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=acceptance"
+          ],
+          "interaction_plans": {
+            "/": [
+              {
+                "action": "click_selector",
+                "target": "[data-automation-target=\"open-launcher\"]",
+                "description": "Open the launcher from the dashboard header.",
+                "value": "",
+                "timeout_ms": 0
+              },
+              {
+                "action": "click_selector",
+                "target": "[data-automation-target=\"operator-mode\"][data-mode-key=\"missions\"]",
+                "description": "Switch into the mission inventory.",
+                "value": "",
+                "timeout_ms": 0
+              }
+            ],
+            "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=overview": [
+              {
+                "action": "click_selector",
+                "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
+                "description": "Open the transcript tab.",
+                "value": "",
+                "timeout_ms": 0
+              },
+              {
+                "action": "click_selector",
+                "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"acceptance\"]",
+                "description": "Open the acceptance tab.",
+                "value": "",
+                "timeout_ms": 0
+              }
+            ]
+          },
+          "coverage_expectations": [
+            "launcher entry",
+            "mission inventory",
+            "fresh mission detail",
+            "post-run transcript",
+            "acceptance review"
+          ],
+          "required_interactions": [
+            "open launcher",
+            "switch into missions mode",
+            "inspect the fresh mission detail",
+            "open transcript and acceptance tabs"
+          ],
+          "min_primary_routes": 2,
+          "related_route_budget": 3,
+          "interaction_budget": "moderate",
+          "filing_policy": "auto_file_broken_flows_only",
+          "exploration_budget": "bounded",
+          "seed_routes": [],
+          "allowed_expansions": [],
+          "critique_focus": [],
+          "stop_conditions": [],
+          "evidence_budget": ""
+        }
+      },
+      "launch": {
+        "last_launch": {
+          "state": {
+            "mission_id": "fresh-acpx-20260402045510-dec460",
+            "phase": "executing",
+            "issue_ids": [
+              "LOCAL-FRESH-ACPX-20260402045510-DEC460-1",
+              "LOCAL-FRESH-ACPX-20260402045510-DEC460-2"
+            ],
+            "completed_issues": [],
+            "error": null,
+            "updated_at": "2026-04-02T04:55:37.858170+00:00",
+            "current_round": 0,
+            "round_orchestrator_state": {}
+          }
+        },
+        "runner": {
+          "status": "foreground_required"
+        },
+        "state": {
+          "mission_id": "fresh-acpx-20260402045510-dec460",
+          "phase": "executing",
+          "issue_ids": [
+            "LOCAL-FRESH-ACPX-20260402045510-DEC460-1",
+            "LOCAL-FRESH-ACPX-20260402045510-DEC460-2"
+          ],
+          "completed_issues": [],
+          "error": null,
+          "updated_at": "2026-04-02T04:55:37.858170+00:00",
+          "current_round": 0,
+          "round_orchestrator_state": {}
+        }
+      },
+      "daemon_run": {},
+      "fresh_round_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/rounds/round-01",
+      "builder_execution_summary": {
+        "builder_reports": [
+          {
+            "packet_id": "fresh-acpx-001",
+            "succeeded": true,
+            "adapter": "acpx_worker",
+            "agent": "opencode",
+            "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/builder_report.json"
+          },
+          {
+            "packet_id": "fresh-acpx-002",
+            "succeeded": true,
+            "adapter": "acpx_worker",
+            "agent": "opencode",
+            "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/builder_report.json"
+          }
+        ],
+        "worker_session_ids": [
+          "mission-fresh-acpx-20260402045510-dec460-fresh-acpx-001",
+          "mission-fresh-acpx-20260402045510-dec460-fresh-acpx-002"
+        ]
+      }
+    },
+    "workflow_replay": {
+      "proof_type": "workflow_replay",
+      "review_routes": {
+        "overview": "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=overview",
+        "transcript": "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=transcript&round=1",
+        "approvals": "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=approvals&round=1",
+        "visual_qa": "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=visual&round=1",
+        "costs": "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=costs&round=1",
+        "acceptance": "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=acceptance&round=1"
+      },
+      "workflow_assertions": [
+        "launcher panel can be opened from the header",
+        "needs attention mode can be selected from mission control",
+        "missions mode can be selected from mission control",
+        "decision queue mode can be selected from mission control",
+        "deep evidence mode can be selected from mission control",
+        "the target mission can be selected from the mission list",
+        "the transcript tab can be opened from mission detail",
+        "the approvals surface exposes actionable operator controls when present",
+        "the visual QA tab can be opened from mission detail",
+        "the acceptance tab can be opened from mission detail",
+        "the costs tab can be opened from mission detail"
+      ]
+    }
+  },
+  "tested_routes": [],
+  "acceptance_mode": "feature_scoped",
+  "coverage_status": "missing",
+  "untested_expected_routes": [
+    "/",
+    "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=transcript&round=1"
+  ],
+  "recommended_next_step": "Expand route coverage before filing lower-confidence findings.",
+  "campaign": {
+    "mode": "feature_scoped",
+    "goal": "Verify the declared feature and directly affected routes.",
+    "primary_routes": [
+      "/"
+    ],
+    "related_routes": [
+      "/?mission=fresh-acpx-20260402045510-dec460&mode=missions&tab=transcript&round=1"
+    ],
+    "interaction_plans": {},
+    "coverage_expectations": [
+      "A fresh mission can be created for this run.",
+      "The plan stays within one wave and at most two work packets.",
+      "The mission can be launched and produce fresh round artifacts.",
+      "Post-run workflow replay can validate the resulting dashboard surfaces.",
+      "launcher panel can be opened from the header",
+      "needs attention mode can be selected from mission control",
+      "missions mode can be selected from mission control",
+      "decision queue mode can be selected from mission control",
+      "deep evidence mode can be selected from mission control",
+      "the target mission can be selected from the mission list",
+      "the transcript tab can be opened from mission detail",
+      "the approvals surface exposes actionable operator controls when present",
+      "the visual QA tab can be opened from mission detail",
+      "the acceptance tab can be opened from mission detail",
+      "the costs tab can be opened from mission detail"
+    ],
+    "required_interactions": [
+      "verify declared feature flow"
+    ],
+    "min_primary_routes": 1,
+    "related_route_budget": 1,
+    "interaction_budget": "tight",
+    "filing_policy": "in_scope_only",
+    "exploration_budget": "tight",
+    "seed_routes": [],
+    "allowed_expansions": [],
+    "critique_focus": [],
+    "stop_conditions": [],
+    "evidence_budget": "tight"
+  }
+}
