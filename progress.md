@@ -70,6 +70,55 @@
 |-----------|-------|---------|------------|
 | 2026-03-07 | `rg --files` in empty directory produced exit code 1 | 1 | Used `ls -la` for workspace inspection |
 
+## Session: 2026-04-01 Operator Workbench Program
+
+### Phase 1: Fresh branch and latest-main baseline
+- **Status:** complete
+- Actions taken:
+  - Verified the current `codexharness` worktree was not the right landing zone.
+  - Inspected the repo-wide worktree list.
+  - Fetched latest `origin/main`.
+  - Confirmed local `main` worktree is dirty and should not be mutated.
+  - Created a new clean worktree from latest `origin/main`:
+    - `/Users/chris/workspace/spec-orch/.worktrees/operator-workbench-program`
+    - branch: `issue/operator-workbench-program`
+
+### Phase 2: Existing-plan reconciliation
+- **Status:** complete
+- Actions taken:
+  - Reviewed current program docs already merged from `llm_planner_orch`.
+  - Reviewed current Epic 4 docs, runtime package docs, and Linear-ready mapping.
+  - Confirmed current planning baseline is architecture-rich but not yet framed
+    around a three-workbench operator product model.
+
+### Phase 3: Three-workbench program docs
+- **Status:** complete
+- Actions taken:
+  - Wrote:
+    - `docs/plans/2026-04-01-operator-workbench-program-plan.md`
+    - `docs/plans/2026-04-01-operator-workbench-linear-plan.md`
+  - Reframed the next wave into:
+    - Execution Workbench
+    - Judgment Workbench
+    - Learning Workbench
+  - Converted the plan into 7 epic cards and detailed child issue cards.
+
+### Phase 4: Linear access verification
+- **Status:** complete
+- Actions taken:
+  - Confirmed `LINEAR_TOKEN` exists.
+  - Queried Linear successfully.
+  - Confirmed team `SON` exists and can be targeted directly.
+
+### Phase 5: Linear epic and issue creation
+- **Status:** complete
+- Actions taken:
+  - Created 7 parent epic issues and 30 child issues in Linear.
+  - Used the current `SON` team backlog state and standard parent/child issue
+    relationships.
+  - Recorded the resulting IDs into:
+    - `docs/plans/2026-04-01-operator-workbench-linear-plan.md`
+
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
