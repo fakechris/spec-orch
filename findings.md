@@ -116,4 +116,54 @@
 - Create a dedicated selfhood/memory-synthesis epic for the yoyo-inspired borrowings:
   - `SON-243` with children `SON-249..252`
 - Create a bounded operator-feedback/social-learning epic instead of overcommitting to a full social-product pivot:
-  - `SON-244` with children `SON-253..256`
+- `SON-244` with children `SON-253..256`
+
+## Session: 2026-04-01 Operator Workbench Program
+
+### Fresh-branch baseline
+- Created a clean worktree from latest `origin/main` at:
+  `/Users/chris/workspace/spec-orch/.worktrees/operator-workbench-program`
+- Avoided mutating the dirty local `main` worktree, which is ahead/behind and
+  contains unrelated untracked files.
+
+### Existing architecture baseline
+- Current `main` already contains the `llm_planner_orch` merge (`origin/main`
+  at `21aeb4a`).
+- Existing planning corpus already covers:
+  - 7-epic architecture extraction
+  - Epic 4 acceptance judgment and calibration
+  - runtime package best practices
+  - dashboard/operator-console slices
+
+### Rebase insight
+- The next planning wave should not replace the current extraction program.
+- It should reframe the product-facing outcome around three visible operator
+  workbenches:
+  - Execution
+  - Judgment
+  - Learning
+- The correct architectural relationship is:
+  - `runtime_core` / runtime packages supply execution truth
+  - `decision_core` / `acceptance_core` supply judgment truth
+  - memory/evolution supply learning truth
+  - workbenches become the operator-visible control plane over those seams
+
+### Linear creation feasibility
+- `LINEAR_TOKEN` is available in environment.
+- Team query succeeded.
+- Team confirmed:
+  - key: `SON`
+  - name: `Songwork`
+- Existing epic pattern in Linear uses parent issue titles like:
+  - `[Epic] Runtime Chain Observability and Live Traceability`
+- Existing epic/sub-issue relationship is standard Linear parent/children, so
+  parent issues and child issues can be created directly from this session.
+
+### Linear creation result
+- Created a new 7-epic / 30-issue operator-workbench program directly in Linear.
+- ID ranges:
+  - epics: `SON-370`, `SON-374`, `SON-379`, `SON-384`, `SON-390`, `SON-396`, `SON-402`
+  - children: `SON-371..373`, `SON-375..378`, `SON-380..383`, `SON-385..389`,
+    `SON-391..395`, `SON-397..401`, `SON-403..406`
+- The local source of truth for exact mapping is:
+  - `docs/plans/2026-04-01-operator-workbench-linear-plan.md`

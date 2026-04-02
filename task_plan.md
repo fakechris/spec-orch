@@ -69,3 +69,21 @@
 - `yoyo-evolve`'s social layer is not ornamental. Discussions, family/fork identity, sponsor economics, and social learnings are integrated into the operational scripts, which is materially different from SpecOrch’s current PM/workflow-centric Linear model.
 - Roadmap/Linear alignment is now explicit: `SON-74` remains the completed self-evolution baseline, `SON-234` is the normalized operator-console epic, and new epics `SON-242` / `SON-243` / `SON-244` cover adversarial acceptance, selfhood/memory synthesis, and operator-feedback/social learning.
 - The current selfhood pass should stay narrow: synthesized learnings must remain machine-readable and role-scoped, rather than turning MemoryService into a second narrative document store.
+
+## Session: 2026-04-01 Operator Workbench Program
+
+### Goal
+- Rebase the next major planning wave around three operator-visible workbenches:
+  Execution, Judgment, and Learning.
+- Write a spec-and-contract-driven program plan from latest `origin/main`.
+- Convert that plan into Linear-ready Epics and Issues and create them directly in
+  Linear when the workspace and API path are verified.
+
+### Phases
+| Phase | Status | Notes |
+|------|--------|-------|
+| 1. Fresh branch/worktree baseline | complete | Created new worktree from latest `origin/main` without disturbing the dirty local `main` worktree |
+| 2. Existing-plan reconciliation | complete | Reviewed current 7-epic architecture docs, Epic 4 artifacts, and runtime package docs |
+| 3. Three-workbench program design | complete | Wrote Execution / Judgment / Learning Workbench plan with explicit spec and contract sections |
+| 4. Linear card synthesis | complete | Converted the new plan into Epic/Issue cards with dependencies and rollout order |
+| 5. Linear creation | in_progress | Team `SON` verified; next step is creating parent and child issues from the plan |
