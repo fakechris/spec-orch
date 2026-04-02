@@ -55,6 +55,103 @@ def _runtime_chain_summary(chain_root: Path) -> dict[str, Any]:
     return payload
 
 
+def _normalize_acceptance_status(value: Any) -> str:
+    normalized = str(value).strip().lower()
+    if normalized in {"pass", "warn", "fail", "partial"}:
+        return normalized
+    return "missing" if not normalized else "fail"
+
+
+def _combined_text_fields(item: dict[str, Any], *, include_title: bool = False) -> str:
+    text_parts = [
+        str(item.get("summary", "")),
+        str(item.get("details", "")),
+        str(item.get("actual", "")),
+        str(item.get("expected", "")),
+        str(item.get("why_it_matters", "")),
+        str(item.get("hold_reason", "")),
+    ]
+    if include_title:
+        text_parts.append(str(item.get("title", "")))
+    return " ".join(part.strip().lower() for part in text_parts if part).strip()
+
+
+def _classify_acceptance_bug_type(item: dict[str, Any], *, include_title: bool = False) -> str:
+    critique_axis = str(item.get("critique_axis", "")).strip().lower()
+    route = str(item.get("route", "")).strip()
+    text = _combined_text_fields(item, include_title=include_title)
+    if critique_axis in {"broken_flow", "workflow_break", "page_error", "regression"} or any(
+        marker in text
+        for marker in (
+            "page error",
+            "blocked",
+            "broken",
+            "cannot ",
+            "can't ",
+            "unable to",
+            "fails to",
+            "crash",
+            "exception",
+            "regression",
+        )
+    ):
+        return "n2n_bug" if route else "harness_bug"
+    harness_axes = {
+        "acceptance_harness",
+        "evaluation_config",
+        "model_config",
+        "runtime_chain",
+        "report_normalization",
+    }
+    if critique_axis in harness_axes or any(
+        marker in text
+        for marker in (
+            "acceptance evaluator",
+            "exploratory critique",
+            "provider configuration",
+            "api base",
+            "api key",
+            "runtime chain",
+            "harness configuration",
+        )
+    ):
+        return "harness_bug"
+    if route:
+        return "ux_gap"
+    return "ux_gap"
+
+
+def _finding_taxonomy(
+    findings: Any,
+    issue_proposals: Any,
+) -> dict[str, Any]:
+    classified_findings: list[dict[str, Any]] = []
+    classified_issue_proposals: list[dict[str, Any]] = []
+    counts = {"harness_bug": 0, "n2n_bug": 0, "ux_gap": 0}
+
+    if isinstance(findings, list):
+        for item in findings:
+            if not isinstance(item, dict):
+                continue
+            bug_type = _classify_acceptance_bug_type(item)
+            counts[bug_type] += 1
+            classified_findings.append({**item, "bug_type": bug_type})
+
+    if isinstance(issue_proposals, list):
+        for item in issue_proposals:
+            if not isinstance(item, dict):
+                continue
+            bug_type = _classify_acceptance_bug_type(item, include_title=True)
+            counts[bug_type] += 1
+            classified_issue_proposals.append({**item, "bug_type": bug_type})
+
+    return {
+        "counts": counts,
+        "findings": classified_findings,
+        "issue_proposals": classified_issue_proposals,
+    }
+
+
 def _augment_report_with_runtime_chain(
     report: dict[str, Any], *, check_name: str
 ) -> dict[str, Any]:
@@ -87,17 +184,31 @@ def write_issue_start_acceptance_report(
     attempt = read_issue_execution_attempt(workspace)
     attempt_payload = _dataclass_payload(attempt) if attempt is not None else None
     attempt_status = ""
+    builder_succeeded = False
+    verification_succeeded = False
     if isinstance(attempt_payload, dict):
         outcome = attempt_payload.get("outcome", {})
         if isinstance(outcome, dict):
             attempt_status = str(outcome.get("status", "")).strip().lower()
+            build = outcome.get("build", {})
+            if isinstance(build, dict):
+                builder_succeeded = build.get("succeeded") is True
+            verification = outcome.get("verification", {})
+            if isinstance(verification, dict):
+                verification_succeeded = all(
+                    isinstance(step_cfg, dict) and int(step_cfg.get("exit_code", 1)) == 0
+                    for step_cfg in verification.values()
+                )
 
     status = "fail"
     if (
         isinstance(preflight_report.get("summary"), dict)
         and int(preflight_report["summary"].get("fail", 0)) == 0
         and run_exit_code == 0
-        and attempt_status == "succeeded"
+        and (
+            attempt_status == "succeeded"
+            or (builder_succeeded and verification_succeeded)
+        )
     ):
         status = "pass"
 
@@ -218,17 +329,53 @@ def write_exploratory_acceptance_report(
 ) -> dict[str, str]:
     repo_root = Path(repo_root).resolve()
     round_dir = Path(round_dir).resolve()
-    acceptance_review = _read_json_object(round_dir / "acceptance_review.json")
+    exploratory_review = _read_json_object(round_dir / "exploratory_acceptance_review.json")
+    acceptance_review = exploratory_review or _read_json_object(
+        round_dir / "acceptance_review.json"
+    )
+    review_path = (
+        round_dir / "exploratory_acceptance_review.json"
+        if exploratory_review
+        else round_dir / "acceptance_review.json"
+    )
     browser_evidence = _read_json_object(round_dir / "browser_evidence.json")
     fresh_report = _read_json_object(round_dir / "fresh_acpx_mission_e2e_report.json")
-    review_status = str(acceptance_review.get("status", "")).strip().lower()
-    status = "pass" if review_status == "pass" else "fail"
+    review_status = _normalize_acceptance_status(acceptance_review.get("status", ""))
+    status = review_status
+    summary = str(acceptance_review.get("summary", "")).strip()
+    findings = acceptance_review.get("findings", [])
+    issue_proposals = acceptance_review.get("issue_proposals", [])
+    findings_count = len(findings) if isinstance(findings, list) else 0
+    issue_proposal_count = len(issue_proposals) if isinstance(issue_proposals, list) else 0
+    recommended_next_step = str(acceptance_review.get("recommended_next_step", "")).strip()
+    acceptance_mode = str(acceptance_review.get("acceptance_mode", "")).strip()
+    review_coverage = str(acceptance_review.get("coverage_status", "")).strip()
+    fresh_review = fresh_report.get("acceptance_review", {})
+    fresh_coverage = ""
+    if isinstance(fresh_review, dict):
+        fresh_coverage = str(fresh_review.get("coverage_status", "")).strip()
+    coverage_status = review_coverage or fresh_coverage
+    finding_taxonomy = _finding_taxonomy(findings, issue_proposals)
     payload = {
         "status": status,
+        "summary": summary,
         "mission_id": mission_id,
         "variant": variant,
         "source": source,
+        "source_run": {
+            "mission_id": mission_id,
+            "round_id": round_dir.name,
+            "round_dir": str(round_dir),
+            "review_path": str(review_path),
+            "source": source,
+        },
         "round_dir": str(round_dir),
+        "findings_count": findings_count,
+        "issue_proposal_count": issue_proposal_count,
+        "recommended_next_step": recommended_next_step,
+        "acceptance_mode": acceptance_mode,
+        "coverage_status": coverage_status,
+        "finding_taxonomy": finding_taxonomy,
         "acceptance_review": acceptance_review,
         "browser_evidence": browser_evidence,
         "fresh_report": fresh_report,
@@ -246,10 +393,23 @@ def write_exploratory_acceptance_report(
             "# Exploratory Acceptance Smoke",
             "",
             f"- Status: `{status}`",
+            (f"- Summary: {summary}" if summary else "- Summary: `none`"),
             f"- Mission: `{mission_id}`",
             f"- Variant: `{variant}`",
             f"- Source: `{source}`",
             f"- Round dir: `{round_dir}`",
+            f"- Findings: `{findings_count}`",
+            f"- Issue proposals: `{issue_proposal_count}`",
+            (
+                f"- Bug taxonomy: `harness_bug={finding_taxonomy['counts']['harness_bug']}`, "
+                f"`n2n_bug={finding_taxonomy['counts']['n2n_bug']}`, "
+                f"`ux_gap={finding_taxonomy['counts']['ux_gap']}`"
+            ),
+            (
+                f"- Recommended next step: `{recommended_next_step}`"
+                if recommended_next_step
+                else "- Recommended next step: `none`"
+            ),
             "",
         ],
     )

@@ -520,10 +520,14 @@ api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
                         "status": "passed",
                     },
                     {
-                        "action": "click_selector",
-                        "target": '[data-automation-target="packet-row"]',
-                        "status": "failed",
-                        "message": "click_selector failed: timeout",
+                        "action": "wait_for_selector",
+                        "target": '[data-automation-target="transcript-filter"][data-filter-key="all"][data-active="true"]',
+                        "status": "passed",
+                    },
+                    {
+                        "action": "wait_for_selector",
+                        "target": '[data-automation-target="transcript-block"]',
+                        "status": "passed",
                     },
                 ]
             },
@@ -577,8 +581,8 @@ api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
     assert (
         captured["artifacts"]["browser_evidence"]["interactions"][
             f"/?mission={mission_id}&mode=missions&tab=transcript"
-        ][1]["target"]
-        == '[data-automation-target="packet-row"]'
+        ][2]["target"]
+        == '[data-automation-target="transcript-block"]'
     )
 
 

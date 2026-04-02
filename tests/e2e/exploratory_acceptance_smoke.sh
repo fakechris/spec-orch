@@ -16,6 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FULL_MODE=false
 VARIANT="${SPEC_ORCH_FRESH_VARIANT:-default}"
+DASHBOARD_PORT="${SPEC_ORCH_DASHBOARD_PORT:-8426}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -44,11 +45,29 @@ done
 
 cd "$REPO_ROOT"
 
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
+
+# Bridge legacy single-model envs into the default reasoning chain for the
+# second-stage exploratory critique. Keep this compatibility shim in the
+# harness layer so application-side slot env resolution stays explicit.
+if [ -z "${MINIMAX_API_KEY:-}" ] && [ -n "${SPEC_ORCH_LLM_API_KEY:-}" ]; then
+  export MINIMAX_API_KEY="$SPEC_ORCH_LLM_API_KEY"
+fi
+if [ -z "${MINIMAX_ANTHROPIC_BASE_URL:-}" ] && [ -n "${SPEC_ORCH_LLM_API_BASE:-}" ]; then
+  export MINIMAX_ANTHROPIC_BASE_URL="$SPEC_ORCH_LLM_API_BASE"
+fi
+
 MISSION_DIR=""
 MISSION_ID=""
 ROUND_DIR=""
 HARNESS_PID=""
 HARNESS_LOG=""
+DASHBOARD_PID=""
 
 if [ "$FULL_MODE" != true ]; then
   warn "Dry-run only. This script wraps the canonical fresh exploratory acceptance path."
@@ -67,6 +86,9 @@ HARNESS_LOG="$(mktemp)"
 cleanup() {
   if [ -n "$HARNESS_PID" ] && kill -0 "$HARNESS_PID" >/dev/null 2>&1; then
     kill "$HARNESS_PID" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$DASHBOARD_PID" ] && kill -0 "$DASHBOARD_PID" >/dev/null 2>&1; then
+    kill "$DASHBOARD_PID" >/dev/null 2>&1 || true
   fi
   rm -f "$BEFORE_FILE" "$AFTER_FILE" "$HARNESS_LOG"
 }
@@ -119,18 +141,67 @@ ROUND_DIR="$(find "$MISSION_DIR/rounds" -mindepth 1 -maxdepth 1 -type d | sort |
 [ -n "$ROUND_DIR" ] || fail "could not determine latest round directory for ${MISSION_ID}"
 [ -f "$ROUND_DIR/acceptance_review.json" ] || fail "acceptance_review.json missing"
 
+step "Ensure dashboard available for exploratory critique"
+if uv run --python 3.13 python - <<'PY' "$DASHBOARD_PORT"
+import sys
+
+from spec_orch.services.fresh_acpx_e2e import wait_for_dashboard_ready
+
+port = sys.argv[1]
+result = wait_for_dashboard_ready(f"http://127.0.0.1:{port}/", timeout_seconds=1.0)
+print(result)
+PY
+then
+  ok "reusing dashboard at http://127.0.0.1:${DASHBOARD_PORT}"
+else
+  uv run --python 3.13 spec-orch dashboard --port "$DASHBOARD_PORT" >/tmp/spec_orch_exploratory_dashboard.log 2>&1 &
+  DASHBOARD_PID=$!
+  if ! uv run --python 3.13 python - <<'PY' "$DASHBOARD_PORT"
+import sys
+
+from spec_orch.services.fresh_acpx_e2e import wait_for_dashboard_ready
+
+port = sys.argv[1]
+result = wait_for_dashboard_ready(f"http://127.0.0.1:{port}/", timeout_seconds=20.0)
+print(result)
+PY
+  then
+    cat /tmp/spec_orch_exploratory_dashboard.log >&2 || true
+    fail "dashboard never became ready for exploratory critique"
+  fi
+  ok "dashboard started at http://127.0.0.1:${DASHBOARD_PORT}"
+fi
+
 step "Materialize exploratory acceptance smoke report"
+SPEC_ORCH_VISUAL_EVAL_URL="http://127.0.0.1:${DASHBOARD_PORT}" \
 uv run --python 3.13 python - <<'PY' "$MISSION_ID" "$VARIANT" "$ROUND_DIR"
 import json
 import sys
 from pathlib import Path
 
+from spec_orch.services.fresh_acpx_e2e import run_fresh_exploratory_acceptance_review
 from spec_orch.services.stability_acceptance import write_exploratory_acceptance_report
 
 repo_root = Path(".").resolve()
 mission_id = sys.argv[1]
 variant = sys.argv[2]
 round_dir = Path(sys.argv[3]).resolve()
+operator_dir = repo_root / "docs" / "specs" / mission_id / "operator"
+mission_payload = {}
+mission_bootstrap_path = operator_dir / "mission_bootstrap.json"
+if mission_bootstrap_path.exists():
+    mission_payload = json.loads(mission_bootstrap_path.read_text(encoding="utf-8"))
+browser_evidence = {}
+browser_evidence_path = round_dir / "browser_evidence.json"
+if browser_evidence_path.exists():
+    browser_evidence = json.loads(browser_evidence_path.read_text(encoding="utf-8"))
+run_fresh_exploratory_acceptance_review(
+    repo_root=repo_root,
+    mission_id=mission_id,
+    round_dir=round_dir,
+    mission_payload=mission_payload,
+    browser_evidence=browser_evidence,
+)
 report = write_exploratory_acceptance_report(
     repo_root=repo_root,
     mission_id=mission_id,

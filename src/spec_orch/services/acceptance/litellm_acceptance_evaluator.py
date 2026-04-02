@@ -765,7 +765,6 @@ class LiteLLMAcceptanceEvaluator:
             return False
 
         saw_filter = _saw_success('data-automation-target="transcript-filter"')
-        saw_packet = _saw_success('data-automation-target="packet-row"')
         saw_block = _saw_success('data-automation-target="transcript-block"')
         round_summary = artifacts.get("round_summary", {})
         retry_action = ""
@@ -808,17 +807,20 @@ class LiteLLMAcceptanceEvaluator:
         def _is_retry_backed_transcript_empty_state() -> bool:
             if retry_action != "retry" or not retry_reason_code:
                 return False
-            if not saw_filter or saw_packet or saw_block:
+            if not saw_filter or saw_block:
                 return False
             return any(
                 isinstance(entry, dict)
                 and LiteLLMAcceptanceEvaluator._clean_text(entry.get("target"))
-                == '[data-automation-target="packet-row"]'
+                in {
+                    '[data-automation-target="packet-row"]',
+                    '[data-automation-target="transcript-block"]',
+                }
                 and LiteLLMAcceptanceEvaluator._clean_text(entry.get("status")) == "failed"
                 for entry in route_interactions
             )
 
-        if not saw_filter or (saw_packet and saw_block):
+        if not saw_filter or saw_block:
             return result
 
         def _is_low_signal_transcript_finding(finding: AcceptanceFinding) -> bool:
@@ -999,8 +1001,8 @@ class LiteLLMAcceptanceEvaluator:
                 "from the transcript tab without prior guidance."
             ),
             actual=(
-                "Replay could use the transcript filter, but packet selection and transcript-block "
-                "inspection did not both succeed."
+                "Replay could use the transcript controls, but bounded interaction still did not "
+                "reach stable transcript-block evidence."
             ),
             route=transcript_route,
             critique_axis="evidence_discoverability",

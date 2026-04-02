@@ -209,16 +209,6 @@ def _merge_isolated_fresh_verification_packets(plan: dict[str, Any]) -> bool:
                     and set(packet_files).issubset(set(previous_files))
                     and verify_signals
                 ):
-                    previous_prompt = str(previous.get("builder_prompt", "")).strip()
-                    verify_prompt = builder_prompt.strip()
-                    merged_prompt = previous_prompt
-                    if verify_prompt and verify_prompt not in previous_prompt:
-                        merged_prompt = (
-                            f"{previous_prompt}\n\nAfter scaffolding, {verify_prompt}"
-                            if previous_prompt
-                            else verify_prompt
-                        )
-                    previous["builder_prompt"] = merged_prompt
                     previous_criteria = previous.setdefault("acceptance_criteria", [])
                     if isinstance(previous_criteria, list):
                         for item in packet.get("acceptance_criteria", []):

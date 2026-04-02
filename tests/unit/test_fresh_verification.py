@@ -12,13 +12,22 @@ def test_build_fresh_verification_commands_emits_stronger_typescript_checks() ->
         "scaffold_exists",
         "typescript_contract_tokens",
         "typescript_schema_surface",
+        "typescript_typecheck",
+        "typescript_lint_smoke",
+        "typescript_import_smoke",
     }
     assert commands["scaffold_exists"][:2] == ["{python}", "-c"]
     assert commands["typescript_contract_tokens"][:2] == ["{python}", "-c"]
     assert commands["typescript_schema_surface"][:2] == ["{python}", "-c"]
+    assert commands["typescript_typecheck"][0] == "tsc"
+    assert commands["typescript_lint_smoke"][:2] == ["{python}", "-c"]
+    assert commands["typescript_import_smoke"][:2] == ["{python}", "-c"]
     assert "mission_types.ts" in commands["scaffold_exists"][2]
     assert "artifact_types.ts" in commands["typescript_contract_tokens"][2]
     assert "Schema" in commands["typescript_schema_surface"][2]
+    assert "--moduleResolution" in commands["typescript_typecheck"]
+    assert "trailing_whitespace" in commands["typescript_lint_smoke"][2]
+    assert "import_smoke.ts" in commands["typescript_import_smoke"][-1]
 
 
 def test_build_fresh_verification_commands_returns_empty_for_empty_scope() -> None:
