@@ -1,0 +1,44 @@
+{
+  "step_key": "assert_contract",
+  "decision": "contract_verification_blocked_by_harness_bug",
+  "outputs": {
+    "verification_results": {
+      "fresh-acpx-001": {
+        "scaffold_exists": true,
+        "typescript_contract_tokens": true,
+        "typescript_schema_surface": true,
+        "typescript_typecheck": true,
+        "typescript_lint_smoke": true,
+        "typescript_import_smoke": false
+      },
+      "fresh-acpx-002": {
+        "scaffold_exists": true,
+        "typescript_contract_tokens": true,
+        "typescript_schema_surface": true,
+        "typescript_typecheck": true,
+        "typescript_lint_smoke": true,
+        "typescript_import_smoke": false
+      }
+    },
+    "root_cause": "Verification harness writes import_smoke.ts with path './src/contracts/X' when file already exists at that location, causing double-nested resolution failure (TS2307). This is a harness defect, not a contract defect.",
+    "contract_health": {
+      "mission_creation": "pass",
+      "wave_packet_budget": "pass",
+      "artifact_production": "pass",
+      "typescript_quality": "pass",
+      "import_resolution": "fail_harness_bug"
+    },
+    "blocking_questions": [
+      "Should import_smoke harness be corrected to use './mission_types' instead of './src/contracts/mission_types'?",
+      "Should fresh-acpx-002 realized_files scope be reconciled with confirmed manifest path?"
+    ]
+  },
+  "next_transition": "",
+  "warnings": [
+    "Verification harness has a persistent double-nested path bug (same root cause as Round 1)",
+    "fresh-acpx-002 realized_files scope mismatch: allowed ['src/contracts/artifact_types.ts'] but realized []",
+    "The contract (TypeScript deliverables) are valid; only the harness verification step is blocked"
+  ],
+  "review_markdown": "## Contract Assertion: fresh-acpx-20260402045510-dec460\n\n### Verdict: **BLOCKED — Harness Bug, Not Contract Failure**\n\nThe declared feature (fresh ACPX mission with two TypeScript contract files) **does not fail the contract**. All substantive quality gates pass:\n\n| Gate | fresh-acpx-001 | fresh-acpx-002 |\n|------|----------------|----------------|\n| scaffold_exists | ✅ | ✅ |\n| typescript_contract_tokens | ✅ | ✅ |\n| typescript_schema_surface | ✅ | ✅ |\n| typescript_typecheck | ✅ | ✅ |\n| typescript_lint_smoke | ✅ | ✅ |\n| **typescript_import_smoke** | ❌ (harness bug) | ❌ (harness bug) |\n\n### Root Cause\nThe verification harness writes an import statement `from './src/contracts/X'` into a file already located at `src/contracts/X.ts`. This double-nests the path, causing TypeScript error TS2307. The correct import path from `src/contracts/import_smoke.ts` would be `from './mission_types'` or `from './artifact_types'`.\n\n### Blocking Questions Requiring Human Resolution\n1. **Fix the harness**: Should `import_smoke` harness use `'./mission_types'` instead of `'./src/contracts/mission_types'`?\n2. **Scope mismatch**: fresh-acpx-002 has `realized_files: []` despite confirmed file at `src/contracts/artifact_types.ts` in manifest.\n\n### Recommendation\nCorrect the verification harness path construction at the system level, then retry. The underlying TypeScript deliverables satisfy the contract; only the test harness is at fault.",
+  "created_at": "2026-04-02T05:02:58.128546+00:00"
+}

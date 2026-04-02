@@ -1,0 +1,16 @@
+{
+  "session_name": "mission-fresh-acpx-20260402045510-dec460-fresh-acpx-001",
+  "terminal_reason": "process_exit_success",
+  "succeeded": true,
+  "retry_count": 0,
+  "event_count": 69,
+  "commands_completed": 1,
+  "files_changed": [
+    "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/src/contracts/mission_types.ts"
+  ],
+  "session_reused": true,
+  "session_health": "healthy",
+  "chain_id": "chain_fresh-acpx-20260402045510-dec460_20260402T045538Z_45a9dfa3",
+  "span_id": "chain_fresh-acpx-20260402045510-dec460_20260402T045538Z_45a9dfa3:round:02:packet:fresh-acpx-001:worker",
+  "parent_span_id": "chain_fresh-acpx-20260402045510-dec460_20260402T045538Z_45a9dfa3:round:02:packet:fresh-acpx-001"
+}

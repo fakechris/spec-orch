@@ -75,6 +75,16 @@ if [ -f .env ]; then
   set +a
 fi
 
+# Bridge legacy single-model envs into the default reasoning chain when the
+# repo still uses SPEC_ORCH_* values in .env. Keep this at the harness layer
+# so role-level slot env resolution stays explicit inside application code.
+if [ -z "${MINIMAX_API_KEY:-}" ] && [ -n "${SPEC_ORCH_LLM_API_KEY:-}" ]; then
+  export MINIMAX_API_KEY="$SPEC_ORCH_LLM_API_KEY"
+fi
+if [ -z "${MINIMAX_ANTHROPIC_BASE_URL:-}" ] && [ -n "${SPEC_ORCH_LLM_API_BASE:-}" ]; then
+  export MINIMAX_ANTHROPIC_BASE_URL="$SPEC_ORCH_LLM_API_BASE"
+fi
+
 step "Validate model-chain credentials for full mode"
 uv run --python 3.13 python - <<'PY'
 import tomllib
@@ -136,11 +146,23 @@ ok "runtime dependencies present"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 META_FILE=".spec_orch/fresh_acpx_run_meta_${RUN_ID}.json"
 LOCK_DIR=".spec_orch/fresh_acpx_mission_smoke.lock"
+LOCK_PID_FILE="${LOCK_DIR}/pid"
 mkdir -p .spec_orch
 
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  fail "fresh_acpx_mission_smoke.sh is already running in this worktree; wait for the active run to finish"
+  LOCK_PID=""
+  if [ -f "$LOCK_PID_FILE" ]; then
+    LOCK_PID="$(cat "$LOCK_PID_FILE" 2>/dev/null || true)"
+  fi
+  if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" >/dev/null 2>&1; then
+    fail "fresh_acpx_mission_smoke.sh is already running in this worktree; wait for the active run to finish"
+  fi
+  warn "reclaiming stale fresh_acpx_mission_smoke lock"
+  rm -f "$LOCK_PID_FILE" >/dev/null 2>&1 || true
+  rmdir "$LOCK_DIR" >/dev/null 2>&1 || fail "fresh_acpx_mission_smoke lock exists but could not be reclaimed"
+  mkdir "$LOCK_DIR" 2>/dev/null || fail "fresh_acpx_mission_smoke.sh lock exists and could not be acquired"
 fi
+printf '%s\n' "$$" > "$LOCK_PID_FILE"
 
 RUN_ID="${RUN_ID}-$$"
 META_FILE=".spec_orch/fresh_acpx_run_meta_${RUN_ID}.json"
@@ -149,6 +171,7 @@ cleanup() {
   if [ -n "${DASHBOARD_PID:-}" ]; then
     kill "$DASHBOARD_PID" >/dev/null 2>&1 || true
   fi
+  rm -f "$LOCK_PID_FILE" >/dev/null 2>&1 || true
   rmdir "$LOCK_DIR" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT

@@ -668,27 +668,105 @@ class RoundOrchestrator:
         excluded_paths = {report_path.resolve()}
         excluded_prefixes = ("telemetry/",)
         excluded_filenames = {"btw_context.md", "task.spec.md"}
-        realized_files: list[str] = []
-        for path in workspace.rglob("*"):
-            if not path.is_file():
-                continue
-            try:
-                resolved = path.resolve()
-            except OSError:
-                resolved = path
-            if resolved in excluded_paths:
-                continue
-            relative_path = path.relative_to(workspace).as_posix()
-            if relative_path.startswith(excluded_prefixes) or relative_path in excluded_filenames:
-                continue
-            realized_files.append(relative_path)
-        realized_files = self._unique_preserve_order(realized_files)
-        out_of_scope_files = [path for path in realized_files if path not in allowed_set]
+        realized_files = self._load_realized_files_from_report(
+            workspace=workspace,
+            packet=packet,
+            report_path=report_path,
+        )
+        if realized_files is None:
+            realized_files = []
+            for path in workspace.rglob("*"):
+                if not path.is_file():
+                    continue
+                try:
+                    resolved = path.resolve()
+                except OSError:
+                    resolved = path
+                if resolved in excluded_paths:
+                    continue
+                relative_path = path.relative_to(workspace).as_posix()
+                if (
+                    relative_path.startswith(excluded_prefixes)
+                    or relative_path in excluded_filenames
+                    or self._is_transient_verification_support_file(packet, relative_path)
+                ):
+                    continue
+                realized_files.append(relative_path)
+            realized_files = self._unique_preserve_order(realized_files)
+        out_of_scope_files = [
+            path
+            for path in realized_files
+            if path not in allowed_set
+            and not self._is_transient_verification_support_file(packet, path)
+        ]
         return {
             "allowed_files": allowed,
             "realized_files": realized_files,
             "out_of_scope_files": out_of_scope_files,
             "all_in_scope": not out_of_scope_files,
+        }
+
+    def _load_realized_files_from_report(
+        self,
+        *,
+        workspace: Path,
+        packet: WorkPacket,
+        report_path: Path,
+    ) -> list[str] | None:
+        try:
+            payload = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        files_changed = payload.get("files_changed")
+        if files_changed is None:
+            return None
+        if not isinstance(files_changed, list):
+            return None
+        realized_files: list[str] = []
+        for raw_path in files_changed:
+            text = str(raw_path).strip()
+            if not text:
+                continue
+            path = Path(text)
+            try:
+                resolved = path.resolve() if path.is_absolute() else (workspace / path).resolve()
+            except OSError:
+                resolved = workspace / path if not path.is_absolute() else path
+            try:
+                relative_path = resolved.relative_to(workspace.resolve()).as_posix()
+            except ValueError:
+                continue
+            if self._is_transient_verification_support_file(packet, relative_path):
+                continue
+            realized_files.append(relative_path)
+        return self._unique_preserve_order(realized_files)
+
+    def _is_transient_verification_support_file(
+        self, packet: WorkPacket, relative_path: str
+    ) -> bool:
+        verification_language = " ".join(
+            " ".join(command) if isinstance(command, list) else str(command)
+            for command in packet.verification_commands.values()
+        ).lower()
+        if not any(
+            token in verification_language
+            for token in ("lint", "typecheck", "type check", "eslint", "compile", "tsc")
+        ):
+            return False
+        filename = Path(relative_path).name
+        return filename in {
+            "tsconfig.json",
+            "eslint.config.js",
+            "eslint.config.mjs",
+            "eslint.config.cjs",
+            ".eslintrc.js",
+            ".eslintrc.json",
+            "import_smoke.ts",
+            "package.json",
+            "package-lock.json",
+            "pnpm-lock.yaml",
         }
 
     def _load_history(self, mission_id: str, *, up_to_round: int) -> list[RoundSummary]:
@@ -1874,38 +1952,57 @@ class RoundOrchestrator:
         if "tab=transcript" in route:
             return [
                 AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target=(
+                        '[data-automation-target="mission-detail-ready"]'
+                        f'[data-mission-id="{escaped_mission_id}"]'
+                    ),
+                    description=(
+                        "Confirm mission detail is ready before judging transcript discoverability."
+                    ),
+                    timeout_ms=4000,
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                    description="Confirm transcript controls are visible on the route.",
+                    timeout_ms=4000,
+                ),
+                AcceptanceInteractionStep(
                     action="click_selector",
                     target='[data-automation-target="transcript-filter"][data-filter-key="all"]',
                     description="Reset transcript filters before judging discoverability.",
-                    timeout_ms=1500,
+                    timeout_ms=4000,
                 ),
                 AcceptanceInteractionStep(
                     action="wait_for_selector",
                     target='[data-automation-target="transcript-filter"][data-filter-key="all"][data-active="true"]',
-                    description="Confirm transcript evidence is shown in the broadest view.",
-                    timeout_ms=1500,
-                ),
-                AcceptanceInteractionStep(
-                    action="click_selector",
-                    target='[data-automation-target="packet-row"]',
-                    description=(
-                        "Open the first visible packet to inspect concrete operator evidence."
-                    ),
-                    timeout_ms=1500,
+                    description=("Confirm transcript evidence is shown in the broadest view."),
+                    timeout_ms=4000,
                 ),
                 AcceptanceInteractionStep(
                     action="wait_for_selector",
-                    target='[data-automation-target="packet-row"][data-active="true"]',
-                    description="Confirm a packet was selected before judging transcript clarity.",
-                    timeout_ms=1500,
+                    target='[data-automation-target="transcript-block"]',
+                    description=(
+                        "Wait for the transcript timeline to expose at least one evidence block."
+                    ),
+                    timeout_ms=4000,
                 ),
                 AcceptanceInteractionStep(
                     action="click_selector",
-                    target='[data-automation-target="transcript-block"]',
+                    target='[data-automation-target="transcript-block"][data-active="true"]',
                     description=(
-                        "Inspect the first visible transcript block for context continuity."
+                        "Inspect the currently active transcript block for context continuity."
                     ),
-                    timeout_ms=1500,
+                    timeout_ms=4000,
+                ),
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="transcript-inspector"]',
+                    description=(
+                        "Confirm transcript evidence details are visible after selecting a block."
+                    ),
+                    timeout_ms=4000,
                 ),
             ]
         if "tab=acceptance" in route:

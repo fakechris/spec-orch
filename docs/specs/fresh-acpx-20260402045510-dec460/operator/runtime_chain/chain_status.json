@@ -1,0 +1,13 @@
+{
+  "chain_id": "chain_fresh-acpx-20260402045510-dec460_20260402T045538Z_45a9dfa3",
+  "active_span_id": "chain_fresh-acpx-20260402045510-dec460_20260402T045538Z_45a9dfa3:round:02:acceptance-review",
+  "subject_kind": "acceptance",
+  "subject_id": "fresh-acpx-20260402045510-dec460:round-2:acceptance",
+  "phase": "completed",
+  "status_reason": "acceptance_evaluation_completed",
+  "session_refs": {},
+  "artifact_refs": {
+    "round_dir": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/rounds/round-02"
+  },
+  "updated_at": "2026-04-02T05:03:40.754282+00:00"
+}

@@ -1,0 +1,7 @@
+{
+  "mission_id": "fresh-acpx-20260402045510-dec460",
+  "proof_type": "fresh_execution",
+  "fresh_round_path": "docs/specs/fresh-acpx-20260402045510-dec460/rounds/round-02",
+  "runner_status": "foreground_required",
+  "launch_phase": "executing"
+}

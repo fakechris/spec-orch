@@ -22,8 +22,7 @@ def test_issue_start_smoke_script_reads_redirected_preflight_report() -> None:
     assert "run_exit_code = int(sys.argv[2])" in script
     assert "except (OSError, json.JSONDecodeError):" in script
     assert (
-        'if ! uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve; then'
-        not in script
+        'uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve' in script
     )
 
 
@@ -65,6 +64,11 @@ def test_exploratory_harness_polls_runtime_chain_status_while_fresh_run_executes
     assert "HARNESS_PID=$!" in script
     assert "spec-orch chain status --mission-id" in script
     assert 'wait "$HARNESS_PID"' in script
+    assert "run_fresh_exploratory_acceptance_review" in script
+    assert 'spec-orch dashboard --port "$DASHBOARD_PORT"' in script
+    assert 'SPEC_ORCH_VISUAL_EVAL_URL="http://127.0.0.1:${DASHBOARD_PORT}"' in script
+    assert "dashboard started at http://127.0.0.1:${DASHBOARD_PORT}" in script
+    assert "reusing dashboard at http://127.0.0.1:${DASHBOARD_PORT}" in script
 
 
 def test_write_issue_start_acceptance_report_materializes_normalized_attempt(
@@ -185,6 +189,61 @@ def test_write_issue_start_acceptance_report_requires_succeeded_attempt(
     assert report_json["attempt"]["outcome"]["status"] == "failed"
 
 
+def test_write_issue_start_acceptance_report_allows_gate_blocked_after_clean_smoke(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import write_issue_start_acceptance_report
+
+    workspace = tmp_path / ".spec_orch_runs" / "SPC-1"
+    _write_json(
+        workspace / "report.json",
+        {
+            "issue_id": "SPC-1",
+            "title": "Smoke issue",
+            "state": "gate_evaluated",
+            "mergeable": False,
+            "failed_conditions": ["human_acceptance", "review"],
+        },
+    )
+    _write_json(
+        workspace / "run_artifact" / "live.json",
+        {
+            "run_id": "run-spc-1",
+            "issue_id": "SPC-1",
+            "builder": {"adapter": "acpx", "succeeded": True},
+            "verification": {
+                "smoke_check": {"exit_code": 0},
+                "build": {"exit_code": 0},
+            },
+            "review": {"verdict": "pending"},
+        },
+    )
+    _write_json(
+        workspace / "run_artifact" / "conclusion.json",
+        {
+            "run_id": "run-spc-1",
+            "issue_id": "SPC-1",
+            "state": "gate_evaluated",
+            "verdict": "fail",
+            "mergeable": False,
+            "failed_conditions": ["human_acceptance", "review"],
+        },
+    )
+
+    report = write_issue_start_acceptance_report(
+        repo_root=tmp_path,
+        issue_id="SPC-1",
+        fixture_issue_id="SPC-1",
+        preflight_report={"summary": {"pass": 4, "fail": 0, "warn": 0}},
+        run_exit_code=0,
+    )
+
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+    assert report_json["status"] == "pass"
+    assert report_json["attempt"]["outcome"]["status"] == "failed"
+    assert report_json["attempt"]["outcome"]["verification"]["smoke_check"]["exit_code"] == 0
+
+
 def test_write_mission_start_acceptance_report_preserves_fresh_report(
     tmp_path: Path,
 ) -> None:
@@ -290,6 +349,35 @@ def test_write_exploratory_acceptance_report_preserves_round_artifacts(
         },
     )
     _write_json(
+        round_dir / "exploratory_acceptance_review.json",
+        {
+            "status": "pass",
+            "summary": "Exploratory critique found one useful UX issue.",
+            "acceptance_mode": "exploratory",
+            "findings": [
+                {
+                    "severity": "medium",
+                    "summary": "Acceptance evidence is discoverable but weakly signposted.",
+                    "critique_axis": "discoverability gaps",
+                }
+            ],
+            "issue_proposals": [
+                {
+                    "title": "Clarify acceptance evidence entry point",
+                    "summary": "Improve wayfinding into the acceptance tab.",
+                    "severity": "medium",
+                }
+            ],
+            "recommended_next_step": "Review mission tab naming and evidence grouping.",
+            "artifacts": {
+                "graph_profile": "tuned_exploratory_graph",
+                "step_artifacts": [
+                    "docs/specs/fresh-acpx-2/rounds/round-01/acceptance_graph_runs/agr-1/steps/01.json"
+                ],
+            },
+        },
+    )
+    _write_json(
         round_dir / "browser_evidence.json",
         {
             "tested_routes": ["/", "/settings"],
@@ -307,12 +395,136 @@ def test_write_exploratory_acceptance_report_preserves_round_artifacts(
 
     report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
     assert report_json["status"] == "pass"
+    assert report_json["summary"] == "Exploratory critique found one useful UX issue."
     assert report_json["mission_id"] == "fresh-acpx-2"
     assert report_json["source"] == "fresh-acpx-mission-smoke"
+    assert report_json["source_run"]["mission_id"] == "fresh-acpx-2"
+    assert report_json["source_run"]["round_id"] == "round-01"
+    assert report_json["source_run"]["review_path"].endswith(
+        "docs/specs/fresh-acpx-2/rounds/round-01/exploratory_acceptance_review.json"
+    )
+    assert report_json["findings_count"] == 1
+    assert report_json["issue_proposal_count"] == 1
+    assert (
+        report_json["recommended_next_step"] == "Review mission tab naming and evidence grouping."
+    )
+    assert report_json["acceptance_mode"] == "exploratory"
+    assert report_json["coverage_status"] == "complete"
     assert report_json["browser_evidence"]["tested_routes"] == ["/", "/settings"]
+    assert report_json["acceptance_review"]["acceptance_mode"] == "exploratory"
     assert (
         report_json["acceptance_review"]["artifacts"]["graph_profile"] == "tuned_exploratory_graph"
     )
+    assert report_json["finding_taxonomy"]["counts"]["ux_gap"] == 2
+    assert report_json["finding_taxonomy"]["counts"]["harness_bug"] == 0
+    assert report_json["finding_taxonomy"]["counts"]["n2n_bug"] == 0
+    assert report_json["finding_taxonomy"]["findings"][0]["bug_type"] == "ux_gap"
+    assert report_json["finding_taxonomy"]["issue_proposals"][0]["bug_type"] == "ux_gap"
+    report_md = Path(report["markdown_path"]).read_text(encoding="utf-8")
+    assert "Findings: `1`" in report_md
+    assert "Issue proposals: `1`" in report_md
+    assert "Recommended next step: `Review mission tab naming and evidence grouping.`" in report_md
+
+
+def test_write_exploratory_acceptance_report_preserves_warn_status_and_harness_taxonomy(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import write_exploratory_acceptance_report
+
+    mission_id = "fresh-acpx-config"
+    round_dir = tmp_path / "docs" / "specs" / mission_id / "rounds" / "round-02"
+    round_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        round_dir / "exploratory_acceptance_review.json",
+        {
+            "status": "warn",
+            "summary": "Exploratory acceptance configuration is incomplete.",
+            "acceptance_mode": "exploratory",
+            "coverage_status": "partial",
+            "findings": [
+                {
+                    "severity": "high",
+                    "summary": "Acceptance evaluator configuration is incomplete.",
+                    "details": "The second-stage exploratory critique cannot produce product findings until its provider configuration is valid.",
+                    "critique_axis": "evaluation_config",
+                    "why_it_matters": "The critique stage is blocked on harness configuration.",
+                }
+            ],
+            "issue_proposals": [],
+            "recommended_next_step": "Set the acceptance evaluator API base and rerun exploratory critique.",
+        },
+    )
+
+    report = write_exploratory_acceptance_report(
+        repo_root=tmp_path,
+        mission_id=mission_id,
+        variant="default",
+        round_dir=round_dir,
+        source="fresh-acpx-mission-smoke",
+    )
+
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+    assert report_json["status"] == "warn"
+    assert report_json["summary"] == "Exploratory acceptance configuration is incomplete."
+    assert report_json["source_run"]["round_id"] == "round-02"
+    assert report_json["coverage_status"] == "partial"
+    assert report_json["recommended_next_step"] == (
+        "Set the acceptance evaluator API base and rerun exploratory critique."
+    )
+    assert report_json["findings_count"] == 1
+    assert report_json["issue_proposal_count"] == 0
+    assert report_json["finding_taxonomy"]["counts"]["harness_bug"] == 1
+    assert report_json["finding_taxonomy"]["counts"]["n2n_bug"] == 0
+    assert report_json["finding_taxonomy"]["counts"]["ux_gap"] == 0
+    assert report_json["finding_taxonomy"]["findings"][0]["bug_type"] == "harness_bug"
+
+
+def test_write_exploratory_acceptance_report_classifies_route_page_errors_as_n2n_bugs(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import write_exploratory_acceptance_report
+
+    mission_id = "fresh-acpx-page-error"
+    round_dir = tmp_path / "docs" / "specs" / mission_id / "rounds" / "round-03"
+    round_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        round_dir / "exploratory_acceptance_review.json",
+        {
+            "status": "warn",
+            "summary": "Transcript route hit a page error during exploratory critique.",
+            "acceptance_mode": "exploratory",
+            "coverage_status": "complete",
+            "findings": [
+                {
+                    "severity": "high",
+                    "summary": "Browser page error on /?mission=demo&tab=transcript",
+                    "details": "Browser evidence recorded a page error on /?mission=demo&tab=transcript.",
+                    "route": "/?mission=demo&tab=transcript",
+                }
+            ],
+            "issue_proposals": [
+                {
+                    "title": "Investigate transcript page error",
+                    "summary": "Browser evidence recorded a page error on /?mission=demo&tab=transcript.",
+                    "route": "/?mission=demo&tab=transcript",
+                }
+            ],
+        },
+    )
+
+    report = write_exploratory_acceptance_report(
+        repo_root=tmp_path,
+        mission_id=mission_id,
+        variant="default",
+        round_dir=round_dir,
+        source="fresh-acpx-mission-smoke",
+    )
+
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+    assert report_json["finding_taxonomy"]["counts"]["n2n_bug"] == 2
+    assert report_json["finding_taxonomy"]["counts"]["harness_bug"] == 0
+    assert report_json["finding_taxonomy"]["findings"][0]["bug_type"] == "n2n_bug"
+    assert report_json["finding_taxonomy"]["issue_proposals"][0]["bug_type"] == "n2n_bug"
 
 
 def test_write_stability_acceptance_status_summarizes_latest_reports(

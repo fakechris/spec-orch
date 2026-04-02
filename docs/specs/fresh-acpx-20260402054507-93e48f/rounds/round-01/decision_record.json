@@ -1,0 +1,16 @@
+{
+  "record_id": "fresh-acpx-20260402054507-93e48f-round-1-review",
+  "point_key": "mission.round.review",
+  "authority": "llm_owned",
+  "owner": "litellm_supervisor_adapter",
+  "selected_action": "retry",
+  "summary": "Wave 0 partially produced. scaffold-mission-types contract file is valid but the import_smoke verification has a wrong relative path (imports './src/contracts/mission_types' from inside src/contracts/ itself). scaffold-artifact-types builder produced no files. Both packets need retry.",
+  "rationale": "",
+  "confidence": 0.45,
+  "context_artifacts": [
+    "docs/specs/fresh-acpx-20260402054507-93e48f/rounds/round-01/supervisor_review.md",
+    "docs/specs/fresh-acpx-20260402054507-93e48f/rounds/round-01/round_decision.json"
+  ],
+  "blocking_questions": [],
+  "created_at": "2026-04-02T05:49:10.737855+00:00"
+}

@@ -1,0 +1,5 @@
+{"request_id": "toolreq-e1299c1048d2", "tool_name": "acpx.session.ensure", "status": "completed", "error": "", "metadata": {"duration_ms": 9271}}
+{"request_id": "toolreq-5556fa06fcec", "tool_name": "acpx.session.cancel", "status": "completed", "error": "", "metadata": {"duration_ms": 1632}}
+{"request_id": "toolreq-bb9867da9823", "tool_name": "acpx.session.ensure", "status": "completed", "error": "", "metadata": {"duration_ms": 10734}}
+{"request_id": "toolreq-254bc1729196", "tool_name": "acpx.session.cancel", "status": "completed", "error": "", "metadata": {"duration_ms": 1267}}
+{"request_id": "toolreq-4b6779bd2dd2", "tool_name": "acpx.session.ensure", "status": "completed", "error": "", "metadata": {"duration_ms": 1497}}

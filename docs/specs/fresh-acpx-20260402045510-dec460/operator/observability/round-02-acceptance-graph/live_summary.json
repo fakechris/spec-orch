@@ -1,0 +1,28 @@
+{
+  "subject_key": "fresh-acpx-20260402045510-dec460:round-2:acceptance-graph",
+  "phase": "completed",
+  "status_reason": "acceptance_graph_completed",
+  "current_step_key": "summarize_judgment",
+  "budget": {
+    "budget_key": "verify_contract_graph",
+    "planned_steps": 4,
+    "completed_steps": 4,
+    "remaining_steps": 0,
+    "loop_budget": 1,
+    "remaining_loop_budget": 1,
+    "continuation_count": 0,
+    "recent_token_growth": 0,
+    "justified": true
+  },
+  "stall_signal": {
+    "stalled": false,
+    "idle_seconds": 0,
+    "reason": "",
+    "diminishing_returns": false,
+    "repeated_steps": 0
+  },
+  "artifact_refs": {
+    "graph_run": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/rounds/round-02/acceptance_graph_runs/acceptance-verify_contract_graph/graph_run.json"
+  },
+  "updated_at": "2026-04-02T05:03:16.335799+00:00"
+}

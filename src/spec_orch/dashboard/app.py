@@ -966,7 +966,22 @@ function renderMissionDetail(detail) {
 
   let primarySurface = '';
   if (activeTab === 'transcript') {
+    const transcriptPrimaryPacket = packets.length ? `
+      <div class="context-actions">
+        <button
+          class="btn btn-sm btn-primary"
+          type="button"
+          data-automation-target="packet-row"
+          data-packet-id="${escAttr(packets[0]?.packet_id || '')}"
+          onclick='selectPacket(${safeJsArg(packets[0]?.packet_id || '')})'
+        >Open first packet evidence</button>
+      </div>
+    ` : '';
     primarySurface = `
+      <section class="mission-section" data-automation-target="transcript-packet-chooser-section">
+        ${transcriptPrimaryPacket}
+        ${getOperatorConsoleHelpers().renderTranscriptPacketChooser(packets, selectedPacketId, escHtml)}
+      </section>
       <section class="mission-section">
         <div class="section-heading">
           <h3>Transcript</h3>
@@ -1260,11 +1275,29 @@ function buildMissionSubtitle(detail) {
   return getOperatorConsoleHelpers().buildMissionSubtitle(detail);
 }
 
-function setMissionTab(tab) {
+async function setMissionTab(tab) {
   selectedMissionTab = tab;
+  if (tab == 'transcript' && selectedMissionDetail) {
+    const packets = selectedMissionDetail.packets || [];
+    const packetIds = packets.map(packet => packet.packet_id);
+    if (packetIds.length) {
+      const nextPacketId = packetIds.includes(selectedPacketId)
+        ? selectedPacketId
+        : packetIds[0];
+      if (nextPacketId !== selectedPacketId) {
+        selectedPacketId = nextPacketId;
+        selectedPacketTranscript = null;
+        selectedTranscriptFilter = 'all';
+        selectedTranscriptBlockIndex = null;
+      }
+    }
+  }
   syncOperatorRoute();
   renderMissionDetail(selectedMissionDetail);
   renderContextRail(selectedMissionDetail);
+  if (tab == 'transcript' && selectedPacketId) {
+    await loadSelectedPacketTranscript();
+  }
 }
 
 function toggleApprovalSelection(missionId, checked) {

@@ -1,0 +1,64 @@
+{
+  "mission_id": "fresh-acpx-20260402054507-93e48f",
+  "proof_type": "fresh_launch_pickup",
+  "launch_result": {
+    "mission_id": "fresh-acpx-20260402054507-93e48f",
+    "state": {
+      "mission_id": "fresh-acpx-20260402054507-93e48f",
+      "phase": "executing",
+      "issue_ids": [
+        "LOCAL-FRESH-ACPX-20260402054507-93E48F-1",
+        "LOCAL-FRESH-ACPX-20260402054507-93E48F-2"
+      ],
+      "completed_issues": [],
+      "error": null,
+      "updated_at": "2026-04-02T05:45:26.850269+00:00",
+      "current_round": 0,
+      "round_orchestrator_state": {}
+    },
+    "launch": {
+      "last_launch": {
+        "state": {
+          "mission_id": "fresh-acpx-20260402054507-93e48f",
+          "phase": "executing",
+          "issue_ids": [
+            "LOCAL-FRESH-ACPX-20260402054507-93E48F-1",
+            "LOCAL-FRESH-ACPX-20260402054507-93E48F-2"
+          ],
+          "completed_issues": [],
+          "error": null,
+          "updated_at": "2026-04-02T05:45:26.850269+00:00",
+          "current_round": 0,
+          "round_orchestrator_state": {}
+        }
+      },
+      "runner": {
+        "status": "foreground_required"
+      }
+    },
+    "background_runner_started": false
+  },
+  "daemon_run": {
+    "mission_id": "fresh-acpx-20260402054507-93e48f",
+    "proof_type": "fresh_execution",
+    "runner_status": "finished",
+    "state": {
+      "mission_id": "fresh-acpx-20260402054507-93e48f",
+      "phase": "executing",
+      "issue_ids": [
+        "LOCAL-FRESH-ACPX-20260402054507-93E48F-1",
+        "LOCAL-FRESH-ACPX-20260402054507-93E48F-2"
+      ],
+      "completed_issues": [],
+      "error": null,
+      "updated_at": "2026-04-02T05:45:26.850269+00:00",
+      "current_round": 2,
+      "round_orchestrator_state": {
+        "paused": true,
+        "blocking_questions": [
+          "The typescript_import_smoke verification script writes import_smoke.ts to 'src/contracts/import_smoke.ts' but uses import path './src/contracts/mission_types' \u2014 it should be './mission_types' since the smoke file is already inside src/contracts/. Should we (a) fix the verification script and retry, (b) accept the files as correct given 5/6 passing verifications and treat import_smoke as a known-verification-bug, or (c) take another approach?"
+        ]
+      }
+    }
+  }
+}

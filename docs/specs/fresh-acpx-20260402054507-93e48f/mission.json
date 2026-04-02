@@ -1,0 +1,23 @@
+{
+  "mission_id": "fresh-acpx-20260402054507-93e48f",
+  "title": "Fresh ACPX Mission E2E Narrow Smoke",
+  "status": "approved",
+  "spec_path": "docs/specs/fresh-acpx-20260402054507-93e48f/spec.md",
+  "acceptance_criteria": [
+    "A fresh mission can be created for this run.",
+    "The plan stays within one wave and at most two work packets.",
+    "The mission can be launched and produce fresh round artifacts.",
+    "Post-run workflow replay can validate the resulting dashboard surfaces."
+  ],
+  "constraints": [
+    "Keep the first fresh mission path narrow and local-only.",
+    "Do not reuse historical round artifacts as fresh proof.",
+    "Plan budget: at most 1 wave and at most 2 work packets.",
+    "Only touch src/contracts/mission_types.ts and src/contracts/artifact_types.ts inside worker workspaces.",
+    "Do not implement dashboard runtime changes, test harnesses, or replay engines during the fresh proof run."
+  ],
+  "interface_contracts": [],
+  "created_at": "2026-04-02T05:45:07.834477+00:00",
+  "approved_at": "2026-04-02T05:45:08.151893+00:00",
+  "completed_at": null
+}

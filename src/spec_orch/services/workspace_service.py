@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import subprocess
@@ -25,10 +26,17 @@ class WorkspaceService:
         workspace.parent.mkdir(parents=True, exist_ok=True)
         self._prune_worktrees()
         branch_name = f"issue/{issue_id.lower()}"
-        if self._branch_exists(branch_name):
-            self._run_git("worktree", "add", str(workspace), branch_name)
-        else:
-            self._run_git("worktree", "add", str(workspace), "-b", branch_name, "HEAD")
+        if self._branch_exists(branch_name) and self._branch_checked_out_elsewhere(branch_name):
+            return self._prepare_scoped_issue_workspace(workspace, issue_id, branch_name)
+        try:
+            if self._branch_exists(branch_name):
+                self._run_git("worktree", "add", str(workspace), branch_name)
+            else:
+                self._run_git("worktree", "add", str(workspace), "-b", branch_name, "HEAD")
+        except subprocess.CalledProcessError as exc:
+            if not self._branch_is_checked_out_elsewhere(exc):
+                raise
+            return self._prepare_scoped_issue_workspace(workspace, issue_id, branch_name)
 
         return workspace
 
@@ -84,5 +92,59 @@ class WorkspaceService:
             cwd=self.repo_root,
             check=True,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
         )
+
+    def _branch_is_checked_out_elsewhere(self, exc: subprocess.CalledProcessError) -> bool:
+        output_parts: list[str] = []
+        if isinstance(exc.stderr, str):
+            output_parts.append(exc.stderr.lower())
+        if isinstance(exc.stdout, str):
+            output_parts.append(exc.stdout.lower())
+        output = "\n".join(output_parts)
+        return (
+            "already checked out" in output
+            or "already used by worktree" in output
+            or "already in use by worktree" in output
+        )
+
+    def _branch_checked_out_elsewhere(self, branch_name: str) -> bool:
+        result = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            cwd=self.repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return False
+        target_ref = f"refs/heads/{branch_name}"
+        current_worktree = self.repo_root.resolve()
+        seen_worktree: Path | None = None
+        for line in result.stdout.splitlines():
+            if line.startswith("worktree "):
+                seen_worktree = Path(line.removeprefix("worktree ").strip()).resolve()
+                continue
+            if (
+                line.startswith("branch ")
+                and seen_worktree
+                and line.removeprefix("branch ").strip() == target_ref
+                and seen_worktree != current_worktree
+            ):
+                return True
+        return False
+
+    def _scoped_issue_branch_name(self, issue_id: str) -> str:
+        repo_scope = hashlib.sha1(str(self.repo_root.resolve()).encode("utf-8")).hexdigest()[:8]
+        return f"issue/{issue_id.lower()}-{repo_scope}"
+
+    def _prepare_scoped_issue_workspace(
+        self, workspace: Path, issue_id: str, branch_name: str
+    ) -> Path:
+        scoped_branch = self._scoped_issue_branch_name(issue_id)
+        start_point = branch_name if self._branch_exists(branch_name) else "HEAD"
+        if not self._branch_exists(scoped_branch):
+            self._run_git("branch", scoped_branch, start_point)
+        self._run_git("worktree", "add", str(workspace), scoped_branch)
+        return workspace

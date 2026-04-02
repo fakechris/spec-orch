@@ -1,0 +1,60 @@
+{
+  "step_key": "contract_brief",
+  "decision": "summarize",
+  "outputs": {
+    "contract_summary": {
+      "mission_id": "fresh-acpx-20260402045510-dec460",
+      "title": "Fresh ACPX Mission E2E Narrow Smoke",
+      "intent": "Prove ACPX execution by scaffolding two minimal TypeScript contract files: mission_types.ts and artifact_types.ts under src/contracts/ in separate worker workspaces.",
+      "execution_scope": {
+        "waves": 1,
+        "packets": 2,
+        "workers": [
+          {
+            "packet_id": "fresh-acpx-001",
+            "artifact": "src/contracts/mission_types.ts"
+          },
+          {
+            "packet_id": "fresh-acpx-002",
+            "artifact": "src/contracts/artifact_types.ts"
+          }
+        ]
+      }
+    },
+    "success_conditions": {
+      "fresh_execution": [
+        "Mission created and launched successfully",
+        "Plan executes within 1 wave and 2 work packets",
+        "Fresh round artifacts produced without reusing historical artifacts",
+        "Both worker workspaces produce valid TypeScript contract files"
+      ],
+      "verification_gates": [
+        "scaffold_exists: contract file must exist at specified path",
+        "typescript_contract_tokens: file must contain export declarations (export, interface, type, or enum)",
+        "typescript_schema_surface: file must expose schema-related tokens",
+        "typescript_typecheck: file must pass tsc --noEmit with bundler resolution",
+        "typescript_lint_smoke: file must be whitespace-clean (no trailing whitespace, no tabs, terminal newline)",
+        "typescript_import_smoke: file must be importable via relative path resolution"
+      ],
+      "post_run_workflow": [
+        "Dashboard surfaces (launcher, mission inventory, detail views) must be navigable",
+        "Transcript, approvals, visual QA, costs, and acceptance tabs must be accessible"
+      ]
+    },
+    "current_round_status": {
+      "round_id": 1,
+      "wave_id": 0,
+      "decision": "retry",
+      "reason": "VERIFICATION_HARNESS_BUG_WITH_OTHERWISE_PASSING_ASSETS",
+      "affected_workers": [],
+      "analysis": "Both packets scaffolded successfully (typecheck ✅, lint ✅, contract_tokens ✅) but failed on import_smoke due to a path construction bug in the verification script. The script generates './src/contracts/mission_types' but since the import_smoke.ts file is already in src/contracts/, the relative path should be './mission_types'. The actual contract files appear valid."
+    }
+  },
+  "next_transition": "{'step_key': 'contract_brief', 'status': 'pending_acknowledgment', 'note': 'Brief complete. Proceed to next step to address retry conditions.'}",
+  "warnings": [
+    "{'severity': 'medium', 'category': 'verification_harness', 'message': \"The typescript_import_smoke test has a path construction bug: it writes import statements with './src/contracts/X' but the import_smoke.ts file is itself located in src/contracts/, creating a double-nested path that TypeScript cannot resolve. This is a test harness defect, not a contract file defect.\", 'affected_packets': ['fresh-acpx-001', 'fresh-acpx-002']}",
+    "{'severity': 'low', 'category': 'scope_compliance', 'message': 'Both workers stayed within allowed file scope (only touching their respective contract files). No out-of-scope modifications detected.', 'affected_packets': []}"
+  ],
+  "review_markdown": "## Contract Brief: Fresh ACPX Mission E2E Narrow Smoke\n\n### Mission Intent\nProve ACPX end-to-end execution via a minimal fresh mission that scaffolds exactly **two TypeScript contract files** in **one wave** with **two work packets**:\n- `src/contracts/mission_types.ts` (worker: fresh-acpx-001)\n- `src/contracts/artifact_types.ts` (worker: fresh-acpx-002)\n\n### Success Conditions\n| Condition | Status |\n|-----------|--------|\n| Fresh mission created and launched | ✅ Launched |\n| Within 1 wave, ≤2 work packets | ✅ In scope |\n| Fresh round artifacts produced | ✅ Round completed |\n| Files scaffolded correctly | ✅ Both packets |\n| TypeScript typecheck passes | ✅ Both packets |\n| Lint smoke clean | ✅ Both packets |\n| Import smoke resolves | ❌ **RETRY** (harness bug) |\n\n### Root Cause Analysis\nThe `typescript_import_smoke` step failed for **both packets** due to a **verification harness bug**, not contract file defects:\n- Harness writes: `import ... from './src/contracts/mission_types'`\n- File location: `src/contracts/import_smoke.ts`\n- Result: double-nested path `./src/contracts/` → TypeScript cannot resolve\n\n**Contract files are valid.** Retry with corrected import paths (should be `./mission_types` and `./artifact_types`).\n\n### Next Step\nAddress retry conditions to confirm deliverables pass verification.",
+  "created_at": "2026-04-02T04:58:58.964215+00:00"
+}

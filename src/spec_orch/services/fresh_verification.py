@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import PurePosixPath
 from typing import Final
 
@@ -77,6 +78,69 @@ def _build_schema_surface_script(ts_files: list[str]) -> str:
     )
 
 
+def _build_lint_smoke_script(ts_files: list[str]) -> str:
+    return (
+        "from pathlib import Path\n"
+        "import sys\n"
+        f"paths = {ts_files!r}\n"
+        "issues = []\n"
+        "for rel in paths:\n"
+        "    text = Path(rel).read_text(encoding='utf-8')\n"
+        "    lines = text.splitlines()\n"
+        "    trailing = [idx + 1 for idx, line in enumerate(lines) if line.rstrip() != line]\n"
+        "    tabs = [idx + 1 for idx, line in enumerate(lines) if '\\t' in line]\n"
+        "    if trailing:\n"
+        "        issues.append(f'{rel}:trailing_whitespace={trailing}')\n"
+        "    if tabs:\n"
+        "        issues.append(f'{rel}:tabs={tabs}')\n"
+        "    if text and not text.endswith('\\n'):\n"
+        "        issues.append(f'{rel}:missing_terminal_newline')\n"
+        "if issues:\n"
+        "    sys.stderr.write('lint_smoke_failed=' + ';'.join(issues) + '\\n')\n"
+        "    raise SystemExit(1)\n"
+    )
+
+
+def _build_import_smoke_module(ts_files: list[str], import_smoke_path: str) -> str:
+    imports = []
+    smoke_parent = PurePosixPath(import_smoke_path).parent
+    for index, rel in enumerate(ts_files, start=1):
+        path_no_ext = PurePosixPath(rel).with_suffix("")
+        normalized_path = PurePosixPath(
+            os.path.relpath(path_no_ext.as_posix(), smoke_parent.as_posix())
+        ).as_posix()
+        if not normalized_path.startswith((".", "/")):
+            normalized_path = f"./{normalized_path}"
+        alias = f"contract_{index}"
+        imports.append(f"import * as {alias} from '{normalized_path}';")
+    aliases = ", ".join(f"contract_{i}" for i in range(1, len(ts_files) + 1))
+    imports.append(f"void [{aliases}];")
+    return "\n".join(imports) + "\n"
+
+
+def _build_import_smoke_script(ts_files: list[str], import_smoke_path: str) -> str:
+    import_module = _build_import_smoke_module(ts_files, import_smoke_path)
+    return (
+        "from pathlib import Path\n"
+        "import subprocess\n"
+        "import sys\n"
+        f"targets = {ts_files!r}\n"
+        f"import_smoke_path = Path({import_smoke_path!r})\n"
+        f"import_smoke_path.write_text({import_module!r}, encoding='utf-8')\n"
+        "command = [\n"
+        "    'tsc',\n"
+        "    '--noEmit',\n"
+        "    '--target', 'es2022',\n"
+        "    '--module', 'esnext',\n"
+        "    '--moduleResolution', 'bundler',\n"
+        "    '--skipLibCheck',\n"
+        "    *targets,\n"
+        "    import_smoke_path.as_posix(),\n"
+        "]\n"
+        "raise SystemExit(subprocess.run(command, check=False).returncode)\n"
+    )
+
+
 def build_fresh_verification_commands(files_in_scope: list[str]) -> dict[str, list[str]]:
     scoped_files = _normalize_scope(files_in_scope)
     if not scoped_files:
@@ -93,6 +157,23 @@ def build_fresh_verification_commands(files_in_scope: list[str]) -> dict[str, li
         )
         commands["typescript_schema_surface"] = _python_check(
             _build_schema_surface_script(ts_files)
+        )
+        commands["typescript_typecheck"] = [
+            "tsc",
+            "--noEmit",
+            "--target",
+            "es2022",
+            "--module",
+            "esnext",
+            "--moduleResolution",
+            "bundler",
+            "--skipLibCheck",
+            *ts_files,
+        ]
+        commands["typescript_lint_smoke"] = _python_check(_build_lint_smoke_script(ts_files))
+        import_smoke_path = PurePosixPath(ts_files[0]).with_name("import_smoke.ts").as_posix()
+        commands["typescript_import_smoke"] = _python_check(
+            _build_import_smoke_script(ts_files, import_smoke_path)
         )
 
     return commands

@@ -145,15 +145,10 @@ def _run_preflight(
         "cp .env.example .env && $EDITOR .env" if not env_path.exists() else None,
     )
 
-    llm_key = os.environ.get("SPEC_ORCH_LLM_API_KEY", "")
-    _add(
-        "llm_api_key",
-        "pass" if llm_key else "fail",
-        "SPEC_ORCH_LLM_API_KEY is set" if llm_key else "SPEC_ORCH_LLM_API_KEY not set",
-        "Edit .env and set SPEC_ORCH_LLM_API_KEY=your-key" if not llm_key else None,
-    )
-
     config_path = root / "spec-orch.toml"
+    planner_ready = False
+    planner_model = ""
+    planner_token_command = ""
     if config_path.exists():
         try:
             with config_path.open("rb") as f:
@@ -172,9 +167,52 @@ def _run_preflight(
                     else "anthropic"
                 ),
             )
-            planner_model = planner_settings.get("model")
+            planner_model = str(planner_settings.get("model", "")).strip()
+            raw_token_command = planner_settings.get("token_command", "")
+            planner_token_command = (
+                raw_token_command.strip() if isinstance(raw_token_command, str) else ""
+            )
             if planner_model:
                 _add("planner_model", "pass", f"model = {planner_model}")
+                planner_chain = planner_settings.get("model_chain") or []
+                usable_profiles = [
+                    profile for profile in planner_chain if getattr(profile, "is_usable", False)
+                ]
+                planner_ready = litellm_ok and bool(usable_profiles or planner_token_command)
+                if planner_ready:
+                    if planner_token_command:
+                        auth_message = "planner credentials resolved via token_command"
+                    else:
+                        auth_message = (
+                            f"planner credentials resolved ({len(usable_profiles)} usable "
+                            "model-chain profile(s))"
+                        )
+                    _add("planner_auth", "pass", auth_message)
+                else:
+                    missing_envs = sorted(
+                        {
+                            env_name
+                            for profile in planner_chain
+                            for env_name in (
+                                getattr(profile, "api_key_env", ""),
+                                getattr(profile, "api_base_env", ""),
+                            )
+                            if env_name
+                        }
+                    )
+                    fix = None
+                    if missing_envs:
+                        fix = "Set one of the configured planner env vars: " + ", ".join(
+                            missing_envs
+                        )
+                    elif not litellm_ok:
+                        fix = "pip install 'spec-orch[planner]'"
+                    _add(
+                        "planner_auth",
+                        "fail",
+                        "planner model is configured but no usable credentials were resolved",
+                        fix,
+                    )
             else:
                 _add(
                     "planner_model",
@@ -187,7 +225,7 @@ def _run_preflight(
     else:
         _add("config", "fail", "spec-orch.toml not found", "spec-orch init")
 
-    if try_llm and llm_key and litellm_ok:
+    if try_llm and planner_ready:
         try:
             planner = _build_planner_from_toml(root)
             if planner is not None:
@@ -201,7 +239,7 @@ def _run_preflight(
         except Exception as exc:
             _add("llm_connectivity", "fail", f"LLM request failed: {exc}")
     elif try_llm:
-        _add("llm_connectivity", "warn", "Skipped (missing API key or litellm)")
+        _add("llm_connectivity", "warn", "Skipped (planner credentials not ready)")
 
     counts = {"pass": 0, "warn": 0, "fail": 0}
     for c in checks:
@@ -209,7 +247,7 @@ def _run_preflight(
 
     ready: list[str] = []
     not_ready: list[str] = []
-    if litellm_ok and llm_key:
+    if planner_ready:
         ready.extend(["run", "discuss", "plan"])
     else:
         not_ready.extend(["run", "discuss", "plan"])

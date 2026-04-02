@@ -1,0 +1,16 @@
+{
+  "action": "ask_human",
+  "reason_code": "verification_script_bug_requires_fix",
+  "summary": "Both scaffold-mission-types and scaffold-artifact-types produced valid TypeScript contract files (5/6 verifications pass including typecheck and lint_smoke). The only failure is typescript_import_smoke due to a path construction bug in the verification harness (importing './src/contracts/...' from a file already inside 'src/contracts/'). Round 1 identified this same bug but it was not fixed before retry. Files meet acceptance criteria; the verification harness does not.",
+  "confidence": 0.85,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": [
+    "The typescript_import_smoke verification script writes import_smoke.ts to 'src/contracts/import_smoke.ts' but uses import path './src/contracts/mission_types' — it should be './mission_types' since the smoke file is already inside src/contracts/. Should we (a) fix the verification script and retry, (b) accept the files as correct given 5/6 passing verifications and treat import_smoke as a known-verification-bug, or (c) take another approach?"
+  ]
+}

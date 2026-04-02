@@ -1,0 +1,81 @@
+{
+  "step_key": "route_replay",
+  "decision": "proceed",
+  "outputs": {
+    "replay_attempted": true,
+    "routes_captured": [
+      "/?mission=fresh-acpx-20260402054507-93e48f&mode=missions&tab=overview",
+      "/?mission=fresh-acpx-20260402054507-93e48f&mode=missions&tab=transcript&round=1",
+      "/?mission=fresh-acpx-20260402054507-93e48f&mode=missions&tab=approvals&round=1",
+      "/?mission=fresh-acpx-20260402054507-93e48f&mode=missions&tab=visual&round=1",
+      "/?mission=fresh-acpx-20260402054507-93e48f&mode=missions&tab=costs&round=1",
+      "/?mission=fresh-acpx-20260402054507-93e48f&mode=missions&tab=acceptance&round=1"
+    ],
+    "contract_evidence": {
+      "fresh_execution_evidence": {
+        "round_id": 1,
+        "wave_id": 0,
+        "status": "decided",
+        "scaffold_mission_types": {
+          "builder_succeeded": true,
+          "file_created": "src/contracts/mission_types.ts",
+          "verification_results": {
+            "scaffold_exists": true,
+            "typescript_contract_tokens": true,
+            "typescript_schema_surface": true,
+            "typescript_typecheck": true,
+            "typescript_lint_smoke": true,
+            "typescript_import_smoke": false
+          },
+          "import_smoke_failure": {
+            "reason": "wrong_relative_path",
+            "detail": "import_smoke.ts imports './src/contracts/mission_types' from inside src/contracts/ directory, producing path './src/contracts/mission_types' which is incorrect for relative import from within the same directory"
+          }
+        },
+        "scaffold_artifact_types": {
+          "builder_succeeded": false,
+          "file_created": false,
+          "verification_results": {
+            "scaffold_exists": false,
+            "builder_error": "no files produced"
+          }
+        }
+      },
+      "workflow_replay_evidence": {
+        "dashboard_routes_declared": true,
+        "review_routes_defined": true,
+        "workflow_assertions_declared": 11,
+        "post_run_campaign_configured": true
+      }
+    },
+    "verification_status": {
+      "scaffold_mission_types": "partial_verification_failure",
+      "scaffold_artifact_types": "builder_failure_and_verification_failure"
+    },
+    "gate_verdicts": {
+      "scaffold_mission_types": {
+        "mergeable": false,
+        "failed_conditions": [
+          "verification"
+        ],
+        "scope_valid": true
+      },
+      "scaffold_artifact_types": {
+        "mergeable": false,
+        "failed_conditions": [
+          "builder",
+          "verification"
+        ],
+        "scope_valid": true
+      }
+    }
+  },
+  "next_transition": "{'action': 'retry', 'target_step': 'route_replay', 'reason': 'Both packets have verification failures that need remediation', 'required_fixes': [{'packet_id': 'scaffold-mission-types', 'issue': \"import_smoke.ts uses wrong relative path './src/contracts/mission_types' when import is inside src/contracts/ directory. Should use './mission_types'\"}, {'packet_id': 'scaffold-artifact-types', 'issue': 'Builder produced no files. Need to regenerate artifact_types.ts in workspace'}]}",
+  "warnings": [
+    "{'severity': 'high', 'code': 'VERIFICATION_PARTIAL_FAILURE', 'message': 'scaffold-mission-types passed 5/6 verification checks. The typescript_import_smoke test failed due to incorrect relative path in the test harness itself, not the contract file.'}",
+    "{'severity': 'critical', 'code': 'BUILDER_NO_OUTPUT', 'message': 'scaffold-artifact-types builder reported success but produced no files. The contract file src/contracts/artifact_types.ts was not created.'}",
+    "{'severity': 'medium', 'code': 'GATE_BLOCKED', 'message': \"Neither packet is mergeable. Round 1 decision was 'retry' with confidence 0.45.\"}"
+  ],
+  "review_markdown": "## Route Replay Evidence Capture\n\n### Summary\nReplay of declared routes for mission `fresh-acpx-20260402054507-93e48f` completed. Contract evidence captured for Round 1 (Wave 0) execution.\n\n### Verification Results\n\n| Packet | Builder | Verification | Mergeable |\n|--------|---------|--------------|-----------|\n| scaffold-mission-types | ✅ Success | ⚠️ 5/6 passed (import_smoke failed) | ❌ No |\n| scaffold-artifact-types | ❌ Failed | ❌ File missing | ❌ No |\n\n### Contract Evidence Details\n\n#### scaffold-mission-types\n- **File created**: `src/contracts/mission_types.ts` ✅\n- **Verification failures**:\n  - `typescript_import_smoke`: Wrong relative path in test harness\n    - Test imports `'./src/contracts/mission_types'` from `src/contracts/import_smoke.ts`\n    - Correct path should be `'./mission_types'` (same directory)\n    - The contract file itself is valid\n\n#### scaffold-artifact-types  \n- **File created**: ❌ None\n- **Builder failure**: No output files produced despite builder run\n\n### Workflow Routes Declared\nAll 6 review routes captured in evidence:\n- overview, transcript, approvals, visual_qa, costs, acceptance\n\n### Next Steps Required\n1. **scaffold-mission-types**: Fix import_smoke test path to `./mission_types`\n2. **scaffold-artifact-types**: Re-run builder to produce `src/contracts/artifact_types.ts`\n3. Re-verify both packets before merge can proceed",
+  "created_at": "2026-04-02T05:49:55.720426+00:00"
+}

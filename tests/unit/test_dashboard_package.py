@@ -264,6 +264,23 @@ def test_operator_console_transcript_and_internal_route_targets_are_exposed() ->
     source = asset_path.read_text(encoding="utf-8")
 
     assert 'data-automation-target="packet-row"' in source
+    assert 'data-automation-target="transcript-packet-chooser"' in source
+    assert "Choose a packet" in source
+    assert "Open current packet evidence" in source
+    assert "Choose a packet above to inspect its transcript timeline." in source
+    assert "Current packet" in source
+
+
+def test_dashboard_transcript_tab_primes_packet_selection_and_transcript_load() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert "async function setMissionTab(tab)" in source
+    assert "if (tab == 'transcript' && selectedMissionDetail)" in source
+    assert "const packetIds = packets.map(packet => packet.packet_id);" in source
+    assert "await loadSelectedPacketTranscript();" in source
+    assert 'data-automation-target="transcript-packet-chooser-section"' in source
+    assert "Open first packet evidence" in source
 
 
 def test_dashboard_inbox_and_approval_queue_expose_workflow_targets() -> None:
@@ -313,6 +330,7 @@ def test_operator_console_exports_internal_route_helper() -> None:
 
     assert "window.SpecOrchOperatorConsole = {" in source
     assert "renderInternalRouteButton," in source
+    assert "renderTranscriptPacketChooser," in source
 
 
 def test_dashboard_context_rail_review_buttons_use_internal_route_helper() -> None:

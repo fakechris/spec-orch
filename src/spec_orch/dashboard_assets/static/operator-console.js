@@ -221,6 +221,48 @@
     `
   }
 
+  function renderTranscriptPacketChooser(packets, selectedPacketId, escHtml) {
+    const items = Array.isArray(packets) ? packets : []
+    const effectiveItems =
+      items.length || !selectedPacketId
+        ? items
+        : [
+            {
+              packet_id: selectedPacketId,
+              title: 'Current packet',
+              wave_id: '—',
+              run_class: 'packet',
+            },
+          ]
+    const focusPacket =
+      effectiveItems.find(packet => packet?.packet_id === selectedPacketId)
+      || effectiveItems[0]
+      || null
+    if (!effectiveItems.length) {
+      return '<div class="empty-panel">No packets are available yet. Transcript evidence appears after the first scoped packet runs.</div>'
+    }
+    return `
+      <div class="context-card" data-automation-target="transcript-packet-chooser">
+        <div class="context-title">Choose a packet</div>
+        <div class="transcript-entry-body">Start with one packet below, then inspect its timeline blocks to open linked evidence and review artifacts.</div>
+        ${focusPacket ? `
+          <div class="context-actions">
+            <button
+              class="btn btn-sm btn-primary"
+              type="button"
+              data-automation-target="packet-row"
+              data-packet-id="${escAttr(focusPacket?.packet_id)}"
+              onclick='selectPacket(${safeJsArg(focusPacket?.packet_id)})'
+            >Open current packet evidence</button>
+          </div>
+        ` : ''}
+      </div>
+      <div class="packet-list">
+        ${effectiveItems.map(packet => renderPacketRow(packet, selectedPacketId, escHtml)).join('')}
+      </div>
+    `
+  }
+
   function renderLatestRound(round, escHtml) {
     const decision = round?.decision || {}
     const succeeded = (round?.worker_results || []).filter(result => result.succeeded).length
@@ -788,7 +830,7 @@
     renderTranscriptBody,
   ) {
     if (!selectedPacketId) {
-      return '<div class="empty-panel">Select a packet to inspect its transcript.</div>'
+      return '<div class="empty-panel">Choose a packet above to inspect its transcript timeline.</div>'
     }
     if (!selectedPacketTranscript || selectedPacketTranscript.loading) {
       return '<div class="empty-panel">Loading transcript…</div>'
@@ -869,7 +911,7 @@
     renderTranscriptDetails,
   ) {
     if (!selectedPacketId) {
-      return '<div class="empty-panel">Select a packet to inspect transcript evidence.</div>'
+      return '<div class="empty-panel">Choose a packet above to inspect transcript evidence.</div>'
     }
     if (!selectedPacketTranscript || selectedPacketTranscript.loading) {
       return '<div class="empty-panel">Loading transcript evidence…</div>'
@@ -943,6 +985,7 @@
     renderDetailValue,
     renderLatestRound,
     renderPacketRow,
+    renderTranscriptPacketChooser,
     renderRoundContext,
     renderSimpleList,
     renderTranscriptFilters,
