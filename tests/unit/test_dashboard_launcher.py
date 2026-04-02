@@ -409,6 +409,9 @@ def test_approve_and_plan_mission_injects_fresh_verification_commands(
             "scaffold_exists",
             "typescript_contract_tokens",
             "typescript_schema_surface",
+            "typescript_typecheck",
+            "typescript_lint_smoke",
+            "typescript_import_smoke",
         }
         for commands in packet_commands
     )
@@ -480,7 +483,12 @@ def test_approve_and_plan_mission_merges_isolated_fresh_verification_packets(
     packets = result["plan"]["waves"][0]["work_packets"]
     assert len(packets) == 1
     assert packets[0]["packet_id"] == "contract-scaffold"
-    assert "TypeScript compiler" in packets[0]["builder_prompt"]
+    assert packets[0]["builder_prompt"] == "Create the two contract files."
+    assert set(packets[0]["verification_commands"]) >= {
+        "typescript_typecheck",
+        "typescript_lint_smoke",
+        "typescript_import_smoke",
+    }
 
 
 def test_approve_and_plan_mission_merges_verify_packet_named_for_lint_typecheck(
@@ -550,7 +558,12 @@ def test_approve_and_plan_mission_merges_verify_packet_named_for_lint_typecheck(
     packets = result["plan"]["waves"][0]["work_packets"]
     assert len(packets) == 1
     assert packets[0]["packet_id"] == "scaffold-contracts"
-    assert "typecheck" in packets[0]["builder_prompt"].lower()
+    assert packets[0]["builder_prompt"] == "Create the contract files."
+    assert set(packets[0]["verification_commands"]) >= {
+        "typescript_typecheck",
+        "typescript_lint_smoke",
+        "typescript_import_smoke",
+    }
 
 
 def test_create_linear_issue_for_mission_records_launch_metadata(

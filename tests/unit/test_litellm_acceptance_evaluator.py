@@ -1130,10 +1130,10 @@ def test_acceptance_evaluator_synthesizes_exploratory_transcript_hold_candidate(
                             "status": "passed",
                         },
                         {
-                            "action": "click_selector",
-                            "target": '[data-automation-target="packet-row"]',
+                            "action": "wait_for_selector",
+                            "target": '[data-automation-target="transcript-block"]',
                             "status": "failed",
-                            "message": "click_selector failed: strict mode violation",
+                            "message": "wait_for_selector failed: strict mode violation",
                         },
                     ],
                 },
@@ -1182,7 +1182,7 @@ def test_acceptance_evaluator_replaces_low_signal_exploratory_transcript_gap_out
     {
       "severity": "informational",
       "summary": "Browser page error on /?mission=mission-1&mode=missions&tab=transcript",
-      "details": "click_selector '[data-automation-target=\\\"packet-row\\\"]' failed",
+      "details": "wait_for_selector '[data-automation-target=\\\"transcript-block\\\"]' failed",
       "expected": "Route should render without browser page errors.",
       "actual": "Page error observed",
       "route": "/?mission=mission-1&mode=missions&tab=transcript"
@@ -1239,17 +1239,17 @@ def test_acceptance_evaluator_replaces_low_signal_exploratory_transcript_gap_out
                             "status": "passed",
                         },
                         {
-                            "action": "click_selector",
-                            "target": '[data-automation-target="packet-row"]',
+                            "action": "wait_for_selector",
+                            "target": '[data-automation-target="transcript-block"]',
                             "status": "failed",
-                            "message": "click_selector failed: timeout",
+                            "message": "wait_for_selector failed: timeout",
                         },
                     ],
                 },
                 "page_errors": [
                     {
                         "path": "/?mission=mission-1&mode=missions&tab=transcript",
-                        "message": "click_selector '[data-automation-target=\"packet-row\"]' failed",
+                        "message": "wait_for_selector '[data-automation-target=\"transcript-block\"]' failed",
                     }
                 ],
                 "console_errors": [],
@@ -1270,6 +1270,90 @@ def test_acceptance_evaluator_replaces_low_signal_exploratory_transcript_gap_out
     assert result.issue_proposals[0].route == "/?mission=mission-1&mode=missions&tab=transcript"
     assert result.issue_proposals[0].hold_reason
     assert "empty-state" in result.issue_proposals[0].summary
+
+
+def test_acceptance_evaluator_treats_transcript_block_access_as_successful_depth(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.acceptance.litellm_acceptance_evaluator import (
+        LiteLLMAcceptanceEvaluator,
+    )
+
+    def fake_chat_completion(**kwargs):
+        return """# Acceptance Review
+
+```json
+{
+  "status": "pass",
+  "summary": "Transcript route is usable.",
+  "confidence": 0.88,
+  "evaluator": "acceptance_llm",
+  "tested_routes": [
+    "/",
+    "/?mission=mission-1&mode=missions&tab=transcript"
+  ],
+  "findings": [],
+  "issue_proposals": [],
+  "artifacts": {}
+}
+```"""
+
+    adapter = LiteLLMAcceptanceEvaluator(
+        repo_root=tmp_path,
+        model="test/acceptance",
+        chat_completion=fake_chat_completion,
+    )
+
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.EXPLORATORY,
+        goal="Dogfood transcript discoverability from an operator perspective.",
+        primary_routes=["/"],
+        related_routes=["/?mission=mission-1&mode=missions&tab=transcript"],
+        filing_policy="hold_ux_concerns_for_operator_review",
+        exploration_budget="wide",
+    )
+
+    result = adapter.evaluate_acceptance(
+        mission_id="mission-1",
+        round_id=1,
+        round_dir=tmp_path / "docs/specs/mission-1/rounds/round-01",
+        worker_results=[_worker_result(tmp_path)],
+        artifacts={
+            "browser_evidence": {
+                "tested_routes": [
+                    "/",
+                    "/?mission=mission-1&mode=missions&tab=transcript",
+                ],
+                "interactions": {
+                    "/?mission=mission-1&mode=missions&tab=transcript": [
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                            "status": "passed",
+                        },
+                        {
+                            "action": "wait_for_selector",
+                            "target": '[data-automation-target="transcript-block"]',
+                            "status": "passed",
+                        },
+                        {
+                            "action": "click_selector",
+                            "target": '[data-automation-target="transcript-block"]',
+                            "status": "passed",
+                        },
+                    ],
+                },
+                "page_errors": [],
+                "console_errors": [],
+            }
+        },
+        repo_root=tmp_path,
+        campaign=campaign,
+    )
+
+    assert result.status == "pass"
+    assert result.findings == []
+    assert result.issue_proposals == []
 
 
 def test_acceptance_evaluator_drops_coverage_only_exploratory_proposals_for_untested_routes(
@@ -1401,7 +1485,7 @@ def test_acceptance_evaluator_replaces_generic_browser_error_proposal_on_transcr
     {
       "severity": "blocking",
       "summary": "Browser page error on /?mission=mission-1&mode=missions&tab=transcript",
-      "details": "click_selector '[data-automation-target=\\\"packet-row\\\"]' failed",
+      "details": "wait_for_selector '[data-automation-target=\\\"transcript-block\\\"]' failed",
       "expected": "Route should render without browser page errors.",
       "actual": "Page error observed: click_selector failed",
       "route": "/?mission=mission-1&mode=missions&tab=transcript"
@@ -1458,17 +1542,17 @@ def test_acceptance_evaluator_replaces_generic_browser_error_proposal_on_transcr
                             "status": "passed",
                         },
                         {
-                            "action": "click_selector",
-                            "target": '[data-automation-target="packet-row"]',
+                            "action": "wait_for_selector",
+                            "target": '[data-automation-target="transcript-block"]',
                             "status": "failed",
-                            "message": "click_selector failed: timeout",
+                            "message": "wait_for_selector failed: timeout",
                         },
                     ],
                 },
                 "page_errors": [
                     {
                         "path": "/?mission=mission-1&mode=missions&tab=transcript",
-                        "message": "click_selector '[data-automation-target=\"packet-row\"]' failed",
+                        "message": "wait_for_selector '[data-automation-target=\"transcript-block\"]' failed",
                     }
                 ],
                 "console_errors": [],
@@ -1646,17 +1730,17 @@ def test_acceptance_evaluator_rewrites_transcript_empty_surface_into_operator_cr
                             "status": "passed",
                         },
                         {
-                            "action": "click_selector",
-                            "target": '[data-automation-target="packet-row"]',
+                            "action": "wait_for_selector",
+                            "target": '[data-automation-target="transcript-block"]',
                             "status": "failed",
-                            "message": "click_selector failed: timeout",
+                            "message": "wait_for_selector failed: timeout",
                         },
                     ]
                 },
                 "page_errors": [
                     {
                         "path": "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1",
-                        "message": "click_selector '[data-automation-target=\"packet-row\"]' failed",
+                        "message": "wait_for_selector '[data-automation-target=\"transcript-block\"]' failed",
                     }
                 ],
                 "console_errors": [],
@@ -1762,17 +1846,17 @@ def test_acceptance_evaluator_rewrites_retry_backed_transcript_empty_state_into_
                             "status": "passed",
                         },
                         {
-                            "action": "click_selector",
-                            "target": '[data-automation-target="packet-row"]',
+                            "action": "wait_for_selector",
+                            "target": '[data-automation-target="transcript-block"]',
                             "status": "failed",
-                            "message": "click_selector failed: timeout",
+                            "message": "wait_for_selector failed: timeout",
                         },
                     ]
                 },
                 "page_errors": [
                     {
                         "path": "/?mission=operator-console-dogfood-smoke&mode=missions&tab=transcript&round=1",
-                        "message": "click_selector '[data-automation-target=\"packet-row\"]' failed",
+                        "message": "wait_for_selector '[data-automation-target=\"transcript-block\"]' failed",
                     }
                 ],
                 "console_errors": [],
@@ -1849,10 +1933,10 @@ def test_acceptance_evaluator_finds_transcript_route_from_interaction_keys(
                             "status": "passed",
                         },
                         {
-                            "action": "click_selector",
-                            "target": '[data-automation-target="packet-row"]',
+                            "action": "wait_for_selector",
+                            "target": '[data-automation-target="transcript-block"]',
                             "status": "failed",
-                            "message": "click_selector failed: timeout",
+                            "message": "wait_for_selector failed: timeout",
                         },
                     ]
                 },

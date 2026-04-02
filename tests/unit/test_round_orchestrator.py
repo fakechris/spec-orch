@@ -1451,18 +1451,30 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     )
     assert (
         exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][0].target
-        == '[data-automation-target="transcript-filter"][data-filter-key="all"]'
+        == '[data-automation-target="mission-detail-ready"][data-mission-id="mission-1"]'
     )
     assert (
-        exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][2].target
-        == '[data-automation-target="packet-row"]'
+        exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][1].target
+        == '[data-automation-target="transcript-filter"][data-filter-key="all"]'
     )
-    assert exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][2].timeout_ms == 1500
+    assert exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][1].timeout_ms == 4000
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][3].target
+        == '[data-automation-target="transcript-filter"][data-filter-key="all"][data-active="true"]'
+    )
     assert (
         exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][4].target
         == '[data-automation-target="transcript-block"]'
     )
-    assert exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][4].timeout_ms == 1500
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][5].target
+        == '[data-automation-target="transcript-block"][data-active="true"]'
+    )
+    assert (
+        exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][6].target
+        == '[data-automation-target="transcript-inspector"]'
+    )
+    assert exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][6].timeout_ms == 4000
     assert (
         exploratory.interaction_plans["/?mission=mission-1&tab=acceptance"][0].target
         == '[data-automation-target="internal-route"][data-route-label="Open acceptance review"]'
@@ -2899,4 +2911,165 @@ def test_collect_artifacts_ignores_harness_telemetry_for_scope_proof(
 
     assert artifacts.gate_verdicts[0]["mergeable"] is True
     assert artifacts.gate_verdicts[0]["scope"]["all_in_scope"] is True
+    assert artifacts.gate_verdicts[0]["scope"]["out_of_scope_files"] == []
+
+
+def test_collect_artifacts_prefers_builder_report_files_changed_for_scope_proof(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.domain.models import BuilderResult, Wave, WorkPacket
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    packet = WorkPacket(
+        packet_id="pkt-1",
+        title="Scaffold contracts",
+        files_in_scope=["src/contracts/mission_types.ts", "src/contracts/artifact_types.ts"],
+        verification_commands={
+            "scaffold_exists": [
+                "{python}",
+                "-c",
+                "from pathlib import Path; raise SystemExit(0 if Path('src/contracts/mission_types.ts').exists() else 1)",
+            ]
+        },
+    )
+    workspace = orchestrator._packet_workspace("mission-1", packet)
+    (workspace / "src" / "contracts").mkdir(parents=True, exist_ok=True)
+    (workspace / "src" / "contracts" / "mission_types.ts").write_text(
+        "export interface MissionType {}\n",
+        encoding="utf-8",
+    )
+    (workspace / "src" / "contracts" / "artifact_types.ts").write_text(
+        "export interface ArtifactType {}\n",
+        encoding="utf-8",
+    )
+    (workspace / "node_modules" / "left-pad").mkdir(parents=True, exist_ok=True)
+    (workspace / "node_modules" / "left-pad" / "index.js").write_text(
+        "module.exports = () => '';",
+        encoding="utf-8",
+    )
+    (workspace / "tsconfig.json").write_text("{}", encoding="utf-8")
+    report_path = workspace / "builder_report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "files_changed": [
+                    str(workspace / "src" / "contracts" / "mission_types.ts"),
+                    str(workspace / "src" / "contracts" / "artifact_types.ts"),
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    artifacts = orchestrator._collect_artifacts(
+        mission_id="mission-1",
+        round_id=1,
+        wave=Wave(wave_number=0, work_packets=[packet]),
+        worker_results=[
+            (
+                packet,
+                BuilderResult(
+                    succeeded=True,
+                    command=["builder"],
+                    stdout="ok",
+                    stderr="",
+                    report_path=report_path,
+                    adapter="stub",
+                    agent="stub",
+                ),
+            )
+        ],
+        round_dir=tmp_path / "docs" / "specs" / "mission-1" / "rounds" / "round-01",
+    )
+
+    assert artifacts.gate_verdicts[0]["mergeable"] is True
+    assert artifacts.gate_verdicts[0]["scope"]["realized_files"] == [
+        "src/contracts/mission_types.ts",
+        "src/contracts/artifact_types.ts",
+    ]
+    assert artifacts.gate_verdicts[0]["scope"]["out_of_scope_files"] == []
+
+
+def test_collect_artifacts_ignores_transient_verification_support_files(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.domain.models import BuilderResult, Wave, WorkPacket
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    packet = WorkPacket(
+        packet_id="pkt-verify",
+        title="Scaffold and verify contracts",
+        files_in_scope=["src/contracts/mission_types.ts", "src/contracts/artifact_types.ts"],
+        builder_prompt=(
+            "Create the contract files, then run lint and typecheck to verify them."
+        ),
+        verification_commands={
+            "scaffold_exists": [
+                "{python}",
+                "-c",
+                "from pathlib import Path; raise SystemExit(0 if Path('src/contracts/mission_types.ts').exists() else 1)",
+            ]
+        },
+    )
+    workspace = orchestrator._packet_workspace("mission-1", packet)
+    (workspace / "src" / "contracts").mkdir(parents=True, exist_ok=True)
+    (workspace / "src" / "contracts" / "mission_types.ts").write_text(
+        "export interface MissionType {}\n",
+        encoding="utf-8",
+    )
+    (workspace / "src" / "contracts" / "artifact_types.ts").write_text(
+        "export interface ArtifactType {}\n",
+        encoding="utf-8",
+    )
+    report_path = workspace / "builder_report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "files_changed": [
+                    str(workspace / "src" / "contracts" / "mission_types.ts"),
+                    str(workspace / "src" / "contracts" / "artifact_types.ts"),
+                    str(workspace / "tsconfig.json"),
+                    str(workspace / "eslint.config.js"),
+                    str(workspace / "eslint.config.mjs"),
+                    str(workspace / "test_import.ts"),
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    artifacts = orchestrator._collect_artifacts(
+        mission_id="mission-1",
+        round_id=1,
+        wave=Wave(wave_number=0, work_packets=[packet]),
+        worker_results=[
+            (
+                packet,
+                BuilderResult(
+                    succeeded=True,
+                    command=["builder"],
+                    stdout="ok",
+                    stderr="",
+                    report_path=report_path,
+                    adapter="stub",
+                    agent="stub",
+                ),
+            )
+        ],
+        round_dir=tmp_path / "docs" / "specs" / "mission-1" / "rounds" / "round-01",
+    )
+
+    assert artifacts.gate_verdicts[0]["mergeable"] is True
     assert artifacts.gate_verdicts[0]["scope"]["out_of_scope_files"] == []

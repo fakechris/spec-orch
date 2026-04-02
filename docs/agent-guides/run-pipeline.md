@@ -38,6 +38,33 @@ Mission 级别执行由 `plan.json` 驱动。若 `docs/specs/<mission_id>/plan.j
 - `.spec_orch/acceptance/stability_acceptance_status.json`
 - `docs/plans/2026-03-30-stability-acceptance-status.md`
 
+Exploratory / feature acceptance 的顶层 report 现在应该优先看这些字段：
+
+- `status`
+- `summary`
+- `findings_count`
+- `issue_proposal_count`
+- `recommended_next_step`
+- `finding_taxonomy`
+- `source_run`
+
+finding taxonomy 当前约定为：
+
+- `harness_bug`
+  - 验收系统自己的 bug。先修，再 rerun，同一路径没重新跑通前不要做产品结论。
+- `n2n_bug`
+  - 闭环测试发现的真实流程/功能问题。进入当前主修流。
+- `ux_gap`
+  - exploratory 发现的可发现性、清晰度、信心、连续性问题。进入产品改进流。
+
+当前建议 workflow：
+
+1. 先跑 acceptance 并生成顶层 report。
+2. 如果 top-level report 和 nested review 不一致，归为 `harness_bug` 并立即修复。
+3. rerun 同一路径，直到 top-level report 可信。
+4. 再把剩余 finding 分流到 `n2n_bug` 或 `ux_gap`。
+5. 每修一轮，再 rerun 同一路径，用 `source_run` 对比前后结果。
+
 ## Pipeline 阶段
 
 ```
