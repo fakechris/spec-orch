@@ -15,6 +15,10 @@ Mission 级别执行由 `plan.json` 驱动。若 `docs/specs/<mission_id>/plan.j
 - `docs/guides/supervised-mission-e2e-playbook.md`
 - `docs/guides/operator-console.md`
 
+如果要理解当前建议中的并发模型、mission/wave 串行约束、以及 admission control 预算对象，优先看：
+
+- `docs/plans/2026-04-01-concurrency-and-admission-control-program.md`
+
 重构后的稳定性验收现在建议优先用这两个 canonical smoke 入口：
 
 ```bash
