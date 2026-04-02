@@ -3012,9 +3012,7 @@ def test_collect_artifacts_ignores_transient_verification_support_files(
         packet_id="pkt-verify",
         title="Scaffold and verify contracts",
         files_in_scope=["src/contracts/mission_types.ts", "src/contracts/artifact_types.ts"],
-        builder_prompt=(
-            "Create the contract files, then run lint and typecheck to verify them."
-        ),
+        builder_prompt=("Create the contract files, then run lint and typecheck to verify them."),
         verification_commands={
             "scaffold_exists": [
                 "{python}",
@@ -3140,14 +3138,8 @@ def test_transient_verification_support_file_uses_verification_commands(tmp_path
         },
     )
 
-    assert (
-        orchestrator._is_transient_verification_support_file(packet, "import_smoke.ts")
-        is True
-    )
-    assert (
-        orchestrator._is_transient_verification_support_file(packet, "eslint.config.mjs")
-        is True
-    )
+    assert orchestrator._is_transient_verification_support_file(packet, "import_smoke.ts") is True
+    assert orchestrator._is_transient_verification_support_file(packet, "eslint.config.mjs") is True
     assert (
         orchestrator._is_transient_verification_support_file(
             packet, "src/contracts/mission_types.ts"

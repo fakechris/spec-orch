@@ -25,9 +25,7 @@ primary = "minimax_reasoning"
     )
 
 
-def test_run_preflight_accepts_slot_env_default_model_chain(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_run_preflight_accepts_slot_env_default_model_chain(tmp_path: Path, monkeypatch) -> None:
     from spec_orch.cli._helpers import _run_preflight
 
     _write_config(tmp_path / "spec-orch.toml")

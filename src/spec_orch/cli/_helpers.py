@@ -162,7 +162,7 @@ def _run_preflight(
                     str(planner_cfg.get("model", "")) if isinstance(planner_cfg, dict) else ""
                 ),
                 default_api_type=(
-                str(planner_cfg.get("api_type", "anthropic"))
+                    str(planner_cfg.get("api_type", "anthropic"))
                     if isinstance(planner_cfg, dict)
                     else "anthropic"
                 ),

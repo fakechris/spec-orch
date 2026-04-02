@@ -205,10 +205,7 @@ def write_issue_start_acceptance_report(
         isinstance(preflight_report.get("summary"), dict)
         and int(preflight_report["summary"].get("fail", 0)) == 0
         and run_exit_code == 0
-        and (
-            attempt_status == "succeeded"
-            or (builder_succeeded and verification_succeeded)
-        )
+        and (attempt_status == "succeeded" or (builder_succeeded and verification_succeeded))
     ):
         status = "pass"
 

@@ -62,6 +62,4 @@ def test_build_import_smoke_module_preserves_nested_relative_paths() -> None:
     )
 
     assert "import * as contract_1 from './src/contracts/mission_types';" in module
-    assert (
-        "import * as contract_2 from './src/contracts/nested/artifact_types';" in module
-    )
+    assert "import * as contract_2 from './src/contracts/nested/artifact_types';" in module

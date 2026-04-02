@@ -21,7 +21,9 @@ def test_issue_start_smoke_script_reads_redirected_preflight_report() -> None:
     assert 'python - <<\'PY\' "$ISSUE_ID" "$RUN_EXIT"' in script
     assert "run_exit_code = int(sys.argv[2])" in script
     assert "except (OSError, json.JSONDecodeError):" in script
-    assert 'uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve' in script
+    assert (
+        'uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve' in script
+    )
 
 
 def test_issue_start_smoke_fixture_uses_bounded_builder_prompt() -> None:
@@ -403,7 +405,9 @@ def test_write_exploratory_acceptance_report_preserves_round_artifacts(
     )
     assert report_json["findings_count"] == 1
     assert report_json["issue_proposal_count"] == 1
-    assert report_json["recommended_next_step"] == "Review mission tab naming and evidence grouping."
+    assert (
+        report_json["recommended_next_step"] == "Review mission tab naming and evidence grouping."
+    )
     assert report_json["acceptance_mode"] == "exploratory"
     assert report_json["coverage_status"] == "complete"
     assert report_json["browser_evidence"]["tested_routes"] == ["/", "/settings"]

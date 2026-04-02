@@ -1977,9 +1977,7 @@ class RoundOrchestrator:
                 AcceptanceInteractionStep(
                     action="wait_for_selector",
                     target='[data-automation-target="transcript-filter"][data-filter-key="all"][data-active="true"]',
-                    description=(
-                        "Confirm transcript evidence is shown in the broadest view."
-                    ),
+                    description=("Confirm transcript evidence is shown in the broadest view."),
                     timeout_ms=4000,
                 ),
                 AcceptanceInteractionStep(
