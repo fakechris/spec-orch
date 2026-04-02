@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import PurePosixPath
 from typing import Final
 
@@ -100,21 +101,25 @@ def _build_lint_smoke_script(ts_files: list[str]) -> str:
     )
 
 
-def _build_import_smoke_module(ts_files: list[str]) -> str:
+def _build_import_smoke_module(ts_files: list[str], import_smoke_path: str) -> str:
     imports = []
+    smoke_parent = PurePosixPath(import_smoke_path).parent
     for index, rel in enumerate(ts_files, start=1):
-        path_no_ext = PurePosixPath(rel).with_suffix("").as_posix()
-        if not path_no_ext.startswith((".", "/")):
-            path_no_ext = f"./{path_no_ext}"
+        path_no_ext = PurePosixPath(rel).with_suffix("")
+        normalized_path = PurePosixPath(
+            os.path.relpath(path_no_ext.as_posix(), smoke_parent.as_posix())
+        ).as_posix()
+        if not normalized_path.startswith((".", "/")):
+            normalized_path = f"./{normalized_path}"
         alias = f"contract_{index}"
-        imports.append(f"import * as {alias} from '{path_no_ext}';")
+        imports.append(f"import * as {alias} from '{normalized_path}';")
     aliases = ", ".join(f"contract_{i}" for i in range(1, len(ts_files) + 1))
     imports.append(f"void [{aliases}];")
     return "\n".join(imports) + "\n"
 
 
 def _build_import_smoke_script(ts_files: list[str], import_smoke_path: str) -> str:
-    import_module = _build_import_smoke_module(ts_files)
+    import_module = _build_import_smoke_module(ts_files, import_smoke_path)
     return (
         "from pathlib import Path\n"
         "import subprocess\n"
