@@ -673,7 +673,7 @@ class RoundOrchestrator:
             packet=packet,
             report_path=report_path,
         )
-        if not realized_files:
+        if realized_files is None:
             realized_files = []
             for path in workspace.rglob("*"):
                 if not path.is_file():
@@ -712,16 +712,18 @@ class RoundOrchestrator:
         workspace: Path,
         packet: WorkPacket,
         report_path: Path,
-    ) -> list[str]:
+    ) -> list[str] | None:
         try:
             payload = json.loads(report_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            return []
+            return None
         if not isinstance(payload, dict):
-            return []
-        files_changed = payload.get("files_changed", [])
+            return None
+        files_changed = payload.get("files_changed")
+        if files_changed is None:
+            return None
         if not isinstance(files_changed, list):
-            return []
+            return None
         realized_files: list[str] = []
         for raw_path in files_changed:
             text = str(raw_path).strip()
@@ -745,11 +747,8 @@ class RoundOrchestrator:
         self, packet: WorkPacket, relative_path: str
     ) -> bool:
         verification_language = " ".join(
-            [
-                packet.title,
-                packet.builder_prompt,
-                *[str(item) for item in packet.acceptance_criteria],
-            ]
+            " ".join(command) if isinstance(command, list) else str(command)
+            for command in packet.verification_commands.values()
         ).lower()
         if not any(
             token in verification_language
@@ -764,7 +763,7 @@ class RoundOrchestrator:
             "eslint.config.cjs",
             ".eslintrc.js",
             ".eslintrc.json",
-            "test_import.ts",
+            "import_smoke.ts",
             "package.json",
             "package-lock.json",
             "pnpm-lock.yaml",

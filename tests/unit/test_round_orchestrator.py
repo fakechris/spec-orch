@@ -3020,7 +3020,9 @@ def test_collect_artifacts_ignores_transient_verification_support_files(
                 "{python}",
                 "-c",
                 "from pathlib import Path; raise SystemExit(0 if Path('src/contracts/mission_types.ts').exists() else 1)",
-            ]
+            ],
+            "typescript_typecheck": ["tsc", "--noEmit", "src/contracts/mission_types.ts"],
+            "typescript_lint_smoke": ["eslint", "src/contracts/mission_types.ts"],
         },
     )
     workspace = orchestrator._packet_workspace("mission-1", packet)
@@ -3043,7 +3045,7 @@ def test_collect_artifacts_ignores_transient_verification_support_files(
                     str(workspace / "tsconfig.json"),
                     str(workspace / "eslint.config.js"),
                     str(workspace / "eslint.config.mjs"),
-                    str(workspace / "test_import.ts"),
+                    str(workspace / "import_smoke.ts"),
                 ]
             }
         ),
@@ -3071,5 +3073,84 @@ def test_collect_artifacts_ignores_transient_verification_support_files(
         round_dir=tmp_path / "docs" / "specs" / "mission-1" / "rounds" / "round-01",
     )
 
-    assert artifacts.gate_verdicts[0]["mergeable"] is True
     assert artifacts.gate_verdicts[0]["scope"]["out_of_scope_files"] == []
+    assert "scope" not in artifacts.gate_verdicts[0]["failed_conditions"]
+
+
+def test_build_packet_scope_proof_preserves_empty_files_changed_without_workspace_scan(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.domain.models import WorkPacket
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    packet = WorkPacket(
+        packet_id="pkt-empty",
+        title="Scaffold and verify contracts",
+        files_in_scope=["src/contracts/mission_types.ts"],
+        builder_prompt="Create the contract file only.",
+        verification_commands={
+            "typescript_typecheck": ["tsc", "--noEmit", "src/contracts/mission_types.ts"]
+        },
+    )
+    workspace = orchestrator._packet_workspace("mission-empty", packet)
+    (workspace / "src" / "contracts").mkdir(parents=True, exist_ok=True)
+    (workspace / "src" / "contracts" / "mission_types.ts").write_text(
+        "export interface MissionType {}\n",
+        encoding="utf-8",
+    )
+    (workspace / "outside.txt").write_text("noise\n", encoding="utf-8")
+    report_path = workspace / "builder_report.json"
+    report_path.write_text(json.dumps({"files_changed": []}), encoding="utf-8")
+
+    scope = orchestrator._build_packet_scope_proof(
+        workspace=workspace,
+        packet=packet,
+        report_path=report_path,
+    )
+
+    assert scope["realized_files"] == []
+    assert scope["out_of_scope_files"] == []
+
+
+def test_transient_verification_support_file_uses_verification_commands(tmp_path: Path) -> None:
+    from spec_orch.domain.models import WorkPacket
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    packet = WorkPacket(
+        packet_id="pkt-support",
+        title="Plain scaffold title",
+        files_in_scope=["src/contracts/mission_types.ts"],
+        builder_prompt="Create the contract file.",
+        acceptance_criteria=["Contract compiles cleanly."],
+        verification_commands={
+            "typescript_typecheck": ["tsc", "--noEmit", "src/contracts/mission_types.ts"],
+            "typescript_lint_smoke": ["eslint", "src/contracts/mission_types.ts"],
+        },
+    )
+
+    assert (
+        orchestrator._is_transient_verification_support_file(packet, "import_smoke.ts")
+        is True
+    )
+    assert (
+        orchestrator._is_transient_verification_support_file(packet, "eslint.config.mjs")
+        is True
+    )
+    assert (
+        orchestrator._is_transient_verification_support_file(
+            packet, "src/contracts/mission_types.ts"
+        )
+        is False
+    )

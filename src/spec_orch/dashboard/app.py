@@ -978,7 +978,7 @@ function renderMissionDetail(detail) {
       </div>
     ` : '';
     primarySurface = `
-      <section class="mission-section" data-automation-target="transcript-packet-chooser">
+      <section class="mission-section" data-automation-target="transcript-packet-chooser-section">
         ${transcriptPrimaryPacket}
         ${getOperatorConsoleHelpers().renderTranscriptPacketChooser(packets, selectedPacketId, escHtml)}
       </section>

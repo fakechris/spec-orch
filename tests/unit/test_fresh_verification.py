@@ -52,3 +52,16 @@ def test_build_fresh_verification_commands_rejects_out_of_repo_scope_paths() -> 
             assert "files_in_scope" in str(exc)
         else:
             raise AssertionError(f"Expected invalid scope to fail: {files_in_scope!r}")
+
+
+def test_build_import_smoke_module_preserves_nested_relative_paths() -> None:
+    from spec_orch.services.fresh_verification import _build_import_smoke_module
+
+    module = _build_import_smoke_module(
+        ["src/contracts/mission_types.ts", "src/contracts/nested/artifact_types.tsx"]
+    )
+
+    assert "import * as contract_1 from './src/contracts/mission_types';" in module
+    assert (
+        "import * as contract_2 from './src/contracts/nested/artifact_types';" in module
+    )

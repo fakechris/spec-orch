@@ -103,9 +103,11 @@ def _build_lint_smoke_script(ts_files: list[str]) -> str:
 def _build_import_smoke_module(ts_files: list[str]) -> str:
     imports = []
     for index, rel in enumerate(ts_files, start=1):
-        stem = PurePosixPath(rel).with_suffix("").name
+        path_no_ext = PurePosixPath(rel).with_suffix("").as_posix()
+        if not path_no_ext.startswith((".", "/")):
+            path_no_ext = f"./{path_no_ext}"
         alias = f"contract_{index}"
-        imports.append(f"import * as {alias} from './{stem}';")
+        imports.append(f"import * as {alias} from '{path_no_ext}';")
     aliases = ", ".join(f"contract_{i}" for i in range(1, len(ts_files) + 1))
     imports.append(f"void [{aliases}];")
     return "\n".join(imports) + "\n"

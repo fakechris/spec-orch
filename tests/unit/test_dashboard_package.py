@@ -279,7 +279,7 @@ def test_dashboard_transcript_tab_primes_packet_selection_and_transcript_load() 
     assert "if (tab == 'transcript' && selectedMissionDetail)" in source
     assert "const packetIds = packets.map(packet => packet.packet_id);" in source
     assert "await loadSelectedPacketTranscript();" in source
-    assert 'data-automation-target="transcript-packet-chooser"' in source
+    assert 'data-automation-target="transcript-packet-chooser-section"' in source
     assert "Open first packet evidence" in source
 
 
