@@ -738,6 +738,8 @@ class RoundOrchestrator:
                 relative_path = resolved.relative_to(workspace.resolve()).as_posix()
             except ValueError:
                 continue
+            if resolved.exists() and resolved.is_dir():
+                continue
             if self._is_transient_verification_support_file(packet, relative_path):
                 continue
             realized_files.append(relative_path)

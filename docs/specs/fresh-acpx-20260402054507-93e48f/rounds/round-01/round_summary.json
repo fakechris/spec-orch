@@ -10,20 +10,20 @@
       "succeeded": true,
       "adapter": "acpx_worker",
       "agent": "opencode",
-      "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/builder_report.json",
-      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/incoming_events.jsonl",
-      "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/events.jsonl",
-      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/activity.log"
+      "report_path": "<external-path>/workers/scaffold-mission-types/builder_report.json",
+      "incoming_events_path": "<external-path>/scaffold-mission-types/telemetry/incoming_events.jsonl",
+      "events_path": "<external-path>/scaffold-mission-types/telemetry/events.jsonl",
+      "activity_log_path": "<external-path>/scaffold-mission-types/telemetry/activity.log"
     },
     {
       "packet_id": "scaffold-artifact-types",
       "succeeded": false,
       "adapter": "acpx_worker",
       "agent": "opencode",
-      "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/builder_report.json",
-      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/incoming_events.jsonl",
-      "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/events.jsonl",
-      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/activity.log"
+      "report_path": "<external-path>/workers/scaffold-artifact-types/builder_report.json",
+      "incoming_events_path": "<external-path>/scaffold-artifact-types/telemetry/incoming_events.jsonl",
+      "events_path": "<external-path>/scaffold-artifact-types/telemetry/events.jsonl",
+      "activity_log_path": "<external-path>/scaffold-artifact-types/telemetry/activity.log"
     }
   ],
   "decision": {

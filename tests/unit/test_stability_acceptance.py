@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 
+import pytest
+
 
 def _write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -78,6 +80,15 @@ def test_exploratory_harness_polls_runtime_chain_status_while_fresh_run_executes
     assert "resolve_dashboard_port_candidates" in script
     assert "raced busy during startup" in script
     assert "write_exploratory_acceptance_failure_report" in script
+
+
+def test_fresh_and_exploratory_harnesses_avoid_mapfile_bashism() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+
+    for name in ("fresh_acpx_mission_smoke.sh", "exploratory_acceptance_smoke.sh"):
+        script = (repo_root / "tests" / "e2e" / name).read_text(encoding="utf-8")
+        assert "mapfile -t DASHBOARD_PORT_CANDIDATES" not in script
+        assert "while IFS= read -r candidate_port" in script
 
 
 def test_acceptance_harnesses_share_uv_project_environment_resolution() -> None:
@@ -166,6 +177,89 @@ def test_write_issue_start_acceptance_report_materializes_normalized_attempt(
     assert report_json["attempt"]["outcome"]["artifacts"]["manifest"]["path"].endswith(
         "run_artifact/manifest.json"
     )
+
+
+def test_write_issue_start_acceptance_report_sanitizes_absolute_paths(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import spec_orch.services.stability_acceptance as stability_acceptance
+
+    workspace = tmp_path / ".spec_orch_runs" / "SPC-1"
+    shared_root = tmp_path.parent / "shared-root"
+    monkeypatch.setattr(
+        stability_acceptance,
+        "resolve_shared_repo_root",
+        lambda start=None: shared_root,
+    )
+    _write_json(
+        workspace / "report.json",
+        {
+            "issue_id": "SPC-1",
+            "title": "Smoke issue",
+            "state": "gate_evaluated",
+            "mergeable": True,
+            "failed_conditions": [],
+        },
+    )
+    _write_json(
+        workspace / "run_artifact" / "live.json",
+        {
+            "run_id": "run-spc-1",
+            "issue_id": "SPC-1",
+            "builder": {"adapter": "codex_exec", "succeeded": True},
+            "verification": {"passed": 1, "total": 1},
+            "review": {"verdict": "pass"},
+        },
+    )
+    _write_json(
+        workspace / "run_artifact" / "conclusion.json",
+        {
+            "run_id": "run-spc-1",
+            "issue_id": "SPC-1",
+            "state": "gate_evaluated",
+            "verdict": "pass",
+            "mergeable": True,
+            "failed_conditions": [],
+        },
+    )
+    _write_json(
+        workspace / "run_artifact" / "manifest.json",
+        {
+            "run_id": "run-spc-1",
+            "artifacts": {
+                "report": str(workspace / "report.json"),
+                "builder_report": str(workspace / "builder_report.json"),
+            },
+        },
+    )
+
+    report = stability_acceptance.write_issue_start_acceptance_report(
+        repo_root=tmp_path,
+        issue_id="SPC-1",
+        fixture_issue_id="SPC-1",
+        preflight_report={
+            "summary": {"pass": 4, "fail": 0, "warn": 0},
+            "checks": [
+                {"status": "pass", "message": str(shared_root / ".env")},
+                {
+                    "status": "pass",
+                    "command": [str(shared_root / ".venv-py313" / "bin" / "python"), "-V"],
+                },
+            ],
+        },
+        run_exit_code=0,
+    )
+
+    report_json_text = Path(report["json_path"]).read_text(encoding="utf-8")
+    report_md_text = Path(report["markdown_path"]).read_text(encoding="utf-8")
+
+    assert str(tmp_path) not in report_json_text
+    assert str(tmp_path) not in report_md_text
+    assert '"workspace": ".spec_orch_runs/SPC-1"' in report_json_text
+    assert "<shared-repo>/.env" in report_json_text
+    assert "<shared-repo>/.venv-py313/bin/python" in report_json_text
+    assert "Workspace: `.spec_orch_runs/SPC-1`" in report_md_text
 
 
 def test_write_issue_start_acceptance_report_requires_succeeded_attempt(
@@ -305,7 +399,7 @@ def test_write_mission_start_acceptance_report_preserves_fresh_report(
     assert report_json["mission_id"] == "fresh-acpx-1"
     assert report_json["launch_mode"] == "fresh"
     assert report_json["variant"] == "default"
-    assert report_json["round_dir"] == str(round_dir)
+    assert report_json["round_dir"] == "docs/specs/fresh-acpx-1/rounds/round-01"
     assert report_json["fresh_report"]["acceptance_review"]["status"] == "pass"
 
 
@@ -452,6 +546,7 @@ def test_write_exploratory_acceptance_report_preserves_round_artifacts(
     assert report_json["source"] == "fresh-acpx-mission-smoke"
     assert report_json["source_run"]["mission_id"] == "fresh-acpx-2"
     assert report_json["source_run"]["round_id"] == "round-01"
+    assert report_json["source_run"]["round_dir"] == "docs/specs/fresh-acpx-2/rounds/round-01"
     assert report_json["source_run"]["review_path"].endswith(
         "docs/specs/fresh-acpx-2/rounds/round-01/exploratory_acceptance_review.json"
     )
@@ -473,9 +568,12 @@ def test_write_exploratory_acceptance_report_preserves_round_artifacts(
     assert report_json["finding_taxonomy"]["findings"][0]["bug_type"] == "ux_gap"
     assert report_json["finding_taxonomy"]["issue_proposals"][0]["bug_type"] == "ux_gap"
     report_md = Path(report["markdown_path"]).read_text(encoding="utf-8")
+    assert str(tmp_path) not in Path(report["json_path"]).read_text(encoding="utf-8")
+    assert str(tmp_path) not in report_md
     assert "Findings: `1`" in report_md
     assert "Issue proposals: `1`" in report_md
     assert "Recommended next step: `Review mission tab naming and evidence grouping.`" in report_md
+    assert "Round dir: `docs/specs/fresh-acpx-2/rounds/round-01`" in report_md
 
 
 def test_write_exploratory_acceptance_report_prefers_exploratory_browser_evidence(
@@ -525,6 +623,49 @@ def test_write_exploratory_acceptance_report_prefers_exploratory_browser_evidenc
     assert report_json["browser_evidence"]["tested_routes"] == [
         "/?mission=fresh-acpx-3&tab=transcript"
     ]
+
+
+def test_sanitized_lines_rewrites_embedded_absolute_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.services import stability_acceptance
+    from spec_orch.services.stability_acceptance import _sanitized_lines
+
+    shared_root = tmp_path.parent / "shared-root"
+    round_dir = shared_root / "docs" / "specs" / "fresh-acpx-9" / "rounds" / "round-02"
+    monkeypatch.setattr(
+        stability_acceptance,
+        "resolve_shared_repo_root",
+        lambda _repo_root: shared_root,
+    )
+    lines = [
+        "# Mission-Start Acceptance Smoke",
+        "",
+        f"- Round dir: `{round_dir}`",
+    ]
+
+    sanitized = _sanitized_lines(lines, repo_root=tmp_path)
+
+    assert sanitized[2] == "- Round dir: `<shared-repo>/docs/specs/fresh-acpx-9/rounds/round-02`"
+
+
+def test_sanitized_lines_collapses_embedded_external_worktree_paths(tmp_path: Path) -> None:
+    from spec_orch.services.stability_acceptance import _sanitized_lines
+
+    round_dir = Path(
+        "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/"
+        "docs/specs/fresh-acpx-9/rounds/round-02"
+    )
+    lines = [
+        "# Mission-Start Acceptance Smoke",
+        "",
+        f"- Round dir: `{round_dir}`",
+    ]
+
+    sanitized = _sanitized_lines(lines, repo_root=tmp_path)
+
+    assert sanitized[2] == "- Round dir: `<external-path>/fresh-acpx-9/rounds/round-02`"
 
 
 def test_write_exploratory_acceptance_failure_report_materializes_direct_fail_payload(
@@ -705,6 +846,64 @@ def test_write_stability_acceptance_status_summarizes_latest_reports(
     assert "Exploratory" in report_md
     assert "fail" in report_md.lower()
     assert "acceptance_model_waiting" in report_md
+
+
+def test_write_stability_acceptance_status_resolves_issue_start_runtime_chain_from_repo_root(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import write_stability_acceptance_status
+
+    acceptance_dir = tmp_path / ".spec_orch" / "acceptance"
+    _write_json(
+        acceptance_dir / "issue_start_smoke.json",
+        {
+            "status": "pass",
+            "issue_id": "SPC-1",
+            "workspace": ".spec_orch_runs/SPC-1",
+        },
+    )
+    _write_json(
+        tmp_path
+        / ".spec_orch_runs"
+        / "SPC-1"
+        / "telemetry"
+        / "runtime_chain"
+        / "chain_status.json",
+        {
+            "chain_id": "issue-chain-1",
+            "active_span_id": "issue-chain-1:run",
+            "subject_kind": "issue",
+            "subject_id": "SPC-1",
+            "phase": "completed",
+            "status_reason": "builder_completed",
+            "updated_at": "2026-03-31T10:15:00+00:00",
+        },
+    )
+    _write_json(acceptance_dir / "dashboard_ui_acceptance.json", {"status": "pass"})
+
+    report = write_stability_acceptance_status(repo_root=tmp_path)
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+
+    assert report_json["checks"]["issue_start"]["runtime_chain"]["phase"] == "completed"
+    assert report_json["checks"]["issue_start"]["runtime_chain"]["status_reason"] == (
+        "builder_completed"
+    )
+
+
+def test_sanitized_lines_strip_user_and_root_prefixes_from_external_paths(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import _sanitized_lines
+
+    lines = [
+        "- User path: `/Users/chris/file.txt`",
+        "- Root path: `/root/tmp/report.json`",
+    ]
+
+    sanitized = _sanitized_lines(lines, repo_root=tmp_path)
+
+    assert sanitized[0] == "- User path: `<external-path>/file.txt`"
+    assert sanitized[1] == "- Root path: `<external-path>/tmp/report.json`"
 
 
 def test_write_stability_acceptance_status_prefers_newer_direct_failure_reports_over_history(

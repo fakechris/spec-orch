@@ -149,6 +149,56 @@
       "findings_count": 0,
       "issue_proposal_count": 0,
       "bundle_path": "docs/acceptance-history/releases/showcase-narrative-layer-tranche-son-363-2026-04-03"
+    },
+    {
+      "release_id": "concurrency-and-admission-control-tranche-son-412-2026-04-03",
+      "release_label": "Concurrency and Admission Control Tranche SON-412 2026-04-03",
+      "created_at": "2026-04-03T09:16:00Z",
+      "git_commit": "ecd5130ebfaba53b4c0a257c635e17f596cd3008",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/concurrency-and-admission-control-tranche-son-412-2026-04-03"
+    },
+    {
+      "release_id": "structural-judgment-tranche-1-2026-04-03",
+      "release_label": "Structural Judgment Tranche 1 2026-04-03",
+      "created_at": "2026-04-03T09:57:29Z",
+      "git_commit": "ecd5130ebfaba53b4c0a257c635e17f596cd3008",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/structural-judgment-tranche-1-2026-04-03"
+    },
+    {
+      "release_id": "learning-promotion-discipline-tranche-1-2026-04-03",
+      "release_label": "Learning Promotion Discipline Tranche 1 2026-04-03",
+      "created_at": "2026-04-03T10:39:44Z",
+      "git_commit": "ecd5130ebfaba53b4c0a257c635e17f596cd3008",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/learning-promotion-discipline-tranche-1-2026-04-03"
+    },
+    {
+      "release_id": "showcase-narrative-layer-tranche-son-363-governance-lineage-2026-04-03",
+      "release_label": "Showcase Narrative Layer Tranche SON-363 Governance Lineage 2026-04-03",
+      "created_at": "2026-04-03T12:36:30Z",
+      "git_commit": "15219b6476e7900a0d2c46912fe5898760177c7b",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/showcase-narrative-layer-tranche-son-363-governance-lineage-2026-04-03"
+    },
+    {
+      "release_id": "showcase-narrative-layer-tranche-son-363-source-run-compare-2026-04-03",
+      "release_label": "Showcase Narrative Layer Tranche SON-363 Source Run Compare 2026-04-03",
+      "created_at": "2026-04-03T14:08:00Z",
+      "git_commit": "fe6324a2a9ac60f3eb44f3c83d4f45ab1846d18f",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/showcase-narrative-layer-tranche-son-363-source-run-compare-2026-04-03"
     }
   ]
 }

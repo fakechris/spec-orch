@@ -1,6 +1,6 @@
 {
   "status": "fail",
-  "summary": "Round 1 executed but produced no contract/schema artifacts despite builder reporting success. Dashboard verification incomplete—only root/inbox overview visited; Mission Detail, Transcript, Approval, Visual QA, Costs routes not tested. Round decision is 'retry' with reason_code 'contracts_not_defined'.",
+  "summary": "Round 1 executed but produced no contract/schema artifacts despite builder reporting success. Dashboard verification incomplete\u2014only root/inbox overview visited; Mission Detail, Transcript, Approval, Visual QA, Costs routes not tested. Round decision is 'retry' with reason_code 'contracts_not_defined'.",
   "confidence": 0.95,
   "evaluator": "acceptance_evaluator",
   "findings": [
@@ -86,7 +86,7 @@
     }
   ],
   "artifacts": {
-    "builder_report": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/workers/dogfood-contract-scaffold/builder_report.json",
+    "builder_report": "<external-path>/workers/dogfood-contract-scaffold/builder_report.json",
     "round_decision": "retry (contracts_not_defined)",
     "screenshots_available": {
       "root": "visual/root.png",

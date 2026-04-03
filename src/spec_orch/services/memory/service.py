@@ -332,6 +332,37 @@ class MemoryService:
             )
         return journal
 
+    def get_learning_memory_refs(self, mission_id: str) -> list[dict[str, Any]]:
+        refs: list[dict[str, Any]] = []
+        for kind in ("self", "delivery", "feedback"):
+            for item in self.get_active_learning_slice(kind):
+                if not isinstance(item, dict):
+                    continue
+                metadata = item.get("metadata", {})
+                if not isinstance(metadata, dict):
+                    continue
+                if str(metadata.get("mission_id", "")) != mission_id:
+                    continue
+                key = str(item.get("key", "")).strip()
+                refs.append(
+                    {
+                        "memory_ref_id": f"memory-ref:{kind}:{key}",
+                        "origin_finding_ref": str(
+                            metadata.get("origin_finding_ref") or metadata.get("finding_id") or ""
+                        ),
+                        "origin_review_ref": str(
+                            metadata.get("origin_review_ref") or metadata.get("judgment_id") or ""
+                        ),
+                        "memory_layer": MemoryLayer.SEMANTIC.value,
+                        "distillation_summary": str(item.get("content", ""))[:160],
+                        "created_at": str(item.get("created_at", "")),
+                        "kind": kind,
+                        "source_key": key,
+                    }
+                )
+        refs.sort(key=lambda item: str(item.get("created_at", "")), reverse=True)
+        return refs
+
     # -- lifecycle ----------------------------------------------------------
 
     def should_snapshot_session(self, event_count: int, *, every_n_events: int = 2) -> bool:

@@ -1,7 +1,7 @@
 {
   "action": "ask_human",
   "reason_code": "VERIFICATION_HARNESS_BUG_PERSISTS_AFTER_ROUND_1_RETRY",
-  "summary": "Both packets scaffolded valid TypeScript contract files (typecheck ✅, lint ✅, schema_surface ✅) but import_smoke fails due to double-nested path bug in the verification harness (importing './src/contracts/X' from a file already at src/contracts/X.ts). This is the same root cause identified in Round 1. The deliverables appear correct; the verification harness path construction needs correction at the system level before retry can succeed.",
+  "summary": "Both packets scaffolded valid TypeScript contract files (typecheck \u2705, lint \u2705, schema_surface \u2705) but import_smoke fails due to double-nested path bug in the verification harness (importing './src/contracts/X' from a file already at src/contracts/X.ts). This is the same root cause identified in Round 1. The deliverables appear correct; the verification harness path construction needs correction at the system level before retry can succeed.",
   "confidence": "high",
   "affected_workers": [],
   "artifacts": {

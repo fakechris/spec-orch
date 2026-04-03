@@ -311,6 +311,34 @@ class TestActiveLearningSynthesis:
         assert recent[0]["stage"] == "promote"
         assert recent[0]["metadata"]["promoted"] is True
 
+    def test_get_learning_memory_refs_returns_mission_scoped_memory_links(
+        self, svc: MemoryService
+    ) -> None:
+        svc.record_acceptance_judgments(
+            mission_id="mission-learning",
+            round_id=1,
+            judgments=[],
+        )
+        svc.record_evolution_journal(
+            evolver_name="prompt_evolver",
+            stage="promote",
+            summary="Promoted transcript continuity guidance.",
+            metadata={
+                "proposal_id": "proposal-1",
+                "mission_id": "mission-learning",
+                "origin_finding_ref": "candidate:learning-1",
+                "origin_review_ref": "proposal:learning-1",
+            },
+        )
+        svc.synthesize_active_learning_slice("self", top_k=5)
+
+        refs = svc.get_learning_memory_refs("mission-learning")
+
+        assert refs[0]["origin_finding_ref"] == "candidate:learning-1"
+        assert refs[0]["origin_review_ref"] == "proposal:learning-1"
+        assert refs[0]["memory_layer"] == "semantic"
+        assert refs[0]["kind"] == "self"
+
 
 class TestTrendSummary:
     def test_trend_summary_with_runs(self, svc: MemoryService):

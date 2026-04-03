@@ -22,7 +22,7 @@
     "repeated_steps": 0
   },
   "artifact_refs": {
-    "graph_run": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/rounds/round-02/acceptance_graph_runs/acceptance-verify_contract_graph/graph_run.json"
+    "graph_run": "<external-path>/acceptance_graph_runs/acceptance-verify_contract_graph/graph_run.json"
   },
   "updated_at": "2026-04-02T05:55:05.729834+00:00"
 }

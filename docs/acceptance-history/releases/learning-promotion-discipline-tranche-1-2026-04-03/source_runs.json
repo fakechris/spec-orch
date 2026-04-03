@@ -1,0 +1,23 @@
+{
+  "issue_start": {
+    "issue_id": "SPC-1",
+    "report_path": ".spec_orch/acceptance/issue_start_smoke.json",
+    "runtime_chain_root": ".worktrees/SPC-1/telemetry/runtime_chain"
+  },
+  "mission_start": {
+    "mission_id": "fresh-acpx-20260403103308-de07af",
+    "round_id": "round-01",
+    "report_path": "docs/specs/fresh-acpx-20260403103308-de07af/operator/mission_start_acceptance.json",
+    "runtime_chain_root": "docs/specs/fresh-acpx-20260403103308-de07af/operator/runtime_chain"
+  },
+  "dashboard_ui": {
+    "run_id": "dashboard-ui-local",
+    "report_path": ".spec_orch/acceptance/dashboard_ui_acceptance.json"
+  },
+  "exploratory": {
+    "mission_id": "fresh-acpx-20260403102531-646521",
+    "round_id": "round-01",
+    "report_path": "docs/specs/fresh-acpx-20260403102531-646521/operator/exploratory_acceptance_smoke.json",
+    "runtime_chain_root": "docs/specs/fresh-acpx-20260403102531-646521/operator/runtime_chain"
+  }
+}

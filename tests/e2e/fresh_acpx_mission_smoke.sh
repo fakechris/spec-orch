@@ -317,7 +317,11 @@ done
 ok "fresh round detected: ${ROUND_DIR}"
 
 step "Resolve isolated dashboard ports"
-mapfile -t DASHBOARD_PORT_CANDIDATES < <(
+DASHBOARD_PORT_CANDIDATES=()
+while IFS= read -r candidate_port; do
+  [ -n "$candidate_port" ] || continue
+  DASHBOARD_PORT_CANDIDATES+=("$candidate_port")
+done < <(
   uv run --python 3.13 python - <<'PY' "$REQUESTED_DASHBOARD_PORT"
 import sys
 

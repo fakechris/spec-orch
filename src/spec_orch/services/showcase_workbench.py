@@ -8,6 +8,13 @@ from spec_orch.services.execution_workbench import build_mission_execution_workb
 from spec_orch.services.judgment_workbench import build_mission_judgment_workbench
 from spec_orch.services.learning_workbench import build_mission_learning_workbench
 
+_SOURCE_RUN_ORDER = {
+    "issue_start": 0,
+    "dashboard_ui": 1,
+    "mission_start": 2,
+    "exploratory": 3,
+}
+
 
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
@@ -35,6 +42,56 @@ def _bundle_dir(repo_root: Path, release: dict[str, Any]) -> Path | None:
     return path if path.exists() else None
 
 
+def _source_run_identity(item: Any) -> str:
+    if not isinstance(item, dict):
+        return ""
+    for key in ("report_path", "round_dir", "run_id", "mission_id", "issue_id"):
+        value = str(item.get(key, "")).strip()
+        if value:
+            return value
+    return ""
+
+
+def _compare_source_runs(
+    current_runs: dict[str, Any],
+    previous_runs: dict[str, Any],
+) -> tuple[dict[str, dict[str, str]], str, dict[str, int], list[str]]:
+    compare: dict[str, dict[str, str]] = {}
+    summary_parts: list[str] = []
+    counts = {"advanced": 0, "stayed": 0, "new": 0, "missing": 0}
+    focus: list[str] = []
+    all_keys = sorted(
+        set(current_runs) | set(previous_runs),
+        key=lambda key: (_SOURCE_RUN_ORDER.get(key, 99), key),
+    )
+    for key in all_keys:
+        current_id = _source_run_identity(current_runs.get(key))
+        previous_id = _source_run_identity(previous_runs.get(key))
+        if current_id and previous_id:
+            status = "stayed" if current_id == previous_id else "advanced"
+        elif current_id:
+            status = "new"
+        elif previous_id:
+            status = "missing"
+        else:
+            continue
+        compare[key] = {
+            "status": status,
+            "current": current_id,
+            "previous": previous_id,
+        }
+        counts[status] = counts.get(status, 0) + 1
+        if status != "stayed":
+            label = f"{key} {status}"
+            summary_parts.append(label)
+            focus.append(label)
+    if not compare:
+        summary = "no source runs recorded"
+    else:
+        summary = "; ".join(summary_parts) if summary_parts else "all source runs stayed"
+    return compare, summary, counts, focus
+
+
 def _release_timeline(repo_root: Path, releases: list[dict[str, Any]]) -> list[dict[str, Any]]:
     timeline: list[dict[str, Any]] = []
     for release in releases:
@@ -48,9 +105,29 @@ def _release_timeline(repo_root: Path, releases: list[dict[str, Any]]) -> list[d
         findings_payload = (
             _load_json(bundle_dir / "findings.json") if bundle_dir is not None else None
         )
+        manifest_payload = (
+            _load_json(bundle_dir / "manifest.json") if bundle_dir is not None else None
+        )
+        source_runs_payload = (
+            _load_json(bundle_dir / "source_runs.json") if bundle_dir is not None else None
+        )
         findings = (
             findings_payload.get("findings", []) if isinstance(findings_payload, dict) else []
         )
+        source_runs = source_runs_payload if isinstance(source_runs_payload, dict) else {}
+        workspace_ids = sorted(
+            {
+                str(item.get("mission_id", "")).strip()
+                for item in source_runs.values()
+                if isinstance(item, dict) and str(item.get("mission_id", "")).strip()
+            }
+        )
+        lineage_payload = (
+            manifest_payload.get("lineage", {}) if isinstance(manifest_payload, dict) else {}
+        )
+        if not isinstance(lineage_payload, dict):
+            lineage_payload = {}
+        lineage_notes = lineage_payload.get("notes", [])
         timeline.append(
             {
                 "release_id": str(release.get("release_id", "")),
@@ -66,9 +143,27 @@ def _release_timeline(repo_root: Path, releases: list[dict[str, Any]]) -> list[d
                 "source_runs_artifact_path": source_runs_artifact_path,
                 "artifacts_artifact_path": artifacts_artifact_path,
                 "findings_artifact_path": findings_artifact_path,
+                "workspace_ids": workspace_ids,
+                "lineage_notes": [item for item in lineage_notes if isinstance(item, str)],
+                "_source_runs": source_runs,
             }
         )
     timeline.sort(key=lambda item: str(item.get("created_at", "")), reverse=True)
+    for index, item in enumerate(timeline):
+        previous = timeline[index + 1] if index + 1 < len(timeline) else None
+        previous_runs = previous.get("_source_runs", {}) if isinstance(previous, dict) else {}
+        compare, compare_summary, compare_counts, compare_focus = _compare_source_runs(
+            item.get("_source_runs", {}), previous_runs if isinstance(previous_runs, dict) else {}
+        )
+        item["compare_target_release_id"] = (
+            str(previous.get("release_id", "")) if isinstance(previous, dict) else ""
+        )
+        item["source_run_compare"] = compare
+        item["compare_counts"] = compare_counts
+        item["compare_focus"] = compare_focus
+        item["source_run_compare_summary"] = compare_summary
+    for item in timeline:
+        item.pop("_source_runs", None)
     return timeline
 
 
@@ -99,6 +194,8 @@ def _workspace_narrative(
 
 
 def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
+    releases = _load_release_index(repo_root)
+    release_timeline = _release_timeline(repo_root, releases)
     storylines: list[dict[str, Any]] = []
     specs_root = repo_root / "docs" / "specs"
     if not specs_root.exists():
@@ -113,6 +210,18 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
         execution = build_mission_execution_workbench(repo_root, mission_id, [])
         judgment = build_mission_judgment_workbench(repo_root, mission_id)
         learning = build_mission_learning_workbench(repo_root, mission_id)
+        linked_releases = [
+            item for item in release_timeline if mission_id in item.get("workspace_ids", [])
+        ]
+        latest_release = linked_releases[0] if linked_releases else None
+        learning_decisions = learning.get("promotion_policy", {}).get("decisions", [])
+        first_learning_decision = (
+            learning_decisions[0]
+            if isinstance(learning_decisions, list) and learning_decisions
+            else {}
+        )
+        structural_judgment = judgment.get("structural_judgment", {})
+        execution_overview = execution.get("overview", {})
         storylines.append(
             {
                 "workspace_id": mission_id,
@@ -137,6 +246,58 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
                     ),
                     "last_learning_summary": str(
                         learning.get("overview", {}).get("last_learning_summary", "")
+                    ),
+                },
+                "governance_story": {
+                    "execution": {
+                        "admission_decision_count": int(
+                            execution_overview.get("admission_decision_count", 0) or 0
+                        ),
+                        "pressure_signal_count": int(
+                            execution_overview.get("pressure_signal_count", 0) or 0
+                        ),
+                        "current_phase": str(execution_overview.get("current_phase", "")),
+                    },
+                    "structural": {
+                        "quality_signal": str(structural_judgment.get("quality_signal", "")),
+                        "bottleneck": str(structural_judgment.get("bottleneck", "")),
+                        "baseline_ref": str(
+                            structural_judgment.get("baseline_diff", {}).get("baseline_ref", "")
+                        ),
+                    },
+                    "learning": {
+                        "promotion_decision": str(first_learning_decision.get("action", "")),
+                        "promotion_state": str(first_learning_decision.get("promotion_state", "")),
+                        "linked_release_count": len(linked_releases),
+                    },
+                },
+                "lineage_drilldown": {
+                    "latest_release_id": (
+                        str(latest_release.get("release_id", "")) if latest_release else ""
+                    ),
+                    "compare_target_release_id": (
+                        str(latest_release.get("compare_target_release_id", ""))
+                        if latest_release
+                        else ""
+                    ),
+                    "latest_release_summary_artifact": (
+                        str(latest_release.get("summary_artifact_path", ""))
+                        if latest_release
+                        else ""
+                    ),
+                    "source_run_compare_summary": (
+                        str(latest_release.get("source_run_compare_summary", ""))
+                        if latest_release
+                        else ""
+                    ),
+                    "compare_counts": (
+                        dict(latest_release.get("compare_counts", {})) if latest_release else {}
+                    ),
+                    "compare_focus": (
+                        list(latest_release.get("compare_focus", [])) if latest_release else []
+                    ),
+                    "latest_release_notes": (
+                        list(latest_release.get("lineage_notes", [])) if latest_release else []
                     ),
                 },
                 "routes": {

@@ -590,15 +590,14 @@ function hydrateInitialRoute() {
 /* ===== DATA LOADING ===== */
 async function load() {
   try {
-    const [mRes, lcRes, inboxRes, approvalsRes, executionRes, judgmentRes, learningRes, showcaseRes] = await Promise.all([
+    const [mRes, lcRes, inboxRes, approvalsRes, executionRes, judgmentRes, learningRes] = await Promise.all([
       fetch('/api/missions'),
       fetch('/api/lifecycle').catch(() => ({ok:false})),
       fetch('/api/inbox').catch(() => ({ok:false})),
       fetch('/api/approvals').catch(() => ({ok:false})),
       fetch('/api/execution-workbench').catch(() => ({ok:false})),
       fetch('/api/judgment-workbench').catch(() => ({ok:false})),
-      fetch('/api/learning-workbench').catch(() => ({ok:false})),
-      fetch('/api/showcase').catch(() => ({ok:false}))
+      fetch('/api/learning-workbench').catch(() => ({ok:false}))
     ]);
     missions = await mRes.json();
     if (lcRes.ok) {
@@ -616,12 +615,23 @@ async function load() {
     selectedExecutionWorkbench = executionRes.ok ? await executionRes.json() : null;
     selectedJudgmentWorkbench = judgmentRes.ok ? await judgmentRes.json() : null;
     selectedLearningWorkbench = learningRes.ok ? await learningRes.json() : null;
-    selectedShowcaseWorkbench = showcaseRes.ok ? await showcaseRes.json() : null;
+    if (selectedOperatorMode === 'showcase') {
+      await ensureShowcaseWorkbenchLoaded(true);
+    }
     renderMissions();
     await ensureMissionSelection();
   } catch(e) {
     console.error('load failed', e);
   }
+}
+
+async function ensureShowcaseWorkbenchLoaded(force = false) {
+  if (!force && selectedShowcaseWorkbench && Object.keys(selectedShowcaseWorkbench).length) {
+    return selectedShowcaseWorkbench;
+  }
+  const showcaseRes = await fetch('/api/showcase').catch(() => ({ok:false}));
+  selectedShowcaseWorkbench = showcaseRes.ok ? await showcaseRes.json() : null;
+  return selectedShowcaseWorkbench;
 }
 
 let evoPanelOpen = false;
@@ -809,10 +819,13 @@ function renderOperatorModes() {
   }
 }
 
-function setOperatorMode(mode) {
+async function setOperatorMode(mode) {
   selectedOperatorMode = mode;
   if (mode === 'evidence') {
     selectedMissionTab = 'transcript';
+  }
+  if (mode === 'showcase') {
+    await ensureShowcaseWorkbenchLoaded();
   }
   syncOperatorRoute();
   renderMissions();
@@ -1458,6 +1471,7 @@ function renderJudgmentWorkbench(judgment) {
   const candidateQueue = judgment.candidate_queue || [];
   const compareView = judgment.compare_view || {};
   const surfacePack = judgment.surface_pack_panel || {};
+  const structuralJudgment = judgment.structural_judgment || {};
   const acceptanceReviewRoute = judgment.acceptance_review_route || '';
 
   const timelineHtml = timeline.length ? timeline.map(item => `
@@ -1498,6 +1512,14 @@ function renderJudgmentWorkbench(judgment) {
         </div>
         <div class="context-meta">${escHtml(evidencePanel.coverage_status || 'No coverage state')}</div>
       </div>
+      <div class="context-card">
+        <div class="context-title">Structural Channel</div>
+        <div class="context-meta">
+          <span class="detail-chip">${escHtml(structuralJudgment.quality_signal || 'stable')}</span>
+          <span>${escHtml(structuralJudgment.bottleneck || 'none')}</span>
+        </div>
+        <div class="context-meta">${escHtml(String((structuralJudgment.rule_violations || []).length || 0))} rule violations</div>
+      </div>
     </div>
     <section class="mission-workbench">
       <div class="mission-section">
@@ -1531,6 +1553,16 @@ function renderJudgmentWorkbench(judgment) {
           </div>
         </div>
       </div>
+      <div class="mission-section">
+        <h3>Structural Judgment</h3>
+        <div class="context-list">
+          <div class="context-card">
+            <div class="context-title">${escHtml(structuralJudgment.quality_signal || 'stable')}</div>
+            <div class="context-meta">${escHtml(structuralJudgment.bottleneck || 'none')}</div>
+            <div class="context-meta">${escHtml((structuralJudgment.baseline_diff || {}).drift_status || 'not_compared')}</div>
+          </div>
+        </div>
+      </div>
     </section>
   `;
 }
@@ -1543,6 +1575,7 @@ function renderGlobalJudgmentWorkbench(judgment, detail) {
   const workspaces = judgment.workspaces || [];
   const candidateQueue = judgment.candidate_queue || [];
   const compareWatch = judgment.compare_watch || [];
+  const structuralWatch = judgment.structural_watch || [];
   const selectedMission = detail?.mission || null;
 
   const workspaceHtml = workspaces.length ? workspaces.map(item => `
@@ -1597,6 +1630,7 @@ function renderGlobalJudgmentWorkbench(judgment, detail) {
         ['Candidates', summary.candidate_finding_count || 0, 'Queued candidate findings'],
         ['Confirmed', summary.confirmed_issue_count || 0, 'Confirmed issues across workspaces'],
         ['Compare Active', summary.compare_active_count || 0, 'Workspaces with active compare overlay'],
+        ['Structural Regressions', summary.structural_regression_count || 0, 'Workspaces with deterministic regression signals'],
       ].map(([label, value, hint]) => `
         <div class="mission-metric">
           <div class="mission-metric-label">${escHtml(label)}</div>
@@ -1618,6 +1652,21 @@ function renderGlobalJudgmentWorkbench(judgment, detail) {
     <section class="mission-section">
       <h3>Compare Watch</h3>
       <div class="context-list">${compareHtml}</div>
+    </section>
+    <section class="mission-section">
+      <h3>Structural Watch</h3>
+      <div class="context-list">
+        ${structuralWatch.length ? structuralWatch.map(item => `
+          <div class="context-card">
+            <div class="context-title">${escHtml(item.workspace_id || 'workspace')}</div>
+            <div class="context-meta">
+              <span class="detail-chip">${escHtml(item.quality_signal || 'stable')}</span>
+              <span>${escHtml(item.bottleneck || 'none')}</span>
+            </div>
+            <div class="context-meta">${escHtml(String(item.rule_violation_count || 0))} rule violations</div>
+          </div>
+        `).join('') : '<div class="empty-panel">No structural watch items right now.</div>'}
+      </div>
     </section>
   `;
 }
@@ -1697,6 +1746,30 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
         <span>${escHtml(String(item.issue_proposal_count || 0))} proposals</span>
       </div>
       <div class="context-meta">
+        <span>Linked workspaces</span>
+        <span>${escHtml((item.workspace_ids || []).join(', ') || 'None linked')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Lineage notes</span>
+        <span>${escHtml((item.lineage_notes || []).join(' | ') || 'No lineage notes')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Compared with</span>
+        <span>${escHtml(item.compare_target_release_id || 'No previous release')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Source-run compare</span>
+        <span>${escHtml(item.source_run_compare_summary || 'No compare summary')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Advanced checks</span>
+        <span>${escHtml(String(item.compare_counts?.advanced || 0))}</span>
+      </div>
+      <div class="context-meta">
+        <span>Compare focus</span>
+        <span>${escHtml((item.compare_focus || []).join(' | ') || 'No compare focus')}</span>
+      </div>
+      <div class="context-meta">
         ${item.summary_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(item.summary_artifact_path)}" target="_blank" rel="noreferrer">Bundle summary</a>` : ''}
         ${item.status_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(item.status_artifact_path)}" target="_blank" rel="noreferrer">Status JSON</a>` : ''}
       </div>
@@ -1711,6 +1784,34 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
         <span>${escHtml(item.workspace_id || '')}</span>
       </div>
       <div class="context-meta">${escHtml(item.narrative || 'No storyline yet.')}</div>
+      <div class="context-meta">
+        <span>Governance Story</span>
+        <span>
+          ${escHtml(item.governance_story?.execution?.current_phase || 'unknown phase')}
+          · ${escHtml(item.governance_story?.structural?.quality_signal || 'no quality signal')}
+          · Promotion decision ${escHtml(item.governance_story?.learning?.promotion_decision || 'hold')}
+        </span>
+      </div>
+      <div class="context-meta">
+        <span>Latest release notes</span>
+        <span>${escHtml((item.lineage_drilldown?.latest_release_notes || []).join(' | ') || 'No release notes')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Compared with</span>
+        <span>${escHtml(item.lineage_drilldown?.compare_target_release_id || 'No previous release')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Source-run compare</span>
+        <span>${escHtml(item.lineage_drilldown?.source_run_compare_summary || 'No compare summary')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Advanced checks</span>
+        <span>${escHtml(String(item.lineage_drilldown?.compare_counts?.advanced || 0))}</span>
+      </div>
+      <div class="context-meta">
+        <span>Compare focus</span>
+        <span>${escHtml((item.lineage_drilldown?.compare_focus || []).join(' | ') || 'No compare focus')}</span>
+      </div>
       <div class="context-meta">
         ${item.routes?.execution ? renderInternalRouteButton(item.routes.execution, 'Execution') : ''}
         ${item.routes?.judgment ? renderInternalRouteButton(item.routes.judgment, 'Judgment') : ''}
@@ -1868,6 +1969,30 @@ function renderShowcaseContextRail(showcase, detail) {
               <span>${escHtml(latestRelease.created_at || '')}</span>
             </div>
             <div class="context-meta">
+              <span>Linked workspaces</span>
+              <span>${escHtml((latestRelease.workspace_ids || []).join(', ') || 'None linked')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Lineage notes</span>
+              <span>${escHtml((latestRelease.lineage_notes || []).join(' | ') || 'No lineage notes')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Compared with</span>
+              <span>${escHtml(latestRelease.compare_target_release_id || 'No previous release')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Source-run compare</span>
+              <span>${escHtml(latestRelease.source_run_compare_summary || 'No compare summary')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Advanced checks</span>
+              <span>${escHtml(String(latestRelease.compare_counts?.advanced || 0))}</span>
+            </div>
+            <div class="context-meta">
+              <span>Compare focus</span>
+              <span>${escHtml((latestRelease.compare_focus || []).join(' | ') || 'No compare focus')}</span>
+            </div>
+            <div class="context-meta">
               ${latestRelease.summary_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(latestRelease.summary_artifact_path)}" target="_blank" rel="noreferrer">Open summary</a>` : ''}
             </div>
           </div>
@@ -1881,6 +2006,30 @@ function renderShowcaseContextRail(showcase, detail) {
           <div class="context-card">
             <div class="context-title">${escHtml(item.title || item.workspace_id || 'workspace')}</div>
             <div class="context-meta">${escHtml(item.narrative || 'No narrative')}</div>
+            <div class="context-meta">
+              <span>Governance Story</span>
+              <span>${escHtml(item.governance_story?.structural?.quality_signal || 'no quality signal')} · Promotion decision ${escHtml(item.governance_story?.learning?.promotion_decision || 'hold')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Latest release notes</span>
+              <span>${escHtml((item.lineage_drilldown?.latest_release_notes || []).join(' | ') || 'No release notes')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Compared with</span>
+              <span>${escHtml(item.lineage_drilldown?.compare_target_release_id || 'No previous release')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Source-run compare</span>
+              <span>${escHtml(item.lineage_drilldown?.source_run_compare_summary || 'No compare summary')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Advanced checks</span>
+              <span>${escHtml(String(item.lineage_drilldown?.compare_counts?.advanced || 0))}</span>
+            </div>
+            <div class="context-meta">
+              <span>Compare focus</span>
+              <span>${escHtml((item.lineage_drilldown?.compare_focus || []).join(' | ') || 'No compare focus')}</span>
+            </div>
           </div>
         `).join('') : '<div class="empty-panel">No workspace narratives yet.</div>'}
       </div>
@@ -1906,6 +2055,7 @@ function renderJudgmentContextRail(judgment, detail) {
   const summary = judgment.summary || {};
   const candidateQueue = judgment.candidate_queue || [];
   const compareWatch = judgment.compare_watch || [];
+  const structuralWatch = judgment.structural_watch || [];
   const selectedMission = detail?.mission || null;
   const selectedMissionJudgmentView = detail?.judgment_workbench || null;
   return `
@@ -1941,12 +2091,24 @@ function renderJudgmentContextRail(judgment, detail) {
       </div>
     </div>
     <div class="mission-section">
+      <h3>Structural Watch</h3>
+      <div class="context-list">
+        ${structuralWatch.length ? structuralWatch.slice(0, 4).map(item => `
+          <div class="context-card">
+            <div class="context-title">${escHtml(item.workspace_id || 'workspace')}</div>
+            <div class="context-meta">${escHtml(item.quality_signal || 'stable')} · ${escHtml(item.bottleneck || 'none')}</div>
+          </div>
+        `).join('') : '<div class="empty-panel">No structural bottlenecks detected.</div>'}
+      </div>
+    </div>
+    <div class="mission-section">
       <h3>Selected Mission</h3>
       <div class="context-list">
         ${selectedMission ? `
           <div class="context-card">
             <div class="context-title">${escHtml(selectedMission.title || selectedMission.mission_id || 'mission')}</div>
             <div class="context-meta">${selectedMissionJudgmentView?.overview?.judgment_class ? escHtml(selectedMissionJudgmentView.overview.judgment_class) : 'No judgment yet'}</div>
+            <div class="context-meta">${selectedMissionJudgmentView?.structural_judgment?.bottleneck ? escHtml(selectedMissionJudgmentView.structural_judgment.bottleneck) : 'No structural bottleneck'}</div>
             <div class="context-meta">${renderInternalRouteButton(`/?mission=${encodeURIComponent(selectedMission.mission_id || '')}&mode=missions&tab=judgment`, 'Open mission judgment')}</div>
           </div>
         ` : '<div class="empty-panel">Select a mission to inspect its judgment surface.</div>'}
@@ -2213,6 +2375,9 @@ function renderExecutionWorkbench(execution) {
   const activeWork = execution?.active_work || [];
   const queue = execution?.queue || [];
   const interventions = execution?.interventions || [];
+  const resourceBudgets = execution?.resource_budgets || [];
+  const pressureSignals = execution?.pressure_signals || [];
+  const admissionDecisions = execution?.admission_decisions || [];
   const eventTrail = execution?.event_trail || [];
   const runtime = execution?.runtime || null;
   const agents = execution?.agents || [];
@@ -2260,6 +2425,36 @@ function renderExecutionWorkbench(execution) {
     </div>
   `).join('') : '<div class="empty-panel">No open interventions.</div>';
 
+  const budgetHtml = resourceBudgets.length ? resourceBudgets.map(item => `
+    <div class="context-card">
+      <div class="context-title">${escHtml(item.budget_key || 'budget')}</div>
+      <div class="context-meta">
+        <span class="detail-chip">${escHtml(item.budget_state || 'unknown')}</span>
+        <span>${escHtml(String(item.remaining_steps ?? '—'))} remaining</span>
+      </div>
+    </div>
+  `).join('') : '<div class="empty-panel">No resource budgets recorded.</div>';
+
+  const pressureHtml = pressureSignals.length ? pressureSignals.map(item => `
+    <div class="context-card">
+      <div class="context-title">${escHtml(item.pressure_kind || 'signal')}</div>
+      <div class="context-meta">
+        <span class="detail-chip">${escHtml(item.budget_key || 'budget')}</span>
+        <span>${escHtml(item.reason || item.status_reason || 'No reason')}</span>
+      </div>
+    </div>
+  `).join('') : '<div class="empty-panel">No pressure signals for this mission.</div>';
+
+  const admissionHtml = admissionDecisions.length ? admissionDecisions.map(item => `
+    <div class="context-card">
+      <div class="context-title">${escHtml(item.subject_id || item.workspace_id || 'workspace')}</div>
+      <div class="context-meta">
+        <span class="detail-chip">${escHtml(item.decision || 'unknown')}</span>
+        <span>${escHtml(item.pressure_reason || item.degrade_reason || 'No reason')}</span>
+      </div>
+    </div>
+  `).join('') : '<div class="empty-panel">No admission decisions for this mission.</div>';
+
   const agentHtml = agents.length ? agents.map(agent => `
     <div class="context-card">
       <div class="context-title">${escHtml(agent.name || agent.agent_id || 'agent')}</div>
@@ -2278,6 +2473,10 @@ function renderExecutionWorkbench(execution) {
           <span>${escHtml(String(overview.active_work_count || 0))} active</span>
           <span>${escHtml(String(overview.queued_count || 0))} queued</span>
           <span>${escHtml(String(overview.open_intervention_count || 0))} interventions</span>
+        </div>
+        <div class="context-meta">
+          <span>${escHtml(String(overview.pressure_signal_count || 0))} pressure signals</span>
+          <span>${escHtml(String(overview.admission_decision_count || 0))} admission decisions</span>
         </div>
         <div class="context-meta">
           <span class="detail-chip">${escHtml(overview.current_phase || 'unknown')}</span>
@@ -2314,6 +2513,20 @@ function renderExecutionWorkbench(execution) {
         <h3>Interventions</h3>
         <div class="context-list">${interventionHtml}</div>
       </div>
+    </section>
+    <section class="mission-workbench">
+      <div class="mission-section">
+        <h3>Admission</h3>
+        <div class="context-list">${admissionHtml}</div>
+      </div>
+      <div class="mission-section">
+        <h3>Pressure</h3>
+        <div class="context-list">${pressureHtml}</div>
+      </div>
+    </section>
+    <section class="mission-section">
+      <h3>Resource Budgets</h3>
+      <div class="context-list">${budgetHtml}</div>
     </section>
     <section class="mission-section">
       <h3>Agents</h3>

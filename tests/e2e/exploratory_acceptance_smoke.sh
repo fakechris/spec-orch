@@ -167,7 +167,11 @@ ROUND_DIR="$(find "$MISSION_DIR/rounds" -mindepth 1 -maxdepth 1 -type d | sort |
 [ -f "$ROUND_DIR/acceptance_review.json" ] || fail "acceptance_review.json missing"
 
 step "Resolve isolated dashboard ports"
-mapfile -t DASHBOARD_PORT_CANDIDATES < <(
+DASHBOARD_PORT_CANDIDATES=()
+while IFS= read -r candidate_port; do
+  [ -n "$candidate_port" ] || continue
+  DASHBOARD_PORT_CANDIDATES+=("$candidate_port")
+done < <(
   uv run --python 3.13 python - <<'PY' "$REQUESTED_DASHBOARD_PORT"
 import sys
 

@@ -202,7 +202,7 @@
           }
         },
         "daemon_run": {},
-        "fresh_round_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/rounds/round-01",
+        "fresh_round_path": "<external-path>/fresh-acpx-20260402054507-93e48f/rounds/round-01",
         "builder_execution_summary": {
           "builder_reports": [
             {
@@ -210,14 +210,14 @@
               "succeeded": true,
               "adapter": "acpx_worker",
               "agent": "opencode",
-              "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/builder_report.json"
+              "report_path": "<external-path>/workers/scaffold-mission-types/builder_report.json"
             },
             {
               "packet_id": "scaffold-artifact-types",
               "succeeded": false,
               "adapter": "acpx_worker",
               "agent": "opencode",
-              "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/builder_report.json"
+              "report_path": "<external-path>/workers/scaffold-artifact-types/builder_report.json"
             }
           ],
           "worker_session_ids": [
@@ -391,7 +391,7 @@
         }
       },
       "daemon_run": {},
-      "fresh_round_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/rounds/round-01",
+      "fresh_round_path": "<external-path>/fresh-acpx-20260402054507-93e48f/rounds/round-01",
       "builder_execution_summary": {
         "builder_reports": [
           {
@@ -399,14 +399,14 @@
             "succeeded": true,
             "adapter": "acpx_worker",
             "agent": "opencode",
-            "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/builder_report.json"
+            "report_path": "<external-path>/workers/scaffold-mission-types/builder_report.json"
           },
           {
             "packet_id": "scaffold-artifact-types",
             "succeeded": false,
             "adapter": "acpx_worker",
             "agent": "opencode",
-            "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/builder_report.json"
+            "report_path": "<external-path>/workers/scaffold-artifact-types/builder_report.json"
           }
         ],
         "worker_session_ids": [

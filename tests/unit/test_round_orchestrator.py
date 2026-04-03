@@ -3120,6 +3120,53 @@ def test_build_packet_scope_proof_preserves_empty_files_changed_without_workspac
     assert scope["out_of_scope_files"] == []
 
 
+def test_build_packet_scope_proof_ignores_directory_entries_from_builder_report(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.domain.models import WorkPacket
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+    )
+    packet = WorkPacket(
+        packet_id="pkt-directories",
+        title="Scaffold artifact types",
+        files_in_scope=["src/contracts/artifact_types.ts"],
+        builder_prompt="Create the artifact_types contract only.",
+    )
+    workspace = orchestrator._packet_workspace("mission-directories", packet)
+    (workspace / "src" / "contracts").mkdir(parents=True, exist_ok=True)
+    artifact_path = workspace / "src" / "contracts" / "artifact_types.ts"
+    artifact_path.write_text("export interface ArtifactType {}\n", encoding="utf-8")
+    report_path = workspace / "builder_report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "files_changed": [
+                    str(workspace),
+                    str(workspace / "src"),
+                    str(artifact_path),
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    scope = orchestrator._build_packet_scope_proof(
+        workspace=workspace,
+        packet=packet,
+        report_path=report_path,
+    )
+
+    assert scope["realized_files"] == ["src/contracts/artifact_types.ts"]
+    assert scope["out_of_scope_files"] == []
+    assert scope["all_in_scope"] is True
+
+
 def test_transient_verification_support_file_uses_verification_commands(tmp_path: Path) -> None:
     from spec_orch.domain.models import WorkPacket
     from spec_orch.services.round_orchestrator import RoundOrchestrator

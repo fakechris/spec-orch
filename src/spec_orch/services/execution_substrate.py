@@ -24,6 +24,7 @@ from spec_orch.runtime_chain.models import (
 )
 from spec_orch.runtime_chain.store import read_chain_events, read_chain_status
 from spec_orch.runtime_core.observability.store import read_live_summary
+from spec_orch.services.admission_governor import load_admission_governor_snapshot
 from spec_orch.services.operator_semantics import execution_session_from_runtime_chain_status
 
 _LOCAL_RUNTIME_ID = "runtime:local"
@@ -678,23 +679,70 @@ def build_execution_substrate_snapshot(repo_root: Path) -> dict[str, Any]:
         item.to_dict() for item in sorted(agent_models.values(), key=lambda item: item.agent_id)
     ]
     runtimes = [item.to_dict() for item in runtime_models]
+    governor_snapshot = load_admission_governor_snapshot(Path(repo_root))
+    queue.extend(item for item in governor_snapshot.get("queue", []) if isinstance(item, dict))
+    resource_budgets.extend(
+        item for item in governor_snapshot.get("resource_budgets", []) if isinstance(item, dict)
+    )
+    pressure_signals.extend(
+        item for item in governor_snapshot.get("pressure_signals", []) if isinstance(item, dict)
+    )
+    admission_decisions.extend(
+        item for item in governor_snapshot.get("admission_decisions", []) if isinstance(item, dict)
+    )
     admission_decision_counts = {
-        "admit": sum(1 for item in admission_decision_models if item.decision == "admit"),
-        "defer": sum(1 for item in admission_decision_models if item.decision == "defer"),
-        "reject": sum(1 for item in admission_decision_models if item.decision == "reject"),
-        "degrade": sum(1 for item in admission_decision_models if item.decision == "degrade"),
+        "admit": sum(1 for item in admission_decisions if item.get("decision") == "admit"),
+        "defer": sum(1 for item in admission_decisions if item.get("decision") == "defer"),
+        "reject": sum(1 for item in admission_decisions if item.get("decision") == "reject"),
+        "degrade": sum(1 for item in admission_decisions if item.get("decision") == "degrade"),
     }
-    pressure_signal_count = sum(len(signals) for signals in pressure_by_workspace.values())
+    pressure_signal_count = len(pressure_signals)
     intervention_needed_count = len(
         {item.workspace_id for item in active_work_models if item.health in {"degraded", "failed"}}
         | {item.workspace_id for item in intervention_models if item.outcome == "open"}
+        | {
+            str(item.get("workspace_id", "")).strip()
+            for item in admission_decisions
+            if item.get("decision") in {"defer", "reject", "degrade"}
+        }
     )
+    if runtimes:
+        runtime = runtimes[0]
+        usage_summary = runtime.setdefault("usage_summary", {})
+        usage_summary["queued_sessions"] = len(queue)
+        usage_summary["pressure_signal_count"] = len(pressure_signals)
+        usage_summary["admission_decision_counts"] = admission_decision_counts
+        activity_summary = runtime.setdefault("activity_summary", {})
+        existing_budget_keys = {
+            str(item).strip()
+            for item in activity_summary.get("budget_keys", [])
+            if str(item).strip()
+        }
+        existing_budget_keys.update(
+            str(item.get("budget_key", "")).strip()
+            for item in pressure_signals
+            if str(item.get("budget_key", "")).strip()
+        )
+        activity_summary["budget_keys"] = sorted(existing_budget_keys)
+        existing_pressure_signals = [
+            item for item in activity_summary.get("pressure_signals", []) if isinstance(item, dict)
+        ]
+        existing_pressure_signals.extend(
+            {
+                "budget_key": str(item.get("budget_key", "")).strip(),
+                "status_reason": str(item.get("reason", "")).strip(),
+                **(item.get("details", {}) if isinstance(item.get("details"), dict) else {}),
+            }
+            for item in governor_snapshot.get("pressure_signals", [])
+            if isinstance(item, dict)
+        )
+        activity_summary["pressure_signals"] = existing_pressure_signals
     summary = {
         "active_work_count": len(active_work),
         "agent_count": len(agents),
         "runtime_count": len(runtimes),
         "running_count": sum(1 for item in active_work_models if item.health == "active"),
-        "queued_count": len(queue_models),
+        "queued_count": len(queue),
         "degraded_count": sum(1 for item in active_work_models if item.health == "degraded"),
         "intervention_needed_count": intervention_needed_count,
         "open_intervention_count": sum(1 for item in intervention_models if item.outcome == "open"),

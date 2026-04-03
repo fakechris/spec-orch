@@ -6,7 +6,7 @@
   "event_count": 80,
   "commands_completed": 0,
   "files_changed": [
-    "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/src/contracts/artifact_types.ts"
+    "<external-path>/src/contracts/artifact_types.ts"
   ],
   "session_reused": false,
   "session_health": "healthy",

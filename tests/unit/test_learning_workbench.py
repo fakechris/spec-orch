@@ -80,6 +80,8 @@ def _seed_learning_workspace(repo_root: Path, mission_id: str) -> None:
             "proposal_id": "proposal-1",
             "mission_id": mission_id,
             "promoted": True,
+            "origin_finding_ref": "candidate:learning-1",
+            "origin_review_ref": "proposal:learning-1",
         },
     )
     svc.synthesize_active_learning_slice("self", top_k=5)
@@ -136,6 +138,21 @@ def _seed_learning_workspace(repo_root: Path, mission_id: str) -> None:
 
     acceptance_history_dir = repo_root / "docs" / "acceptance-history"
     acceptance_history_dir.mkdir(parents=True, exist_ok=True)
+    release_dir = (
+        acceptance_history_dir / "releases" / "judgment-workbench-tranche-son-390-2026-04-03"
+    )
+    release_dir.mkdir(parents=True, exist_ok=True)
+    (release_dir / "source_runs.json").write_text(
+        json.dumps(
+            {
+                "mission_start": {
+                    "mission_id": mission_id,
+                    "report_path": f"docs/specs/{mission_id}/operator/mission_start_acceptance.json",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
     (acceptance_history_dir / "index.json").write_text(
         json.dumps(
             {
@@ -157,6 +174,29 @@ def _seed_learning_workspace(repo_root: Path, mission_id: str) -> None:
     )
 
 
+def _seed_empty_learning_workspace(repo_root: Path, mission_id: str) -> None:
+    specs_dir = repo_root / "docs" / "specs" / mission_id
+    specs_dir.mkdir(parents=True, exist_ok=True)
+    (specs_dir / "mission.json").write_text(
+        json.dumps(
+            {
+                "mission_id": mission_id,
+                "title": "Empty Learning Workspace",
+                "status": "approved",
+                "spec_path": f"docs/specs/{mission_id}/spec.md",
+                "acceptance_criteria": [],
+                "constraints": [],
+                "interface_contracts": [],
+                "created_at": "2026-04-03T00:00:00+00:00",
+                "approved_at": "2026-04-03T00:10:00+00:00",
+                "completed_at": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (specs_dir / "spec.md").write_text("# Empty Learning Workspace\n", encoding="utf-8")
+
+
 def test_build_mission_learning_workbench_surfaces_promotions_patterns_and_archive_lineage(
     tmp_path: Path,
 ) -> None:
@@ -174,14 +214,21 @@ def test_build_mission_learning_workbench_surfaces_promotions_patterns_and_archi
         "active_promotion_count": 1,
         "evolution_event_count": 1,
         "archive_release_count": 1,
+        "linked_release_count": 1,
         "last_learning_summary": "Transcript continuity regression was promoted to a stable learning.",
     }
     assert payload["promotion_timeline"][0]["proposal_id"] == "proposal-1"
     assert payload["promotion_timeline"][0]["workspace_id"] == mission_id
+    assert payload["promotion_timeline"][0]["origin_finding_ref"] == "candidate:learning-1"
+    assert payload["promotion_timeline"][0]["promotion_state"] == "promoted"
     assert payload["patterns"][0]["dedupe_key"] == "dashboard:transcript-continuity"
     assert payload["patterns"][0]["review_route"] == (
         f"/?mission={mission_id}&mode=missions&tab=learning"
     )
+    assert payload["promoted_findings"][0]["promotion_target"] == "reviewed_learning"
+    assert payload["promotion_policy"]["summary"]["promote_count"] == 1
+    assert payload["promotion_policy"]["summary"]["linked_release_count"] == 1
+    assert payload["memory_links"]["memory_refs"][0]["origin_finding_ref"] == "candidate:learning-1"
     assert payload["fixture_registry"]["summary"] == {
         "candidate_count": 1,
         "graduation_count": 1,
@@ -197,6 +244,9 @@ def test_build_mission_learning_workbench_surfaces_promotions_patterns_and_archi
     assert payload["evolution_registry"]["recent_journal"][0]["evolver_name"] == "prompt_evolver"
     assert payload["evolution_registry"]["active_promotions"][0]["status"] == "active"
     assert payload["archive_lineage"]["releases"][0]["release_id"] == (
+        "judgment-workbench-tranche-son-390-2026-04-03"
+    )
+    assert payload["archive_lineage"]["linked_releases"][0]["release_id"] == (
         "judgment-workbench-tranche-son-390-2026-04-03"
     )
     assert payload["review_route"] == f"/?mission={mission_id}&mode=missions&tab=learning"
@@ -215,15 +265,35 @@ def test_build_learning_workbench_aggregates_workspace_inventory(tmp_path: Path)
         "fixture_candidate_count": 1,
         "active_promotion_count": 1,
         "archive_release_count": 1,
+        "linked_release_count": 1,
     }
     assert payload["workspaces"][0]["workspace_id"] == "mission-learning"
     assert payload["workspaces"][0]["promoted_finding_count"] == 1
+    assert payload["workspaces"][0]["promotion_decision"] == "promote"
     assert payload["promotion_timeline"][0]["proposal_id"] == "proposal-1"
     assert payload["patterns"][0]["workspace_id"] == "mission-learning"
     assert payload["fixture_registry"]["candidates"][0]["mission_id"] == "mission-learning"
     assert payload["memory_links"]["acceptance_findings"][0]["mission_id"] == "mission-learning"
+    assert payload["memory_links"]["memory_refs"][0]["origin_review_ref"] == "proposal:learning-1"
     assert payload["evolution_registry"]["active_promotions"][0]["proposal_id"] == "proposal-1"
     assert payload["archive_lineage"]["releases"][0]["release_id"] == (
         "judgment-workbench-tranche-son-390-2026-04-03"
     )
+    assert payload["archive_lineage"]["linked_releases"][0]["release_id"] == (
+        "judgment-workbench-tranche-son-390-2026-04-03"
+    )
     assert payload["review_route"] == "/?mode=learning"
+
+
+def test_build_learning_workbench_handles_workspace_without_promotion_decisions(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.learning_workbench import build_learning_workbench
+
+    _seed_empty_learning_workspace(tmp_path, "mission-empty")
+
+    payload = build_learning_workbench(tmp_path)
+
+    assert payload["summary"]["workspace_count"] == 1
+    assert payload["workspaces"][0]["workspace_id"] == "mission-empty"
+    assert payload["workspaces"][0]["promotion_decision"] == ""

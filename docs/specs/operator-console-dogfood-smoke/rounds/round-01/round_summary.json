@@ -10,10 +10,10 @@
       "succeeded": true,
       "adapter": "acpx_worker",
       "agent": "opencode",
-      "report_path": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/workers/dogfood-contract-scaffold/builder_report.json",
-      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/workers/dogfood-contract-scaffold/telemetry/incoming_events.jsonl",
-      "events_path": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/workers/dogfood-contract-scaffold/telemetry/events.jsonl",
-      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/codexharness/docs/specs/operator-console-dogfood-smoke/workers/dogfood-contract-scaffold/telemetry/activity.log"
+      "report_path": "<external-path>/workers/dogfood-contract-scaffold/builder_report.json",
+      "incoming_events_path": "<external-path>/dogfood-contract-scaffold/telemetry/incoming_events.jsonl",
+      "events_path": "<external-path>/dogfood-contract-scaffold/telemetry/events.jsonl",
+      "activity_log_path": "<external-path>/dogfood-contract-scaffold/telemetry/activity.log"
     }
   ],
   "decision": {

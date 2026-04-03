@@ -9,6 +9,7 @@ from spec_orch.acceptance_core.calibration import (
     load_fixture_graduation_events,
 )
 from spec_orch.services.evolution.promotion_registry import PromotionRegistry
+from spec_orch.services.learning_promotion_policy import evaluate_learning_promotion
 from spec_orch.services.memory.service import MemoryService
 
 
@@ -28,6 +29,13 @@ def _load_acceptance_history(repo_root: Path) -> list[dict[str, Any]]:
     if not isinstance(releases, list):
         return []
     return [item for item in releases if isinstance(item, dict)]
+
+
+def _load_release_source_runs(repo_root: Path, bundle_path: str) -> dict[str, Any] | None:
+    if not bundle_path:
+        return None
+    payload = _load_json(repo_root / bundle_path / "source_runs.json")
+    return payload if isinstance(payload, dict) else None
 
 
 def _filter_by_mission(rows: list[dict[str, Any]], mission_id: str) -> list[dict[str, Any]]:
@@ -52,10 +60,12 @@ def _load_fixture_candidates(repo_root: Path, mission_id: str) -> list[dict[str,
         candidates.append(
             {
                 "mission_id": mission_id,
+                "fixture_candidate_id": str(seed.get("seed_name", "")),
                 "seed_name": str(seed.get("seed_name", "")),
                 "stage": str(seed.get("stage", "")),
                 "judgment_id": str(seed.get("event", {}).get("judgment_id", "")),
                 "finding_id": str(seed.get("event", {}).get("finding_id", "")),
+                "origin_finding_ref": str(seed.get("event", {}).get("finding_id", "")),
                 "dedupe_key": str(seed.get("event", {}).get("dedupe_key", "")),
                 "route": str(seed.get("event", {}).get("route", "")),
                 "review_route": f"/?mission={mission_id}&mode=missions&tab=learning",
@@ -130,11 +140,31 @@ def _promotion_rows(
             {
                 "promotion_id": record.promotion_id,
                 "proposal_id": record.proposal_id,
-                "workspace_id": workspace_id,
+                "workspace_id": record.workspace_id or workspace_id,
                 "evolver_name": record.evolver_name,
                 "change_type": record.change_type,
                 "origin": record.origin,
                 "status": record.status,
+                "origin_finding_ref": record.origin_finding_ref
+                or (
+                    str(metadata.get("origin_finding_ref", ""))
+                    if isinstance(metadata, dict)
+                    else ""
+                ),
+                "origin_review_ref": record.origin_review_ref
+                or (
+                    str(metadata.get("origin_review_ref", "")) if isinstance(metadata, dict) else ""
+                ),
+                "promotion_target": record.promotion_target or "EvolutionProposalRef",
+                "promotion_reason": record.promotion_reason,
+                "promotion_state": (
+                    "promoted"
+                    if record.status == "active"
+                    else "retired"
+                    if record.status in {"superseded", "retired"}
+                    else record.status
+                ),
+                "evolution_ref_id": record.proposal_id,
                 "reviewed_evidence_count": record.reviewed_evidence_count,
                 "signal_origins": list(record.signal_origins),
                 "created_at": record.created_at,
@@ -149,6 +179,81 @@ def _promotion_rows(
     return rows
 
 
+def _linked_release_rows(repo_root: Path, mission_id: str) -> list[dict[str, Any]]:
+    linked: list[dict[str, Any]] = []
+    for release in _load_acceptance_history(repo_root):
+        bundle_path = str(release.get("bundle_path", ""))
+        source_runs = _load_release_source_runs(repo_root, bundle_path)
+        if source_runs is None:
+            continue
+        matched = False
+        for item in source_runs.values():
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("mission_id", "")) == mission_id:
+                matched = True
+                break
+        if matched:
+            linked.append(release)
+    return linked
+
+
+def _promotion_policy_rows(
+    findings: list[dict[str, Any]],
+    *,
+    fixture_candidates: list[dict[str, Any]],
+    memory_refs: list[dict[str, Any]],
+    promotions: list[dict[str, Any]],
+    linked_releases: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    promoted_findings: list[dict[str, Any]] = []
+    decisions: list[dict[str, Any]] = []
+    for finding in findings:
+        finding_id = str(finding.get("finding_id", ""))
+        judgment_id = str(finding.get("judgment_id", ""))
+        related_fixture_candidates = [
+            item
+            for item in fixture_candidates
+            if str(item.get("origin_finding_ref", "")) == finding_id
+        ]
+        related_memory_refs = [
+            item
+            for item in memory_refs
+            if str(item.get("origin_finding_ref", "")) == finding_id
+            or str(item.get("origin_review_ref", "")) == judgment_id
+        ]
+        related_evolution_refs = [
+            item
+            for item in promotions
+            if str(item.get("origin_finding_ref", "")) == finding_id
+            or str(item.get("origin_review_ref", "")) == judgment_id
+        ]
+        decision = evaluate_learning_promotion(
+            finding,
+            fixture_candidates=related_fixture_candidates,
+            memory_refs=related_memory_refs,
+            evolution_refs=related_evolution_refs,
+            archive_releases=linked_releases,
+        )
+        promoted_findings.append(decision["promoted_finding"])
+        decisions.append(
+            {
+                "finding_id": finding_id,
+                "judgment_id": judgment_id,
+                **decision,
+            }
+        )
+    summary = {
+        "promote_count": sum(1 for item in decisions if item.get("action") == "promote"),
+        "hold_count": sum(1 for item in decisions if item.get("action") == "hold"),
+        "reject_count": sum(1 for item in decisions if item.get("action") == "reject"),
+        "rollback_count": sum(1 for item in decisions if item.get("action") == "rollback"),
+        "retire_count": sum(1 for item in decisions if item.get("action") == "retire"),
+        "linked_release_count": len(linked_releases),
+    }
+    return promoted_findings, decisions, summary
+
+
 def build_mission_learning_workbench(repo_root: Path, mission_id: str) -> dict[str, Any]:
     svc = MemoryService(repo_root=repo_root)
     findings = _filter_by_mission(svc.get_reviewed_acceptance_findings(top_k=50), mission_id)
@@ -158,9 +263,18 @@ def build_mission_learning_workbench(repo_root: Path, mission_id: str) -> dict[s
     journal = _filter_by_mission(svc.get_recent_evolution_journal(limit=50), mission_id)
     promotions = _promotion_rows(repo_root, journal=journal, mission_id=mission_id)
     patterns = _acceptance_patterns(findings, mission_id)
+    memory_refs = svc.get_learning_memory_refs(mission_id)
     fixture_candidates = _load_fixture_candidates(repo_root, mission_id)
     fixture_graduations = _load_fixture_graduations(repo_root, mission_id)
     releases = _load_acceptance_history(repo_root)
+    linked_releases = _linked_release_rows(repo_root, mission_id)
+    promoted_findings, promotion_decisions, policy_summary = _promotion_policy_rows(
+        findings,
+        fixture_candidates=fixture_candidates,
+        memory_refs=memory_refs,
+        promotions=promotions,
+        linked_releases=linked_releases,
+    )
     return {
         "mission_id": mission_id,
         "overview": {
@@ -171,7 +285,13 @@ def build_mission_learning_workbench(repo_root: Path, mission_id: str) -> dict[s
             ),
             "evolution_event_count": len(journal),
             "archive_release_count": len(releases),
+            "linked_release_count": len(linked_releases),
             "last_learning_summary": str(findings[0].get("summary", "")) if findings else "",
+        },
+        "promoted_findings": promoted_findings,
+        "promotion_policy": {
+            "summary": policy_summary,
+            "decisions": promotion_decisions,
         },
         "promotion_timeline": promotions,
         "patterns": patterns,
@@ -185,6 +305,7 @@ def build_mission_learning_workbench(repo_root: Path, mission_id: str) -> dict[s
         },
         "memory_links": {
             "acceptance_findings": findings,
+            "memory_refs": memory_refs,
             "learning_slices": {
                 "self": self_slice,
                 "delivery": delivery_slice,
@@ -197,6 +318,7 @@ def build_mission_learning_workbench(repo_root: Path, mission_id: str) -> dict[s
         },
         "archive_lineage": {
             "releases": releases,
+            "linked_releases": linked_releases,
         },
         "review_route": f"/?mission={mission_id}&mode=missions&tab=learning",
     }
@@ -210,6 +332,7 @@ def build_learning_workbench(repo_root: Path) -> dict[str, Any]:
     fixture_candidates: list[dict[str, Any]] = []
     fixture_graduations: list[dict[str, Any]] = []
     acceptance_findings: list[dict[str, Any]] = []
+    memory_refs: list[dict[str, Any]] = []
     learning_slices: dict[str, list[dict[str, Any]]]
     learning_slices = {"self": [], "delivery": [], "feedback": []}
 
@@ -219,12 +342,15 @@ def build_learning_workbench(repo_root: Path) -> dict[str, Any]:
         mission_id = mission_root.name
         payload = build_mission_learning_workbench(repo_root, mission_id)
         overview = payload.get("overview", {})
+        decisions = payload.get("promotion_policy", {}).get("decisions", [])
+        first_decision = decisions[0] if isinstance(decisions, list) and decisions else {}
         workspaces.append(
             {
                 "workspace_id": mission_id,
                 "promoted_finding_count": int(overview.get("promoted_finding_count", 0) or 0),
                 "fixture_candidate_count": int(overview.get("fixture_candidate_count", 0) or 0),
                 "active_promotion_count": int(overview.get("active_promotion_count", 0) or 0),
+                "promotion_decision": str(first_decision.get("action", "")),
                 "evolution_event_count": int(overview.get("evolution_event_count", 0) or 0),
                 "last_learning_summary": str(overview.get("last_learning_summary", "")),
                 "review_route": payload.get("review_route", ""),
@@ -235,6 +361,7 @@ def build_learning_workbench(repo_root: Path) -> dict[str, Any]:
         fixture_graduations.extend(payload.get("fixture_registry", {}).get("graduations", []))
         memory_links = payload.get("memory_links", {})
         acceptance_findings.extend(memory_links.get("acceptance_findings", []))
+        memory_refs.extend(memory_links.get("memory_refs", []))
         slices = memory_links.get("learning_slices", {})
         for kind in learning_slices:
             learning_slices[kind].extend(slices.get(kind, []))
@@ -242,6 +369,12 @@ def build_learning_workbench(repo_root: Path) -> dict[str, Any]:
     recent_journal = svc.get_recent_evolution_journal(limit=50)
     promotions = _promotion_rows(repo_root, journal=recent_journal)
     releases = _load_acceptance_history(repo_root)
+    linked_releases: list[dict[str, Any]] = []
+    for workspace in workspaces:
+        workspace_id = str(workspace.get("workspace_id", ""))
+        linked_releases.extend(_linked_release_rows(repo_root, workspace_id))
+    linked_by_release_id = {item.get("release_id"): item for item in linked_releases}
+    unique_linked_releases = list(linked_by_release_id.values())
     return {
         "summary": {
             "workspace_count": len(workspaces),
@@ -251,6 +384,7 @@ def build_learning_workbench(repo_root: Path) -> dict[str, Any]:
                 [item for item in promotions if item.get("status") == "active"]
             ),
             "archive_release_count": len(releases),
+            "linked_release_count": len(unique_linked_releases),
         },
         "workspaces": workspaces,
         "promotion_timeline": promotions,
@@ -265,6 +399,7 @@ def build_learning_workbench(repo_root: Path) -> dict[str, Any]:
         },
         "memory_links": {
             "acceptance_findings": acceptance_findings,
+            "memory_refs": memory_refs,
             "learning_slices": learning_slices,
         },
         "evolution_registry": {
@@ -273,6 +408,7 @@ def build_learning_workbench(repo_root: Path) -> dict[str, Any]:
         },
         "archive_lineage": {
             "releases": releases,
+            "linked_releases": unique_linked_releases,
         },
         "review_route": "/?mode=learning",
     }
