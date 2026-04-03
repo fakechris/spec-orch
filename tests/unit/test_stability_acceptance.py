@@ -74,7 +74,9 @@ def test_exploratory_harness_polls_runtime_chain_status_while_fresh_run_executes
     assert 'spec-orch dashboard --port "$DASHBOARD_PORT"' in script
     assert 'SPEC_ORCH_VISUAL_EVAL_URL="http://127.0.0.1:${DASHBOARD_PORT}"' in script
     assert "dashboard started at http://127.0.0.1:${DASHBOARD_PORT}" in script
-    assert "reusing dashboard at http://127.0.0.1:${DASHBOARD_PORT}" in script
+    assert "Resolve isolated dashboard ports" in script
+    assert "resolve_dashboard_port_candidates" in script
+    assert "raced busy during startup" in script
     assert "write_exploratory_acceptance_failure_report" in script
 
 

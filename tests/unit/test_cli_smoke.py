@@ -771,11 +771,14 @@ def test_plan_to_spec_edit_uses_shell_style_editor_splitting(tmp_path) -> None:
     fixture_path.write_text("# Title\n", encoding="utf-8")
     invoked = {}
 
-    def fake_run(command, check=False):
+    def fake_run(command, check=False, **kwargs):
         invoked["command"] = command
+        invoked["kwargs"] = kwargs
 
         class Result:
             returncode = 0
+            stdout = ""
+            stderr = ""
 
         return Result()
 
