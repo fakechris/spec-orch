@@ -241,6 +241,15 @@ def test_dashboard_showcase_surface_renders_governance_and_lineage_fields() -> N
     assert "item.compare_focus" in source
     assert "item.governance_story" in source
     assert "item.lineage_drilldown" in source
+
+
+def test_dashboard_lazy_loads_showcase_workbench_for_showcase_mode_only() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert "async function ensureShowcaseWorkbenchLoaded()" in source
+    assert "const [mRes, lcRes, inboxRes, approvalsRes, executionRes, judgmentRes, learningRes, showcaseRes] = await Promise.all([" not in source
+    assert "await ensureShowcaseWorkbenchLoaded();" in source
     assert "button.dataset.active = selectedOperatorMode === mode ? 'true' : 'false';" in source
     assert 'data-automation-target="launcher-action"' in source
     assert 'data-automation-target="launcher-field"' in source

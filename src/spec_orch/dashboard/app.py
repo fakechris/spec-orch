@@ -590,15 +590,14 @@ function hydrateInitialRoute() {
 /* ===== DATA LOADING ===== */
 async function load() {
   try {
-    const [mRes, lcRes, inboxRes, approvalsRes, executionRes, judgmentRes, learningRes, showcaseRes] = await Promise.all([
+    const [mRes, lcRes, inboxRes, approvalsRes, executionRes, judgmentRes, learningRes] = await Promise.all([
       fetch('/api/missions'),
       fetch('/api/lifecycle').catch(() => ({ok:false})),
       fetch('/api/inbox').catch(() => ({ok:false})),
       fetch('/api/approvals').catch(() => ({ok:false})),
       fetch('/api/execution-workbench').catch(() => ({ok:false})),
       fetch('/api/judgment-workbench').catch(() => ({ok:false})),
-      fetch('/api/learning-workbench').catch(() => ({ok:false})),
-      fetch('/api/showcase').catch(() => ({ok:false}))
+      fetch('/api/learning-workbench').catch(() => ({ok:false}))
     ]);
     missions = await mRes.json();
     if (lcRes.ok) {
@@ -616,12 +615,23 @@ async function load() {
     selectedExecutionWorkbench = executionRes.ok ? await executionRes.json() : null;
     selectedJudgmentWorkbench = judgmentRes.ok ? await judgmentRes.json() : null;
     selectedLearningWorkbench = learningRes.ok ? await learningRes.json() : null;
-    selectedShowcaseWorkbench = showcaseRes.ok ? await showcaseRes.json() : null;
+    if (selectedOperatorMode === 'showcase') {
+      await ensureShowcaseWorkbenchLoaded();
+    }
     renderMissions();
     await ensureMissionSelection();
   } catch(e) {
     console.error('load failed', e);
   }
+}
+
+async function ensureShowcaseWorkbenchLoaded() {
+  if (selectedShowcaseWorkbench && Object.keys(selectedShowcaseWorkbench).length) {
+    return selectedShowcaseWorkbench;
+  }
+  const showcaseRes = await fetch('/api/showcase').catch(() => ({ok:false}));
+  selectedShowcaseWorkbench = showcaseRes.ok ? await showcaseRes.json() : null;
+  return selectedShowcaseWorkbench;
 }
 
 let evoPanelOpen = false;
@@ -809,10 +819,13 @@ function renderOperatorModes() {
   }
 }
 
-function setOperatorMode(mode) {
+async function setOperatorMode(mode) {
   selectedOperatorMode = mode;
   if (mode === 'evidence') {
     selectedMissionTab = 'transcript';
+  }
+  if (mode === 'showcase') {
+    await ensureShowcaseWorkbenchLoaded();
   }
   syncOperatorRoute();
   renderMissions();
