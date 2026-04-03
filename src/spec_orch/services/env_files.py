@@ -38,6 +38,7 @@ def resolve_shared_repo_root(
     *,
     git_common_dir: Path | None = None,
 ) -> Path | None:
+    common_dir: Path | None
     if git_common_dir is not None:
         common_dir = git_common_dir.resolve()
     else:

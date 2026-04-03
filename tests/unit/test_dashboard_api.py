@@ -421,12 +421,10 @@ class TestDashboardAPI:
                             "critique_axis": "transcript",
                             "operator_task": "Review transcript continuity",
                             "hold_reason": "Need replay evidence.",
-                            "filing_status": "queued"
+                            "filing_status": "queued",
                         }
                     ],
-                    "artifacts": {
-                        "graph_profile": "dashboard_compare_v1"
-                    }
+                    "artifacts": {"graph_profile": "dashboard_compare_v1"},
                 }
             ),
             encoding="utf-8",
@@ -4681,7 +4679,9 @@ class TestDashboardAPI:
                 subject_id=mission_id,
                 phase=ChainPhase.STARTED,
                 status_reason="acceptance_started",
-                artifact_refs={"log": "docs/specs/mission-queue-control/operator/logs/acceptance.log"},
+                artifact_refs={
+                    "log": "docs/specs/mission-queue-control/operator/logs/acceptance.log"
+                },
                 updated_at="2026-04-02T16:39:00+00:00",
             ),
         )

@@ -1443,9 +1443,7 @@ class RoundOrchestrator:
                 ),
                 "visual_qa": f"/?mission={mission_id}&mode=missions&tab=visual&round={round_id}",
                 "costs": f"/?mission={mission_id}&mode=missions&tab=costs&round={round_id}",
-                "judgment": (
-                    f"/?mission={mission_id}&mode=missions&tab=judgment&round={round_id}"
-                ),
+                "judgment": (f"/?mission={mission_id}&mode=missions&tab=judgment&round={round_id}"),
             },
             "workflow_assertions": self._build_workflow_assertions(),
         }

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, fields, is_dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 
 def _serialize(value: Any) -> Any:
@@ -17,6 +17,10 @@ def _serialize(value: Any) -> Any:
     return value
 
 
+def _serialize_dict(value: Any) -> dict[str, Any]:
+    return cast(dict[str, Any], _serialize(value))
+
+
 @dataclass(slots=True)
 class SubjectRef:
     subject_id: str
@@ -26,7 +30,7 @@ class SubjectRef:
     owner_ref: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -43,7 +47,7 @@ class ExecutionSession:
     available_actions: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -58,7 +62,7 @@ class Agent:
     recent_subject_refs: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -73,7 +77,7 @@ class Runtime:
     degradation_flags: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -92,7 +96,7 @@ class ActiveWork:
     available_actions: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -107,7 +111,7 @@ class QueueEntry:
     claimed_at: str
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -126,7 +130,7 @@ class ResourceBudget:
     recorded_at: str
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -143,7 +147,7 @@ class PressureSignal:
     recorded_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -161,7 +165,7 @@ class AdmissionDecision:
     recorded_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -176,7 +180,7 @@ class OperatorIntervention:
     audit_refs: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -191,7 +195,7 @@ class ExecutionEvent:
     artifact_refs: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -204,7 +208,7 @@ class ArtifactEnvelope:
     path: str
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -220,7 +224,7 @@ class EvidenceBundle:
     collected_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -234,7 +238,7 @@ class Observation:
     why_it_matters: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -265,7 +269,7 @@ class CandidateFinding:
     superseded_by: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -286,7 +290,7 @@ class Judgment:
     observation: Observation | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -300,7 +304,7 @@ class JudgmentTimelineEntry:
     artifact_refs: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -314,7 +318,7 @@ class CompareOverlay:
     judgment_drift_summary: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -330,7 +334,7 @@ class SurfacePack:
     safe_action_budget: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -345,7 +349,7 @@ class PromotedFinding:
     promotion_reason: str
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -357,7 +361,7 @@ class MemoryEntryRef:
     created_at: str
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -370,7 +374,7 @@ class EvolutionProposalRef:
     promotion_state: str
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -385,7 +389,7 @@ class LearningLineage:
     status: str = "pending"
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 @dataclass(slots=True)
@@ -408,7 +412,7 @@ class Workspace:
     learning_lineage: LearningLineage
 
     def to_dict(self) -> dict[str, Any]:
-        return _serialize(self)
+        return _serialize_dict(self)
 
 
 __all__ = [

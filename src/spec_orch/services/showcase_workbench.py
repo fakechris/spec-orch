@@ -49,9 +49,7 @@ def _release_timeline(repo_root: Path, releases: list[dict[str, Any]]) -> list[d
             _load_json(bundle_dir / "findings.json") if bundle_dir is not None else None
         )
         findings = (
-            findings_payload.get("findings", [])
-            if isinstance(findings_payload, dict)
-            else []
+            findings_payload.get("findings", []) if isinstance(findings_payload, dict) else []
         )
         timeline.append(
             {
@@ -93,10 +91,7 @@ def _workspace_narrative(
     evidence_summary = str(judgment_overview.get("evidence_summary", "")).strip()
     recommended_next_step = str(judgment_overview.get("recommended_next_step", "")).strip()
     if evidence_summary or recommended_next_step:
-        parts.append(
-            "Judgment "
-            + (evidence_summary or recommended_next_step)
-        )
+        parts.append("Judgment " + (evidence_summary or recommended_next_step))
     learning_summary = str(learning_overview.get("last_learning_summary", "")).strip()
     if learning_summary:
         parts.append("Learning " + learning_summary)
@@ -131,9 +126,7 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
                     ),
                 },
                 "judgment_summary": {
-                    "judgment_class": str(
-                        judgment.get("overview", {}).get("judgment_class", "")
-                    ),
+                    "judgment_class": str(judgment.get("overview", {}).get("judgment_class", "")),
                     "candidate_finding_count": int(
                         judgment.get("overview", {}).get("candidate_finding_count", 0) or 0
                     ),

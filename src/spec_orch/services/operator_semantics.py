@@ -271,52 +271,52 @@ def judgment_from_acceptance_judgment(
     recommended_next_step = ""
     graph_profile = ""
     if acceptance_judgment.candidate is not None:
-        source = acceptance_judgment.candidate
+        candidate_source = acceptance_judgment.candidate
         candidate = CandidateFinding(
-            finding_id=source.finding_id,
-            claim=source.claim,
-            surface=source.surface,
-            route=source.route,
-            evidence_refs=list(source.evidence_refs),
-            confidence=source.confidence,
-            impact_if_true=source.impact_if_true,
-            repro_status=source.repro_status,
-            hold_reason=source.hold_reason,
-            promotion_test=source.promotion_test,
-            recommended_next_step=source.recommended_next_step,
-            dedupe_key=source.dedupe_key,
-            critique_axis=source.critique_axis,
-            operator_task=source.operator_task,
-            why_it_matters=source.why_it_matters,
-            baseline_ref=source.baseline_ref,
-            origin_step=source.origin_step,
-            graph_profile=source.graph_profile,
-            compare_overlay=source.compare_overlay,
-            source_observation_id=source.source_observation_id,
-            reviewer_identity=source.reviewer_identity,
-            review_note=source.review_note,
-            dismissal_reason=source.dismissal_reason,
-            superseded_by=source.superseded_by,
+            finding_id=candidate_source.finding_id,
+            claim=candidate_source.claim,
+            surface=candidate_source.surface,
+            route=candidate_source.route,
+            evidence_refs=list(candidate_source.evidence_refs),
+            confidence=candidate_source.confidence,
+            impact_if_true=candidate_source.impact_if_true,
+            repro_status=candidate_source.repro_status,
+            hold_reason=candidate_source.hold_reason,
+            promotion_test=candidate_source.promotion_test,
+            recommended_next_step=candidate_source.recommended_next_step,
+            dedupe_key=candidate_source.dedupe_key,
+            critique_axis=candidate_source.critique_axis,
+            operator_task=candidate_source.operator_task,
+            why_it_matters=candidate_source.why_it_matters,
+            baseline_ref=candidate_source.baseline_ref,
+            origin_step=candidate_source.origin_step,
+            graph_profile=candidate_source.graph_profile,
+            compare_overlay=candidate_source.compare_overlay,
+            source_observation_id=candidate_source.source_observation_id,
+            reviewer_identity=candidate_source.reviewer_identity,
+            review_note=candidate_source.review_note,
+            dismissal_reason=candidate_source.dismissal_reason,
+            superseded_by=candidate_source.superseded_by,
         )
-        impact_if_true = source.impact_if_true
-        repro_status = source.repro_status
-        recommended_next_step = source.recommended_next_step
-        graph_profile = source.graph_profile
+        impact_if_true = candidate_source.impact_if_true
+        repro_status = candidate_source.repro_status
+        recommended_next_step = candidate_source.recommended_next_step
+        graph_profile = candidate_source.graph_profile
     if acceptance_judgment.observation is not None:
-        source = acceptance_judgment.observation
+        observation_source = acceptance_judgment.observation
         observation = Observation(
-            summary=source.summary,
-            route=source.route,
-            details=source.details,
-            evidence_refs=list(source.evidence_refs),
-            critique_axis=source.critique_axis,
-            operator_task=source.operator_task,
-            why_it_matters=source.why_it_matters,
+            summary=observation_source.summary,
+            route=observation_source.route,
+            details=observation_source.details,
+            evidence_refs=list(observation_source.evidence_refs),
+            critique_axis=observation_source.critique_axis,
+            operator_task=observation_source.operator_task,
+            why_it_matters=observation_source.why_it_matters,
         )
         if not impact_if_true:
-            impact_if_true = source.why_it_matters
+            impact_if_true = observation_source.why_it_matters
         if not recommended_next_step:
-            recommended_next_step = source.operator_task
+            recommended_next_step = observation_source.operator_task
     risk_posture = {
         AcceptanceJudgmentClass.CONFIRMED_ISSUE: "high",
         AcceptanceJudgmentClass.CANDIDATE_FINDING: "medium",
@@ -588,8 +588,7 @@ def compare_overlay_from_acceptance_review(
         if judgment.candidate_finding is not None and judgment.candidate_finding.baseline_ref
     ]
     baseline_ref = str(
-        artifacts.get("baseline_ref")
-        or (candidate_baselines[0] if candidate_baselines else "")
+        artifacts.get("baseline_ref") or (candidate_baselines[0] if candidate_baselines else "")
     ).strip()
     compare_active = bool(artifacts.get("compare_overlay")) or any(
         judgment.candidate_finding is not None and judgment.candidate_finding.compare_overlay
@@ -654,9 +653,7 @@ def judgment_timeline_entries_for_review(
     artifacts = review.artifacts if isinstance(review.artifacts, dict) else {}
     graph_profile = str(artifacts.get("graph_profile", "")).strip()
     first_judgment_id = (
-        judgments[0].judgment_id
-        if judgments
-        else f"{workspace_id}:round-{round_id:02d}:judgment"
+        judgments[0].judgment_id if judgments else f"{workspace_id}:round-{round_id:02d}:judgment"
     )
     timeline: list[JudgmentTimelineEntry] = [
         JudgmentTimelineEntry(
@@ -722,9 +719,7 @@ def judgment_timeline_entries_for_review(
                 event_summary=first.judgment_class,
                 created_at="",
                 artifact_refs=(
-                    list(first.candidate_finding.evidence_refs)
-                    if first.candidate_finding
-                    else []
+                    list(first.candidate_finding.evidence_refs) if first.candidate_finding else []
                 ),
             )
         )

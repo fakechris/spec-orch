@@ -72,9 +72,11 @@ def _build_browser_panel(mission_root: Path, mission_id: str) -> dict[str, Any]:
     evidence_path, payload = result
     tested_routes = [item for item in payload.get("tested_routes", []) if isinstance(item, str)]
     interactions = payload.get("interactions", {})
-    interaction_count = sum(
-        len(steps) for steps in interactions.values() if isinstance(steps, list)
-    ) if isinstance(interactions, dict) else 0
+    interaction_count = (
+        sum(len(steps) for steps in interactions.values() if isinstance(steps, list))
+        if isinstance(interactions, dict)
+        else 0
+    )
     screenshots = payload.get("screenshots", {})
     console_errors = payload.get("console_errors", [])
     page_errors = payload.get("page_errors", [])
@@ -229,9 +231,7 @@ def build_execution_workbench(repo_root: Path) -> dict[str, Any]:
     snapshot = build_execution_substrate_snapshot(Path(repo_root))
     browser_surfaces, terminal_surfaces = _execution_surface_summaries(Path(repo_root))
     summary = snapshot.get("summary", {})
-    runtimes = [
-        item for item in snapshot.get("runtimes", []) if isinstance(item, dict)
-    ]
+    runtimes = [item for item in snapshot.get("runtimes", []) if isinstance(item, dict)]
     pressure_signals = [
         item for item in snapshot.get("pressure_signals", []) if isinstance(item, dict)
     ]

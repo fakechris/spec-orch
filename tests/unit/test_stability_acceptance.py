@@ -82,12 +82,10 @@ def test_exploratory_harness_polls_runtime_chain_status_while_fresh_run_executes
 
 def test_acceptance_harnesses_share_uv_project_environment_resolution() -> None:
     repo_root = Path(__file__).resolve().parents[2]
-    shared_helper = (repo_root / "tests" / "e2e" / "_shared_env.sh").read_text(
-        encoding="utf-8"
-    )
+    shared_helper = (repo_root / "tests" / "e2e" / "_shared_env.sh").read_text(encoding="utf-8")
 
     assert "resolve_uv_project_environment" in shared_helper
-    assert 'printf \'%s\\n\' "$shared_root/.venv-py313"' in shared_helper
+    assert "printf '%s\\n' \"$shared_root/.venv-py313\"" in shared_helper
     assert 'export UV_PROJECT_ENVIRONMENT="$shared_uv_env"' in shared_helper
 
     for name in (

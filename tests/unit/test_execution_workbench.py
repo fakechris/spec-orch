@@ -219,9 +219,7 @@ def test_build_mission_execution_workbench_surfaces_workspace_local_execution_st
     assert payload["terminal_panel"]["session_count"] == 1
     assert payload["terminal_panel"]["sessions"][0]["packet_id"] == "packet-one"
     assert payload["terminal_panel"]["sessions"][0]["terminal_reason"] == "process_exit_success"
-    assert payload["review_route"] == (
-        f"/?mission={mission_id}&mode=missions&tab=execution"
-    )
+    assert payload["review_route"] == (f"/?mission={mission_id}&mode=missions&tab=execution")
 
 
 def test_build_execution_workbench_surfaces_global_active_work_agents_and_runtimes(

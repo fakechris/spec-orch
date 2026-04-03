@@ -86,7 +86,9 @@ def test_parse_linear_intake_description_extracts_sections() -> None:
     ]
     assert document.acceptance.priority_routes_or_surfaces == ["linear", "daemon triage"]
     assert document.evidence_expectations == ["latest intake summary comment", "readiness decision"]
-    assert document.open_questions == ["[non_blocking] Should the dashboard mirror the same wording?"]
+    assert document.open_questions == [
+        "[non_blocking] Should the dashboard mirror the same wording?"
+    ]
     assert "workspace handoff" in document.current_system_understanding
 
 

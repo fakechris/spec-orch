@@ -1163,7 +1163,12 @@ def test_compact_acceptance_review_for_evaluator_limits_entries() -> None:
             "status": "warn",
             "summary": "review",
             "findings": [
-                {"severity": "medium", "summary": f"finding-{index}", "route": "/", "critique_axis": "ux"}
+                {
+                    "severity": "medium",
+                    "summary": f"finding-{index}",
+                    "route": "/",
+                    "critique_axis": "ux",
+                }
                 for index in range(7)
             ],
             "issue_proposals": [

@@ -242,12 +242,7 @@ def test_create_mission_draft_persists_dashboard_intake_workspace(repo: Path) ->
     )
 
     workspace_path = (
-        repo
-        / "docs"
-        / "specs"
-        / "dashboard-intake"
-        / "operator"
-        / "intake_workspace.json"
+        repo / "docs" / "specs" / "dashboard-intake" / "operator" / "intake_workspace.json"
     )
     assert workspace_path.exists()
     workspace = json.loads(workspace_path.read_text(encoding="utf-8"))
@@ -270,7 +265,9 @@ def test_create_mission_draft_persists_dashboard_intake_workspace(repo: Path) ->
     ]
 
 
-def test_dashboard_intake_workspace_marks_missing_problem_and_goal_as_clarifying(repo: Path) -> None:
+def test_dashboard_intake_workspace_marks_missing_problem_and_goal_as_clarifying(
+    repo: Path,
+) -> None:
     from spec_orch.dashboard.launcher import _build_dashboard_intake_workspace
 
     workspace = _build_dashboard_intake_workspace(
@@ -319,7 +316,9 @@ def test_dashboard_intake_workspace_can_be_loaded_for_existing_mission(repo: Pat
 
     assert loaded is not None
     assert loaded["mission_id"] == "existing-intake"
-    assert loaded["canonical_issue"]["goal"] == "Preserve structured intake between launcher actions."
+    assert (
+        loaded["canonical_issue"]["goal"] == "Preserve structured intake between launcher actions."
+    )
 
 
 def test_build_fresh_acpx_mission_request_generates_unique_local_bootstrap(repo: Path) -> None:

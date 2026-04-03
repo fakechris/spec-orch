@@ -166,9 +166,7 @@ def _seed_showcase_workspace(repo_root: Path, mission_id: str) -> None:
     (bundle_dir / "artifacts.json").write_text(
         json.dumps(
             {
-                "status_markdown": (
-                    "docs/plans/2026-03-30-stability-acceptance-status.md"
-                ),
+                "status_markdown": ("docs/plans/2026-03-30-stability-acceptance-status.md"),
                 "browser_evidence_paths": [
                     f"docs/specs/{mission_id}/rounds/round-02/browser_evidence.json"
                 ],

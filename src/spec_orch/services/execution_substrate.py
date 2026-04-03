@@ -563,9 +563,7 @@ def _runtime_from_active_work(
     else:
         health = "healthy"
     latest_heartbeat = max((item.updated_at for item in active_work), default="")
-    pressure_signals = [
-        signal for signals in pressure_by_workspace.values() for signal in signals
-    ]
+    pressure_signals = [signal for signals in pressure_by_workspace.values() for signal in signals]
     budget_keys = sorted(
         {
             str(signal.get("budget_key", "")).strip()
@@ -688,11 +686,7 @@ def build_execution_substrate_snapshot(repo_root: Path) -> dict[str, Any]:
     }
     pressure_signal_count = sum(len(signals) for signals in pressure_by_workspace.values())
     intervention_needed_count = len(
-        {
-            item.workspace_id
-            for item in active_work_models
-            if item.health in {"degraded", "failed"}
-        }
+        {item.workspace_id for item in active_work_models if item.health in {"degraded", "failed"}}
         | {item.workspace_id for item in intervention_models if item.outcome == "open"}
     )
     summary = {

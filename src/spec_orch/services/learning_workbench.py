@@ -210,6 +210,7 @@ def build_learning_workbench(repo_root: Path) -> dict[str, Any]:
     fixture_candidates: list[dict[str, Any]] = []
     fixture_graduations: list[dict[str, Any]] = []
     acceptance_findings: list[dict[str, Any]] = []
+    learning_slices: dict[str, list[dict[str, Any]]]
     learning_slices = {"self": [], "delivery": [], "feedback": []}
 
     for mission_root in sorted((repo_root / "docs" / "specs").glob("*")):

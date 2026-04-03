@@ -175,9 +175,7 @@ def test_build_judgment_workbench_aggregates_workspace_inventory(
     )
 
     candidate_mission_id = "mission-judgment-candidate"
-    candidate_round_dir = (
-        tmp_path / "docs" / "specs" / candidate_mission_id / "rounds" / "round-01"
-    )
+    candidate_round_dir = tmp_path / "docs" / "specs" / candidate_mission_id / "rounds" / "round-01"
     candidate_round_dir.mkdir(parents=True)
     (candidate_round_dir / "acceptance_review.json").write_text(
         json.dumps(
@@ -222,7 +220,9 @@ def test_build_judgment_workbench_aggregates_workspace_inventory(
                 "campaign": {
                     "mode": "exploratory",
                     "goal": "Inspect transcript continuity.",
-                    "primary_routes": ["/?mission=mission-judgment-candidate&mode=missions&tab=overview"],
+                    "primary_routes": [
+                        "/?mission=mission-judgment-candidate&mode=missions&tab=overview"
+                    ],
                     "related_routes": [
                         "/?mission=mission-judgment-candidate&mode=missions&tab=transcript"
                     ],
@@ -236,9 +236,7 @@ def test_build_judgment_workbench_aggregates_workspace_inventory(
     )
 
     confirmed_mission_id = "mission-judgment-confirmed"
-    confirmed_round_dir = (
-        tmp_path / "docs" / "specs" / confirmed_mission_id / "rounds" / "round-02"
-    )
+    confirmed_round_dir = tmp_path / "docs" / "specs" / confirmed_mission_id / "rounds" / "round-02"
     confirmed_round_dir.mkdir(parents=True)
     (confirmed_round_dir / "acceptance_review.json").write_text(
         json.dumps(
@@ -251,9 +249,7 @@ def test_build_judgment_workbench_aggregates_workspace_inventory(
                 "coverage_status": "complete",
                 "untested_expected_routes": [],
                 "recommended_next_step": "File the regression and rerun acceptance.",
-                "findings": [
-                    {"severity": "high", "summary": "Primary CTA missing", "route": "/"}
-                ],
+                "findings": [{"severity": "high", "summary": "Primary CTA missing", "route": "/"}],
                 "issue_proposals": [
                     {
                         "title": "Restore dashboard CTA",
@@ -344,6 +340,8 @@ def test_build_judgment_workbench_aggregates_workspace_inventory(
     assert mission_payload["overview"]["compare_state"] == "active"
     assert mission_payload["evidence_panel"]["route_count"] == 2
     assert mission_payload["candidate_queue"][0]["claim"] == "Clarify transcript continuity"
-    assert mission_payload["compare_view"]["baseline_ref"] == "fixture:dashboard-transcript-baseline"
+    assert (
+        mission_payload["compare_view"]["baseline_ref"] == "fixture:dashboard-transcript-baseline"
+    )
     assert mission_payload["surface_pack_panel"]["surface_name"] == "dashboard"
     assert mission_payload["judgment_timeline"][-1]["event_type"] == "review_state_changed"

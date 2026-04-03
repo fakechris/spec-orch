@@ -36,7 +36,9 @@ def test_workspace_from_canonical_issue_builds_shared_operator_contract() -> Non
             constraints=["Do not collapse runtime ownership into SON-370."],
             acceptance=CanonicalAcceptance(
                 success_conditions=["Operators can inspect a canonical workspace object."],
-                verification_expectations=["Dashboard handoff shows execution and judgment placeholders."],
+                verification_expectations=[
+                    "Dashboard handoff shows execution and judgment placeholders."
+                ],
             ),
             evidence_expectations=["workspace preview"],
             open_questions=[],

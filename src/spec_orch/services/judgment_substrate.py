@@ -100,13 +100,9 @@ def _candidate_queue(review_data: dict[str, Any]) -> list[dict[str, Any]]:
             if str(item.get("route", "")).strip() == str(candidate.get("route", "")).strip():
                 proposal = item
                 break
-        claim = str(
-            (proposal or {}).get("title")
-            or candidate.get("claim", "")
-        )
+        claim = str((proposal or {}).get("title") or candidate.get("claim", ""))
         impact_if_true = str(
-            (proposal or {}).get("severity")
-            or candidate.get("impact_if_true", "")
+            (proposal or {}).get("severity") or candidate.get("impact_if_true", "")
         )
         queue.append(
             {
@@ -140,9 +136,7 @@ def _compare_view(review_data: dict[str, Any]) -> dict[str, Any]:
     compare_state = str(compare_overlay.get("compare_state", "inactive"))
     baseline_ref = str(compare_overlay.get("baseline_ref", ""))
     artifact_drift_refs = compare_overlay.get("artifact_drift_refs", [])
-    artifact_drift_count = len(
-        artifact_drift_refs if isinstance(artifact_drift_refs, list) else []
-    )
+    artifact_drift_count = len(artifact_drift_refs if isinstance(artifact_drift_refs, list) else [])
     return {
         "compare_state": compare_state,
         "baseline_ref": baseline_ref,
@@ -171,11 +165,7 @@ def _surface_pack_panel(review_data: dict[str, Any]) -> dict[str, Any]:
             "task_continuity": "task_continuity",
             "operator_comprehension": "feedback_clarity",
         }
-        active_axes = [
-            axis_map[item]
-            for item in active_axes
-            if item in axis_map
-        ]
+        active_axes = [axis_map[item] for item in active_axes if item in axis_map]
         known_routes = [
             "/",
             "/launcher",

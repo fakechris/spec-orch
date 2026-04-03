@@ -162,9 +162,7 @@ def _dashboard_intake_document_from_payload(payload: dict[str, Any]) -> LinearIn
         ),
         evidence_expectations=evidence_expectations,
         open_questions=_normalize_lines(payload.get("open_questions", [])),
-        current_system_understanding=str(
-            payload.get("current_system_understanding", "")
-        ).strip(),
+        current_system_understanding=str(payload.get("current_system_understanding", "")).strip(),
     )
 
 
@@ -229,9 +227,7 @@ def _build_dashboard_intake_workspace(
             "constraints": list(document.constraints),
             "acceptance": {
                 "success_conditions": list(document.acceptance.success_conditions),
-                "verification_expectations": list(
-                    document.acceptance.verification_expectations
-                ),
+                "verification_expectations": list(document.acceptance.verification_expectations),
             },
             "evidence_expectations": list(document.evidence_expectations),
             "open_questions": list(document.open_questions),

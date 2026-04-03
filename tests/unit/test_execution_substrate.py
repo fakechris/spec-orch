@@ -137,7 +137,9 @@ def test_build_execution_substrate_snapshot_surfaces_queue_pressure_and_interven
             phase=ChainPhase.HEARTBEAT,
             status_reason="acceptance_waiting_on_model",
             session_refs={"runtime_id": "runtime:local", "agent_id": "acceptance_evaluator"},
-            artifact_refs={"summary": "docs/specs/mission-queue/operator/runtime_chain/chain_status.json"},
+            artifact_refs={
+                "summary": "docs/specs/mission-queue/operator/runtime_chain/chain_status.json"
+            },
             updated_at="2026-04-02T16:25:00+00:00",
         ),
     )
