@@ -394,13 +394,22 @@ class TestDashboardAPI:
 
         assert response.status_code == 200
         payload = response.json()
-        assert payload["summary"]["release_count"] == 1
+        assert payload["summary"]["release_count"] == 2
         assert payload["release_timeline"][0]["release_label"] == "Showcase Narrative Seed"
         assert payload["release_timeline"][0]["workspace_ids"] == [mission_id]
-        assert payload["workspace_storylines"][0]["workspace_id"] == mission_id
-        assert payload["workspace_storylines"][0]["governance_story"]["learning"][
+        assert payload["release_timeline"][0]["compare_target_release_id"] == (
+            "learning-promotion-discipline-tranche-1-2026-04-03"
+        )
+        storyline = next(
+            item for item in payload["workspace_storylines"] if item["workspace_id"] == mission_id
+        )
+        assert storyline["workspace_id"] == mission_id
+        assert storyline["governance_story"]["learning"][
             "promotion_decision"
         ] == "promote"
+        assert storyline["lineage_drilldown"][
+            "source_run_compare_summary"
+        ] == "mission_start advanced; exploratory advanced"
         assert payload["review_route"] == "/?mode=showcase"
 
     def test_mission_detail_includes_runtime_chain_summary(self, client, repo: Path) -> None:

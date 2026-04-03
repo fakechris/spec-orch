@@ -1741,6 +1741,14 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
         <span>${escHtml((item.lineage_notes || []).join(' | ') || 'No lineage notes')}</span>
       </div>
       <div class="context-meta">
+        <span>Compared with</span>
+        <span>${escHtml(item.compare_target_release_id || 'No previous release')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Source-run compare</span>
+        <span>${escHtml(item.source_run_compare_summary || 'No compare summary')}</span>
+      </div>
+      <div class="context-meta">
         ${item.summary_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(item.summary_artifact_path)}" target="_blank" rel="noreferrer">Bundle summary</a>` : ''}
         ${item.status_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(item.status_artifact_path)}" target="_blank" rel="noreferrer">Status JSON</a>` : ''}
       </div>
@@ -1766,6 +1774,14 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
       <div class="context-meta">
         <span>Latest release notes</span>
         <span>${escHtml((item.lineage_drilldown?.latest_release_notes || []).join(' | ') || 'No release notes')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Compared with</span>
+        <span>${escHtml(item.lineage_drilldown?.compare_target_release_id || 'No previous release')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Source-run compare</span>
+        <span>${escHtml(item.lineage_drilldown?.source_run_compare_summary || 'No compare summary')}</span>
       </div>
       <div class="context-meta">
         ${item.routes?.execution ? renderInternalRouteButton(item.routes.execution, 'Execution') : ''}
@@ -1932,6 +1948,14 @@ function renderShowcaseContextRail(showcase, detail) {
               <span>${escHtml((latestRelease.lineage_notes || []).join(' | ') || 'No lineage notes')}</span>
             </div>
             <div class="context-meta">
+              <span>Compared with</span>
+              <span>${escHtml(latestRelease.compare_target_release_id || 'No previous release')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Source-run compare</span>
+              <span>${escHtml(latestRelease.source_run_compare_summary || 'No compare summary')}</span>
+            </div>
+            <div class="context-meta">
               ${latestRelease.summary_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(latestRelease.summary_artifact_path)}" target="_blank" rel="noreferrer">Open summary</a>` : ''}
             </div>
           </div>
@@ -1952,6 +1976,14 @@ function renderShowcaseContextRail(showcase, detail) {
             <div class="context-meta">
               <span>Latest release notes</span>
               <span>${escHtml((item.lineage_drilldown?.latest_release_notes || []).join(' | ') || 'No release notes')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Compared with</span>
+              <span>${escHtml(item.lineage_drilldown?.compare_target_release_id || 'No previous release')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Source-run compare</span>
+              <span>${escHtml(item.lineage_drilldown?.source_run_compare_summary || 'No compare summary')}</span>
             </div>
           </div>
         `).join('') : '<div class="empty-panel">No workspace narratives yet.</div>'}

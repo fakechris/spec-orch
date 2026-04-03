@@ -226,11 +226,15 @@ def test_dashboard_showcase_surface_renders_governance_and_lineage_fields() -> N
 
     assert "Linked workspaces" in source
     assert "Lineage notes" in source
+    assert "Compared with" in source
+    assert "Source-run compare" in source
     assert "Governance Story" in source
     assert "Promotion decision" in source
     assert "Latest release notes" in source
     assert "item.workspace_ids" in source
     assert "item.lineage_notes" in source
+    assert "item.compare_target_release_id" in source
+    assert "item.source_run_compare" in source
     assert "item.governance_story" in source
     assert "item.lineage_drilldown" in source
     assert "button.dataset.active = selectedOperatorMode === mode ? 'true' : 'false';" in source

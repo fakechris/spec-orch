@@ -8,6 +8,13 @@ from spec_orch.services.execution_workbench import build_mission_execution_workb
 from spec_orch.services.judgment_workbench import build_mission_judgment_workbench
 from spec_orch.services.learning_workbench import build_mission_learning_workbench
 
+_SOURCE_RUN_ORDER = {
+    "issue_start": 0,
+    "dashboard_ui": 1,
+    "mission_start": 2,
+    "exploratory": 3,
+}
+
 
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
@@ -33,6 +40,48 @@ def _bundle_dir(repo_root: Path, release: dict[str, Any]) -> Path | None:
         return None
     path = repo_root / bundle_path
     return path if path.exists() else None
+
+
+def _source_run_identity(item: Any) -> str:
+    if not isinstance(item, dict):
+        return ""
+    for key in ("mission_id", "issue_id", "run_id"):
+        value = str(item.get(key, "")).strip()
+        if value:
+            return value
+    return ""
+
+
+def _compare_source_runs(
+    current_runs: dict[str, Any],
+    previous_runs: dict[str, Any],
+) -> tuple[dict[str, dict[str, str]], str]:
+    compare: dict[str, dict[str, str]] = {}
+    summary_parts: list[str] = []
+    all_keys = sorted(
+        set(current_runs) | set(previous_runs),
+        key=lambda key: (_SOURCE_RUN_ORDER.get(key, 99), key),
+    )
+    for key in all_keys:
+        current_id = _source_run_identity(current_runs.get(key))
+        previous_id = _source_run_identity(previous_runs.get(key))
+        if current_id and previous_id:
+            status = "stayed" if current_id == previous_id else "advanced"
+        elif current_id:
+            status = "new"
+        elif previous_id:
+            status = "missing"
+        else:
+            continue
+        compare[key] = {
+            "status": status,
+            "current": current_id,
+            "previous": previous_id,
+        }
+        if status != "stayed":
+            summary_parts.append(f"{key} {status}")
+    summary = "; ".join(summary_parts) if summary_parts else "all source runs stayed"
+    return compare, summary
 
 
 def _release_timeline(repo_root: Path, releases: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -87,9 +136,23 @@ def _release_timeline(repo_root: Path, releases: list[dict[str, Any]]) -> list[d
                 "findings_artifact_path": findings_artifact_path,
                 "workspace_ids": workspace_ids,
                 "lineage_notes": [item for item in lineage_notes if isinstance(item, str)],
+                "_source_runs": source_runs,
             }
         )
     timeline.sort(key=lambda item: str(item.get("created_at", "")), reverse=True)
+    for index, item in enumerate(timeline):
+        previous = timeline[index + 1] if index + 1 < len(timeline) else None
+        previous_runs = previous.get("_source_runs", {}) if isinstance(previous, dict) else {}
+        compare, compare_summary = _compare_source_runs(
+            item.get("_source_runs", {}), previous_runs if isinstance(previous_runs, dict) else {}
+        )
+        item["compare_target_release_id"] = (
+            str(previous.get("release_id", "")) if isinstance(previous, dict) else ""
+        )
+        item["source_run_compare"] = compare
+        item["source_run_compare_summary"] = compare_summary
+    for item in timeline:
+        item.pop("_source_runs", None)
     return timeline
 
 
@@ -203,8 +266,18 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
                     "latest_release_id": (
                         str(latest_release.get("release_id", "")) if latest_release else ""
                     ),
+                    "compare_target_release_id": (
+                        str(latest_release.get("compare_target_release_id", ""))
+                        if latest_release
+                        else ""
+                    ),
                     "latest_release_summary_artifact": (
                         str(latest_release.get("summary_artifact_path", ""))
+                        if latest_release
+                        else ""
+                    ),
+                    "source_run_compare_summary": (
+                        str(latest_release.get("source_run_compare_summary", ""))
                         if latest_release
                         else ""
                     ),

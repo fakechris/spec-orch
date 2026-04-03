@@ -278,18 +278,18 @@
     },
     "mission_start": {
       "status": "pass",
-      "mission_id": "fresh-acpx-20260403122308-9db0be",
+      "mission_id": "fresh-acpx-20260403135531-c1c343",
       "launch_mode": "fresh",
       "variant": "default",
-      "round_dir": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01",
+      "round_dir": "docs/specs/fresh-acpx-20260403135531-c1c343/rounds/round-01",
       "fresh_report": {
-        "mission_id": "fresh-acpx-20260403122308-9db0be",
+        "mission_id": "fresh-acpx-20260403135531-c1c343",
         "variant": "default",
-        "dashboard_url": "http://127.0.0.1:65002/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=overview",
+        "dashboard_url": "http://127.0.0.1:53261/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=overview",
         "fresh_execution": {
           "proof_type": "fresh_execution",
           "mission_bootstrap": {
-            "mission_id": "fresh-acpx-20260403122308-9db0be",
+            "mission_id": "fresh-acpx-20260403135531-c1c343",
             "title": "Fresh ACPX Mission E2E Narrow Smoke",
             "execution_mode": "fresh_acpx_mission",
             "local_only": true,
@@ -314,7 +314,7 @@
               "max_waves": 1,
               "max_packets": 2,
               "fresh": true,
-              "generated_at": "2026-04-03T12:23:08.968088+00:00",
+              "generated_at": "2026-04-03T13:55:31.812828+00:00",
               "mission_id_prefix": "fresh-acpx-",
               "fresh_variant": "default",
               "launcher_path": "approve_plan_launch",
@@ -326,12 +326,12 @@
               "primary_routes": [
                 "/",
                 "/?mode=missions",
-                "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=overview"
+                "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=overview"
               ],
               "related_routes": [
-                "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=transcript",
-                "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=approvals",
-                "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=judgment"
+                "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=transcript",
+                "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=approvals",
+                "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=judgment"
               ],
               "interaction_plans": {
                 "/": [
@@ -350,7 +350,7 @@
                     "timeout_ms": 0
                   }
                 ],
-                "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=overview": [
+                "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=overview": [
                   {
                     "action": "click_selector",
                     "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
@@ -395,15 +395,15 @@
           "launch": {
             "last_launch": {
               "state": {
-                "mission_id": "fresh-acpx-20260403122308-9db0be",
+                "mission_id": "fresh-acpx-20260403135531-c1c343",
                 "phase": "executing",
                 "issue_ids": [
-                  "LOCAL-FRESH-ACPX-20260403122308-9DB0BE-1",
-                  "LOCAL-FRESH-ACPX-20260403122308-9DB0BE-2"
+                  "LOCAL-FRESH-ACPX-20260403135531-C1C343-1",
+                  "LOCAL-FRESH-ACPX-20260403135531-C1C343-2"
                 ],
                 "completed_issues": [],
                 "error": null,
-                "updated_at": "2026-04-03T12:23:28.143575+00:00",
+                "updated_at": "2026-04-03T13:55:48.580102+00:00",
                 "current_round": 0,
                 "round_orchestrator_state": {}
               }
@@ -413,48 +413,48 @@
             }
           },
           "daemon_run": {
-            "mission_id": "fresh-acpx-20260403122308-9db0be",
+            "mission_id": "fresh-acpx-20260403135531-c1c343",
             "proof_type": "fresh_execution",
             "runner_status": "finished",
             "state": {
-              "mission_id": "fresh-acpx-20260403122308-9db0be",
+              "mission_id": "fresh-acpx-20260403135531-c1c343",
               "phase": "all_done",
               "issue_ids": [
-                "LOCAL-FRESH-ACPX-20260403122308-9DB0BE-1",
-                "LOCAL-FRESH-ACPX-20260403122308-9DB0BE-2"
+                "LOCAL-FRESH-ACPX-20260403135531-C1C343-1",
+                "LOCAL-FRESH-ACPX-20260403135531-C1C343-2"
               ],
               "completed_issues": [],
               "error": null,
-              "updated_at": "2026-04-03T12:27:31.174074+00:00",
+              "updated_at": "2026-04-03T14:01:35.635371+00:00",
               "current_round": 1,
               "round_orchestrator_state": {}
             },
-            "fresh_round_path": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01"
+            "fresh_round_path": "docs/specs/fresh-acpx-20260403135531-c1c343/rounds/round-01"
           },
-          "fresh_round_path": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01",
+          "fresh_round_path": "docs/specs/fresh-acpx-20260403135531-c1c343/rounds/round-01",
           "builder_execution_summary": {
             "round_id": 1,
             "status": "decided",
             "worker_results": [
               {
-                "packet_id": "acpx-scaffold-mission-types",
+                "packet_id": "scaffold-mission-types",
                 "succeeded": true,
                 "adapter": "acpx_worker",
                 "agent": "opencode",
-                "report_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-mission-types/builder_report.json",
-                "incoming_events_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-mission-types/telemetry/incoming_events.jsonl",
-                "events_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-mission-types/telemetry/events.jsonl",
-                "activity_log_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-mission-types/telemetry/activity.log"
+                "report_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-mission-types/builder_report.json",
+                "incoming_events_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-mission-types/telemetry/incoming_events.jsonl",
+                "events_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-mission-types/telemetry/events.jsonl",
+                "activity_log_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-mission-types/telemetry/activity.log"
               },
               {
-                "packet_id": "acpx-scaffold-artifact-types",
+                "packet_id": "scaffold-artifact-types",
                 "succeeded": true,
                 "adapter": "acpx_worker",
                 "agent": "opencode",
-                "report_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-artifact-types/builder_report.json",
-                "incoming_events_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-artifact-types/telemetry/incoming_events.jsonl",
-                "events_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-artifact-types/telemetry/events.jsonl",
-                "activity_log_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-artifact-types/telemetry/activity.log"
+                "report_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-artifact-types/builder_report.json",
+                "incoming_events_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-artifact-types/telemetry/incoming_events.jsonl",
+                "events_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-artifact-types/telemetry/events.jsonl",
+                "activity_log_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-artifact-types/telemetry/activity.log"
               }
             ]
           }
@@ -462,35 +462,25 @@
         "workflow_replay": {
           "proof_type": "workflow_replay",
           "review_routes": {
-            "overview": "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=overview",
-            "transcript": "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=transcript",
-            "approvals": "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=approvals",
-            "judgment": "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=judgment"
+            "overview": "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=overview",
+            "transcript": "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=transcript",
+            "approvals": "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=approvals",
+            "judgment": "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=judgment"
           }
         },
         "acceptance_review": {
           "status": "pass",
-          "summary": "Post-run dashboard workflow validation succeeded. All 6 routes rendered without errors. All 4 required interactions (open launcher, switch to missions mode, open transcript tab, open judgment tab) passed. No console or page errors detected. The fresh ACPX mission successfully produced round artifacts and the dashboard surfaces are fully navigable.",
+          "summary": "Post-run dashboard workflow for fresh-acpx-20260403135531-c1c343 passes all workflow assertions. All 4 required interactions completed successfully. All 5 coverage expectations met. No console/page errors. All routes reachable.",
           "confidence": 0.9,
-          "evaluator": "workflow",
+          "evaluator": "acceptance_evaluator",
           "findings": [],
           "issue_proposals": [],
           "artifacts": {
-            "screenshots": {
-              "root": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01/visual/root.png",
-              "missions_mode": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01/visual/_mode=missions.png",
-              "overview_tab": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01/visual/_mission=fresh-acpx-20260403122308-9db0be_mode=missions_tab=overview.png",
-              "transcript_tab": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01/visual/_mission=fresh-acpx-20260403122308-9db0be_mode=missions_tab=transcript.png",
-              "approvals_tab": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01/visual/_mission=fresh-acpx-20260403122308-9db0be_mode=missions_tab=approvals.png",
-              "judgment_tab": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01/visual/_mission=fresh-acpx-20260403122308-9db0be_mode=missions_tab=judgment.png"
-            },
-            "round_dir": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01",
-            "visual_dir": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01/visual",
             "proof_split": {
               "fresh_execution": {
                 "proof_type": "fresh_execution",
                 "mission_bootstrap": {
-                  "mission_id": "fresh-acpx-20260403122308-9db0be",
+                  "mission_id": "fresh-acpx-20260403135531-c1c343",
                   "title": "Fresh ACPX Mission E2E Narrow Smoke",
                   "execution_mode": "fresh_acpx_mission",
                   "local_only": true,
@@ -515,7 +505,7 @@
                     "max_waves": 1,
                     "max_packets": 2,
                     "fresh": true,
-                    "generated_at": "2026-04-03T12:23:08.968088+00:00",
+                    "generated_at": "2026-04-03T13:55:31.812828+00:00",
                     "mission_id_prefix": "fresh-acpx-",
                     "fresh_variant": "default",
                     "launcher_path": "approve_plan_launch",
@@ -527,12 +517,12 @@
                     "primary_routes": [
                       "/",
                       "/?mode=missions",
-                      "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=overview"
+                      "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=overview"
                     ],
                     "related_routes": [
-                      "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=transcript",
-                      "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=approvals",
-                      "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=judgment"
+                      "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=transcript",
+                      "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=approvals",
+                      "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=judgment"
                     ],
                     "interaction_plans": {
                       "/": [
@@ -551,7 +541,7 @@
                           "timeout_ms": 0
                         }
                       ],
-                      "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=overview": [
+                      "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=overview": [
                         {
                           "action": "click_selector",
                           "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
@@ -596,15 +586,15 @@
                 "launch": {
                   "last_launch": {
                     "state": {
-                      "mission_id": "fresh-acpx-20260403122308-9db0be",
+                      "mission_id": "fresh-acpx-20260403135531-c1c343",
                       "phase": "executing",
                       "issue_ids": [
-                        "LOCAL-FRESH-ACPX-20260403122308-9DB0BE-1",
-                        "LOCAL-FRESH-ACPX-20260403122308-9DB0BE-2"
+                        "LOCAL-FRESH-ACPX-20260403135531-C1C343-1",
+                        "LOCAL-FRESH-ACPX-20260403135531-C1C343-2"
                       ],
                       "completed_issues": [],
                       "error": null,
-                      "updated_at": "2026-04-03T12:23:28.143575+00:00",
+                      "updated_at": "2026-04-03T13:55:48.580102+00:00",
                       "current_round": 0,
                       "round_orchestrator_state": {}
                     }
@@ -614,48 +604,48 @@
                   }
                 },
                 "daemon_run": {
-                  "mission_id": "fresh-acpx-20260403122308-9db0be",
+                  "mission_id": "fresh-acpx-20260403135531-c1c343",
                   "proof_type": "fresh_execution",
                   "runner_status": "finished",
                   "state": {
-                    "mission_id": "fresh-acpx-20260403122308-9db0be",
+                    "mission_id": "fresh-acpx-20260403135531-c1c343",
                     "phase": "all_done",
                     "issue_ids": [
-                      "LOCAL-FRESH-ACPX-20260403122308-9DB0BE-1",
-                      "LOCAL-FRESH-ACPX-20260403122308-9DB0BE-2"
+                      "LOCAL-FRESH-ACPX-20260403135531-C1C343-1",
+                      "LOCAL-FRESH-ACPX-20260403135531-C1C343-2"
                     ],
                     "completed_issues": [],
                     "error": null,
-                    "updated_at": "2026-04-03T12:27:31.174074+00:00",
+                    "updated_at": "2026-04-03T14:01:35.635371+00:00",
                     "current_round": 1,
                     "round_orchestrator_state": {}
                   },
-                  "fresh_round_path": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01"
+                  "fresh_round_path": "docs/specs/fresh-acpx-20260403135531-c1c343/rounds/round-01"
                 },
-                "fresh_round_path": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01",
+                "fresh_round_path": "docs/specs/fresh-acpx-20260403135531-c1c343/rounds/round-01",
                 "builder_execution_summary": {
                   "round_id": 1,
                   "status": "decided",
                   "worker_results": [
                     {
-                      "packet_id": "acpx-scaffold-mission-types",
+                      "packet_id": "scaffold-mission-types",
                       "succeeded": true,
                       "adapter": "acpx_worker",
                       "agent": "opencode",
-                      "report_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-mission-types/builder_report.json",
-                      "incoming_events_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-mission-types/telemetry/incoming_events.jsonl",
-                      "events_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-mission-types/telemetry/events.jsonl",
-                      "activity_log_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-mission-types/telemetry/activity.log"
+                      "report_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-mission-types/builder_report.json",
+                      "incoming_events_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-mission-types/telemetry/incoming_events.jsonl",
+                      "events_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-mission-types/telemetry/events.jsonl",
+                      "activity_log_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-mission-types/telemetry/activity.log"
                     },
                     {
-                      "packet_id": "acpx-scaffold-artifact-types",
+                      "packet_id": "scaffold-artifact-types",
                       "succeeded": true,
                       "adapter": "acpx_worker",
                       "agent": "opencode",
-                      "report_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-artifact-types/builder_report.json",
-                      "incoming_events_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-artifact-types/telemetry/incoming_events.jsonl",
-                      "events_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-artifact-types/telemetry/events.jsonl",
-                      "activity_log_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-artifact-types/telemetry/activity.log"
+                      "report_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-artifact-types/builder_report.json",
+                      "incoming_events_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-artifact-types/telemetry/incoming_events.jsonl",
+                      "events_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-artifact-types/telemetry/events.jsonl",
+                      "activity_log_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-artifact-types/telemetry/activity.log"
                     }
                   ]
                 }
@@ -663,17 +653,17 @@
               "workflow_replay": {
                 "proof_type": "workflow_replay",
                 "review_routes": {
-                  "overview": "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=overview",
-                  "transcript": "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=transcript",
-                  "approvals": "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=approvals",
-                  "judgment": "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=judgment"
+                  "overview": "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=overview",
+                  "transcript": "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=transcript",
+                  "approvals": "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=approvals",
+                  "judgment": "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=judgment"
                 }
               }
             },
             "fresh_execution": {
               "proof_type": "fresh_execution",
               "mission_bootstrap": {
-                "mission_id": "fresh-acpx-20260403122308-9db0be",
+                "mission_id": "fresh-acpx-20260403135531-c1c343",
                 "title": "Fresh ACPX Mission E2E Narrow Smoke",
                 "execution_mode": "fresh_acpx_mission",
                 "local_only": true,
@@ -698,7 +688,7 @@
                   "max_waves": 1,
                   "max_packets": 2,
                   "fresh": true,
-                  "generated_at": "2026-04-03T12:23:08.968088+00:00",
+                  "generated_at": "2026-04-03T13:55:31.812828+00:00",
                   "mission_id_prefix": "fresh-acpx-",
                   "fresh_variant": "default",
                   "launcher_path": "approve_plan_launch",
@@ -710,12 +700,12 @@
                   "primary_routes": [
                     "/",
                     "/?mode=missions",
-                    "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=overview"
+                    "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=overview"
                   ],
                   "related_routes": [
-                    "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=transcript",
-                    "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=approvals",
-                    "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=judgment"
+                    "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=transcript",
+                    "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=approvals",
+                    "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=judgment"
                   ],
                   "interaction_plans": {
                     "/": [
@@ -734,7 +724,7 @@
                         "timeout_ms": 0
                       }
                     ],
-                    "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=overview": [
+                    "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=overview": [
                       {
                         "action": "click_selector",
                         "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
@@ -779,15 +769,15 @@
               "launch": {
                 "last_launch": {
                   "state": {
-                    "mission_id": "fresh-acpx-20260403122308-9db0be",
+                    "mission_id": "fresh-acpx-20260403135531-c1c343",
                     "phase": "executing",
                     "issue_ids": [
-                      "LOCAL-FRESH-ACPX-20260403122308-9DB0BE-1",
-                      "LOCAL-FRESH-ACPX-20260403122308-9DB0BE-2"
+                      "LOCAL-FRESH-ACPX-20260403135531-C1C343-1",
+                      "LOCAL-FRESH-ACPX-20260403135531-C1C343-2"
                     ],
                     "completed_issues": [],
                     "error": null,
-                    "updated_at": "2026-04-03T12:23:28.143575+00:00",
+                    "updated_at": "2026-04-03T13:55:48.580102+00:00",
                     "current_round": 0,
                     "round_orchestrator_state": {}
                   }
@@ -797,48 +787,48 @@
                 }
               },
               "daemon_run": {
-                "mission_id": "fresh-acpx-20260403122308-9db0be",
+                "mission_id": "fresh-acpx-20260403135531-c1c343",
                 "proof_type": "fresh_execution",
                 "runner_status": "finished",
                 "state": {
-                  "mission_id": "fresh-acpx-20260403122308-9db0be",
+                  "mission_id": "fresh-acpx-20260403135531-c1c343",
                   "phase": "all_done",
                   "issue_ids": [
-                    "LOCAL-FRESH-ACPX-20260403122308-9DB0BE-1",
-                    "LOCAL-FRESH-ACPX-20260403122308-9DB0BE-2"
+                    "LOCAL-FRESH-ACPX-20260403135531-C1C343-1",
+                    "LOCAL-FRESH-ACPX-20260403135531-C1C343-2"
                   ],
                   "completed_issues": [],
                   "error": null,
-                  "updated_at": "2026-04-03T12:27:31.174074+00:00",
+                  "updated_at": "2026-04-03T14:01:35.635371+00:00",
                   "current_round": 1,
                   "round_orchestrator_state": {}
                 },
-                "fresh_round_path": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01"
+                "fresh_round_path": "docs/specs/fresh-acpx-20260403135531-c1c343/rounds/round-01"
               },
-              "fresh_round_path": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01",
+              "fresh_round_path": "docs/specs/fresh-acpx-20260403135531-c1c343/rounds/round-01",
               "builder_execution_summary": {
                 "round_id": 1,
                 "status": "decided",
                 "worker_results": [
                   {
-                    "packet_id": "acpx-scaffold-mission-types",
+                    "packet_id": "scaffold-mission-types",
                     "succeeded": true,
                     "adapter": "acpx_worker",
                     "agent": "opencode",
-                    "report_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-mission-types/builder_report.json",
-                    "incoming_events_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-mission-types/telemetry/incoming_events.jsonl",
-                    "events_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-mission-types/telemetry/events.jsonl",
-                    "activity_log_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-mission-types/telemetry/activity.log"
+                    "report_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-mission-types/builder_report.json",
+                    "incoming_events_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-mission-types/telemetry/incoming_events.jsonl",
+                    "events_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-mission-types/telemetry/events.jsonl",
+                    "activity_log_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-mission-types/telemetry/activity.log"
                   },
                   {
-                    "packet_id": "acpx-scaffold-artifact-types",
+                    "packet_id": "scaffold-artifact-types",
                     "succeeded": true,
                     "adapter": "acpx_worker",
                     "agent": "opencode",
-                    "report_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-artifact-types/builder_report.json",
-                    "incoming_events_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-artifact-types/telemetry/incoming_events.jsonl",
-                    "events_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-artifact-types/telemetry/events.jsonl",
-                    "activity_log_path": "docs/specs/fresh-acpx-20260403122308-9db0be/workers/acpx-scaffold-artifact-types/telemetry/activity.log"
+                    "report_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-artifact-types/builder_report.json",
+                    "incoming_events_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-artifact-types/telemetry/incoming_events.jsonl",
+                    "events_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-artifact-types/telemetry/events.jsonl",
+                    "activity_log_path": "docs/specs/fresh-acpx-20260403135531-c1c343/workers/scaffold-artifact-types/telemetry/activity.log"
                   }
                 ]
               }
@@ -846,20 +836,20 @@
             "workflow_replay": {
               "proof_type": "workflow_replay",
               "review_routes": {
-                "overview": "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=overview",
-                "transcript": "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=transcript",
-                "approvals": "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=approvals",
-                "judgment": "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=judgment"
+                "overview": "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=overview",
+                "transcript": "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=transcript",
+                "approvals": "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=approvals",
+                "judgment": "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=judgment"
               }
             }
           },
           "tested_routes": [
             "/",
             "/?mode=missions",
-            "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=overview",
-            "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=transcript",
-            "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=approvals",
-            "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=judgment"
+            "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=overview",
+            "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=transcript",
+            "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=approvals",
+            "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=judgment"
           ],
           "acceptance_mode": "workflow",
           "coverage_status": "complete",
@@ -871,12 +861,12 @@
             "primary_routes": [
               "/",
               "/?mode=missions",
-              "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=overview"
+              "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=overview"
             ],
             "related_routes": [
-              "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=transcript",
-              "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=approvals",
-              "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=judgment"
+              "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=transcript",
+              "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=approvals",
+              "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=judgment"
             ],
             "interaction_plans": {
               "/": [
@@ -895,7 +885,7 @@
                   "timeout_ms": 0
                 }
               ],
-              "/?mission=fresh-acpx-20260403122308-9db0be&mode=missions&tab=overview": [
+              "/?mission=fresh-acpx-20260403135531-c1c343&mode=missions&tab=overview": [
                 {
                   "action": "click_selector",
                   "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
@@ -943,35 +933,35 @@
         ]
       },
       "runtime_chain": {
-        "chain_id": "chain_fresh-acpx-20260403122308-9db0be_20260403T122329Z_b4f2477d",
-        "active_span_id": "chain_fresh-acpx-20260403122308-9db0be_20260403T122329Z_b4f2477d:round:01:acceptance-review",
+        "chain_id": "chain_fresh-acpx-20260403135531-c1c343_20260403T135549Z_3b515899",
+        "active_span_id": "chain_fresh-acpx-20260403135531-c1c343_20260403T135549Z_3b515899:round:01:acceptance-review",
         "subject_kind": "acceptance",
-        "subject_id": "fresh-acpx-20260403122308-9db0be:round-1:acceptance",
+        "subject_id": "fresh-acpx-20260403135531-c1c343:round-1:acceptance",
         "phase": "completed",
         "status_reason": "acceptance_evaluation_completed",
         "session_refs": {},
         "artifact_refs": {
-          "round_dir": "docs/specs/fresh-acpx-20260403122308-9db0be/rounds/round-01"
+          "round_dir": "docs/specs/fresh-acpx-20260403135531-c1c343/rounds/round-01"
         },
-        "updated_at": "2026-04-03T12:27:31.130018+00:00",
-        "chain_root": "docs/specs/fresh-acpx-20260403122308-9db0be/operator/runtime_chain"
+        "updated_at": "2026-04-03T14:01:35.605006+00:00",
+        "chain_root": "docs/specs/fresh-acpx-20260403135531-c1c343/operator/runtime_chain"
       },
-      "_path": "docs/specs/fresh-acpx-20260403122308-9db0be/operator/mission_start_acceptance.json"
+      "_path": "docs/specs/fresh-acpx-20260403135531-c1c343/operator/mission_start_acceptance.json"
     },
     "exploratory": {
       "status": "pass",
-      "summary": "Fresh ACPX mission dashboard validated end-to-end. All 5 tested routes pass, launcher context establishes cleanly, mission detail surfaces are navigable, and the transcript/judgment/approvals tabs are all reachable and functional. Zero blocking issues detected. The remaining noted gaps (provider-agnostic portability, narrow scenario coverage) are scope limitations of the proof-of-concept, not dashboard defects.",
-      "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+      "summary": "Post-run dashboard workflow validated end-to-end. All 6 routes loaded, all planned interactions passed, no console or page errors, and all coverage expectations met. Operator successfully established launcher context, inspected mission detail from overview, expanded into adjacent surfaces (transcript, judgment, approvals), and inspected deeper evidence surfaces (transcript block inspector, raw acceptance artifact bridge).",
+      "mission_id": "fresh-acpx-20260403140230-15e10a",
       "variant": "default",
       "source": "fresh-acpx-mission-smoke",
       "source_run": {
-        "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+        "mission_id": "fresh-acpx-20260403140230-15e10a",
         "round_id": "round-01",
-        "round_dir": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01",
-        "review_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/exploratory_acceptance_review.json",
+        "round_dir": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01",
+        "review_path": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01/exploratory_acceptance_review.json",
         "source": "fresh-acpx-mission-smoke"
       },
-      "round_dir": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01",
+      "round_dir": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01",
       "findings_count": 0,
       "issue_proposal_count": 0,
       "recommended_next_step": "",
@@ -988,28 +978,17 @@
       },
       "acceptance_review": {
         "status": "pass",
-        "summary": "Fresh ACPX mission dashboard validated end-to-end. All 5 tested routes pass, launcher context establishes cleanly, mission detail surfaces are navigable, and the transcript/judgment/approvals tabs are all reachable and functional. Zero blocking issues detected. The remaining noted gaps (provider-agnostic portability, narrow scenario coverage) are scope limitations of the proof-of-concept, not dashboard defects.",
-        "confidence": 0.9,
-        "evaluator": "exploratory_dogfood_operator",
+        "summary": "Post-run dashboard workflow validated end-to-end. All 6 routes loaded, all planned interactions passed, no console or page errors, and all coverage expectations met. Operator successfully established launcher context, inspected mission detail from overview, expanded into adjacent surfaces (transcript, judgment, approvals), and inspected deeper evidence surfaces (transcript block inspector, raw acceptance artifact bridge).",
+        "confidence": 0.95,
+        "evaluator": "exploratory_operator",
         "findings": [],
         "issue_proposals": [],
         "artifacts": {
-          "round_dir": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01",
-          "visual_dir": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual",
-          "dashboard_url": "http://127.0.0.1:53290/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview",
-          "fresh_execution_proof": {
-            "packet_1": "acpx-contract-mission-types",
-            "packet_2": "acpx-contract-artifact-types",
-            "round_status": "decided",
-            "decision": "continue",
-            "worker_results": 2,
-            "all_passed": true
-          },
           "fresh_execution": {
             "proof_type": "fresh_execution",
-            "fresh_round_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01",
+            "fresh_round_path": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01",
             "mission_bootstrap": {
-              "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+              "mission_id": "fresh-acpx-20260403140230-15e10a",
               "title": "Fresh ACPX Mission E2E Narrow Smoke",
               "intent": "Create one fresh local-only mission that proves ACPX execution by scaffolding exactly two tiny TypeScript contract files under src/contracts: mission_types.ts and artifact_types.ts. The first fresh path must stay minimal and only produce enough round artifacts to prove fresh execution before post-run workflow replay.",
               "acceptance_criteria": [
@@ -1031,7 +1010,7 @@
                 "max_waves": 1,
                 "max_packets": 2,
                 "fresh": true,
-                "generated_at": "2026-04-03T12:28:27.905741+00:00",
+                "generated_at": "2026-04-03T14:02:30.126807+00:00",
                 "mission_id_prefix": "fresh-acpx-",
                 "fresh_variant": "default",
                 "launcher_path": "approve_plan_launch",
@@ -1046,17 +1025,17 @@
                 "state": {
                   "phase": "executing",
                   "current_round": 0,
-                  "updated_at": "2026-04-03T12:28:39.747701+00:00"
+                  "updated_at": "2026-04-03T14:02:45.312349+00:00"
                 }
               }
             },
             "daemon_run": {
               "runner_status": "finished",
-              "fresh_round_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01",
+              "fresh_round_path": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01",
               "state": {
                 "phase": "all_done",
                 "current_round": 1,
-                "updated_at": "2026-04-03T12:32:24.498021+00:00"
+                "updated_at": "2026-04-03T14:07:53.174465+00:00"
               }
             },
             "builder_execution_summary": {
@@ -1064,13 +1043,13 @@
               "status": "decided",
               "worker_results": [
                 {
-                  "packet_id": "acpx-contract-mission-types",
+                  "packet_id": "acpx-fresh-contract-mission-types",
                   "succeeded": true,
                   "adapter": "acpx_worker",
                   "agent": "opencode"
                 },
                 {
-                  "packet_id": "acpx-contract-artifact-types",
+                  "packet_id": "acpx-fresh-contract-artifact-types",
                   "succeeded": true,
                   "adapter": "acpx_worker",
                   "agent": "opencode"
@@ -1081,10 +1060,10 @@
           "workflow_replay": {
             "proof_type": "workflow_replay",
             "review_routes": {
-              "overview": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview",
-              "transcript": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript",
-              "approvals": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals",
-              "judgment": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment"
+              "overview": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview",
+              "transcript": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript",
+              "approvals": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals",
+              "judgment": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment"
             }
           },
           "acceptance_evaluator_config": {
@@ -1097,10 +1076,10 @@
         },
         "tested_routes": [
           "/",
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview",
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript",
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment",
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals"
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview",
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript",
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment",
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals"
         ],
         "acceptance_mode": "exploratory",
         "coverage_status": "complete",
@@ -1111,12 +1090,12 @@
           "goal": "Dogfood the output from an operator perspective.",
           "primary_routes": [
             "/",
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview"
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview"
           ],
           "related_routes": [
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript",
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment",
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals"
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript",
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment",
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals"
           ],
           "interaction_plans": {
             "/": [
@@ -1135,10 +1114,10 @@
                 "timeout_ms": 0
               }
             ],
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview": [
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview": [
               {
                 "action": "wait_for_selector",
-                "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260403122827-2a3c5e\"]",
+                "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260403140230-15e10a\"]",
                 "description": "Confirm mission detail is ready before branching into adjacent surfaces.",
                 "value": "",
                 "timeout_ms": 0
@@ -1158,10 +1137,10 @@
                 "timeout_ms": 0
               }
             ],
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript": [
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript": [
               {
                 "action": "wait_for_selector",
-                "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260403122827-2a3c5e\"]",
+                "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260403140230-15e10a\"]",
                 "description": "Confirm mission detail is ready before judging transcript discoverability.",
                 "value": "",
                 "timeout_ms": 4000
@@ -1209,7 +1188,7 @@
                 "timeout_ms": 4000
               }
             ],
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment": [
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment": [
               {
                 "action": "click_selector",
                 "target": "[data-automation-target=\"internal-route\"][data-route-label=\"Open raw acceptance artifact\"]",
@@ -1236,12 +1215,12 @@
           "exploration_budget": "wide",
           "seed_routes": [
             "/",
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview"
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview"
           ],
           "allowed_expansions": [
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript",
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment",
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals"
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript",
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment",
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals"
           ],
           "critique_focus": [
             "information architecture confusion",
@@ -1258,14 +1237,14 @@
         }
       },
       "browser_evidence": {
-        "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+        "mission_id": "fresh-acpx-20260403140230-15e10a",
         "round_id": 1,
         "tested_routes": [
           "/",
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview",
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript",
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment",
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals"
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview",
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript",
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment",
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals"
         ],
         "interactions": {
           "/": [
@@ -1282,10 +1261,10 @@
               "status": "passed"
             }
           ],
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview": [
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview": [
             {
               "action": "wait_for_selector",
-              "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260403122827-2a3c5e\"]",
+              "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260403140230-15e10a\"]",
               "description": "Confirm mission detail is ready before branching into adjacent surfaces.",
               "status": "passed"
             },
@@ -1302,10 +1281,10 @@
               "status": "passed"
             }
           ],
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript": [
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript": [
             {
               "action": "wait_for_selector",
-              "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260403122827-2a3c5e\"]",
+              "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260403140230-15e10a\"]",
               "description": "Confirm mission detail is ready before judging transcript discoverability.",
               "status": "passed"
             },
@@ -1346,7 +1325,7 @@
               "status": "passed"
             }
           ],
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment": [
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment": [
             {
               "action": "click_selector",
               "target": "[data-automation-target=\"internal-route\"][data-route-label=\"Open raw acceptance artifact\"]",
@@ -1354,30 +1333,30 @@
               "status": "passed"
             }
           ],
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals": []
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals": []
         },
         "screenshots": {
-          "/": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual/root.png",
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual/_mission=fresh-acpx-20260403122827-2a3c5e_mode=missions_tab=overview.png",
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual/_mission=fresh-acpx-20260403122827-2a3c5e_mode=missions_tab=transcript.png",
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual/_mission=fresh-acpx-20260403122827-2a3c5e_mode=missions_tab=judgment.png",
-          "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual/_mission=fresh-acpx-20260403122827-2a3c5e_mode=missions_tab=approvals.png"
+          "/": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01/visual/root.png",
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01/visual/_mission=fresh-acpx-20260403140230-15e10a_mode=missions_tab=overview.png",
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01/visual/_mission=fresh-acpx-20260403140230-15e10a_mode=missions_tab=transcript.png",
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01/visual/_mission=fresh-acpx-20260403140230-15e10a_mode=missions_tab=judgment.png",
+          "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01/visual/_mission=fresh-acpx-20260403140230-15e10a_mode=missions_tab=approvals.png"
         },
         "console_errors": [],
         "page_errors": [],
         "artifact_paths": {
-          "round_dir": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01",
-          "visual_dir": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual"
+          "round_dir": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01",
+          "visual_dir": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01/visual"
         }
       },
       "fresh_report": {
-        "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+        "mission_id": "fresh-acpx-20260403140230-15e10a",
         "variant": "default",
-        "dashboard_url": "http://127.0.0.1:53290/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview",
+        "dashboard_url": "http://127.0.0.1:60376/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview",
         "fresh_execution": {
           "proof_type": "fresh_execution",
           "mission_bootstrap": {
-            "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+            "mission_id": "fresh-acpx-20260403140230-15e10a",
             "title": "Fresh ACPX Mission E2E Narrow Smoke",
             "execution_mode": "fresh_acpx_mission",
             "local_only": true,
@@ -1402,7 +1381,7 @@
               "max_waves": 1,
               "max_packets": 2,
               "fresh": true,
-              "generated_at": "2026-04-03T12:28:27.905741+00:00",
+              "generated_at": "2026-04-03T14:02:30.126807+00:00",
               "mission_id_prefix": "fresh-acpx-",
               "fresh_variant": "default",
               "launcher_path": "approve_plan_launch",
@@ -1414,12 +1393,12 @@
               "primary_routes": [
                 "/",
                 "/?mode=missions",
-                "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview"
+                "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview"
               ],
               "related_routes": [
-                "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript",
-                "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals",
-                "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment"
+                "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript",
+                "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals",
+                "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment"
               ],
               "interaction_plans": {
                 "/": [
@@ -1438,7 +1417,7 @@
                     "timeout_ms": 0
                   }
                 ],
-                "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview": [
+                "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview": [
                   {
                     "action": "click_selector",
                     "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
@@ -1483,15 +1462,15 @@
           "launch": {
             "last_launch": {
               "state": {
-                "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+                "mission_id": "fresh-acpx-20260403140230-15e10a",
                 "phase": "executing",
                 "issue_ids": [
-                  "LOCAL-FRESH-ACPX-20260403122827-2A3C5E-1",
-                  "LOCAL-FRESH-ACPX-20260403122827-2A3C5E-2"
+                  "LOCAL-FRESH-ACPX-20260403140230-15E10A-1",
+                  "LOCAL-FRESH-ACPX-20260403140230-15E10A-2"
                 ],
                 "completed_issues": [],
                 "error": null,
-                "updated_at": "2026-04-03T12:28:39.747701+00:00",
+                "updated_at": "2026-04-03T14:02:45.312349+00:00",
                 "current_round": 0,
                 "round_orchestrator_state": {}
               }
@@ -1501,48 +1480,48 @@
             }
           },
           "daemon_run": {
-            "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+            "mission_id": "fresh-acpx-20260403140230-15e10a",
             "proof_type": "fresh_execution",
             "runner_status": "finished",
             "state": {
-              "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+              "mission_id": "fresh-acpx-20260403140230-15e10a",
               "phase": "all_done",
               "issue_ids": [
-                "LOCAL-FRESH-ACPX-20260403122827-2A3C5E-1",
-                "LOCAL-FRESH-ACPX-20260403122827-2A3C5E-2"
+                "LOCAL-FRESH-ACPX-20260403140230-15E10A-1",
+                "LOCAL-FRESH-ACPX-20260403140230-15E10A-2"
               ],
               "completed_issues": [],
               "error": null,
-              "updated_at": "2026-04-03T12:32:24.498021+00:00",
+              "updated_at": "2026-04-03T14:07:53.174465+00:00",
               "current_round": 1,
               "round_orchestrator_state": {}
             },
-            "fresh_round_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01"
+            "fresh_round_path": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01"
           },
-          "fresh_round_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01",
+          "fresh_round_path": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01",
           "builder_execution_summary": {
             "round_id": 1,
             "status": "decided",
             "worker_results": [
               {
-                "packet_id": "acpx-contract-mission-types",
+                "packet_id": "acpx-fresh-contract-mission-types",
                 "succeeded": true,
                 "adapter": "acpx_worker",
                 "agent": "opencode",
-                "report_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-mission-types/builder_report.json",
-                "incoming_events_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-mission-types/telemetry/incoming_events.jsonl",
-                "events_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-mission-types/telemetry/events.jsonl",
-                "activity_log_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-mission-types/telemetry/activity.log"
+                "report_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-mission-types/builder_report.json",
+                "incoming_events_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-mission-types/telemetry/incoming_events.jsonl",
+                "events_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-mission-types/telemetry/events.jsonl",
+                "activity_log_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-mission-types/telemetry/activity.log"
               },
               {
-                "packet_id": "acpx-contract-artifact-types",
+                "packet_id": "acpx-fresh-contract-artifact-types",
                 "succeeded": true,
                 "adapter": "acpx_worker",
                 "agent": "opencode",
-                "report_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-artifact-types/builder_report.json",
-                "incoming_events_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-artifact-types/telemetry/incoming_events.jsonl",
-                "events_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-artifact-types/telemetry/events.jsonl",
-                "activity_log_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-artifact-types/telemetry/activity.log"
+                "report_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-artifact-types/builder_report.json",
+                "incoming_events_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-artifact-types/telemetry/incoming_events.jsonl",
+                "events_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-artifact-types/telemetry/events.jsonl",
+                "activity_log_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-artifact-types/telemetry/activity.log"
               }
             ]
           }
@@ -1550,35 +1529,25 @@
         "workflow_replay": {
           "proof_type": "workflow_replay",
           "review_routes": {
-            "overview": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview",
-            "transcript": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript",
-            "approvals": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals",
-            "judgment": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment"
+            "overview": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview",
+            "transcript": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript",
+            "approvals": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals",
+            "judgment": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment"
           }
         },
         "acceptance_review": {
           "status": "pass",
-          "summary": "Post-run dashboard workflow validated end-to-end for fresh ACPX mission. All 6 routes tested, 4 required interactions executed successfully, zero console/page errors, and all workflow assertions confirmed.",
+          "summary": "Post-run dashboard workflow validated end-to-end. All 6 routes loaded, all planned interactions passed, no console or page errors, and all coverage expectations met.",
           "confidence": 0.9,
-          "evaluator": "specorch-acceptance",
+          "evaluator": "acceptance_evaluator",
           "findings": [],
           "issue_proposals": [],
           "artifacts": {
-            "screenshots": {
-              "root": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual/root.png",
-              "missions_mode": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual/_mode=missions.png",
-              "overview_tab": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual/_mission=fresh-acpx-20260403122827-2a3c5e_mode=missions_tab=overview.png",
-              "transcript_tab": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual/_mission=fresh-acpx-20260403122827-2a3c5e_mode=missions_tab=transcript.png",
-              "approvals_tab": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual/_mission=fresh-acpx-20260403122827-2a3c5e_mode=missions_tab=approvals.png",
-              "judgment_tab": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual/_mission=fresh-acpx-20260403122827-2a3c5e_mode=missions_tab=judgment.png"
-            },
-            "round_dir": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01",
-            "visual_dir": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01/visual",
             "proof_split": {
               "fresh_execution": {
                 "proof_type": "fresh_execution",
                 "mission_bootstrap": {
-                  "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+                  "mission_id": "fresh-acpx-20260403140230-15e10a",
                   "title": "Fresh ACPX Mission E2E Narrow Smoke",
                   "execution_mode": "fresh_acpx_mission",
                   "local_only": true,
@@ -1603,7 +1572,7 @@
                     "max_waves": 1,
                     "max_packets": 2,
                     "fresh": true,
-                    "generated_at": "2026-04-03T12:28:27.905741+00:00",
+                    "generated_at": "2026-04-03T14:02:30.126807+00:00",
                     "mission_id_prefix": "fresh-acpx-",
                     "fresh_variant": "default",
                     "launcher_path": "approve_plan_launch",
@@ -1615,12 +1584,12 @@
                     "primary_routes": [
                       "/",
                       "/?mode=missions",
-                      "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview"
+                      "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview"
                     ],
                     "related_routes": [
-                      "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript",
-                      "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals",
-                      "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment"
+                      "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript",
+                      "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals",
+                      "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment"
                     ],
                     "interaction_plans": {
                       "/": [
@@ -1639,7 +1608,7 @@
                           "timeout_ms": 0
                         }
                       ],
-                      "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview": [
+                      "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview": [
                         {
                           "action": "click_selector",
                           "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
@@ -1684,15 +1653,15 @@
                 "launch": {
                   "last_launch": {
                     "state": {
-                      "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+                      "mission_id": "fresh-acpx-20260403140230-15e10a",
                       "phase": "executing",
                       "issue_ids": [
-                        "LOCAL-FRESH-ACPX-20260403122827-2A3C5E-1",
-                        "LOCAL-FRESH-ACPX-20260403122827-2A3C5E-2"
+                        "LOCAL-FRESH-ACPX-20260403140230-15E10A-1",
+                        "LOCAL-FRESH-ACPX-20260403140230-15E10A-2"
                       ],
                       "completed_issues": [],
                       "error": null,
-                      "updated_at": "2026-04-03T12:28:39.747701+00:00",
+                      "updated_at": "2026-04-03T14:02:45.312349+00:00",
                       "current_round": 0,
                       "round_orchestrator_state": {}
                     }
@@ -1702,48 +1671,48 @@
                   }
                 },
                 "daemon_run": {
-                  "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+                  "mission_id": "fresh-acpx-20260403140230-15e10a",
                   "proof_type": "fresh_execution",
                   "runner_status": "finished",
                   "state": {
-                    "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+                    "mission_id": "fresh-acpx-20260403140230-15e10a",
                     "phase": "all_done",
                     "issue_ids": [
-                      "LOCAL-FRESH-ACPX-20260403122827-2A3C5E-1",
-                      "LOCAL-FRESH-ACPX-20260403122827-2A3C5E-2"
+                      "LOCAL-FRESH-ACPX-20260403140230-15E10A-1",
+                      "LOCAL-FRESH-ACPX-20260403140230-15E10A-2"
                     ],
                     "completed_issues": [],
                     "error": null,
-                    "updated_at": "2026-04-03T12:32:24.498021+00:00",
+                    "updated_at": "2026-04-03T14:07:53.174465+00:00",
                     "current_round": 1,
                     "round_orchestrator_state": {}
                   },
-                  "fresh_round_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01"
+                  "fresh_round_path": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01"
                 },
-                "fresh_round_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01",
+                "fresh_round_path": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01",
                 "builder_execution_summary": {
                   "round_id": 1,
                   "status": "decided",
                   "worker_results": [
                     {
-                      "packet_id": "acpx-contract-mission-types",
+                      "packet_id": "acpx-fresh-contract-mission-types",
                       "succeeded": true,
                       "adapter": "acpx_worker",
                       "agent": "opencode",
-                      "report_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-mission-types/builder_report.json",
-                      "incoming_events_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-mission-types/telemetry/incoming_events.jsonl",
-                      "events_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-mission-types/telemetry/events.jsonl",
-                      "activity_log_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-mission-types/telemetry/activity.log"
+                      "report_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-mission-types/builder_report.json",
+                      "incoming_events_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-mission-types/telemetry/incoming_events.jsonl",
+                      "events_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-mission-types/telemetry/events.jsonl",
+                      "activity_log_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-mission-types/telemetry/activity.log"
                     },
                     {
-                      "packet_id": "acpx-contract-artifact-types",
+                      "packet_id": "acpx-fresh-contract-artifact-types",
                       "succeeded": true,
                       "adapter": "acpx_worker",
                       "agent": "opencode",
-                      "report_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-artifact-types/builder_report.json",
-                      "incoming_events_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-artifact-types/telemetry/incoming_events.jsonl",
-                      "events_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-artifact-types/telemetry/events.jsonl",
-                      "activity_log_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-artifact-types/telemetry/activity.log"
+                      "report_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-artifact-types/builder_report.json",
+                      "incoming_events_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-artifact-types/telemetry/incoming_events.jsonl",
+                      "events_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-artifact-types/telemetry/events.jsonl",
+                      "activity_log_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-artifact-types/telemetry/activity.log"
                     }
                   ]
                 }
@@ -1751,17 +1720,17 @@
               "workflow_replay": {
                 "proof_type": "workflow_replay",
                 "review_routes": {
-                  "overview": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview",
-                  "transcript": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript",
-                  "approvals": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals",
-                  "judgment": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment"
+                  "overview": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview",
+                  "transcript": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript",
+                  "approvals": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals",
+                  "judgment": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment"
                 }
               }
             },
             "fresh_execution": {
               "proof_type": "fresh_execution",
               "mission_bootstrap": {
-                "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+                "mission_id": "fresh-acpx-20260403140230-15e10a",
                 "title": "Fresh ACPX Mission E2E Narrow Smoke",
                 "execution_mode": "fresh_acpx_mission",
                 "local_only": true,
@@ -1786,7 +1755,7 @@
                   "max_waves": 1,
                   "max_packets": 2,
                   "fresh": true,
-                  "generated_at": "2026-04-03T12:28:27.905741+00:00",
+                  "generated_at": "2026-04-03T14:02:30.126807+00:00",
                   "mission_id_prefix": "fresh-acpx-",
                   "fresh_variant": "default",
                   "launcher_path": "approve_plan_launch",
@@ -1798,12 +1767,12 @@
                   "primary_routes": [
                     "/",
                     "/?mode=missions",
-                    "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview"
+                    "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview"
                   ],
                   "related_routes": [
-                    "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript",
-                    "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals",
-                    "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment"
+                    "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript",
+                    "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals",
+                    "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment"
                   ],
                   "interaction_plans": {
                     "/": [
@@ -1822,7 +1791,7 @@
                         "timeout_ms": 0
                       }
                     ],
-                    "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview": [
+                    "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview": [
                       {
                         "action": "click_selector",
                         "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
@@ -1867,15 +1836,15 @@
               "launch": {
                 "last_launch": {
                   "state": {
-                    "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+                    "mission_id": "fresh-acpx-20260403140230-15e10a",
                     "phase": "executing",
                     "issue_ids": [
-                      "LOCAL-FRESH-ACPX-20260403122827-2A3C5E-1",
-                      "LOCAL-FRESH-ACPX-20260403122827-2A3C5E-2"
+                      "LOCAL-FRESH-ACPX-20260403140230-15E10A-1",
+                      "LOCAL-FRESH-ACPX-20260403140230-15E10A-2"
                     ],
                     "completed_issues": [],
                     "error": null,
-                    "updated_at": "2026-04-03T12:28:39.747701+00:00",
+                    "updated_at": "2026-04-03T14:02:45.312349+00:00",
                     "current_round": 0,
                     "round_orchestrator_state": {}
                   }
@@ -1885,48 +1854,48 @@
                 }
               },
               "daemon_run": {
-                "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+                "mission_id": "fresh-acpx-20260403140230-15e10a",
                 "proof_type": "fresh_execution",
                 "runner_status": "finished",
                 "state": {
-                  "mission_id": "fresh-acpx-20260403122827-2a3c5e",
+                  "mission_id": "fresh-acpx-20260403140230-15e10a",
                   "phase": "all_done",
                   "issue_ids": [
-                    "LOCAL-FRESH-ACPX-20260403122827-2A3C5E-1",
-                    "LOCAL-FRESH-ACPX-20260403122827-2A3C5E-2"
+                    "LOCAL-FRESH-ACPX-20260403140230-15E10A-1",
+                    "LOCAL-FRESH-ACPX-20260403140230-15E10A-2"
                   ],
                   "completed_issues": [],
                   "error": null,
-                  "updated_at": "2026-04-03T12:32:24.498021+00:00",
+                  "updated_at": "2026-04-03T14:07:53.174465+00:00",
                   "current_round": 1,
                   "round_orchestrator_state": {}
                 },
-                "fresh_round_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01"
+                "fresh_round_path": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01"
               },
-              "fresh_round_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01",
+              "fresh_round_path": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01",
               "builder_execution_summary": {
                 "round_id": 1,
                 "status": "decided",
                 "worker_results": [
                   {
-                    "packet_id": "acpx-contract-mission-types",
+                    "packet_id": "acpx-fresh-contract-mission-types",
                     "succeeded": true,
                     "adapter": "acpx_worker",
                     "agent": "opencode",
-                    "report_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-mission-types/builder_report.json",
-                    "incoming_events_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-mission-types/telemetry/incoming_events.jsonl",
-                    "events_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-mission-types/telemetry/events.jsonl",
-                    "activity_log_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-mission-types/telemetry/activity.log"
+                    "report_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-mission-types/builder_report.json",
+                    "incoming_events_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-mission-types/telemetry/incoming_events.jsonl",
+                    "events_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-mission-types/telemetry/events.jsonl",
+                    "activity_log_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-mission-types/telemetry/activity.log"
                   },
                   {
-                    "packet_id": "acpx-contract-artifact-types",
+                    "packet_id": "acpx-fresh-contract-artifact-types",
                     "succeeded": true,
                     "adapter": "acpx_worker",
                     "agent": "opencode",
-                    "report_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-artifact-types/builder_report.json",
-                    "incoming_events_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-artifact-types/telemetry/incoming_events.jsonl",
-                    "events_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-artifact-types/telemetry/events.jsonl",
-                    "activity_log_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/workers/acpx-contract-artifact-types/telemetry/activity.log"
+                    "report_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-artifact-types/builder_report.json",
+                    "incoming_events_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-artifact-types/telemetry/incoming_events.jsonl",
+                    "events_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-artifact-types/telemetry/events.jsonl",
+                    "activity_log_path": "docs/specs/fresh-acpx-20260403140230-15e10a/workers/acpx-fresh-contract-artifact-types/telemetry/activity.log"
                   }
                 ]
               }
@@ -1934,20 +1903,20 @@
             "workflow_replay": {
               "proof_type": "workflow_replay",
               "review_routes": {
-                "overview": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview",
-                "transcript": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript",
-                "approvals": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals",
-                "judgment": "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment"
+                "overview": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview",
+                "transcript": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript",
+                "approvals": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals",
+                "judgment": "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment"
               }
             }
           },
           "tested_routes": [
             "/",
             "/?mode=missions",
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview",
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript",
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals",
-            "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment"
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview",
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript",
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals",
+            "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment"
           ],
           "acceptance_mode": "workflow",
           "coverage_status": "complete",
@@ -1959,12 +1928,12 @@
             "primary_routes": [
               "/",
               "/?mode=missions",
-              "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview"
+              "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview"
             ],
             "related_routes": [
-              "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=transcript",
-              "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=approvals",
-              "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=judgment"
+              "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=transcript",
+              "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=approvals",
+              "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=judgment"
             ],
             "interaction_plans": {
               "/": [
@@ -1983,7 +1952,7 @@
                   "timeout_ms": 0
                 }
               ],
-              "/?mission=fresh-acpx-20260403122827-2a3c5e&mode=missions&tab=overview": [
+              "/?mission=fresh-acpx-20260403140230-15e10a&mode=missions&tab=overview": [
                 {
                   "action": "click_selector",
                   "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
@@ -2031,20 +2000,20 @@
         ]
       },
       "runtime_chain": {
-        "chain_id": "chain_fresh-acpx-20260403122827-2a3c5e_20260403T122840Z_e5e83e02",
-        "active_span_id": "chain_fresh-acpx-20260403122827-2a3c5e_20260403T122840Z_e5e83e02:round:01:acceptance-review",
+        "chain_id": "chain_fresh-acpx-20260403140230-15e10a_20260403T140246Z_4b7d9f90",
+        "active_span_id": "chain_fresh-acpx-20260403140230-15e10a_20260403T140246Z_4b7d9f90:round:01:acceptance-review",
         "subject_kind": "acceptance",
-        "subject_id": "fresh-acpx-20260403122827-2a3c5e:round-1:acceptance",
+        "subject_id": "fresh-acpx-20260403140230-15e10a:round-1:acceptance",
         "phase": "completed",
         "status_reason": "acceptance_evaluation_completed",
         "session_refs": {},
         "artifact_refs": {
-          "round_dir": "docs/specs/fresh-acpx-20260403122827-2a3c5e/rounds/round-01"
+          "round_dir": "docs/specs/fresh-acpx-20260403140230-15e10a/rounds/round-01"
         },
-        "updated_at": "2026-04-03T12:32:24.442989+00:00",
-        "chain_root": "docs/specs/fresh-acpx-20260403122827-2a3c5e/operator/runtime_chain"
+        "updated_at": "2026-04-03T14:07:53.128387+00:00",
+        "chain_root": "docs/specs/fresh-acpx-20260403140230-15e10a/operator/runtime_chain"
       },
-      "_path": "docs/specs/fresh-acpx-20260403122827-2a3c5e/operator/exploratory_acceptance_smoke.json"
+      "_path": "docs/specs/fresh-acpx-20260403140230-15e10a/operator/exploratory_acceptance_smoke.json"
     }
   }
 }

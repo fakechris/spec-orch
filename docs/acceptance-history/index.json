@@ -189,6 +189,16 @@
       "findings_count": 0,
       "issue_proposal_count": 0,
       "bundle_path": "docs/acceptance-history/releases/showcase-narrative-layer-tranche-son-363-governance-lineage-2026-04-03"
+    },
+    {
+      "release_id": "showcase-narrative-layer-tranche-son-363-source-run-compare-2026-04-03",
+      "release_label": "Showcase Narrative Layer Tranche SON-363 Source Run Compare 2026-04-03",
+      "created_at": "2026-04-03T14:08:00Z",
+      "git_commit": "fe6324a2a9ac60f3eb44f3c83d4f45ab1846d18f",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/showcase-narrative-layer-tranche-son-363-source-run-compare-2026-04-03"
     }
   ]
 }
