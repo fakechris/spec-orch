@@ -34,7 +34,13 @@ def _coerce_mission_status(value: str) -> MissionStatus:
     }
     if normalized in aliases:
         return aliases[normalized]
-    return MissionStatus(normalized)
+    try:
+        return MissionStatus(normalized)
+    except ValueError:
+        logger.warning("Unknown mission status %r; coercing to drafting", value)
+        return MissionStatus.DRAFTING
+
+
 _SPECS_DIR = "docs/specs"
 _MAX_EXAMPLE_CHARS = 24_000
 

@@ -149,11 +149,13 @@ def _mission_available_actions(
     lifecycle: dict[str, Any] | None,
 ) -> list[str]:
     actions = ["inject_guidance"]
+    lifecycle_phase = str((lifecycle or {}).get("phase") or "").strip().lower()
+    execution_states = {"executing", "in_progress", "planned", "promoting"}
     if mission_status in {"approved", "drafting"}:
         actions.append("approve")
     if mission_status in {"failed"}:
         actions.extend(["retry", "rerun"])
-    if mission_status in {"executing", "planned", "promoting"}:
+    if mission_status in execution_states or lifecycle_phase in execution_states:
         actions.extend(["resume", "stop", "rerun"])
 
     if lifecycle and lifecycle.get("round_orchestrator_state", {}).get("paused"):

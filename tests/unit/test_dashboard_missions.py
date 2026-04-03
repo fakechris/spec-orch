@@ -4,6 +4,14 @@ import json
 from pathlib import Path
 
 
+def test_mission_available_actions_supports_in_progress_status() -> None:
+    from spec_orch.dashboard.missions import _mission_available_actions
+
+    actions = _mission_available_actions("in_progress", None)
+
+    assert actions == ["inject_guidance", "rerun", "resume", "stop"]
+
+
 def test_mission_evidence_counts_prefers_decision_core_approval_history(tmp_path: Path) -> None:
     from spec_orch.dashboard.missions import _mission_evidence_counts
 

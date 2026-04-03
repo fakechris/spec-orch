@@ -1128,6 +1128,84 @@ def test_resolve_dashboard_port_avoids_busy_requested_port() -> None:
     assert resolved_port > 0
 
 
+def test_resolve_dashboard_port_candidates_prioritize_requested_port() -> None:
+    from spec_orch.services.fresh_acpx_e2e import resolve_dashboard_port_candidates
+
+    candidates = resolve_dashboard_port_candidates(0, attempts=3)
+
+    assert len(candidates) == 3
+    assert len(set(candidates)) == len(candidates)
+    assert all(port > 0 for port in candidates)
+
+
+def test_resolve_dashboard_port_candidates_skip_busy_requested_port() -> None:
+    import socket
+
+    from spec_orch.services.fresh_acpx_e2e import resolve_dashboard_port_candidates
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(1)
+        busy_port = sock.getsockname()[1]
+
+        candidates = resolve_dashboard_port_candidates(busy_port, attempts=3)
+
+    assert len(candidates) == 3
+    assert busy_port not in candidates
+    assert len(set(candidates)) == len(candidates)
+
+
+def test_compact_acceptance_review_for_evaluator_limits_entries() -> None:
+    from spec_orch.services.fresh_acpx_e2e import _compact_acceptance_review_for_evaluator
+
+    payload = _compact_acceptance_review_for_evaluator(
+        {
+            "status": "warn",
+            "summary": "review",
+            "findings": [
+                {"severity": "medium", "summary": f"finding-{index}", "route": "/", "critique_axis": "ux"}
+                for index in range(7)
+            ],
+            "issue_proposals": [
+                {
+                    "title": f"proposal-{index}",
+                    "summary": "summary",
+                    "severity": "medium",
+                    "route": "/",
+                    "critique_axis": "ux",
+                }
+                for index in range(7)
+            ],
+        }
+    )
+
+    assert len(payload["findings"]) == 5
+    assert len(payload["issue_proposals"]) == 5
+
+
+def test_compact_browser_evidence_for_evaluator_limits_interaction_steps() -> None:
+    from spec_orch.services.fresh_acpx_e2e import _compact_browser_evidence_for_evaluator
+
+    payload = _compact_browser_evidence_for_evaluator(
+        {
+            "tested_routes": ["/"],
+            "interactions": {
+                "/": [
+                    {
+                        "action": "click",
+                        "target": f"target-{index}",
+                        "description": f"step-{index}",
+                        "status": "ok",
+                    }
+                    for index in range(10)
+                ]
+            },
+        }
+    )
+
+    assert len(payload["interactions"]["/"]) == 8
+
+
 def test_assert_fresh_plan_budget_rejects_broad_plan() -> None:
     from spec_orch.services.fresh_acpx_e2e import assert_fresh_plan_budget
 

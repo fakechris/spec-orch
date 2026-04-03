@@ -166,25 +166,30 @@ ROUND_DIR="$(find "$MISSION_DIR/rounds" -mindepth 1 -maxdepth 1 -type d | sort |
 [ -n "$ROUND_DIR" ] || fail "could not determine latest round directory for ${MISSION_ID}"
 [ -f "$ROUND_DIR/acceptance_review.json" ] || fail "acceptance_review.json missing"
 
-step "Resolve isolated dashboard port"
-DASHBOARD_PORT="$(
+step "Resolve isolated dashboard ports"
+mapfile -t DASHBOARD_PORT_CANDIDATES < <(
   uv run --python 3.13 python - <<'PY' "$REQUESTED_DASHBOARD_PORT"
 import sys
 
-from spec_orch.services.fresh_acpx_e2e import resolve_dashboard_port
+from spec_orch.services.fresh_acpx_e2e import resolve_dashboard_port_candidates
 
-print(resolve_dashboard_port(int(sys.argv[1])))
+for port in resolve_dashboard_port_candidates(int(sys.argv[1])):
+    print(port)
 PY
-)"
-[ -n "$DASHBOARD_PORT" ] || fail "could not resolve dashboard port"
-if [ "$DASHBOARD_PORT" != "$REQUESTED_DASHBOARD_PORT" ]; then
-  warn "dashboard port ${REQUESTED_DASHBOARD_PORT} busy; using isolated port ${DASHBOARD_PORT}"
+)
+[ "${#DASHBOARD_PORT_CANDIDATES[@]}" -gt 0 ] || fail "could not resolve dashboard port"
+if [ "${DASHBOARD_PORT_CANDIDATES[0]}" != "$REQUESTED_DASHBOARD_PORT" ]; then
+  warn "dashboard port ${REQUESTED_DASHBOARD_PORT} busy; using isolated port ${DASHBOARD_PORT_CANDIDATES[0]}"
 fi
 
 step "Start isolated dashboard for exploratory critique"
-uv run --python 3.13 spec-orch dashboard --port "$DASHBOARD_PORT" >/tmp/spec_orch_exploratory_dashboard.log 2>&1 &
-DASHBOARD_PID=$!
-if ! uv run --python 3.13 python - <<'PY' "$DASHBOARD_PORT"
+EXPLORATORY_DASHBOARD_LOG=/tmp/spec_orch_exploratory_dashboard.log
+DASHBOARD_STARTED=false
+for candidate_port in "${DASHBOARD_PORT_CANDIDATES[@]}"; do
+  DASHBOARD_PORT="$candidate_port"
+  uv run --python 3.13 spec-orch dashboard --port "$DASHBOARD_PORT" >"$EXPLORATORY_DASHBOARD_LOG" 2>&1 &
+  DASHBOARD_PID=$!
+  if uv run --python 3.13 python - <<'PY' "$DASHBOARD_PORT"
 import sys
 
 from spec_orch.services.fresh_acpx_e2e import wait_for_dashboard_ready
@@ -193,10 +198,21 @@ port = sys.argv[1]
 result = wait_for_dashboard_ready(f"http://127.0.0.1:{port}/", timeout_seconds=20.0)
 print(result)
 PY
-then
-  cat /tmp/spec_orch_exploratory_dashboard.log >&2 || true
+  then
+    DASHBOARD_STARTED=true
+    break
+  fi
+  kill "$DASHBOARD_PID" >/dev/null 2>&1 || true
+  wait "$DASHBOARD_PID" >/dev/null 2>&1 || true
+  DASHBOARD_PID=""
+  if grep -qiE "address already in use|Errno 98|Errno 48" "$EXPLORATORY_DASHBOARD_LOG"; then
+    warn "dashboard port ${DASHBOARD_PORT} raced busy during startup; retrying on a new isolated port"
+    continue
+  fi
+  cat "$EXPLORATORY_DASHBOARD_LOG" >&2 || true
   fail "dashboard never became ready for exploratory critique"
-fi
+done
+[ "$DASHBOARD_STARTED" = true ] || fail "dashboard could not start on any isolated port"
 ok "dashboard started at http://127.0.0.1:${DASHBOARD_PORT}"
 
 step "Materialize exploratory acceptance smoke report"

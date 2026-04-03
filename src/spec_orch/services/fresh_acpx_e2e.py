@@ -16,6 +16,11 @@ from spec_orch.domain.models import AcceptanceFinding, AcceptanceReviewResult
 from spec_orch.services.acceptance.browser_evidence import collect_playwright_browser_evidence
 from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 
+_DEFAULT_DASHBOARD_PORT_RETRY_ATTEMPTS = 3
+_MAX_COMPACT_REVIEW_FINDINGS = 5
+_MAX_COMPACT_REVIEW_PROPOSALS = 5
+_MAX_COMPACT_BROWSER_STEPS = 8
+
 
 def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
@@ -274,9 +279,27 @@ def wait_for_dashboard_ready(
 
 
 def resolve_dashboard_port(preferred_port: int) -> int:
+    return resolve_dashboard_port_candidates(preferred_port, attempts=1)[0]
+
+
+def resolve_dashboard_port_candidates(
+    preferred_port: int,
+    *,
+    attempts: int = _DEFAULT_DASHBOARD_PORT_RETRY_ATTEMPTS,
+) -> list[int]:
     requested_port = int(preferred_port)
+    candidate_count = max(1, int(attempts))
+    candidates: list[int] = []
     if requested_port > 0 and _dashboard_port_is_available(requested_port):
-        return requested_port
+        candidates.append(requested_port)
+    while len(candidates) < candidate_count:
+        candidate = _reserve_dashboard_port()
+        if candidate not in candidates:
+            candidates.append(candidate)
+    return candidates
+
+
+def _reserve_dashboard_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
         sock.listen(1)
@@ -485,7 +508,7 @@ def _compact_acceptance_review_for_evaluator(review: Any) -> dict[str, Any]:
     findings = review.get("findings")
     if isinstance(findings, list) and findings:
         compact_findings: list[dict[str, Any]] = []
-        for item in findings[:5]:
+        for item in findings[:_MAX_COMPACT_REVIEW_FINDINGS]:
             if not isinstance(item, dict):
                 continue
             compact_item = {
@@ -500,7 +523,7 @@ def _compact_acceptance_review_for_evaluator(review: Any) -> dict[str, Any]:
     issue_proposals = review.get("issue_proposals")
     if isinstance(issue_proposals, list) and issue_proposals:
         compact_proposals: list[dict[str, Any]] = []
-        for item in issue_proposals[:5]:
+        for item in issue_proposals[:_MAX_COMPACT_REVIEW_PROPOSALS]:
             if not isinstance(item, dict):
                 continue
             compact_item = {
@@ -543,7 +566,7 @@ def _compact_browser_evidence_for_evaluator(browser_evidence: Any) -> dict[str, 
             if not isinstance(steps, list) or not steps:
                 continue
             compact_steps: list[dict[str, Any]] = []
-            for step in steps[:8]:
+            for step in steps[:_MAX_COMPACT_BROWSER_STEPS]:
                 if not isinstance(step, dict):
                     continue
                 compact_step = {
