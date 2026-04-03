@@ -49,12 +49,29 @@ def evaluate_learning_promotion(
             },
         }
 
+    fixture_candidate_ids = [
+        _as_str(item, "fixture_candidate_id") or _as_str(item, "seed_name")
+        for item in fixture_candidates
+        if _as_str(item, "fixture_candidate_id") or _as_str(item, "seed_name")
+    ]
+    memory_ref_ids = [
+        _as_str(item, "memory_ref_id") for item in memory_refs if _as_str(item, "memory_ref_id")
+    ]
+    evolution_ref_ids = [
+        _as_str(item, "evolution_ref_id") or _as_str(item, "promotion_id")
+        for item in evolution_refs
+        if _as_str(item, "evolution_ref_id") or _as_str(item, "promotion_id")
+    ]
+    archive_release_ids = [
+        _as_str(item, "release_id") for item in archive_releases if _as_str(item, "release_id")
+    ]
+
     eligible_targets: list[str] = []
-    if fixture_candidates:
+    if fixture_candidate_ids:
         eligible_targets.append("FixtureCandidate")
-    if memory_refs:
+    if memory_ref_ids:
         eligible_targets.append("MemoryEntryRef")
-    if evolution_refs:
+    if evolution_ref_ids:
         eligible_targets.append("EvolutionProposalRef")
 
     active_evolution_states = {
@@ -99,26 +116,10 @@ def evaluate_learning_promotion(
         "eligible_targets": eligible_targets,
         "promoted_finding": promoted_finding,
         "lineage": {
-            "fixture_candidate_ids": [
-                _as_str(item, "fixture_candidate_id") or _as_str(item, "seed_name")
-                for item in fixture_candidates
-                if _as_str(item, "fixture_candidate_id") or _as_str(item, "seed_name")
-            ],
-            "memory_ref_ids": [
-                _as_str(item, "memory_ref_id")
-                for item in memory_refs
-                if _as_str(item, "memory_ref_id")
-            ],
-            "evolution_ref_ids": [
-                _as_str(item, "evolution_ref_id") or _as_str(item, "promotion_id")
-                for item in evolution_refs
-                if _as_str(item, "evolution_ref_id") or _as_str(item, "promotion_id")
-            ],
-            "archive_release_ids": [
-                _as_str(item, "release_id")
-                for item in archive_releases
-                if _as_str(item, "release_id")
-            ],
+            "fixture_candidate_ids": fixture_candidate_ids,
+            "memory_ref_ids": memory_ref_ids,
+            "evolution_ref_ids": evolution_ref_ids,
+            "archive_release_ids": archive_release_ids,
         },
     }
 

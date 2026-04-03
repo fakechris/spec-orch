@@ -41,6 +41,7 @@ class AdmissionGovernor:
         self,
         issue_id: str,
         *,
+        workspace_id: str | None = None,
         in_progress_count: int,
         is_hotfix: bool,
         recorded_at: str,
@@ -57,7 +58,7 @@ class AdmissionGovernor:
             pressure_reason = "max_concurrent_limit"
         return {
             "admission_decision_id": f"{issue_id}:{_QUEUE_NAME}:{recorded_at}",
-            "workspace_id": issue_id,
+            "workspace_id": str(workspace_id or issue_id).strip() or issue_id,
             "subject_id": issue_id,
             "subject_kind": "issue",
             "decision": decision,

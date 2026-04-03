@@ -848,6 +848,64 @@ def test_write_stability_acceptance_status_summarizes_latest_reports(
     assert "acceptance_model_waiting" in report_md
 
 
+def test_write_stability_acceptance_status_resolves_issue_start_runtime_chain_from_repo_root(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import write_stability_acceptance_status
+
+    acceptance_dir = tmp_path / ".spec_orch" / "acceptance"
+    _write_json(
+        acceptance_dir / "issue_start_smoke.json",
+        {
+            "status": "pass",
+            "issue_id": "SPC-1",
+            "workspace": ".spec_orch_runs/SPC-1",
+        },
+    )
+    _write_json(
+        tmp_path
+        / ".spec_orch_runs"
+        / "SPC-1"
+        / "telemetry"
+        / "runtime_chain"
+        / "chain_status.json",
+        {
+            "chain_id": "issue-chain-1",
+            "active_span_id": "issue-chain-1:run",
+            "subject_kind": "issue",
+            "subject_id": "SPC-1",
+            "phase": "completed",
+            "status_reason": "builder_completed",
+            "updated_at": "2026-03-31T10:15:00+00:00",
+        },
+    )
+    _write_json(acceptance_dir / "dashboard_ui_acceptance.json", {"status": "pass"})
+
+    report = write_stability_acceptance_status(repo_root=tmp_path)
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+
+    assert report_json["checks"]["issue_start"]["runtime_chain"]["phase"] == "completed"
+    assert report_json["checks"]["issue_start"]["runtime_chain"]["status_reason"] == (
+        "builder_completed"
+    )
+
+
+def test_sanitized_lines_strip_user_and_root_prefixes_from_external_paths(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import _sanitized_lines
+
+    lines = [
+        "- User path: `/Users/chris/file.txt`",
+        "- Root path: `/root/tmp/report.json`",
+    ]
+
+    sanitized = _sanitized_lines(lines, repo_root=tmp_path)
+
+    assert sanitized[0] == "- User path: `<external-path>/file.txt`"
+    assert sanitized[1] == "- Root path: `<external-path>/tmp/report.json`"
+
+
 def test_write_stability_acceptance_status_prefers_newer_direct_failure_reports_over_history(
     tmp_path: Path,
 ) -> None:

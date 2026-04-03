@@ -11,7 +11,7 @@ from spec_orch.runtime_core.readers import read_issue_execution_attempt
 from spec_orch.services.env_files import resolve_shared_repo_root
 from spec_orch.services.workspace_service import WorkspaceService
 
-_ABSOLUTE_PATH_FRAGMENT_RE = re.compile(r"/[^\s`]+")
+_ABSOLUTE_PATH_FRAGMENT_RE = re.compile(r"(?:(?<=`)|(?<!\S))/[^\s`]+")
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:
@@ -44,7 +44,11 @@ def _collapse_external_path(path: Path) -> str:
     parts = [part for part in path.parts if part and part != path.anchor]
     if not parts:
         return "<external-path>"
-    tail = "/".join(parts[-3:])
+    if parts[0] in {"Users", "home"} and len(parts) >= 2:
+        parts = parts[2:]
+    elif parts[0] == "root":
+        parts = parts[1:]
+    tail = "/".join((parts or [path.name])[-3:])
     return f"<external-path>/{tail}"
 
 
@@ -55,6 +59,7 @@ def _looks_like_filesystem_path(path: Path) -> bool:
     return parts[0] in {
         "Users",
         "home",
+        "root",
         "private",
         "tmp",
         "var",
@@ -275,7 +280,7 @@ def _finding_taxonomy(
 
 
 def _augment_report_with_runtime_chain(
-    report: dict[str, Any], *, check_name: str
+    report: dict[str, Any], *, check_name: str, repo_root: Path
 ) -> dict[str, Any]:
     if not report or report.get("runtime_chain"):
         return report
@@ -283,8 +288,11 @@ def _augment_report_with_runtime_chain(
     if check_name == "issue_start":
         workspace = str(report.get("workspace", "")).strip()
         if workspace:
+            workspace_path = Path(workspace)
+            if not workspace_path.is_absolute():
+                workspace_path = repo_root / workspace_path
             report["runtime_chain"] = _runtime_chain_summary(
-                Path(workspace).resolve() / "telemetry" / "runtime_chain"
+                workspace_path.resolve() / "telemetry" / "runtime_chain"
             )
         return report
     if path:
@@ -647,7 +655,7 @@ def write_stability_acceptance_status(*, repo_root: Path) -> dict[str, str]:
         ),
     }
     checks = {
-        name: _augment_report_with_runtime_chain(report, check_name=name)
+        name: _augment_report_with_runtime_chain(report, check_name=name, repo_root=repo_root)
         for name, report in checks.items()
     }
 

@@ -247,12 +247,12 @@ def test_dashboard_lazy_loads_showcase_workbench_for_showcase_mode_only() -> Non
     app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
     source = app_path.read_text(encoding="utf-8")
 
-    assert "async function ensureShowcaseWorkbenchLoaded()" in source
+    assert "async function ensureShowcaseWorkbenchLoaded(force = false)" in source
     assert (
         "const [mRes, lcRes, inboxRes, approvalsRes, executionRes, judgmentRes, learningRes, showcaseRes] = await Promise.all(["
         not in source
     )
-    assert "await ensureShowcaseWorkbenchLoaded();" in source
+    assert "await ensureShowcaseWorkbenchLoaded(true);" in source
     assert "button.dataset.active = selectedOperatorMode === mode ? 'true' : 'false';" in source
     assert 'data-automation-target="launcher-action"' in source
     assert 'data-automation-target="launcher-field"' in source

@@ -77,3 +77,20 @@ def test_evaluate_learning_promotion_surfaces_targets_and_lineage() -> None:
     assert decision["lineage"]["archive_release_ids"] == [
         "structural-judgment-tranche-1-2026-04-03"
     ]
+
+
+def test_evaluate_learning_promotion_ignores_placeholder_linkage_rows() -> None:
+    decision = evaluate_learning_promotion(
+        _finding(),
+        fixture_candidates=[{}],
+        memory_refs=[{"memory_ref_id": ""}],
+        evolution_refs=[{"promotion_id": ""}],
+        archive_releases=[],
+    )
+
+    assert decision["action"] == "hold"
+    assert decision["promotion_state"] == "reviewed"
+    assert decision["eligible_targets"] == []
+    assert decision["lineage"]["fixture_candidate_ids"] == []
+    assert decision["lineage"]["memory_ref_ids"] == []
+    assert decision["lineage"]["evolution_ref_ids"] == []

@@ -119,3 +119,36 @@ def test_build_structural_judgment_marks_regression_when_review_fails() -> None:
         },
     }
     assert payload["baseline_diff"]["drift_status"] == "not_compared"
+
+
+def test_build_structural_judgment_tolerates_malformed_persisted_review_fields() -> None:
+    from spec_orch.services.structural_judgment import build_structural_judgment
+
+    payload = build_structural_judgment(
+        workspace_id="mission-malformed",
+        review_status="warn",
+        coverage_status="partial",
+        untested_expected_routes=["/settings"],
+        candidate_queue=[{"repro_status": "pending"}, None, "bad-row"],  # type: ignore[list-item]
+        compare_view={
+            "compare_state": "active",
+            "baseline_ref": ["unexpected"],
+            "artifact_drift_count": "3",
+        },
+        evidence_panel={
+            "route_count": "2",
+            "artifact_count": None,
+        },
+        overview={
+            "candidate_finding_count": "1",
+            "confirmed_issue_count": "0",
+            "observation_count": "2",
+        },
+    )
+
+    assert payload["quality_signal"] == "regression"
+    assert payload["bottleneck"] == "evidence_missing"
+    assert payload["baseline_diff"]["artifact_drift_count"] == 3
+    assert payload["baseline_diff"]["baseline_ref"] == ""
+    assert payload["current_state"]["route_count"] == 2
+    assert payload["current_state"]["artifact_count"] == 0

@@ -616,7 +616,7 @@ async function load() {
     selectedJudgmentWorkbench = judgmentRes.ok ? await judgmentRes.json() : null;
     selectedLearningWorkbench = learningRes.ok ? await learningRes.json() : null;
     if (selectedOperatorMode === 'showcase') {
-      await ensureShowcaseWorkbenchLoaded();
+      await ensureShowcaseWorkbenchLoaded(true);
     }
     renderMissions();
     await ensureMissionSelection();
@@ -625,8 +625,8 @@ async function load() {
   }
 }
 
-async function ensureShowcaseWorkbenchLoaded() {
-  if (selectedShowcaseWorkbench && Object.keys(selectedShowcaseWorkbench).length) {
+async function ensureShowcaseWorkbenchLoaded(force = false) {
+  if (!force && selectedShowcaseWorkbench && Object.keys(selectedShowcaseWorkbench).length) {
     return selectedShowcaseWorkbench;
   }
   const showcaseRes = await fetch('/api/showcase').catch(() => ({ok:false}));

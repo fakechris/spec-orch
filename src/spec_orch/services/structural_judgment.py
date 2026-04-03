@@ -3,6 +3,17 @@ from __future__ import annotations
 from typing import Any
 
 
+def _coerce_mapping(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _coerce_int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def build_structural_judgment(
     *,
     workspace_id: str,
@@ -14,22 +25,30 @@ def build_structural_judgment(
     evidence_panel: dict[str, Any],
     overview: dict[str, Any],
 ) -> dict[str, Any]:
+    normalized_candidate_queue = [item for item in candidate_queue if isinstance(item, dict)]
+    normalized_compare_view = _coerce_mapping(compare_view)
+    normalized_evidence_panel = _coerce_mapping(evidence_panel)
+    normalized_overview = _coerce_mapping(overview)
     normalized_status = str(review_status or "").strip().lower()
     normalized_coverage = str(coverage_status or "").strip().lower()
     pending_candidate_count = sum(
         1
-        for item in candidate_queue
+        for item in normalized_candidate_queue
         if str(item.get("repro_status", "")).strip().lower()
         in {"needs_repro", "not_reproduced", "pending"}
     )
-    confirmed_issue_count = int(overview.get("confirmed_issue_count", 0) or 0)
-    candidate_finding_count = int(overview.get("candidate_finding_count", 0) or 0)
-    observation_count = int(overview.get("observation_count", 0) or 0)
-    route_count = int(evidence_panel.get("route_count", 0) or 0)
-    artifact_count = int(evidence_panel.get("artifact_count", 0) or 0)
-    compare_state = str(compare_view.get("compare_state", "inactive") or "inactive")
-    baseline_ref = str(compare_view.get("baseline_ref", "") or "")
-    artifact_drift_count = int(compare_view.get("artifact_drift_count", 0) or 0)
+    confirmed_issue_count = _coerce_int(normalized_overview.get("confirmed_issue_count", 0))
+    candidate_finding_count = _coerce_int(normalized_overview.get("candidate_finding_count", 0))
+    observation_count = _coerce_int(normalized_overview.get("observation_count", 0))
+    route_count = _coerce_int(normalized_evidence_panel.get("route_count", 0))
+    artifact_count = _coerce_int(normalized_evidence_panel.get("artifact_count", 0))
+    compare_state = str(normalized_compare_view.get("compare_state", "inactive") or "inactive")
+    baseline_ref = (
+        str(normalized_compare_view.get("baseline_ref", "")).strip()
+        if isinstance(normalized_compare_view.get("baseline_ref", ""), str)
+        else ""
+    )
+    artifact_drift_count = _coerce_int(normalized_compare_view.get("artifact_drift_count", 0))
 
     rule_violations: list[dict[str, Any]] = []
     if normalized_status == "fail":

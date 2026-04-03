@@ -400,3 +400,94 @@ def test_build_showcase_workbench_surfaces_release_timeline_and_workspace_storyl
     assert payload["highlights"][0]["kind"] == "release"
     assert payload["highlights"][1]["kind"] == "workspace"
     assert payload["review_route"] == "/?mode=showcase"
+
+
+def test_build_showcase_workbench_uses_report_identity_and_tolerates_bad_lineage(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.showcase_workbench import build_showcase_workbench
+
+    mission_id = "mission-showcase"
+    _seed_showcase_workspace(tmp_path, mission_id)
+
+    latest_bundle = (
+        tmp_path
+        / "docs"
+        / "acceptance-history"
+        / "releases"
+        / "showcase-tranche-son-363-seed-2026-04-03"
+    )
+    previous_bundle = (
+        tmp_path
+        / "docs"
+        / "acceptance-history"
+        / "releases"
+        / "learning-promotion-discipline-tranche-1-2026-04-03"
+    )
+
+    (latest_bundle / "source_runs.json").write_text(
+        json.dumps(
+            {
+                "mission_start": {
+                    "mission_id": mission_id,
+                    "report_path": f"docs/specs/{mission_id}/operator/mission_start_acceptance-rerun.json",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (previous_bundle / "source_runs.json").write_text(
+        json.dumps(
+            {
+                "mission_start": {
+                    "mission_id": mission_id,
+                    "report_path": f"docs/specs/{mission_id}/operator/mission_start_acceptance.json",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (latest_bundle / "manifest.json").write_text(
+        json.dumps(
+            {
+                "release_id": "showcase-tranche-son-363-seed-2026-04-03",
+                "lineage": ["bad-shape"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = build_showcase_workbench(tmp_path)
+
+    assert payload["release_timeline"][0]["source_run_compare"]["mission_start"]["status"] == (
+        "advanced"
+    )
+    assert payload["release_timeline"][0]["source_run_compare_summary"].startswith(
+        "mission_start advanced"
+    )
+    assert payload["release_timeline"][0]["lineage_notes"] == []
+
+
+def test_build_showcase_workbench_reports_when_source_runs_are_missing(tmp_path: Path) -> None:
+    from spec_orch.services.showcase_workbench import build_showcase_workbench
+
+    mission_id = "mission-showcase"
+    _seed_showcase_workspace(tmp_path, mission_id)
+
+    for bundle_name in (
+        "showcase-tranche-son-363-seed-2026-04-03",
+        "learning-promotion-discipline-tranche-1-2026-04-03",
+    ):
+        bundle_dir = tmp_path / "docs" / "acceptance-history" / "releases" / bundle_name
+        (bundle_dir / "source_runs.json").write_text("{}", encoding="utf-8")
+
+    payload = build_showcase_workbench(tmp_path)
+
+    assert payload["release_timeline"][0]["compare_counts"] == {
+        "advanced": 0,
+        "stayed": 0,
+        "new": 0,
+        "missing": 0,
+    }
+    assert payload["release_timeline"][0]["source_run_compare"] == {}
+    assert payload["release_timeline"][0]["source_run_compare_summary"] == "no source runs recorded"

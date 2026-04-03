@@ -45,7 +45,7 @@ def _bundle_dir(repo_root: Path, release: dict[str, Any]) -> Path | None:
 def _source_run_identity(item: Any) -> str:
     if not isinstance(item, dict):
         return ""
-    for key in ("mission_id", "issue_id", "run_id"):
+    for key in ("report_path", "round_dir", "run_id", "mission_id", "issue_id"):
         value = str(item.get(key, "")).strip()
         if value:
             return value
@@ -85,7 +85,10 @@ def _compare_source_runs(
             label = f"{key} {status}"
             summary_parts.append(label)
             focus.append(label)
-    summary = "; ".join(summary_parts) if summary_parts else "all source runs stayed"
+    if not compare:
+        summary = "no source runs recorded"
+    else:
+        summary = "; ".join(summary_parts) if summary_parts else "all source runs stayed"
     return compare, summary, counts, focus
 
 
@@ -119,11 +122,12 @@ def _release_timeline(repo_root: Path, releases: list[dict[str, Any]]) -> list[d
                 if isinstance(item, dict) and str(item.get("mission_id", "")).strip()
             }
         )
-        lineage_notes = (
-            manifest_payload.get("lineage", {}).get("notes", [])
-            if isinstance(manifest_payload, dict)
-            else []
+        lineage_payload = (
+            manifest_payload.get("lineage", {}) if isinstance(manifest_payload, dict) else {}
         )
+        if not isinstance(lineage_payload, dict):
+            lineage_payload = {}
+        lineage_notes = lineage_payload.get("notes", [])
         timeline.append(
             {
                 "release_id": str(release.get("release_id", "")),
