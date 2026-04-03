@@ -55,9 +55,11 @@ def _source_run_identity(item: Any) -> str:
 def _compare_source_runs(
     current_runs: dict[str, Any],
     previous_runs: dict[str, Any],
-) -> tuple[dict[str, dict[str, str]], str]:
+) -> tuple[dict[str, dict[str, str]], str, dict[str, int], list[str]]:
     compare: dict[str, dict[str, str]] = {}
     summary_parts: list[str] = []
+    counts = {"advanced": 0, "stayed": 0, "new": 0, "missing": 0}
+    focus: list[str] = []
     all_keys = sorted(
         set(current_runs) | set(previous_runs),
         key=lambda key: (_SOURCE_RUN_ORDER.get(key, 99), key),
@@ -78,10 +80,13 @@ def _compare_source_runs(
             "current": current_id,
             "previous": previous_id,
         }
+        counts[status] = counts.get(status, 0) + 1
         if status != "stayed":
-            summary_parts.append(f"{key} {status}")
+            label = f"{key} {status}"
+            summary_parts.append(label)
+            focus.append(label)
     summary = "; ".join(summary_parts) if summary_parts else "all source runs stayed"
-    return compare, summary
+    return compare, summary, counts, focus
 
 
 def _release_timeline(repo_root: Path, releases: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -143,13 +148,15 @@ def _release_timeline(repo_root: Path, releases: list[dict[str, Any]]) -> list[d
     for index, item in enumerate(timeline):
         previous = timeline[index + 1] if index + 1 < len(timeline) else None
         previous_runs = previous.get("_source_runs", {}) if isinstance(previous, dict) else {}
-        compare, compare_summary = _compare_source_runs(
+        compare, compare_summary, compare_counts, compare_focus = _compare_source_runs(
             item.get("_source_runs", {}), previous_runs if isinstance(previous_runs, dict) else {}
         )
         item["compare_target_release_id"] = (
             str(previous.get("release_id", "")) if isinstance(previous, dict) else ""
         )
         item["source_run_compare"] = compare
+        item["compare_counts"] = compare_counts
+        item["compare_focus"] = compare_focus
         item["source_run_compare_summary"] = compare_summary
     for item in timeline:
         item.pop("_source_runs", None)
@@ -280,6 +287,12 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
                         str(latest_release.get("source_run_compare_summary", ""))
                         if latest_release
                         else ""
+                    ),
+                    "compare_counts": (
+                        dict(latest_release.get("compare_counts", {})) if latest_release else {}
+                    ),
+                    "compare_focus": (
+                        list(latest_release.get("compare_focus", [])) if latest_release else []
                     ),
                     "latest_release_notes": (
                         list(latest_release.get("lineage_notes", [])) if latest_release else []

@@ -1749,6 +1749,14 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
         <span>${escHtml(item.source_run_compare_summary || 'No compare summary')}</span>
       </div>
       <div class="context-meta">
+        <span>Advanced checks</span>
+        <span>${escHtml(String(item.compare_counts?.advanced || 0))}</span>
+      </div>
+      <div class="context-meta">
+        <span>Compare focus</span>
+        <span>${escHtml((item.compare_focus || []).join(' | ') || 'No compare focus')}</span>
+      </div>
+      <div class="context-meta">
         ${item.summary_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(item.summary_artifact_path)}" target="_blank" rel="noreferrer">Bundle summary</a>` : ''}
         ${item.status_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(item.status_artifact_path)}" target="_blank" rel="noreferrer">Status JSON</a>` : ''}
       </div>
@@ -1782,6 +1790,14 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
       <div class="context-meta">
         <span>Source-run compare</span>
         <span>${escHtml(item.lineage_drilldown?.source_run_compare_summary || 'No compare summary')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Advanced checks</span>
+        <span>${escHtml(String(item.lineage_drilldown?.compare_counts?.advanced || 0))}</span>
+      </div>
+      <div class="context-meta">
+        <span>Compare focus</span>
+        <span>${escHtml((item.lineage_drilldown?.compare_focus || []).join(' | ') || 'No compare focus')}</span>
       </div>
       <div class="context-meta">
         ${item.routes?.execution ? renderInternalRouteButton(item.routes.execution, 'Execution') : ''}
@@ -1956,6 +1972,14 @@ function renderShowcaseContextRail(showcase, detail) {
               <span>${escHtml(latestRelease.source_run_compare_summary || 'No compare summary')}</span>
             </div>
             <div class="context-meta">
+              <span>Advanced checks</span>
+              <span>${escHtml(String(latestRelease.compare_counts?.advanced || 0))}</span>
+            </div>
+            <div class="context-meta">
+              <span>Compare focus</span>
+              <span>${escHtml((latestRelease.compare_focus || []).join(' | ') || 'No compare focus')}</span>
+            </div>
+            <div class="context-meta">
               ${latestRelease.summary_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(latestRelease.summary_artifact_path)}" target="_blank" rel="noreferrer">Open summary</a>` : ''}
             </div>
           </div>
@@ -1984,6 +2008,14 @@ function renderShowcaseContextRail(showcase, detail) {
             <div class="context-meta">
               <span>Source-run compare</span>
               <span>${escHtml(item.lineage_drilldown?.source_run_compare_summary || 'No compare summary')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Advanced checks</span>
+              <span>${escHtml(String(item.lineage_drilldown?.compare_counts?.advanced || 0))}</span>
+            </div>
+            <div class="context-meta">
+              <span>Compare focus</span>
+              <span>${escHtml((item.lineage_drilldown?.compare_focus || []).join(' | ') || 'No compare focus')}</span>
             </div>
           </div>
         `).join('') : '<div class="empty-panel">No workspace narratives yet.</div>'}

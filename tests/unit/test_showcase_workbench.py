@@ -358,6 +358,16 @@ def test_build_showcase_workbench_surfaces_release_timeline_and_workspace_storyl
     assert payload["release_timeline"][0]["compare_target_release_id"] == (
         "learning-promotion-discipline-tranche-1-2026-04-03"
     )
+    assert payload["release_timeline"][0]["compare_counts"] == {
+        "advanced": 2,
+        "stayed": 0,
+        "new": 0,
+        "missing": 0,
+    }
+    assert payload["release_timeline"][0]["compare_focus"] == [
+        "mission_start advanced",
+        "exploratory advanced",
+    ]
     assert payload["release_timeline"][0]["source_run_compare"]["mission_start"]["status"] == (
         "advanced"
     )
@@ -383,6 +393,16 @@ def test_build_showcase_workbench_surfaces_release_timeline_and_workspace_storyl
     assert storyline["lineage_drilldown"]["compare_target_release_id"] == (
         "learning-promotion-discipline-tranche-1-2026-04-03"
     )
+    assert storyline["lineage_drilldown"]["compare_counts"] == {
+        "advanced": 2,
+        "stayed": 0,
+        "new": 0,
+        "missing": 0,
+    }
+    assert storyline["lineage_drilldown"]["compare_focus"] == [
+        "mission_start advanced",
+        "exploratory advanced",
+    ]
     assert storyline["lineage_drilldown"]["source_run_compare_summary"] == (
         "mission_start advanced; exploratory advanced"
     )

@@ -400,6 +400,11 @@ class TestDashboardAPI:
         assert payload["release_timeline"][0]["compare_target_release_id"] == (
             "learning-promotion-discipline-tranche-1-2026-04-03"
         )
+        assert payload["release_timeline"][0]["compare_counts"]["advanced"] == 2
+        assert payload["release_timeline"][0]["compare_focus"] == [
+            "mission_start advanced",
+            "exploratory advanced",
+        ]
         storyline = next(
             item for item in payload["workspace_storylines"] if item["workspace_id"] == mission_id
         )
@@ -410,6 +415,7 @@ class TestDashboardAPI:
         assert storyline["lineage_drilldown"][
             "source_run_compare_summary"
         ] == "mission_start advanced; exploratory advanced"
+        assert storyline["lineage_drilldown"]["compare_counts"]["advanced"] == 2
         assert payload["review_route"] == "/?mode=showcase"
 
     def test_mission_detail_includes_runtime_chain_summary(self, client, repo: Path) -> None:
