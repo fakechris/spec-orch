@@ -22,6 +22,7 @@ from .missions import (
     _gather_mission_learning_workbench,
     _gather_mission_runtime_chain,
     _gather_missions,
+    _gather_showcase_workbench,
 )
 from .surfaces import (
     _gather_approval_queue,
@@ -49,6 +50,7 @@ __all__ = [
     "_gather_mission_visual_qa",
     "_gather_missions",
     "_gather_packet_transcript",
+    "_gather_showcase_workbench",
     "_create_mission_draft",
     "_approve_and_plan_mission",
     "_create_linear_issue_for_mission",

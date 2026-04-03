@@ -129,6 +129,10 @@ def register_routes(app: FastAPI, root: Path) -> None:
     async def api_learning_workbench() -> JSONResponse:
         return JSONResponse(dashboard_app._gather_learning_workbench(root))
 
+    @app.get("/api/showcase")
+    async def api_showcase() -> JSONResponse:
+        return JSONResponse(dashboard_app._gather_showcase_workbench(root))
+
     @app.get("/api/launcher/readiness")
     async def api_launcher_readiness() -> JSONResponse:
         return JSONResponse(dashboard_app._gather_launcher_readiness(root))

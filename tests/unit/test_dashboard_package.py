@@ -16,11 +16,13 @@ def test_dashboard_package_exposes_api_helpers() -> None:
         _gather_inbox,
         _gather_launcher_readiness,
         _gather_packet_transcript,
+        _gather_showcase_workbench,
         _launch_mission,
     )
 
     assert callable(_gather_inbox)
     assert callable(_gather_packet_transcript)
+    assert callable(_gather_showcase_workbench)
     assert callable(_gather_launcher_readiness)
     assert callable(_create_mission_draft)
     assert callable(_launch_mission)
@@ -128,6 +130,7 @@ def test_dashboard_package_exposes_shell_template() -> None:
     assert "Needs Attention" in html
     assert "All Missions" in html
     assert "Decision Queue" in html
+    assert "Showcase" in html
     assert "Deep Evidence" in html
     assert "Supervisor" in html
     assert 'id="operator-nav-context"' in html
@@ -212,6 +215,7 @@ def test_dashboard_operator_modes_and_launcher_actions_expose_workflow_targets()
     assert 'data-mode-key="inbox"' in source
     assert 'data-mode-key="missions"' in source
     assert 'data-mode-key="learning"' in source
+    assert 'data-mode-key="showcase"' in source
     assert 'data-mode-key="approvals"' in source
     assert 'data-mode-key="evidence"' in source
     assert "button.dataset.active = selectedOperatorMode === mode ? 'true' : 'false';" in source

@@ -357,6 +357,25 @@ class TestDashboardAPI:
             "dashboard:transcript-continuity"
         )
 
+    def test_showcase_endpoint_returns_release_timeline_and_workspace_storylines(
+        self,
+        client,
+        repo: Path,
+    ) -> None:
+        from tests.unit.test_showcase_workbench import _seed_showcase_workspace
+
+        mission_id = "mission-showcase-api"
+        _seed_showcase_workspace(repo, mission_id)
+
+        response = client.get("/api/showcase")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["summary"]["release_count"] == 1
+        assert payload["release_timeline"][0]["release_label"] == "Showcase Narrative Seed"
+        assert payload["workspace_storylines"][0]["workspace_id"] == mission_id
+        assert payload["review_route"] == "/?mode=showcase"
+
     def test_mission_detail_includes_runtime_chain_summary(self, client, repo: Path) -> None:
         mission_id = "mission-runtime-chain-detail"
         specs = repo / "docs" / "specs" / mission_id

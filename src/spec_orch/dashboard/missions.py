@@ -23,6 +23,7 @@ from spec_orch.services.mission_service import MissionService
 from spec_orch.services.operator_semantics import workspace_from_mission_runtime
 from spec_orch.services.pipeline_checker import check_pipeline
 from spec_orch.services.promotion_service import load_plan
+from spec_orch.services.showcase_workbench import build_showcase_workbench
 
 from .approvals import _gather_latest_approval_request, _load_approval_history
 
@@ -185,6 +186,10 @@ def _gather_mission_judgment_workbench(repo_root: Path, mission_id: str) -> dict
 
 def _gather_learning_workbench(repo_root: Path) -> dict[str, Any]:
     return build_learning_workbench(repo_root)
+
+
+def _gather_showcase_workbench(repo_root: Path) -> dict[str, Any]:
+    return build_showcase_workbench(repo_root)
 
 
 def _gather_mission_learning_workbench(repo_root: Path, mission_id: str) -> dict[str, Any]:

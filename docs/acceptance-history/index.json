@@ -139,6 +139,16 @@
       "findings_count": 0,
       "issue_proposal_count": 0,
       "bundle_path": "docs/acceptance-history/releases/surface-cleanup-and-cutover-tranche-son-402-2026-04-03"
+    },
+    {
+      "release_id": "showcase-narrative-layer-tranche-son-363-2026-04-03",
+      "release_label": "Showcase Narrative Layer Tranche SON-363 2026-04-03",
+      "created_at": "2026-04-03T06:43:32Z",
+      "git_commit": "db9e272b2440cb34d2a389b930e1aeb6730b9dbb",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/showcase-narrative-layer-tranche-son-363-2026-04-03"
     }
   ]
 }

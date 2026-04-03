@@ -53,6 +53,7 @@ from .missions import (
 )
 from .missions import _gather_mission_runtime_chain as _missions_gather_mission_runtime_chain
 from .missions import _gather_missions as _missions_gather_missions
+from .missions import _gather_showcase_workbench as _missions_gather_showcase_workbench
 from .surfaces import _gather_approval_queue as _surfaces_gather_approval_queue
 from .surfaces import _gather_mission_acceptance_review as _surfaces_gather_mission_acceptance
 from .surfaces import _gather_mission_costs as _surfaces_gather_mission_costs
@@ -103,6 +104,7 @@ _gather_inbox = _missions_gather_inbox
 _gather_execution_workbench = _missions_gather_execution_workbench
 _gather_judgment_workbench = _missions_gather_judgment_workbench
 _gather_learning_workbench = _missions_gather_learning_workbench
+_gather_showcase_workbench = _missions_gather_showcase_workbench
 _gather_mission_detail = _missions_gather_mission_detail
 _gather_mission_execution_workbench = _missions_gather_mission_execution_workbench
 _gather_mission_judgment_workbench = _missions_gather_mission_judgment_workbench
@@ -335,6 +337,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-d
           <button class="operator-mode active" id="operator-mode-inbox" data-automation-target="operator-mode" data-mode-key="inbox" data-active="true" type="button" onclick="setOperatorMode('inbox')"><span id="inbox-attention-chip">Needs Attention</span></button>
           <button class="operator-mode" id="operator-mode-missions" data-automation-target="operator-mode" data-mode-key="missions" data-active="false" type="button" onclick="setOperatorMode('missions')">All Missions</button>
           <button class="operator-mode" id="operator-mode-execution" data-automation-target="operator-mode" data-mode-key="execution" data-active="false" type="button" onclick="setOperatorMode('execution')">Execution</button>
+          <button class="operator-mode" id="operator-mode-showcase" data-automation-target="operator-mode" data-mode-key="showcase" data-active="false" type="button" onclick="setOperatorMode('showcase')">Showcase</button>
           <button class="operator-mode" id="operator-mode-learning" data-automation-target="operator-mode" data-mode-key="learning" data-active="false" type="button" onclick="setOperatorMode('learning')">Learning</button>
           <button class="operator-mode" id="operator-mode-approvals" data-automation-target="operator-mode" data-mode-key="approvals" data-active="false" type="button" onclick="setOperatorMode('approvals')">Decision Queue</button>
           <button class="operator-mode" id="operator-mode-evidence" data-automation-target="operator-mode" data-mode-key="evidence" data-active="false" type="button" onclick="setOperatorMode('evidence')">Deep Evidence</button>
@@ -498,6 +501,7 @@ let selectedMissionJudgment = null;
 let selectedJudgmentWorkbench = null;
 let selectedMissionLearning = null;
 let selectedLearningWorkbench = null;
+let selectedShowcaseWorkbench = null;
 let selectedMissionVisualQa = null;
 let selectedMissionAcceptance = null;
 let selectedMissionCosts = null;
@@ -586,14 +590,15 @@ function hydrateInitialRoute() {
 /* ===== DATA LOADING ===== */
 async function load() {
   try {
-    const [mRes, lcRes, inboxRes, approvalsRes, executionRes, judgmentRes, learningRes] = await Promise.all([
+    const [mRes, lcRes, inboxRes, approvalsRes, executionRes, judgmentRes, learningRes, showcaseRes] = await Promise.all([
       fetch('/api/missions'),
       fetch('/api/lifecycle').catch(() => ({ok:false})),
       fetch('/api/inbox').catch(() => ({ok:false})),
       fetch('/api/approvals').catch(() => ({ok:false})),
       fetch('/api/execution-workbench').catch(() => ({ok:false})),
       fetch('/api/judgment-workbench').catch(() => ({ok:false})),
-      fetch('/api/learning-workbench').catch(() => ({ok:false}))
+      fetch('/api/learning-workbench').catch(() => ({ok:false})),
+      fetch('/api/showcase').catch(() => ({ok:false}))
     ]);
     missions = await mRes.json();
     if (lcRes.ok) {
@@ -611,6 +616,7 @@ async function load() {
     selectedExecutionWorkbench = executionRes.ok ? await executionRes.json() : null;
     selectedJudgmentWorkbench = judgmentRes.ok ? await judgmentRes.json() : null;
     selectedLearningWorkbench = learningRes.ok ? await learningRes.json() : null;
+    selectedShowcaseWorkbench = showcaseRes.ok ? await showcaseRes.json() : null;
     renderMissions();
     await ensureMissionSelection();
   } catch(e) {
@@ -744,6 +750,12 @@ function operatorModeMeta(mode) {
       description: 'Promoted findings, fixture candidates, evolution promotions, and release lineage across operator memory.',
     };
   }
+  if (mode === 'showcase') {
+    return {
+      title: 'Showcase',
+      description: 'Narrative layer built from archived releases and workspace-level workbench storylines.',
+    };
+  }
   if (mode === 'approvals') {
     return {
       title: 'Decision Queue',
@@ -763,7 +775,7 @@ function operatorModeMeta(mode) {
 }
 
 function renderOperatorModes() {
-  const modes = ['inbox', 'missions', 'execution', 'judgment', 'learning', 'approvals', 'evidence'];
+  const modes = ['inbox', 'missions', 'execution', 'judgment', 'showcase', 'learning', 'approvals', 'evidence'];
   const evidenceMissionCount = missions.filter(m => {
     const ev = m.evidence || {};
     return (ev.round_count || 0) > 0 || (ev.visual_round_count || 0) > 0 || (ev.approval_action_count || 0) > 0;
@@ -771,11 +783,13 @@ function renderOperatorModes() {
   const executionSummary = selectedExecutionWorkbench?.summary || {};
   const judgmentSummary = selectedJudgmentWorkbench?.summary || {};
   const learningSummary = selectedLearningWorkbench?.summary || {};
+  const showcaseSummary = selectedShowcaseWorkbench?.summary || {};
   const modeLabels = {
     inbox: ['Needs Attention', inboxSummary?.counts?.attention || 0],
     missions: ['All Missions', missions.length],
     execution: ['Execution', executionSummary.running_count || executionSummary.queued_count || 0],
     judgment: ['Judgment', judgmentSummary.workspace_count || judgmentSummary.candidate_finding_count || 0],
+    showcase: ['Showcase', showcaseSummary.release_count || showcaseSummary.highlight_count || 0],
     learning: ['Learning', learningSummary.workspace_count || learningSummary.promoted_finding_count || 0],
     approvals: ['Decision Queue', approvalQueue?.counts?.pending || 0],
     evidence: ['Deep Evidence', evidenceMissionCount],
@@ -1043,6 +1057,10 @@ function renderMissionDetail(detail) {
     view.innerHTML = renderGlobalJudgmentWorkbench(selectedJudgmentWorkbench, detail);
     return;
   }
+  if (selectedOperatorMode === 'showcase') {
+    view.innerHTML = renderGlobalShowcaseWorkbench(selectedShowcaseWorkbench, detail);
+    return;
+  }
   if (selectedOperatorMode === 'learning') {
     view.innerHTML = renderGlobalLearningWorkbench(selectedLearningWorkbench, detail);
     return;
@@ -1244,6 +1262,10 @@ function renderContextRail(detail) {
   }
   if (selectedOperatorMode === 'judgment') {
     rail.innerHTML = renderJudgmentContextRail(selectedJudgmentWorkbench, detail);
+    return;
+  }
+  if (selectedOperatorMode === 'showcase') {
+    rail.innerHTML = renderShowcaseContextRail(selectedShowcaseWorkbench, detail);
     return;
   }
   if (selectedOperatorMode === 'learning') {
@@ -1640,6 +1662,97 @@ function renderLearningWorkbench(learning) {
   `;
 }
 
+function renderGlobalShowcaseWorkbench(showcase, detail) {
+  if (!showcase || Object.keys(showcase).length === 0) {
+    return '<div class="empty-panel">Showcase narrative is not available yet.</div>';
+  }
+  const summary = showcase.summary || {};
+  const releases = showcase.release_timeline || [];
+  const storylines = showcase.workspace_storylines || [];
+  const highlights = showcase.highlights || [];
+  const selectedMission = detail?.mission || null;
+
+  const highlightHtml = highlights.length ? highlights.map(item => `
+    <div class="context-card">
+      <div class="context-title">${escHtml(item.title || item.kind || 'highlight')}</div>
+      <div class="context-meta">
+        <span class="detail-chip">${escHtml(item.kind || 'highlight')}</span>
+        <span>${escHtml(item.summary || 'No summary')}</span>
+      </div>
+      <div class="context-meta">
+        ${item.route ? (item.route.startsWith('/?') ? renderInternalRouteButton(item.route, 'Open highlight') : `<a class="btn btn-sm" href="${escAttr(item.route)}" target="_blank" rel="noreferrer">Open highlight</a>`) : ''}
+      </div>
+    </div>
+  `).join('') : '<div class="empty-panel">No showcase highlights yet.</div>';
+
+  const releaseHtml = releases.length ? releases.map(item => `
+    <div class="context-card">
+      <div class="context-title">${escHtml(item.release_label || item.release_id || 'release')}</div>
+      <div class="context-meta">
+        <span class="detail-chip">${escHtml(item.overall_status || 'unknown')}</span>
+        <span>${escHtml(item.created_at || '')}</span>
+      </div>
+      <div class="context-meta">
+        <span>${escHtml(String(item.findings_count || 0))} findings</span>
+        <span>${escHtml(String(item.issue_proposal_count || 0))} proposals</span>
+      </div>
+      <div class="context-meta">
+        ${item.summary_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(item.summary_artifact_path)}" target="_blank" rel="noreferrer">Bundle summary</a>` : ''}
+        ${item.status_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(item.status_artifact_path)}" target="_blank" rel="noreferrer">Status JSON</a>` : ''}
+      </div>
+    </div>
+  `).join('') : '<div class="empty-panel">No archived releases yet.</div>';
+
+  const storylineHtml = storylines.length ? storylines.map(item => `
+    <div class="context-card">
+      <div class="context-title">${escHtml(item.title || item.workspace_id || 'workspace')}</div>
+      <div class="context-meta">
+        <span class="detail-chip">${escHtml(item.status || 'unknown')}</span>
+        <span>${escHtml(item.workspace_id || '')}</span>
+      </div>
+      <div class="context-meta">${escHtml(item.narrative || 'No storyline yet.')}</div>
+      <div class="context-meta">
+        ${item.routes?.execution ? renderInternalRouteButton(item.routes.execution, 'Execution') : ''}
+        ${item.routes?.judgment ? renderInternalRouteButton(item.routes.judgment, 'Judgment') : ''}
+        ${item.routes?.learning ? renderInternalRouteButton(item.routes.learning, 'Learning') : ''}
+      </div>
+    </div>
+  `).join('') : '<div class="empty-panel">No workspace storylines yet.</div>';
+
+  return `
+    <section class="mission-hero">
+      <div class="mission-hero-copy">
+        <div class="mission-kicker">Showcase</div>
+        <div class="mission-hero-title">Narrative layer for archived releases and live workspace storylines</div>
+        <div class="mission-hero-subtitle">Built on top of acceptance history, execution, judgment, and learning workbenches.</div>
+      </div>
+      <div class="mission-hero-actions">
+        ${selectedMission?.mission_id ? renderInternalRouteButton(`/?mission=${encodeURIComponent(selectedMission.mission_id)}&mode=missions&tab=judgment`, 'Open selected mission judgment') : ''}
+      </div>
+    </section>
+    <section class="mission-metrics">
+      <div class="mission-metric"><div class="mission-metric-label">Archived releases</div><div class="mission-metric-value">${escHtml(String(summary.release_count || 0))}</div></div>
+      <div class="mission-metric"><div class="mission-metric-label">Passing releases</div><div class="mission-metric-value">${escHtml(String(summary.passing_release_count || 0))}</div></div>
+      <div class="mission-metric"><div class="mission-metric-label">Workspace stories</div><div class="mission-metric-value">${escHtml(String(summary.workspace_story_count || 0))}</div></div>
+      <div class="mission-metric"><div class="mission-metric-label">Highlights</div><div class="mission-metric-value">${escHtml(String(summary.highlight_count || 0))}</div></div>
+    </section>
+    <section class="mission-workbench">
+      <div class="mission-section">
+        <h3>Highlights</h3>
+        <div class="context-list">${highlightHtml}</div>
+      </div>
+      <div class="mission-section">
+        <h3>Release Timeline</h3>
+        <div class="context-list">${releaseHtml}</div>
+      </div>
+    </section>
+    <section class="mission-section">
+      <h3>Workspace Storylines</h3>
+      <div class="context-list">${storylineHtml}</div>
+    </section>
+  `;
+}
+
 function renderGlobalLearningWorkbench(learning, detail) {
   if (!learning || Object.keys(learning).length === 0) {
     return '<div class="empty-panel">Learning substrate is not available yet.</div>';
@@ -1720,6 +1833,67 @@ function renderLearningContextRail(learning, detail) {
           <div class="context-title">Latest summary</div>
           <div class="context-meta">${escHtml(selectedMissionLearningView?.overview?.last_learning_summary || 'No mission learning summary')}</div>
         </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderShowcaseContextRail(showcase, detail) {
+  if (!showcase || Object.keys(showcase).length === 0) {
+    return '<div class="empty-panel">Showcase context will appear here.</div>';
+  }
+  const summary = showcase.summary || {};
+  const releases = showcase.release_timeline || [];
+  const storylines = showcase.workspace_storylines || [];
+  const selectedMission = detail?.mission || null;
+  const latestRelease = releases[0] || null;
+  return `
+    <div class="mission-section">
+      <h3>Showcase Summary</h3>
+      <div class="context-list">
+        <div class="context-card">
+          <div class="context-title">${escHtml(String(summary.release_count || 0))} archived releases</div>
+          <div class="context-meta">${escHtml(String(summary.workspace_story_count || 0))} workspace stories · ${escHtml(String(summary.highlight_count || 0))} highlights</div>
+        </div>
+      </div>
+    </div>
+    <div class="mission-section">
+      <h3>Latest Release</h3>
+      <div class="context-list">
+        ${latestRelease ? `
+          <div class="context-card">
+            <div class="context-title">${escHtml(latestRelease.release_label || latestRelease.release_id || 'release')}</div>
+            <div class="context-meta">
+              <span class="detail-chip">${escHtml(latestRelease.overall_status || 'unknown')}</span>
+              <span>${escHtml(latestRelease.created_at || '')}</span>
+            </div>
+            <div class="context-meta">
+              ${latestRelease.summary_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(latestRelease.summary_artifact_path)}" target="_blank" rel="noreferrer">Open summary</a>` : ''}
+            </div>
+          </div>
+        ` : '<div class="empty-panel">No release timeline yet.</div>'}
+      </div>
+    </div>
+    <div class="mission-section">
+      <h3>Story Focus</h3>
+      <div class="context-list">
+        ${storylines.length ? storylines.slice(0, 3).map(item => `
+          <div class="context-card">
+            <div class="context-title">${escHtml(item.title || item.workspace_id || 'workspace')}</div>
+            <div class="context-meta">${escHtml(item.narrative || 'No narrative')}</div>
+          </div>
+        `).join('') : '<div class="empty-panel">No workspace narratives yet.</div>'}
+      </div>
+    </div>
+    <div class="mission-section">
+      <h3>Selected Mission</h3>
+      <div class="context-list">
+        ${selectedMission ? `
+          <div class="context-card">
+            <div class="context-title">${escHtml(selectedMission.title || selectedMission.mission_id || 'mission')}</div>
+            <div class="context-meta">${renderInternalRouteButton(`/?mission=${encodeURIComponent(selectedMission.mission_id || '')}&mode=missions&tab=judgment`, 'Open mission judgment')}</div>
+          </div>
+        ` : '<div class="empty-panel">Select a mission to pivot from showcase into a workspace.</div>'}
       </div>
     </div>
   `;
