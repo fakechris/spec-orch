@@ -1716,9 +1716,11 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
     return '<div class="empty-panel">Showcase narrative is not available yet.</div>';
   }
   const summary = showcase.summary || {};
+  const brief = showcase.brief || {};
   const releases = showcase.release_timeline || [];
   const storylines = showcase.workspace_storylines || [];
   const highlights = showcase.highlights || [];
+  const watchlist = showcase.watchlist || [];
   const selectedMission = detail?.mission || null;
 
   const highlightHtml = highlights.length ? highlights.map(item => `
@@ -1770,6 +1772,10 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
         <span>${escHtml((item.compare_focus || []).join(' | ') || 'No compare focus')}</span>
       </div>
       <div class="context-meta">
+        <span>Storyline headline</span>
+        <span>${escHtml(item.storyline_headline || 'No storyline headline')}</span>
+      </div>
+      <div class="context-meta">
         ${item.summary_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(item.summary_artifact_path)}" target="_blank" rel="noreferrer">Bundle summary</a>` : ''}
         ${item.status_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(item.status_artifact_path)}" target="_blank" rel="noreferrer">Status JSON</a>` : ''}
       </div>
@@ -1813,12 +1819,56 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
         <span>${escHtml((item.lineage_drilldown?.compare_focus || []).join(' | ') || 'No compare focus')}</span>
       </div>
       <div class="context-meta">
+        <span>Journey summary</span>
+        <span>${escHtml(item.journey_summary || 'No journey summary')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Release journey</span>
+        <span>${escHtml((item.release_journey || []).map(entry => entry.release_label || entry.release_id || '').join(' → ') || 'No release journey')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Turning points</span>
+        <span>${escHtml((item.turning_points || []).map(entry => entry.summary || '').join(' | ') || 'No turning points')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Next pivot</span>
+        <span>${escHtml(item.next_pivot?.reason || 'No next pivot')}</span>
+      </div>
+      <div class="context-meta">
         ${item.routes?.execution ? renderInternalRouteButton(item.routes.execution, 'Execution') : ''}
         ${item.routes?.judgment ? renderInternalRouteButton(item.routes.judgment, 'Judgment') : ''}
         ${item.routes?.learning ? renderInternalRouteButton(item.routes.learning, 'Learning') : ''}
       </div>
+      <div class="context-meta">
+        ${item.next_pivot?.route ? renderInternalRouteButton(item.next_pivot.route, item.next_pivot.label || 'Open next pivot') : ''}
+      </div>
     </div>
   `).join('') : '<div class="empty-panel">No workspace storylines yet.</div>';
+
+  const watchlistHtml = watchlist.length ? watchlist.map(item => `
+    <div class="context-card">
+      <div class="context-title">${escHtml(item.title || item.workspace_id || 'workspace')}</div>
+      <div class="context-meta">
+        <span class="detail-chip">${escHtml(item.focus || 'watch')}</span>
+        <span>${escHtml(item.journey_summary || 'No journey summary')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Priority</span>
+        <span>${escHtml(String(item.priority_score || 0))} · ${escHtml(item.priority_reason || 'No priority reason')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Compare focus</span>
+        <span>${escHtml((item.compare_focus || []).join(' | ') || 'No compare focus')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Latest turning point</span>
+        <span>${escHtml(item.latest_turning_point || 'No turning point')}</span>
+      </div>
+      <div class="context-meta">
+        ${item.route ? renderInternalRouteButton(item.route, 'Open workspace judgment') : ''}
+      </div>
+    </div>
+  `).join('') : '<div class="empty-panel">No governance watchlist yet.</div>';
 
   return `
     <section class="mission-hero">
@@ -1837,6 +1887,33 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
       <div class="mission-metric"><div class="mission-metric-label">Workspace stories</div><div class="mission-metric-value">${escHtml(String(summary.workspace_story_count || 0))}</div></div>
       <div class="mission-metric"><div class="mission-metric-label">Highlights</div><div class="mission-metric-value">${escHtml(String(summary.highlight_count || 0))}</div></div>
     </section>
+    <section class="mission-section">
+      <h3>Narrative brief</h3>
+      <div class="context-list">
+        <div class="context-card">
+          <div class="context-title">${escHtml(brief.headline || 'No brief available')}</div>
+          <div class="context-meta">
+            <span>Latest release</span>
+            <span>${escHtml(brief.latest_release_id || 'None')}</span>
+          </div>
+          <div class="context-meta">
+            <span>Watch focus</span>
+            <span>${escHtml(brief.top_watch_focus || 'No watch focus')}</span>
+          </div>
+          <div class="context-meta">
+            <span>Why this is first</span>
+            <span>${escHtml(brief.top_watch_reason || 'No watch reason')}</span>
+          </div>
+          <div class="context-meta">
+            <span>Top turning point</span>
+            <span>${escHtml(brief.top_turning_point || 'No turning point')}</span>
+          </div>
+          <div class="context-meta">
+            ${brief.next_route ? renderInternalRouteButton(brief.next_route, brief.next_route_label || 'Open recommended view') : ''}
+          </div>
+        </div>
+      </div>
+    </section>
     <section class="mission-workbench">
       <div class="mission-section">
         <h3>Highlights</h3>
@@ -1846,6 +1923,11 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
         <h3>Release Timeline</h3>
         <div class="context-list">${releaseHtml}</div>
       </div>
+    </section>
+    <section class="mission-section">
+      <h3>Governance watchlist</h3>
+      <div class="context-meta">Tracks structural regression, compare drift, and promotion hold signals.</div>
+      <div class="context-list">${watchlistHtml}</div>
     </section>
     <section class="mission-section">
       <h3>Workspace Storylines</h3>
@@ -1947,6 +2029,35 @@ function renderShowcaseContextRail(showcase, detail) {
   const releases = showcase.release_timeline || [];
   const storylines = showcase.workspace_storylines || [];
   const selectedMission = detail?.mission || null;
+  const selectedStoryline = selectedMission
+    ? storylines.find(item => item.workspace_id === selectedMission.mission_id)
+    : null;
+  const selectedJourneyHtml = (selectedStoryline?.release_journey || []).length
+    ? (selectedStoryline?.release_journey || []).map(entry => `
+        <div class="context-card">
+          <div class="context-title">${escHtml(entry.release_label || entry.release_id || 'release')}</div>
+          <div class="context-meta">
+            <span class="detail-chip">${escHtml(entry.overall_status || 'unknown')}</span>
+            <span>${escHtml(entry.created_at || '')}</span>
+          </div>
+          <div class="context-meta">
+            <span>Compared with</span>
+            <span>${escHtml(entry.compare_target_release_id || 'No previous release')}</span>
+          </div>
+          <div class="context-meta">
+            <span>Source-run compare</span>
+            <span>${escHtml(entry.source_run_compare_summary || 'No compare summary')}</span>
+          </div>
+          <div class="context-meta">
+            <span>Storyline headline</span>
+            <span>${escHtml(entry.storyline_headline || 'No storyline headline')}</span>
+          </div>
+          <div class="context-meta">
+            ${entry.summary_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(entry.summary_artifact_path)}" target="_blank" rel="noreferrer">Open summary</a>` : ''}
+          </div>
+        </div>
+      `).join('')
+    : '<div class="empty-panel">No release journey</div>';
   const latestRelease = releases[0] || null;
   return `
     <div class="mission-section">
@@ -2041,6 +2152,14 @@ function renderShowcaseContextRail(showcase, detail) {
           <div class="context-card">
             <div class="context-title">${escHtml(selectedMission.title || selectedMission.mission_id || 'mission')}</div>
             <div class="context-meta">${renderInternalRouteButton(`/?mission=${encodeURIComponent(selectedMission.mission_id || '')}&mode=missions&tab=judgment`, 'Open mission judgment')}</div>
+          </div>
+          <div class="context-card">
+            <div class="context-title">Selected mission journey</div>
+            <div class="context-meta">${escHtml(selectedStoryline?.journey_summary || 'No journey summary')}</div>
+          </div>
+          <div class="context-card">
+            <div class="context-title">Journey releases</div>
+            <div class="context-list">${selectedJourneyHtml}</div>
           </div>
         ` : '<div class="empty-panel">Select a mission to pivot from showcase into a workspace.</div>'}
       </div>

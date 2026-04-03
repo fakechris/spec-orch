@@ -233,14 +233,42 @@ def test_dashboard_showcase_surface_renders_governance_and_lineage_fields() -> N
     assert "Governance Story" in source
     assert "Promotion decision" in source
     assert "Latest release notes" in source
+    assert "Storyline headline" in source
+    assert "Journey summary" in source
+    assert "Release journey" in source
     assert "item.workspace_ids" in source
     assert "item.lineage_notes" in source
     assert "item.compare_target_release_id" in source
     assert "item.source_run_compare" in source
     assert "item.compare_counts" in source
     assert "item.compare_focus" in source
+    assert "item.storyline_headline" in source
     assert "item.governance_story" in source
     assert "item.lineage_drilldown" in source
+    assert "item.journey_summary" in source
+    assert "item.release_journey" in source
+    assert "Selected mission journey" in source
+    assert "selectedStoryline?.journey_summary" in source
+    assert "selectedStoryline?.release_journey" in source
+    assert "Journey releases" in source
+    assert "entry.compare_target_release_id" in source
+    assert "entry.source_run_compare_summary" in source
+    assert "entry.summary_artifact_path" in source
+    assert "Governance watchlist" in source
+    assert "showcase.watchlist" in source
+    assert "structural regression" in source
+    assert "Turning points" in source
+    assert "item.turning_points" in source
+    assert "latest_turning_point" in source
+    assert "Narrative brief" in source
+    assert "showcase.brief" in source
+    assert "brief.top_turning_point" in source
+    assert "brief.next_route" in source
+    assert "brief.next_route_label" in source
+    assert "brief.top_watch_reason" in source
+    assert "item.next_pivot" in source
+    assert "priority_score" in source
+    assert "priority_reason" in source
 
 
 def test_dashboard_lazy_loads_showcase_workbench_for_showcase_mode_only() -> None:

@@ -344,6 +344,8 @@ def test_build_showcase_workbench_surfaces_release_timeline_and_workspace_storyl
         "passing_release_count": 2,
         "workspace_story_count": 2,
         "highlight_count": 2,
+        "advanced_check_count": 2,
+        "watchlist_count": 2,
     }
     assert payload["release_timeline"][0]["release_id"] == (
         "showcase-tranche-son-363-seed-2026-04-03"
@@ -364,6 +366,9 @@ def test_build_showcase_workbench_surfaces_release_timeline_and_workspace_storyl
         "mission_start advanced",
         "exploratory advanced",
     ]
+    assert payload["release_timeline"][0]["storyline_headline"] == (
+        "1 linked workspace; mission_start advanced; exploratory advanced"
+    )
     assert payload["release_timeline"][0]["source_run_compare"]["mission_start"]["status"] == (
         "advanced"
     )
@@ -396,9 +401,61 @@ def test_build_showcase_workbench_surfaces_release_timeline_and_workspace_storyl
     assert storyline["lineage_drilldown"]["source_run_compare_summary"] == (
         "mission_start advanced; exploratory advanced"
     )
+    assert storyline["journey_summary"] == (
+        "1 archived releases; latest showcase-tranche-son-363-seed-2026-04-03"
+    )
+    assert [item["release_id"] for item in storyline["release_journey"]] == [
+        "showcase-tranche-son-363-seed-2026-04-03",
+    ]
+    assert storyline["release_journey"][-1]["storyline_headline"] == (
+        "1 linked workspace; mission_start advanced; exploratory advanced"
+    )
+    assert storyline["release_journey"][-1]["source_run_compare_summary"] == (
+        "mission_start advanced; exploratory advanced"
+    )
+    assert storyline["release_journey"][-1]["compare_target_release_id"] == (
+        "learning-promotion-discipline-tranche-1-2026-04-03"
+    )
+    assert storyline["release_journey"][-1]["summary_artifact_path"].endswith("summary.md")
+    assert storyline["turning_points"][0]["kind"] == "structural"
+    assert storyline["turning_points"][0]["summary"] == "Structural regression remained visible."
+    assert storyline["turning_points"][1]["kind"] == "compare"
+    assert storyline["turning_points"][1]["summary"] == (
+        "mission_start advanced; exploratory advanced"
+    )
+    assert storyline["next_pivot"] == {
+        "label": "Open judgment workbench",
+        "reason": "Structural regression remained visible.",
+        "route": f"/?mission={mission_id}&mode=missions&tab=judgment",
+    }
     assert "Execution completed" in storyline["narrative"]
     assert payload["highlights"][0]["kind"] == "release"
     assert payload["highlights"][1]["kind"] == "workspace"
+    assert payload["watchlist"][0]["workspace_id"] == mission_id
+    assert payload["watchlist"][0]["focus"] == "structural regression"
+    assert payload["watchlist"][0]["compare_focus"] == [
+        "mission_start advanced",
+        "exploratory advanced",
+    ]
+    assert payload["watchlist"][0]["priority_score"] == 9
+    assert payload["watchlist"][0]["priority_reason"] == (
+        "Structural regression plus advanced source-run drift plus learning promote keeps this workspace at the top."
+    )
+    assert payload["watchlist"][0]["latest_turning_point"] == "Structural regression remained visible."
+    assert payload["watchlist"][0]["route"] == (
+        f"/?mission={mission_id}&mode=missions&tab=judgment"
+    )
+    assert payload["brief"] == {
+        "headline": "2 releases archived; 2 advanced checks; 2 workspaces on watch",
+        "latest_release_id": "showcase-tranche-son-363-seed-2026-04-03",
+        "top_watch_focus": "structural regression",
+        "top_turning_point": "Structural regression remained visible.",
+        "next_route": f"/?mission={mission_id}&mode=missions&tab=judgment",
+        "next_route_label": "Open judgment workbench",
+        "top_watch_reason": (
+            "Structural regression plus advanced source-run drift plus learning promote keeps this workspace at the top."
+        ),
+    }
     assert payload["review_route"] == "/?mode=showcase"
 
 
