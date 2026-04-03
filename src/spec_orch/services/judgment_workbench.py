@@ -67,6 +67,7 @@ def build_mission_judgment_workbench(repo_root: Path, mission_id: str) -> dict[s
             "candidate_queue": [],
             "compare_view": _empty_compare_view(),
             "surface_pack_panel": _empty_surface_pack_panel(),
+            "structural_judgment": {},
             "latest_review": None,
             "reviews": substrate.get("reviews", []),
             "review_route": review_route,
@@ -84,6 +85,7 @@ def build_mission_judgment_workbench(repo_root: Path, mission_id: str) -> dict[s
             "surface_pack_panel",
             _empty_surface_pack_panel(),
         ),
+        "structural_judgment": latest_review.get("structural_judgment", {}),
         "latest_review": latest_review,
         "reviews": substrate.get("reviews", []),
         "review_route": review_route,
@@ -95,6 +97,7 @@ def build_judgment_workbench(repo_root: Path) -> dict[str, Any]:
     workspaces: list[dict[str, Any]] = []
     candidate_queue: list[dict[str, Any]] = []
     compare_watch: list[dict[str, Any]] = []
+    structural_watch: list[dict[str, Any]] = []
 
     specs_root = Path(repo_root) / "docs" / "specs"
     if specs_root.exists():
@@ -109,6 +112,7 @@ def build_judgment_workbench(repo_root: Path) -> dict[str, Any]:
             overview = payload.get("overview", {})
             queue = payload.get("candidate_queue", [])
             compare_view = payload.get("compare_view", {})
+            structural_judgment = payload.get("structural_judgment", {})
             candidate_findings = latest_review.get("candidate_findings", [])
             workspace_entry = {
                 "workspace_id": mission_id,
@@ -121,6 +125,8 @@ def build_judgment_workbench(repo_root: Path) -> dict[str, Any]:
                 "observation_count": overview.get("observation_count", 0),
                 "recommended_next_step": overview.get("recommended_next_step", ""),
                 "evidence_summary": overview.get("evidence_summary", ""),
+                "quality_signal": str(structural_judgment.get("quality_signal", "")),
+                "bottleneck": str(structural_judgment.get("bottleneck", "")),
                 "candidate_finding_ids": [
                     str(item.get("candidate_finding", {}).get("candidate_finding_id", ""))
                     for item in candidate_findings
@@ -151,6 +157,23 @@ def build_judgment_workbench(repo_root: Path) -> dict[str, Any]:
                         "review_route": payload.get("review_route", ""),
                     }
                 )
+            if isinstance(structural_judgment, dict) and structural_judgment:
+                structural_watch.append(
+                    {
+                        "workspace_id": mission_id,
+                        "quality_signal": str(structural_judgment.get("quality_signal", "")),
+                        "bottleneck": str(structural_judgment.get("bottleneck", "")),
+                        "rule_violation_count": len(
+                            structural_judgment.get("rule_violations", [])
+                            if isinstance(structural_judgment.get("rule_violations", []), list)
+                            else []
+                        ),
+                        "baseline_ref": str(
+                            structural_judgment.get("baseline_diff", {}).get("baseline_ref", "")
+                        ),
+                        "review_route": payload.get("review_route", ""),
+                    }
+                )
 
     summary = {
         "workspace_count": len(workspaces),
@@ -164,12 +187,19 @@ def build_judgment_workbench(repo_root: Path) -> dict[str, Any]:
         "compare_active_count": sum(
             1 for item in workspaces if str(item.get("compare_state", "")) == "active"
         ),
+        "structural_regression_count": sum(
+            1 for item in workspaces if str(item.get("quality_signal", "")) == "regression"
+        ),
+        "bottlenecked_workspace_count": sum(
+            1 for item in workspaces if str(item.get("bottleneck", "")) not in {"", "none"}
+        ),
     }
     return {
         "summary": summary,
         "workspaces": workspaces,
         "candidate_queue": candidate_queue,
         "compare_watch": compare_watch,
+        "structural_watch": structural_watch,
         "review_route": "/?mode=judgment",
     }
 

@@ -13,6 +13,7 @@ from typing import Any, cast
 from spec_orch.domain.models import TERMINAL_STATES, Issue, IssueContext, RunResult, RunState
 from spec_orch.domain.protocols import PlannerAdapter
 from spec_orch.services.adapter_factory import create_builder, create_reviewer
+from spec_orch.services.admission_governor import AdmissionGovernor
 from spec_orch.services.conflict_resolver import ConflictResolver
 from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.event_bus import Event, EventTopic
@@ -145,6 +146,10 @@ class SpecOrchDaemon:
         self._in_progress: set[str] = set(saved.get("in_progress", []))
         self._reaction_marks: set[str] = set(saved.get("reaction_marks", []))
         self._reaction_engine = ReactionEngine(repo_root)
+        self._admission_governor = AdmissionGovernor(
+            repo_root,
+            max_concurrent=self.config.max_concurrent,
+        )
 
         from spec_orch.services.event_bus import get_event_bus
 
@@ -539,9 +544,19 @@ class SpecOrchDaemon:
             if self._should_backoff(issue_id):
                 continue
 
+            is_hotfix = self._is_hotfix(raw_issue)
+            admission_decision = self._admission_governor.evaluate_issue(
+                issue_id,
+                in_progress_count=len(self._in_progress),
+                is_hotfix=is_hotfix,
+                recorded_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            )
+            self._admission_governor.record_decision(admission_decision)
+            if admission_decision["decision"] != "admit":
+                continue
+
             self._claim(issue_id)
 
-            is_hotfix = self._is_hotfix(raw_issue)
             if not is_hotfix and not self._triage_issue(client, raw_issue, controller):
                 self._release(issue_id)
                 continue

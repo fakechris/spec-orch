@@ -457,6 +457,40 @@ def test_daemon_poll_and_run_marks_gate_evaluated_as_processed(tmp_path: Path) -
     assert "SPC-13" in daemon._processed
 
 
+def test_daemon_poll_and_run_defers_issue_when_admission_budget_is_saturated(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.admission_governor import load_admission_governor_snapshot
+
+    cfg = DaemonConfig(
+        {
+            "daemon": {
+                "lockfile_dir": str(tmp_path / "locks"),
+                "max_concurrent": 1,
+            }
+        }
+    )
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon._in_progress.add("SPC-BUSY")
+
+    mock_client = MagicMock()
+    mock_client.list_issues.return_value = [
+        {"id": "uuid-412", "identifier": "SPC-412", "description": _COMPLETE_DESC}
+    ]
+    mock_controller = MagicMock()
+
+    _init_checker(daemon)
+    daemon._poll_and_run(mock_client, mock_controller)
+
+    mock_controller.advance_to_completion.assert_not_called()
+    mock_client.update_issue_state.assert_not_called()
+
+    snapshot = load_admission_governor_snapshot(tmp_path)
+    assert snapshot["admission_decisions"][0]["subject_id"] == "SPC-412"
+    assert snapshot["admission_decisions"][0]["decision"] == "defer"
+    assert snapshot["queue"][0]["queue_name"] == "daemon_admission"
+
+
 def test_daemon_auto_create_pr(tmp_path: Path) -> None:
     """Daemon should attempt PR creation when reaching GATE_EVALUATED."""
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})

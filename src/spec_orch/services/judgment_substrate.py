@@ -16,6 +16,7 @@ from spec_orch.services.operator_semantics import (
     judgment_timeline_entries_for_review,
     surface_pack_from_acceptance_surface_pack,
 )
+from spec_orch.services.structural_judgment import build_structural_judgment
 
 logger = logging.getLogger(__name__)
 
@@ -339,6 +340,20 @@ def build_mission_judgment_substrate(repo_root: Path, mission_id: str) -> dict[s
         review_data["candidate_queue"] = _candidate_queue(review_data)
         review_data["compare_view"] = _compare_view(review_data)
         review_data["surface_pack_panel"] = _surface_pack_panel(review_data)
+        review_data["structural_judgment"] = build_structural_judgment(
+            workspace_id=mission_id,
+            review_status=str(review_data.get("status", "")),
+            coverage_status=str(review_data.get("coverage_status", "")),
+            untested_expected_routes=[
+                str(item)
+                for item in review_data.get("untested_expected_routes", [])
+                if str(item).strip()
+            ],
+            candidate_queue=review_data["candidate_queue"],
+            compare_view=review_data["compare_view"],
+            evidence_panel=review_data["evidence_panel"],
+            overview=_review_overview(review_data),
+        )
         reviews.append(review_data)
 
     summary = {

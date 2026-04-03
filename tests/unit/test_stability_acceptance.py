@@ -82,6 +82,15 @@ def test_exploratory_harness_polls_runtime_chain_status_while_fresh_run_executes
     assert "write_exploratory_acceptance_failure_report" in script
 
 
+def test_fresh_and_exploratory_harnesses_avoid_mapfile_bashism() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+
+    for name in ("fresh_acpx_mission_smoke.sh", "exploratory_acceptance_smoke.sh"):
+        script = (repo_root / "tests" / "e2e" / name).read_text(encoding="utf-8")
+        assert "mapfile -t DASHBOARD_PORT_CANDIDATES" not in script
+        assert "while IFS= read -r candidate_port" in script
+
+
 def test_acceptance_harnesses_share_uv_project_environment_resolution() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     shared_helper = (repo_root / "tests" / "e2e" / "_shared_env.sh").read_text(encoding="utf-8")

@@ -39,10 +39,16 @@ class PromotionRecord:
     origin: str
     reviewed_evidence_count: int
     signal_origins: list[str]
+    workspace_id: str = ""
+    origin_finding_ref: str = ""
+    origin_review_ref: str = ""
+    promotion_target: str = ""
+    promotion_reason: str = ""
     status: str = "active"
     created_at: str = ""
     superseded_by: str | None = None
     rollback_reason: str = ""
+    retirement_reason: str = ""
 
 
 class PromotionRegistry:
@@ -120,6 +126,11 @@ class PromotionRegistry:
         origin: PromotionOrigin,
         reviewed_evidence_count: int,
         signal_origins: list[str],
+        workspace_id: str = "",
+        origin_finding_ref: str = "",
+        origin_review_ref: str = "",
+        promotion_target: str = "",
+        promotion_reason: str = "",
     ) -> PromotionRecord:
         records = self.load_records()
         asset_key = self._asset_key(proposal)
@@ -137,6 +148,11 @@ class PromotionRegistry:
             origin=origin.value,
             reviewed_evidence_count=reviewed_evidence_count,
             signal_origins=list(signal_origins),
+            workspace_id=workspace_id,
+            origin_finding_ref=origin_finding_ref,
+            origin_review_ref=origin_review_ref,
+            promotion_target=promotion_target,
+            promotion_reason=promotion_reason,
             created_at=datetime.now(UTC).isoformat(),
         )
         records.append(new_record)
@@ -150,6 +166,19 @@ class PromotionRegistry:
             if record.promotion_id == promotion_id:
                 record.status = "rolled_back"
                 record.rollback_reason = reason
+                updated = True
+                break
+        if updated:
+            self.save_records(records)
+        return updated
+
+    def retire(self, promotion_id: str, *, reason: str) -> bool:
+        records = self.load_records()
+        updated = False
+        for record in records:
+            if record.promotion_id == promotion_id:
+                record.status = "retired"
+                record.retirement_reason = reason
                 updated = True
                 break
         if updated:

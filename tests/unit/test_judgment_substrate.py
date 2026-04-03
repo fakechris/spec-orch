@@ -151,6 +151,55 @@ def test_build_mission_judgment_substrate_surfaces_canonical_review_models(
         "artifact_drift_count": 2,
         "judgment_drift_summary": "Candidate findings were formed under compare overlay.",
     }
+    assert latest["structural_judgment"] == {
+        "structural_judgment_id": "mission-judgment:structural",
+        "workspace_id": "mission-judgment",
+        "quality_signal": "watch",
+        "bottleneck": "candidate_repro_pending",
+        "rule_violations": [
+            {
+                "rule_id": "coverage_incomplete",
+                "severity": "medium",
+                "summary": "Expected routes remain untested.",
+                "details": {
+                    "coverage_status": "partial",
+                    "untested_route_count": 1,
+                },
+            },
+            {
+                "rule_id": "candidate_repro_pending",
+                "severity": "medium",
+                "summary": "Candidate findings still need repro before promotion.",
+                "details": {
+                    "pending_candidate_count": 1,
+                },
+            },
+            {
+                "rule_id": "baseline_drift_detected",
+                "severity": "medium",
+                "summary": "Compare overlay detected baseline drift artifacts.",
+                "details": {
+                    "artifact_drift_count": 2,
+                    "baseline_ref": "fixture:dashboard-transcript-regression",
+                },
+            },
+        ],
+        "baseline_diff": {
+            "compare_state": "active",
+            "baseline_ref": "fixture:dashboard-transcript-regression",
+            "artifact_drift_count": 2,
+            "drift_status": "drift_detected",
+        },
+        "current_state": {
+            "review_status": "warn",
+            "coverage_status": "partial",
+            "candidate_finding_count": 1,
+            "confirmed_issue_count": 0,
+            "observation_count": 0,
+            "route_count": 3,
+            "artifact_count": 4,
+        },
+    }
     assert latest["surface_pack_panel"] == {
         "surface_name": "dashboard",
         "active_axes": ["information_scent", "task_continuity", "feedback_clarity"],
@@ -292,6 +341,8 @@ def test_build_judgment_workbench_aggregates_workspace_inventory(
         "candidate_finding_count": 1,
         "confirmed_issue_count": 1,
         "compare_active_count": 1,
+        "structural_regression_count": 1,
+        "bottlenecked_workspace_count": 2,
     }
     assert payload["review_route"] == "/?mode=judgment"
     assert [item["workspace_id"] for item in payload["workspaces"]] == [
@@ -329,6 +380,24 @@ def test_build_judgment_workbench_aggregates_workspace_inventory(
             "review_route": f"/?mission={candidate_mission_id}&mode=missions&tab=judgment",
         }
     ]
+    assert payload["structural_watch"] == [
+        {
+            "workspace_id": candidate_mission_id,
+            "quality_signal": "watch",
+            "bottleneck": "candidate_repro_pending",
+            "rule_violation_count": 3,
+            "baseline_ref": "fixture:dashboard-transcript-baseline",
+            "review_route": f"/?mission={candidate_mission_id}&mode=missions&tab=judgment",
+        },
+        {
+            "workspace_id": confirmed_mission_id,
+            "quality_signal": "regression",
+            "bottleneck": "confirmed_issue",
+            "rule_violation_count": 1,
+            "baseline_ref": "",
+            "review_route": f"/?mission={confirmed_mission_id}&mode=missions&tab=judgment",
+        },
+    ]
 
     mission_payload = build_mission_judgment_workbench(tmp_path, candidate_mission_id)
 
@@ -343,5 +412,7 @@ def test_build_judgment_workbench_aggregates_workspace_inventory(
     assert (
         mission_payload["compare_view"]["baseline_ref"] == "fixture:dashboard-transcript-baseline"
     )
+    assert mission_payload["structural_judgment"]["quality_signal"] == "watch"
+    assert mission_payload["structural_judgment"]["bottleneck"] == "candidate_repro_pending"
     assert mission_payload["surface_pack_panel"]["surface_name"] == "dashboard"
     assert mission_payload["judgment_timeline"][-1]["event_type"] == "review_state_changed"

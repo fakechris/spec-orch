@@ -287,6 +287,9 @@ def build_mission_execution_workbench(
     interventions = _filter(snapshot.get("interventions", []))
     execution_sessions = _filter(snapshot.get("execution_sessions", []))
     execution_events = _filter(snapshot.get("execution_events", []))
+    resource_budgets = _filter(snapshot.get("resource_budgets", []))
+    pressure_signals = _filter(snapshot.get("pressure_signals", []))
+    admission_decisions = _filter(snapshot.get("admission_decisions", []))
 
     agent_ids = {
         str(item.get("agent_id", ""))
@@ -320,6 +323,8 @@ def build_mission_execution_workbench(
             "open_intervention_count": len(interventions),
             "runtime_count": len(runtimes),
             "agent_count": len(agents),
+            "pressure_signal_count": len(pressure_signals),
+            "admission_decision_count": len(admission_decisions),
             "current_phase": str(current_active.get("phase", "")),
             "current_health": str(current_active.get("health", "")),
             "last_event_summary": str(last_event.get("event_summary", "")),
@@ -328,6 +333,9 @@ def build_mission_execution_workbench(
         "event_trail": execution_events,
         "queue": queue,
         "interventions": interventions,
+        "resource_budgets": resource_budgets,
+        "pressure_signals": pressure_signals,
+        "admission_decisions": admission_decisions,
         "runtime": runtimes[0] if runtimes else None,
         "agents": agents,
         "execution_sessions": execution_sessions,

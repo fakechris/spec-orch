@@ -85,3 +85,41 @@ def test_rollback_marks_record_and_preserves_reason(tmp_path: Path) -> None:
     assert rolled_back is not None
     assert rolled_back.status == "rolled_back"
     assert rolled_back.rollback_reason == "false positive calibration drift"
+
+
+def test_record_promotion_preserves_review_lineage_fields(tmp_path: Path) -> None:
+    registry = PromotionRegistry(tmp_path)
+    promotion = registry.record_promotion(
+        _proposal(proposal_id="proposal-3", content={"variant_id": "v3"}),
+        origin=PromotionOrigin.ACCEPTANCE_REVIEW,
+        reviewed_evidence_count=2,
+        signal_origins=["acceptance_review"],
+        workspace_id="mission-learning",
+        origin_finding_ref="candidate:learning-1",
+        origin_review_ref="proposal:learning-1",
+        promotion_target="EvolutionProposalRef",
+        promotion_reason="Repeated reviewed transcript replay evidence.",
+    )
+
+    assert promotion.workspace_id == "mission-learning"
+    assert promotion.origin_finding_ref == "candidate:learning-1"
+    assert promotion.origin_review_ref == "proposal:learning-1"
+    assert promotion.promotion_target == "EvolutionProposalRef"
+    assert promotion.promotion_reason == "Repeated reviewed transcript replay evidence."
+
+
+def test_retire_marks_record_and_preserves_reason(tmp_path: Path) -> None:
+    registry = PromotionRegistry(tmp_path)
+    promotion = registry.record_promotion(
+        _proposal(proposal_id="proposal-4", content={"variant_id": "v4"}),
+        origin=PromotionOrigin.ACCEPTANCE_REVIEW,
+        reviewed_evidence_count=1,
+        signal_origins=["acceptance_review"],
+    )
+
+    assert registry.retire(promotion.promotion_id, reason="Superseded by fixture replay bundle") is True
+
+    retired = registry.get(promotion.promotion_id)
+    assert retired is not None
+    assert retired.status == "retired"
+    assert retired.retirement_reason == "Superseded by fixture replay bundle"

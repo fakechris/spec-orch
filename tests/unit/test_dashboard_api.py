@@ -285,9 +285,21 @@ class TestDashboardAPI:
             "candidate_finding_count": 1,
             "confirmed_issue_count": 0,
             "compare_active_count": 1,
+            "structural_regression_count": 0,
+            "bottlenecked_workspace_count": 1,
         }
         assert global_payload["review_route"] == "/?mode=judgment"
         assert global_payload["workspaces"][0]["workspace_id"] == mission_id
+        assert global_payload["structural_watch"] == [
+            {
+                "workspace_id": mission_id,
+                "quality_signal": "watch",
+                "bottleneck": "candidate_repro_pending",
+                "rule_violation_count": 3,
+                "baseline_ref": "fixture:dashboard-transcript-baseline",
+                "review_route": f"/?mission={mission_id}&mode=missions&tab=judgment",
+            }
+        ]
 
         mission_response = client.get(f"/api/missions/{mission_id}/judgment-workbench")
 
@@ -297,6 +309,10 @@ class TestDashboardAPI:
         assert mission_payload["overview"]["judgment_class"] == "candidate_finding"
         assert mission_payload["candidate_queue"][0]["claim"] == "Clarify transcript continuity"
         assert mission_payload["compare_view"]["compare_state"] == "active"
+        assert mission_payload["structural_judgment"]["quality_signal"] == "watch"
+        assert mission_payload["structural_judgment"]["baseline_diff"]["drift_status"] == (
+            "drift_detected"
+        )
         assert mission_payload["review_route"] == (
             f"/?mission={mission_id}&mode=missions&tab=judgment"
         )
@@ -310,6 +326,9 @@ class TestDashboardAPI:
         )
         assert detail_payload["judgment_workbench"]["candidate_queue"][0]["repro_status"] == (
             "needs_repro"
+        )
+        assert detail_payload["judgment_workbench"]["structural_judgment"]["bottleneck"] == (
+            "candidate_repro_pending"
         )
 
     def test_learning_workbench_endpoints_and_mission_detail_surface(
@@ -332,6 +351,7 @@ class TestDashboardAPI:
             "fixture_candidate_count": 1,
             "active_promotion_count": 1,
             "archive_release_count": 1,
+            "linked_release_count": 1,
         }
         assert global_payload["review_route"] == "/?mode=learning"
         assert global_payload["workspaces"][0]["workspace_id"] == mission_id
@@ -342,7 +362,9 @@ class TestDashboardAPI:
         mission_payload = mission_response.json()
         assert mission_payload["mission_id"] == mission_id
         assert mission_payload["overview"]["promoted_finding_count"] == 1
+        assert mission_payload["promotion_policy"]["summary"]["promote_count"] == 1
         assert mission_payload["promotion_timeline"][0]["proposal_id"] == "proposal-1"
+        assert mission_payload["promotion_timeline"][0]["origin_finding_ref"] == "candidate:learning-1"
         assert mission_payload["fixture_registry"]["summary"]["candidate_count"] == 1
         assert mission_payload["review_route"] == (
             f"/?mission={mission_id}&mode=missions&tab=learning"
@@ -353,6 +375,7 @@ class TestDashboardAPI:
         assert detail_response.status_code == 200
         detail_payload = detail_response.json()
         assert detail_payload["learning_workbench"]["overview"]["active_promotion_count"] == 1
+        assert detail_payload["learning_workbench"]["promotion_policy"]["summary"]["linked_release_count"] == 1
         assert detail_payload["learning_workbench"]["patterns"][0]["dedupe_key"] == (
             "dashboard:transcript-continuity"
         )
@@ -790,6 +813,47 @@ class TestDashboardAPI:
             "drift_summary": "No comparison baseline was active for this review.",
             "artifact_drift_count": 0,
             "judgment_drift_summary": "No judgment drift recorded.",
+        }
+        assert data["latest_review"]["structural_judgment"] == {
+            "structural_judgment_id": f"{mission_id}:structural",
+            "workspace_id": mission_id,
+            "quality_signal": "regression",
+            "bottleneck": "confirmed_issue",
+            "rule_violations": [
+                {
+                    "rule_id": "review_failed",
+                    "severity": "high",
+                    "summary": "Semantic review already marked this workspace as failing.",
+                    "details": {
+                        "review_status": "fail",
+                        "confirmed_issue_count": 1,
+                    },
+                },
+                {
+                    "rule_id": "coverage_incomplete",
+                    "severity": "medium",
+                    "summary": "Expected routes remain untested.",
+                    "details": {
+                        "coverage_status": "partial",
+                        "untested_route_count": 1,
+                    },
+                },
+            ],
+            "baseline_diff": {
+                "compare_state": "inactive",
+                "baseline_ref": "",
+                "artifact_drift_count": 0,
+                "drift_status": "not_compared",
+            },
+            "current_state": {
+                "review_status": "fail",
+                "coverage_status": "partial",
+                "candidate_finding_count": 0,
+                "confirmed_issue_count": 1,
+                "observation_count": 0,
+                "route_count": 2,
+                "artifact_count": 4,
+            },
         }
         assert data["latest_review"]["surface_pack_panel"]["surface_name"] == "dashboard"
         assert data["latest_review"]["surface_pack_panel"]["graph_profiles"] == [
@@ -4751,6 +4815,85 @@ class TestDashboardAPI:
         assert runtime["activity_summary"]["pressure_signals"][0]["budget_key"] == (
             "verify_contract_graph"
         )
+
+    def test_control_overview_includes_governor_backed_admission_queue(
+        self,
+        client,
+        repo: Path,
+    ) -> None:
+        from spec_orch.services.admission_governor import AdmissionGovernor
+
+        governor = AdmissionGovernor(repo, max_concurrent=1)
+        governor.record_decision(
+            governor.evaluate_issue(
+                "SPC-412",
+                in_progress_count=1,
+                is_hotfix=False,
+                recorded_at="2026-04-03T10:10:00+00:00",
+            )
+        )
+
+        response = client.get("/api/control/overview")
+
+        assert response.status_code == 200
+        substrate = response.json()["execution_substrate"]
+        assert substrate["queue"][0]["queue_name"] == "daemon_admission"
+        assert substrate["queue"][0]["queue_state"] == "defer"
+        assert substrate["resource_budgets"][0]["budget_key"] == "daemon:max_concurrent"
+        assert substrate["resource_budgets"][0]["budget_state"] == "saturated"
+        assert substrate["pressure_signals"][0]["pressure_kind"] == "concurrency"
+        assert substrate["admission_decisions"][0]["decision"] == "defer"
+
+    def test_mission_execution_workbench_endpoint_includes_admission_posture(
+        self,
+        client,
+        repo: Path,
+    ) -> None:
+        from spec_orch.services.admission_governor import AdmissionGovernor
+
+        mission_id = "mission-execution-admission-api"
+        mission_root = repo / "docs" / "specs" / mission_id
+        mission_root.mkdir(parents=True)
+        (mission_root / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Mission Execution Admission API",
+                    "status": "executing",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-04-03T00:00:00+00:00",
+                    "approved_at": "2026-04-03T00:01:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (mission_root / "spec.md").write_text("# Mission Execution Admission API\n", encoding="utf-8")
+
+        governor = AdmissionGovernor(repo, max_concurrent=1)
+        governor.record_decision(
+            governor.evaluate_issue(
+                mission_id,
+                in_progress_count=1,
+                is_hotfix=False,
+                recorded_at="2026-04-03T10:25:00+00:00",
+            )
+        )
+
+        execution_response = client.get(f"/api/missions/{mission_id}/execution-workbench")
+
+        assert execution_response.status_code == 200
+        execution_payload = execution_response.json()
+        assert execution_payload["overview"]["queued_count"] == 1
+        assert execution_payload["overview"]["pressure_signal_count"] == 1
+        assert execution_payload["overview"]["admission_decision_count"] == 1
+        assert execution_payload["queue"][0]["queue_name"] == "daemon_admission"
+        assert execution_payload["resource_budgets"][0]["budget_key"] == "daemon:max_concurrent"
+        assert execution_payload["pressure_signals"][0]["pressure_kind"] == "concurrency"
+        assert execution_payload["admission_decisions"][0]["decision"] == "defer"
 
     def test_control_skills(self, client, repo: Path):
         skills_dir = repo / ".spec_orch" / "skills"

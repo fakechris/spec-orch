@@ -199,6 +199,8 @@ def test_build_mission_execution_workbench_surfaces_workspace_local_execution_st
         "open_intervention_count": 1,
         "runtime_count": 1,
         "agent_count": 1,
+        "pressure_signal_count": 1,
+        "admission_decision_count": 2,
         "current_phase": "heartbeat",
         "current_health": "active",
         "last_event_summary": "acceptance_waiting_on_model",
@@ -422,3 +424,34 @@ def test_build_execution_workbench_surfaces_global_active_work_agents_and_runtim
     assert payload["terminal_surfaces"][0]["workspace_id"] == mission_id
     assert payload["terminal_surfaces"][0]["session_count"] == 1
     assert payload["review_route"] == "/?mode=execution"
+
+
+def test_build_mission_execution_workbench_includes_governor_admission_state(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.admission_governor import AdmissionGovernor
+    from spec_orch.services.execution_workbench import build_mission_execution_workbench
+
+    mission_id = "mission-admission-workbench"
+    mission_root = tmp_path / "docs" / "specs" / mission_id
+    mission_root.mkdir(parents=True)
+
+    governor = AdmissionGovernor(tmp_path, max_concurrent=1)
+    governor.record_decision(
+        governor.evaluate_issue(
+            mission_id,
+            in_progress_count=1,
+            is_hotfix=False,
+            recorded_at="2026-04-03T10:20:00+00:00",
+        )
+    )
+
+    payload = build_mission_execution_workbench(tmp_path, mission_id, ["resume"])
+
+    assert payload["overview"]["queued_count"] == 1
+    assert payload["overview"]["pressure_signal_count"] == 1
+    assert payload["overview"]["admission_decision_count"] == 1
+    assert payload["queue"][0]["queue_name"] == "daemon_admission"
+    assert payload["resource_budgets"][0]["budget_key"] == "daemon:max_concurrent"
+    assert payload["pressure_signals"][0]["pressure_kind"] == "concurrency"
+    assert payload["admission_decisions"][0]["decision"] == "defer"

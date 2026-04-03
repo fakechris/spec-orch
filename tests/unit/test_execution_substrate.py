@@ -257,3 +257,37 @@ def test_build_execution_substrate_snapshot_surfaces_queue_pressure_and_interven
     assert runtime["activity_summary"]["pressure_signals"][0]["status_reason"] == (
         "waiting_for_operator_review"
     )
+
+
+def test_build_execution_substrate_snapshot_includes_governor_backed_admission_state(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.admission_governor import AdmissionGovernor
+    from spec_orch.services.execution_substrate import build_execution_substrate_snapshot
+
+    governor = AdmissionGovernor(tmp_path, max_concurrent=1)
+    governor.record_decision(
+        governor.evaluate_issue(
+            "SPC-412",
+            in_progress_count=1,
+            is_hotfix=False,
+            recorded_at="2026-04-03T10:05:00+00:00",
+        )
+    )
+
+    snapshot = build_execution_substrate_snapshot(tmp_path)
+
+    assert snapshot["summary"]["queued_count"] == 1
+    assert snapshot["summary"]["pressure_signal_count"] == 1
+    assert snapshot["summary"]["admission_decision_counts"] == {
+        "admit": 0,
+        "defer": 1,
+        "reject": 0,
+        "degrade": 0,
+    }
+    assert snapshot["queue"][0]["queue_name"] == "daemon_admission"
+    assert snapshot["queue"][0]["queue_state"] == "defer"
+    assert snapshot["resource_budgets"][0]["budget_key"] == "daemon:max_concurrent"
+    assert snapshot["resource_budgets"][0]["budget_state"] == "saturated"
+    assert snapshot["pressure_signals"][0]["pressure_kind"] == "concurrency"
+    assert snapshot["admission_decisions"][0]["decision"] == "defer"
