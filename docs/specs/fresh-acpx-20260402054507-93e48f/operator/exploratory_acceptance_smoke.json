@@ -7,11 +7,11 @@
   "source_run": {
     "mission_id": "fresh-acpx-20260402054507-93e48f",
     "round_id": "round-02",
-    "round_dir": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/rounds/round-02",
-    "review_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/rounds/round-02/exploratory_acceptance_review.json",
+    "round_dir": "<external-path>/fresh-acpx-20260402054507-93e48f/rounds/round-02",
+    "review_path": "<external-path>/rounds/round-02/exploratory_acceptance_review.json",
     "source": "fresh-acpx-mission-smoke"
   },
-  "round_dir": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/rounds/round-02",
+  "round_dir": "<external-path>/fresh-acpx-20260402054507-93e48f/rounds/round-02",
   "findings_count": 0,
   "issue_proposal_count": 0,
   "recommended_next_step": "",
@@ -192,20 +192,20 @@
                 "succeeded": true,
                 "adapter": "acpx_worker",
                 "agent": "opencode",
-                "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/builder_report.json",
-                "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/incoming_events.jsonl",
-                "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/events.jsonl",
-                "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/activity.log"
+                "report_path": "<external-path>/workers/scaffold-mission-types/builder_report.json",
+                "incoming_events_path": "<external-path>/scaffold-mission-types/telemetry/incoming_events.jsonl",
+                "events_path": "<external-path>/scaffold-mission-types/telemetry/events.jsonl",
+                "activity_log_path": "<external-path>/scaffold-mission-types/telemetry/activity.log"
               },
               {
                 "packet_id": "scaffold-artifact-types",
                 "succeeded": true,
                 "adapter": "acpx_worker",
                 "agent": "opencode",
-                "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/builder_report.json",
-                "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/incoming_events.jsonl",
-                "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/events.jsonl",
-                "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/activity.log"
+                "report_path": "<external-path>/workers/scaffold-artifact-types/builder_report.json",
+                "incoming_events_path": "<external-path>/scaffold-artifact-types/telemetry/incoming_events.jsonl",
+                "events_path": "<external-path>/scaffold-artifact-types/telemetry/events.jsonl",
+                "activity_log_path": "<external-path>/scaffold-artifact-types/telemetry/activity.log"
               }
             ]
           }
@@ -363,20 +363,20 @@
               "succeeded": true,
               "adapter": "acpx_worker",
               "agent": "opencode",
-              "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/builder_report.json",
-              "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/incoming_events.jsonl",
-              "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/events.jsonl",
-              "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/activity.log"
+              "report_path": "<external-path>/workers/scaffold-mission-types/builder_report.json",
+              "incoming_events_path": "<external-path>/scaffold-mission-types/telemetry/incoming_events.jsonl",
+              "events_path": "<external-path>/scaffold-mission-types/telemetry/events.jsonl",
+              "activity_log_path": "<external-path>/scaffold-mission-types/telemetry/activity.log"
             },
             {
               "packet_id": "scaffold-artifact-types",
               "succeeded": true,
               "adapter": "acpx_worker",
               "agent": "opencode",
-              "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/builder_report.json",
-              "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/incoming_events.jsonl",
-              "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/events.jsonl",
-              "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/activity.log"
+              "report_path": "<external-path>/workers/scaffold-artifact-types/builder_report.json",
+              "incoming_events_path": "<external-path>/scaffold-artifact-types/telemetry/incoming_events.jsonl",
+              "events_path": "<external-path>/scaffold-artifact-types/telemetry/events.jsonl",
+              "activity_log_path": "<external-path>/scaffold-artifact-types/telemetry/activity.log"
             }
           ]
         }
@@ -768,20 +768,20 @@
             "succeeded": true,
             "adapter": "acpx_worker",
             "agent": "opencode",
-            "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/builder_report.json",
-            "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/incoming_events.jsonl",
-            "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/events.jsonl",
-            "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/activity.log"
+            "report_path": "<external-path>/workers/scaffold-mission-types/builder_report.json",
+            "incoming_events_path": "<external-path>/scaffold-mission-types/telemetry/incoming_events.jsonl",
+            "events_path": "<external-path>/scaffold-mission-types/telemetry/events.jsonl",
+            "activity_log_path": "<external-path>/scaffold-mission-types/telemetry/activity.log"
           },
           {
             "packet_id": "scaffold-artifact-types",
             "succeeded": true,
             "adapter": "acpx_worker",
             "agent": "opencode",
-            "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/builder_report.json",
-            "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/incoming_events.jsonl",
-            "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/events.jsonl",
-            "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/activity.log"
+            "report_path": "<external-path>/workers/scaffold-artifact-types/builder_report.json",
+            "incoming_events_path": "<external-path>/scaffold-artifact-types/telemetry/incoming_events.jsonl",
+            "events_path": "<external-path>/scaffold-artifact-types/telemetry/events.jsonl",
+            "activity_log_path": "<external-path>/scaffold-artifact-types/telemetry/activity.log"
           }
         ]
       }
@@ -947,20 +947,20 @@
                   "succeeded": true,
                   "adapter": "acpx_worker",
                   "agent": "opencode",
-                  "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/builder_report.json",
-                  "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/incoming_events.jsonl",
-                  "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/events.jsonl",
-                  "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/activity.log"
+                  "report_path": "<external-path>/workers/scaffold-mission-types/builder_report.json",
+                  "incoming_events_path": "<external-path>/scaffold-mission-types/telemetry/incoming_events.jsonl",
+                  "events_path": "<external-path>/scaffold-mission-types/telemetry/events.jsonl",
+                  "activity_log_path": "<external-path>/scaffold-mission-types/telemetry/activity.log"
                 },
                 {
                   "packet_id": "scaffold-artifact-types",
                   "succeeded": true,
                   "adapter": "acpx_worker",
                   "agent": "opencode",
-                  "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/builder_report.json",
-                  "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/incoming_events.jsonl",
-                  "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/events.jsonl",
-                  "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/activity.log"
+                  "report_path": "<external-path>/workers/scaffold-artifact-types/builder_report.json",
+                  "incoming_events_path": "<external-path>/scaffold-artifact-types/telemetry/incoming_events.jsonl",
+                  "events_path": "<external-path>/scaffold-artifact-types/telemetry/events.jsonl",
+                  "activity_log_path": "<external-path>/scaffold-artifact-types/telemetry/activity.log"
                 }
               ]
             }
@@ -1118,20 +1118,20 @@
                 "succeeded": true,
                 "adapter": "acpx_worker",
                 "agent": "opencode",
-                "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/builder_report.json",
-                "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/incoming_events.jsonl",
-                "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/events.jsonl",
-                "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-mission-types/telemetry/activity.log"
+                "report_path": "<external-path>/workers/scaffold-mission-types/builder_report.json",
+                "incoming_events_path": "<external-path>/scaffold-mission-types/telemetry/incoming_events.jsonl",
+                "events_path": "<external-path>/scaffold-mission-types/telemetry/events.jsonl",
+                "activity_log_path": "<external-path>/scaffold-mission-types/telemetry/activity.log"
               },
               {
                 "packet_id": "scaffold-artifact-types",
                 "succeeded": true,
                 "adapter": "acpx_worker",
                 "agent": "opencode",
-                "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/builder_report.json",
-                "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/incoming_events.jsonl",
-                "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/events.jsonl",
-                "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/workers/scaffold-artifact-types/telemetry/activity.log"
+                "report_path": "<external-path>/workers/scaffold-artifact-types/builder_report.json",
+                "incoming_events_path": "<external-path>/scaffold-artifact-types/telemetry/incoming_events.jsonl",
+                "events_path": "<external-path>/scaffold-artifact-types/telemetry/events.jsonl",
+                "activity_log_path": "<external-path>/scaffold-artifact-types/telemetry/activity.log"
               }
             ]
           }
@@ -1244,9 +1244,9 @@
     "status_reason": "acceptance_evaluation_completed",
     "session_refs": {},
     "artifact_refs": {
-      "round_dir": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/rounds/round-02"
+      "round_dir": "<external-path>/fresh-acpx-20260402054507-93e48f/rounds/round-02"
     },
     "updated_at": "2026-04-02T05:55:40.421525+00:00",
-    "chain_root": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/operator/runtime_chain"
+    "chain_root": "<external-path>/fresh-acpx-20260402054507-93e48f/operator/runtime_chain"
   }
 }

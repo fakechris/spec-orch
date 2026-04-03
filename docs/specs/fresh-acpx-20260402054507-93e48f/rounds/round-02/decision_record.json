@@ -12,7 +12,7 @@
     "docs/specs/fresh-acpx-20260402054507-93e48f/rounds/round-02/round_decision.json"
   ],
   "blocking_questions": [
-    "The typescript_import_smoke verification script writes import_smoke.ts to 'src/contracts/import_smoke.ts' but uses import path './src/contracts/mission_types' — it should be './mission_types' since the smoke file is already inside src/contracts/. Should we (a) fix the verification script and retry, (b) accept the files as correct given 5/6 passing verifications and treat import_smoke as a known-verification-bug, or (c) take another approach?"
+    "The typescript_import_smoke verification script writes import_smoke.ts to 'src/contracts/import_smoke.ts' but uses import path './src/contracts/mission_types' \u2014 it should be './mission_types' since the smoke file is already inside src/contracts/. Should we (a) fix the verification script and retry, (b) accept the files as correct given 5/6 passing verifications and treat import_smoke as a known-verification-bug, or (c) take another approach?"
   ],
   "created_at": "2026-04-02T05:53:02.507076+00:00"
 }

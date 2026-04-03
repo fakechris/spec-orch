@@ -58,14 +58,14 @@
       }
     },
     "workflow_assertions_mapped": {
-      "launcher_panel_can_be_opened": "route=/ → click [data-automation-target=\"open-launcher\"]",
-      "missions_mode_can_be_selected": "route=/ → click [data-automation-target=\"operator-mode\"][data-mode-key=\"missions\"]",
-      "target_mission_can_be_selected": "route=/?mode=missions → select fresh-acpx-20260402045510-dec460",
-      "transcript_tab_can_be_opened": "route=overview → click [data-tab-key=\"transcript\"]",
-      "approvals_surface_exposes_controls": "route=approvals → verify actionable controls",
-      "acceptance_tab_can_be_opened": "route=overview → click [data-tab-key=\"acceptance\"]",
-      "costs_tab_can_be_opened": "route=overview → navigate to costs tab",
-      "visual_qa_tab_can_be_opened": "route=overview → navigate to visual tab"
+      "launcher_panel_can_be_opened": "route=/ \u2192 click [data-automation-target=\"open-launcher\"]",
+      "missions_mode_can_be_selected": "route=/ \u2192 click [data-automation-target=\"operator-mode\"][data-mode-key=\"missions\"]",
+      "target_mission_can_be_selected": "route=/?mode=missions \u2192 select fresh-acpx-20260402045510-dec460",
+      "transcript_tab_can_be_opened": "route=overview \u2192 click [data-tab-key=\"transcript\"]",
+      "approvals_surface_exposes_controls": "route=approvals \u2192 verify actionable controls",
+      "acceptance_tab_can_be_opened": "route=overview \u2192 click [data-tab-key=\"acceptance\"]",
+      "costs_tab_can_be_opened": "route=overview \u2192 navigate to costs tab",
+      "visual_qa_tab_can_be_opened": "route=overview \u2192 navigate to visual tab"
     }
   },
   "next_transition": "wait_for_human_decision",

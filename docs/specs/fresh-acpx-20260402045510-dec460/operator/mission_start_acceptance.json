@@ -3,7 +3,7 @@
   "mission_id": "fresh-acpx-20260402045510-dec460",
   "launch_mode": "fresh",
   "variant": "default",
-  "round_dir": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/rounds/round-02",
+  "round_dir": "<external-path>/fresh-acpx-20260402045510-dec460/rounds/round-02",
   "fresh_report": {
     "mission_id": "fresh-acpx-20260402045510-dec460",
     "variant": "default",
@@ -151,20 +151,20 @@
             "succeeded": true,
             "adapter": "acpx_worker",
             "agent": "opencode",
-            "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/builder_report.json",
-            "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/incoming_events.jsonl",
-            "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/events.jsonl",
-            "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/activity.log"
+            "report_path": "<external-path>/workers/fresh-acpx-001/builder_report.json",
+            "incoming_events_path": "<external-path>/fresh-acpx-001/telemetry/incoming_events.jsonl",
+            "events_path": "<external-path>/fresh-acpx-001/telemetry/events.jsonl",
+            "activity_log_path": "<external-path>/fresh-acpx-001/telemetry/activity.log"
           },
           {
             "packet_id": "fresh-acpx-002",
             "succeeded": true,
             "adapter": "acpx_worker",
             "agent": "opencode",
-            "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/builder_report.json",
-            "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/incoming_events.jsonl",
-            "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/events.jsonl",
-            "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/activity.log"
+            "report_path": "<external-path>/workers/fresh-acpx-002/builder_report.json",
+            "incoming_events_path": "<external-path>/fresh-acpx-002/telemetry/incoming_events.jsonl",
+            "events_path": "<external-path>/fresh-acpx-002/telemetry/events.jsonl",
+            "activity_log_path": "<external-path>/fresh-acpx-002/telemetry/activity.log"
           }
         ]
       }
@@ -340,20 +340,20 @@
                   "succeeded": true,
                   "adapter": "acpx_worker",
                   "agent": "opencode",
-                  "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/builder_report.json",
-                  "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/incoming_events.jsonl",
-                  "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/events.jsonl",
-                  "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/activity.log"
+                  "report_path": "<external-path>/workers/fresh-acpx-001/builder_report.json",
+                  "incoming_events_path": "<external-path>/fresh-acpx-001/telemetry/incoming_events.jsonl",
+                  "events_path": "<external-path>/fresh-acpx-001/telemetry/events.jsonl",
+                  "activity_log_path": "<external-path>/fresh-acpx-001/telemetry/activity.log"
                 },
                 {
                   "packet_id": "fresh-acpx-002",
                   "succeeded": true,
                   "adapter": "acpx_worker",
                   "agent": "opencode",
-                  "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/builder_report.json",
-                  "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/incoming_events.jsonl",
-                  "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/events.jsonl",
-                  "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/activity.log"
+                  "report_path": "<external-path>/workers/fresh-acpx-002/builder_report.json",
+                  "incoming_events_path": "<external-path>/fresh-acpx-002/telemetry/incoming_events.jsonl",
+                  "events_path": "<external-path>/fresh-acpx-002/telemetry/events.jsonl",
+                  "activity_log_path": "<external-path>/fresh-acpx-002/telemetry/activity.log"
                 }
               ]
             }
@@ -511,20 +511,20 @@
                 "succeeded": true,
                 "adapter": "acpx_worker",
                 "agent": "opencode",
-                "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/builder_report.json",
-                "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/incoming_events.jsonl",
-                "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/events.jsonl",
-                "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-001/telemetry/activity.log"
+                "report_path": "<external-path>/workers/fresh-acpx-001/builder_report.json",
+                "incoming_events_path": "<external-path>/fresh-acpx-001/telemetry/incoming_events.jsonl",
+                "events_path": "<external-path>/fresh-acpx-001/telemetry/events.jsonl",
+                "activity_log_path": "<external-path>/fresh-acpx-001/telemetry/activity.log"
               },
               {
                 "packet_id": "fresh-acpx-002",
                 "succeeded": true,
                 "adapter": "acpx_worker",
                 "agent": "opencode",
-                "report_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/builder_report.json",
-                "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/incoming_events.jsonl",
-                "events_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/events.jsonl",
-                "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/workers/fresh-acpx-002/telemetry/activity.log"
+                "report_path": "<external-path>/workers/fresh-acpx-002/builder_report.json",
+                "incoming_events_path": "<external-path>/fresh-acpx-002/telemetry/incoming_events.jsonl",
+                "events_path": "<external-path>/fresh-acpx-002/telemetry/events.jsonl",
+                "activity_log_path": "<external-path>/fresh-acpx-002/telemetry/activity.log"
               }
             ]
           }
@@ -637,9 +637,9 @@
     "status_reason": "acceptance_evaluation_completed",
     "session_refs": {},
     "artifact_refs": {
-      "round_dir": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/rounds/round-02"
+      "round_dir": "<external-path>/fresh-acpx-20260402045510-dec460/rounds/round-02"
     },
     "updated_at": "2026-04-02T05:03:40.754282+00:00",
-    "chain_root": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402045510-dec460/operator/runtime_chain"
+    "chain_root": "<external-path>/fresh-acpx-20260402045510-dec460/operator/runtime_chain"
   }
 }

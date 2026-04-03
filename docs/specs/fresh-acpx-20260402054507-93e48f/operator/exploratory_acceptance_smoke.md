@@ -5,7 +5,7 @@
 - Mission: `fresh-acpx-20260402054507-93e48f`
 - Variant: `default`
 - Source: `fresh-acpx-mission-smoke`
-- Round dir: `/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/rounds/round-02`
+- Round dir: `<external-path>/fresh-acpx-20260402054507-93e48f/rounds/round-02`
 - Findings: `0`
 - Issue proposals: `0`
 - Bug taxonomy: `harness_bug=0`, `n2n_bug=0`, `ux_gap=0`

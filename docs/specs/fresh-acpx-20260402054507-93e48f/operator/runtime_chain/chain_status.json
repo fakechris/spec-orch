@@ -7,7 +7,7 @@
   "status_reason": "acceptance_evaluation_completed",
   "session_refs": {},
   "artifact_refs": {
-    "round_dir": "/Users/chris/.superset/worktrees/spec-orch/spec-orch-acceptance-freeze/docs/specs/fresh-acpx-20260402054507-93e48f/rounds/round-02"
+    "round_dir": "<external-path>/fresh-acpx-20260402054507-93e48f/rounds/round-02"
   },
   "updated_at": "2026-04-02T05:55:40.421525+00:00"
 }

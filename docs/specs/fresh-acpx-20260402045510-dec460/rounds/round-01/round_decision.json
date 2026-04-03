@@ -1,7 +1,7 @@
 {
   "action": "retry",
   "reason_code": "VERIFICATION_HARNESS_BUG_WITH_OTHERWISE_PASSING_ASSETS",
-  "summary": "Both packets scaffolded successfully (typecheck ✅, lint ✅, contract_tokens ✅) but failed on import_smoke due to a path construction bug in the verification script (double-nested path './src/contracts/...' from a file already in src/contracts/). The actual contract files appear valid. Retrying with corrected import_smoke paths will confirm whether deliverables pass or if additional remediation is needed.",
+  "summary": "Both packets scaffolded successfully (typecheck \u2705, lint \u2705, contract_tokens \u2705) but failed on import_smoke due to a path construction bug in the verification script (double-nested path './src/contracts/...' from a file already in src/contracts/). The actual contract files appear valid. Retrying with corrected import_smoke paths will confirm whether deliverables pass or if additional remediation is needed.",
   "confidence": "moderate",
   "affected_workers": [],
   "artifacts": {},
