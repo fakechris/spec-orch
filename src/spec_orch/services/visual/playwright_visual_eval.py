@@ -245,7 +245,7 @@ def _execute_interaction_plan(
             "target": step.target,
             "description": step.description,
         }
-        step_timeout_ms = step.timeout_ms if step.timeout_ms is not None else timeout_ms
+        step_timeout_ms = _resolve_step_timeout_ms(step.timeout_ms, fallback_timeout_ms=timeout_ms)
         try:
             if step.action == "click_text":
                 page.get_by_text(step.target, exact=True).click(timeout=step_timeout_ms)
@@ -272,6 +272,12 @@ def _execute_interaction_plan(
         entry["status"] = "passed"
         log.append(entry)
     return log
+
+
+def _resolve_step_timeout_ms(raw_timeout_ms: int | None, *, fallback_timeout_ms: int) -> int:
+    if raw_timeout_ms is None or raw_timeout_ms <= 0:
+        return fallback_timeout_ms
+    return raw_timeout_ms
 
 
 def _wait_for_network_idle(page: Any, *, timeout_ms: int) -> None:

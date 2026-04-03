@@ -14,6 +14,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+. "$SCRIPT_DIR/_shared_env.sh"
 FULL_MODE=false
 VARIANT="${SPEC_ORCH_FRESH_VARIANT:-default}"
 
@@ -43,6 +44,8 @@ while [ "$#" -gt 0 ]; do
 done
 
 cd "$REPO_ROOT"
+
+activate_shared_worktree_context
 
 MISSION_DIR=""
 MISSION_ID=""
@@ -104,6 +107,34 @@ done
 if wait "$HARNESS_PID"; then
   ok "fresh mission smoke harness completed"
 else
+  step "Materialize mission-start acceptance failure report"
+  uv run --python 3.13 python - <<'PY' "$VARIANT" "$HARNESS_LOG" "${MISSION_ID:-}"
+import json
+import sys
+from pathlib import Path
+
+from spec_orch.services.stability_acceptance import (
+    write_mission_start_acceptance_failure_report,
+)
+
+repo_root = Path(".").resolve()
+variant = sys.argv[1]
+log_path = Path(sys.argv[2]).resolve()
+mission_id = sys.argv[3]
+failure_reason = "fresh mission smoke harness failed"
+if log_path.exists():
+    tail = log_path.read_text(encoding="utf-8", errors="replace").strip().splitlines()[-20:]
+    if tail:
+        failure_reason = "\n".join(tail)
+report = write_mission_start_acceptance_failure_report(
+    repo_root=repo_root,
+    mission_id=mission_id,
+    launch_mode="fresh",
+    variant=variant,
+    failure_reason=failure_reason,
+)
+print(json.dumps(report))
+PY
   cat "$HARNESS_LOG" >&2 || true
   fail "fresh mission smoke harness failed"
 fi

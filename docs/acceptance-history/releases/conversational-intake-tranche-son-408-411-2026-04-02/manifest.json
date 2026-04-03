@@ -1,0 +1,39 @@
+{
+  "release_id": "conversational-intake-tranche-son-408-411-2026-04-02",
+  "release_label": "Conversational Intake Tranche SON-408-411 2026-04-02",
+  "created_at": "2026-04-02T12:49:47Z",
+  "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+  "git_branch": "harnessrefact",
+  "acceptance_suite_version": "formal-acceptance-v1",
+  "overall_status": "pass",
+  "reported_checks": 4,
+  "total_checks": 4,
+  "checks": {
+    "issue_start": "pass",
+    "mission_start": "pass",
+    "dashboard_ui": "pass",
+    "exploratory": "pass"
+  },
+  "source_runs": {
+    "issue_start": "SPC-1",
+    "mission_start": "fresh-acpx-20260402123712-e3a191",
+    "dashboard_ui": "dashboard-ui-local",
+    "exploratory": "fresh-acpx-20260402124227-5eab03"
+  },
+  "artifacts": {
+    "status_json": ".spec_orch/acceptance/stability_acceptance_status.json",
+    "status_markdown": "docs/plans/2026-03-30-stability-acceptance-status.md",
+    "summary_markdown": "docs/acceptance-history/releases/conversational-intake-tranche-son-408-411-2026-04-02/summary.md",
+    "findings_json": "docs/acceptance-history/releases/conversational-intake-tranche-son-408-411-2026-04-02/findings.json",
+    "source_runs_json": "docs/acceptance-history/releases/conversational-intake-tranche-son-408-411-2026-04-02/source_runs.json",
+    "artifacts_json": "docs/acceptance-history/releases/conversational-intake-tranche-son-408-411-2026-04-02/artifacts.json"
+  },
+  "lineage": {
+    "program": "conversational-intake",
+    "notes": [
+      "This bundle captures the completed conversational intake tranche covering SON-408 through SON-411.",
+      "The canonical suite is green after shared env/venv fallback, stale exploratory browser evidence invalidation, zero-timeout guardrails, and isolated dashboard port selection landed in the harness path.",
+      "Source-run compare versus acceptance-freeze-baseline-2026-04-02: issue_start stayed on SPC-1; mission_start advanced to fresh-acpx-20260402123712-e3a191; exploratory advanced to fresh-acpx-20260402124227-5eab03."
+    ]
+  }
+}

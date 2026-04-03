@@ -476,7 +476,7 @@ def test_capture_page_snapshots_uses_step_specific_timeout(
     ) in log
 
 
-def test_capture_page_snapshots_preserves_zero_step_timeout(
+def test_capture_page_snapshots_falls_back_to_request_timeout_when_step_timeout_is_zero(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -588,7 +588,7 @@ def test_capture_page_snapshots_preserves_zero_step_timeout(
     assert (
         "click",
         '[data-automation-target="launcher-action"][data-launcher-action="approve-plan"]',
-        0,
+        5000,
     ) in log
 
 

@@ -186,6 +186,23 @@ def test_dashboard_mission_tabs_expose_stable_automation_targets() -> None:
     assert "data-active=\"${activeTab === key ? 'true' : 'false'}\"" in source
 
 
+def test_dashboard_cutover_maps_legacy_acceptance_tab_to_judgment() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert "selectedMissionTab = parsed.tab === 'visual' ? 'visual-qa' : parsed.tab;" not in source
+    assert "parsed.tab === 'acceptance' ? 'judgment'" in source
+
+
+def test_dashboard_cutover_thins_acceptance_tab_and_keeps_raw_acceptance_bridge() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert "['acceptance', 'Acceptance']" not in source
+    assert "Open raw acceptance artifact" in source
+    assert "acceptance_review_route" in source
+
+
 def test_dashboard_operator_modes_and_launcher_actions_expose_workflow_targets() -> None:
     app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
     source = app_path.read_text(encoding="utf-8")
@@ -194,6 +211,7 @@ def test_dashboard_operator_modes_and_launcher_actions_expose_workflow_targets()
     assert 'data-automation-target="operator-mode"' in source
     assert 'data-mode-key="inbox"' in source
     assert 'data-mode-key="missions"' in source
+    assert 'data-mode-key="learning"' in source
     assert 'data-mode-key="approvals"' in source
     assert 'data-mode-key="evidence"' in source
     assert "button.dataset.active = selectedOperatorMode === mode ? 'true' : 'false';" in source

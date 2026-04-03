@@ -7,7 +7,20 @@ from typing import Any
 
 from spec_orch.runtime_chain.store import read_chain_events, read_chain_status
 from spec_orch.runtime_core.readers import read_round_supervision_cycle
+from spec_orch.services.execution_workbench import (
+    build_execution_workbench,
+    build_mission_execution_workbench,
+)
+from spec_orch.services.judgment_workbench import (
+    build_judgment_workbench,
+    build_mission_judgment_workbench,
+)
+from spec_orch.services.learning_workbench import (
+    build_learning_workbench,
+    build_mission_learning_workbench,
+)
 from spec_orch.services.mission_service import MissionService
+from spec_orch.services.operator_semantics import workspace_from_mission_runtime
 from spec_orch.services.pipeline_checker import check_pipeline
 from spec_orch.services.promotion_service import load_plan
 
@@ -128,6 +141,54 @@ def _mission_sort_phase_rank(mission: dict[str, Any]) -> int:
 def _mission_sort_timestamp(mission: dict[str, Any]) -> str:
     value = mission.get("sort_timestamp", "")
     return value if isinstance(value, str) else ""
+
+
+def _mission_available_actions(
+    mission_status: str,
+    lifecycle: dict[str, Any] | None,
+) -> list[str]:
+    actions = ["inject_guidance"]
+    if mission_status in {"approved", "drafting"}:
+        actions.append("approve")
+    if mission_status in {"failed"}:
+        actions.extend(["retry", "rerun"])
+    if mission_status in {"executing", "planned", "promoting"}:
+        actions.extend(["resume", "stop", "rerun"])
+
+    if lifecycle and lifecycle.get("round_orchestrator_state", {}).get("paused"):
+        actions.append("resume")
+    return sorted(set(actions))
+
+
+def _gather_mission_execution_workbench(repo_root: Path, mission_id: str) -> dict[str, Any] | None:
+    svc = MissionService(repo_root=repo_root)
+    try:
+        mission = svc.get_mission(mission_id)
+    except FileNotFoundError:
+        return None
+    lifecycle = _gather_lifecycle_states(repo_root).get(mission_id)
+    actions = _mission_available_actions(mission.status.value, lifecycle)
+    return build_mission_execution_workbench(repo_root, mission_id, actions)
+
+
+def _gather_execution_workbench(repo_root: Path) -> dict[str, Any]:
+    return build_execution_workbench(repo_root)
+
+
+def _gather_judgment_workbench(repo_root: Path) -> dict[str, Any]:
+    return build_judgment_workbench(repo_root)
+
+
+def _gather_mission_judgment_workbench(repo_root: Path, mission_id: str) -> dict[str, Any]:
+    return build_mission_judgment_workbench(repo_root, mission_id)
+
+
+def _gather_learning_workbench(repo_root: Path) -> dict[str, Any]:
+    return build_learning_workbench(repo_root)
+
+
+def _gather_mission_learning_workbench(repo_root: Path, mission_id: str) -> dict[str, Any]:
+    return build_mission_learning_workbench(repo_root, mission_id)
 
 
 def _gather_mission_runtime_chain(
@@ -367,8 +428,29 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
 
     visual_qa = _gather_mission_visual_qa(repo_root, mission_id)
     acceptance_review = _gather_mission_acceptance_review(repo_root, mission_id)
+    judgment_workbench = build_mission_judgment_workbench(repo_root, mission_id)
+    learning_workbench = build_mission_learning_workbench(repo_root, mission_id)
     costs = _gather_mission_costs(repo_root, mission_id)
     runtime_chain = _gather_mission_runtime_chain(repo_root, mission_id)
+    chain_root = repo_root / "docs" / "specs" / mission_id / "operator" / "runtime_chain"
+    try:
+        runtime_status = read_chain_status(chain_root)
+    except Exception:
+        runtime_status = None
+    latest_shared_judgment = None
+    latest_review = acceptance_review.get("latest_review")
+    if isinstance(latest_review, dict):
+        shared_judgments = latest_review.get("shared_judgments")
+        if isinstance(shared_judgments, list) and shared_judgments:
+            first = shared_judgments[0]
+            if isinstance(first, dict):
+                latest_shared_judgment = first
+    workspace = workspace_from_mission_runtime(
+        mission_id=mission_id,
+        mission_title=mission.title,
+        runtime_status=runtime_status,
+        latest_judgment=latest_shared_judgment,
+    )
 
     rounds_dir = repo_root / "docs/specs" / mission_id / "rounds"
     round_summaries: list[dict[str, Any]] = []
@@ -454,17 +536,8 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
                     }
                 )
 
-    actions = ["inject_guidance"]
-    status_value = mission.status.value
-    if status_value in {"approved", "drafting"}:
-        actions.append("approve")
-    if status_value in {"failed"}:
-        actions.extend(["retry", "rerun"])
-    if status_value in {"executing", "planned", "promoting"}:
-        actions.extend(["resume", "stop", "rerun"])
-
-    if lifecycle and lifecycle.get("round_orchestrator_state", {}).get("paused"):
-        actions.append("resume")
+    actions = _mission_available_actions(mission.status.value, lifecycle)
+    execution_workbench = build_mission_execution_workbench(repo_root, mission_id, actions)
 
     return {
         "mission": {
@@ -488,8 +561,12 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
         "approval_state": approval_state,
         "visual_qa": visual_qa,
         "acceptance_review": acceptance_review,
+        "judgment_workbench": judgment_workbench,
+        "learning_workbench": learning_workbench,
         "costs": costs,
         "runtime_chain": runtime_chain,
+        "workspace": workspace.to_dict(),
+        "execution_workbench": execution_workbench,
         "artifacts": {
             "spec": str((repo_root / mission.spec_path).relative_to(repo_root)),
             "plan": str(plan_path.relative_to(repo_root)) if plan_path.exists() else None,
@@ -508,8 +585,13 @@ def _gather_lifecycle_states(repo_root: Path) -> dict[str, Any]:
 __all__ = [
     "_derive_approval_state",
     "_gather_inbox",
+    "_gather_judgment_workbench",
+    "_gather_learning_workbench",
     "_gather_lifecycle_states",
     "_gather_mission_detail",
+    "_gather_mission_execution_workbench",
+    "_gather_mission_judgment_workbench",
+    "_gather_mission_learning_workbench",
     "_gather_mission_runtime_chain",
     "_gather_missions",
 ]

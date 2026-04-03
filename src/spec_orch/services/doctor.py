@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Literal
 
 from spec_orch.services.config_checker import CheckResult, ConfigChecker
+from spec_orch.services.env_files import find_dotenv_path, load_dotenv
 from spec_orch.services.io import atomic_write_json
 
 
@@ -91,6 +92,7 @@ class Doctor:
         return keys
 
     def _check_env_file(self) -> DoctorCheck:
+        load_dotenv(self._config_path.resolve().parent)
         required_keys = self._required_env_keys()
         if not required_keys:
             return DoctorCheck(
@@ -99,9 +101,9 @@ class Doctor:
                 message="No env keys required by active config",
             )
 
-        env_path = Path(".env")
+        env_path = find_dotenv_path(self._config_path.resolve().parent)
         defined_keys: set[str] = set()
-        if env_path.exists():
+        if env_path is not None and env_path.exists():
             for line in env_path.read_text(encoding="utf-8").splitlines():
                 stripped = line.strip()
                 if not stripped or stripped.startswith("#") or "=" not in stripped:
@@ -121,7 +123,11 @@ class Doctor:
         return DoctorCheck(
             name="env:dotenv",
             status="pass",
-            message="Required env keys present",
+            message=(
+                f"Required env keys present via {env_path}"
+                if env_path
+                else "Required env keys present"
+            ),
         )
 
     def _check_environment(self) -> list[DoctorCheck]:

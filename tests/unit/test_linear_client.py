@@ -126,6 +126,29 @@ def test_add_comment(mock_httpx: MagicMock):
     assert result["success"] is True
 
 
+def test_update_issue_description(mock_httpx: MagicMock):
+    client = _make_client(mock_httpx)
+    mock_httpx.post.return_value = MagicMock(
+        json=lambda: {
+            "data": {
+                "issueUpdate": {
+                    "success": True,
+                    "issue": {"id": "uuid-123", "description": "updated"},
+                }
+            }
+        },
+        raise_for_status=MagicMock(),
+    )
+
+    result = client.update_issue_description("uuid-123", description="updated")
+
+    assert result["success"] is True
+    graphql = mock_httpx.post.call_args.kwargs["json"]["query"]
+    variables = mock_httpx.post.call_args.kwargs["json"]["variables"]
+    assert "issueUpdate" in graphql
+    assert variables["description"] == "updated"
+
+
 def test_query_graphql_errors(mock_httpx: MagicMock):
     client = _make_client(mock_httpx)
     mock_httpx.post.return_value = MagicMock(

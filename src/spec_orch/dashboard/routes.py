@@ -117,9 +117,32 @@ def register_routes(app: FastAPI, root: Path) -> None:
     async def api_inbox() -> JSONResponse:
         return JSONResponse(dashboard_app._gather_inbox(root))
 
+    @app.get("/api/execution-workbench")
+    async def api_execution_workbench() -> JSONResponse:
+        return JSONResponse(dashboard_app._gather_execution_workbench(root))
+
+    @app.get("/api/judgment-workbench")
+    async def api_judgment_workbench() -> JSONResponse:
+        return JSONResponse(dashboard_app._gather_judgment_workbench(root))
+
+    @app.get("/api/learning-workbench")
+    async def api_learning_workbench() -> JSONResponse:
+        return JSONResponse(dashboard_app._gather_learning_workbench(root))
+
     @app.get("/api/launcher/readiness")
     async def api_launcher_readiness() -> JSONResponse:
         return JSONResponse(dashboard_app._gather_launcher_readiness(root))
+
+    @app.post("/api/launcher/intake-preview")
+    async def api_launcher_intake_preview(
+        payload: dict[str, Any] = LAUNCHER_PAYLOAD_BODY,
+    ) -> JSONResponse:
+        try:
+            return JSONResponse(dashboard_app._preview_dashboard_intake_workspace(root, payload))
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except Exception:
+            return JSONResponse({"error": "Launcher intake preview failed"}, status_code=500)
 
     @app.post("/api/launcher/missions")
     async def api_launcher_create_mission(
@@ -131,6 +154,13 @@ def register_routes(app: FastAPI, root: Path) -> None:
             return JSONResponse({"error": str(exc)}, status_code=400)
         except Exception:
             return JSONResponse({"error": "Mission draft creation failed"}, status_code=500)
+
+    @app.get("/api/launcher/missions/{mission_id}/intake-workspace")
+    async def api_launcher_intake_workspace(mission_id: str) -> JSONResponse:
+        payload = dashboard_app._load_dashboard_intake_workspace(root, mission_id)
+        if payload is None:
+            return JSONResponse({"error": "Mission intake workspace not found"}, status_code=404)
+        return JSONResponse(payload)
 
     @app.post("/api/launcher/missions/{mission_id}/approve-plan")
     async def api_launcher_approve_plan(mission_id: str) -> JSONResponse:
@@ -216,6 +246,27 @@ def register_routes(app: FastAPI, root: Path) -> None:
             "mission_id": mission_id,
             "status": "missing",
         }
+        return JSONResponse(payload)
+
+    @app.get("/api/missions/{mission_id}/execution-workbench")
+    async def api_mission_execution_workbench(mission_id: str) -> JSONResponse:
+        payload = dashboard_app._gather_mission_execution_workbench(root, mission_id)
+        if payload is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse(payload)
+
+    @app.get("/api/missions/{mission_id}/judgment-workbench")
+    async def api_mission_judgment_workbench(mission_id: str) -> JSONResponse:
+        payload = dashboard_app._gather_mission_judgment_workbench(root, mission_id)
+        if payload is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse(payload)
+
+    @app.get("/api/missions/{mission_id}/learning-workbench")
+    async def api_mission_learning_workbench(mission_id: str) -> JSONResponse:
+        payload = dashboard_app._gather_mission_learning_workbench(root, mission_id)
+        if payload is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
         return JSONResponse(payload)
 
     @app.get("/api/missions/{mission_id}/visual-qa")

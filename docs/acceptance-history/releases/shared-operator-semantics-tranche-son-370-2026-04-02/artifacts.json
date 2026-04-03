@@ -1,0 +1,11 @@
+{
+  "status_markdown": "docs/plans/2026-03-30-stability-acceptance-status.md",
+  "status_json": ".spec_orch/acceptance/stability_acceptance_status.json",
+  "issue_start_report": ".spec_orch/acceptance/issue_start_smoke.json",
+  "dashboard_ui_report": ".spec_orch/acceptance/dashboard_ui_acceptance.json",
+  "mission_start_report": "docs/specs/fresh-acpx-20260402140504-f37ee4/operator/mission_start_acceptance.json",
+  "mission_start_round_dir": "docs/specs/fresh-acpx-20260402140504-f37ee4/rounds/round-01",
+  "exploratory_report": "docs/specs/fresh-acpx-20260402141022-58f4f6/operator/exploratory_acceptance_smoke.json",
+  "exploratory_browser_evidence": "docs/specs/fresh-acpx-20260402141022-58f4f6/rounds/round-01/exploratory_browser_evidence.json",
+  "exploratory_round_dir": "docs/specs/fresh-acpx-20260402141022-58f4f6/rounds/round-01"
+}

@@ -189,14 +189,182 @@ class TestDashboardAPI:
         assert data["mission_id"] == mission_id
         assert data["latest_review"] is None
         assert data["summary"]["total_reviews"] == 0
-        assert data["review_route"] == f"/?mission={mission_id}&mode=missions&tab=acceptance"
+        assert data["review_route"] == f"/?mission={mission_id}&mode=missions&tab=judgment"
+
+    def test_judgment_workbench_endpoints_and_mission_detail_surface(
+        self,
+        client,
+        repo: Path,
+    ) -> None:
+        mission_id = "mission-judgment-api"
+        specs = repo / "docs" / "specs" / mission_id
+        round_dir = specs / "rounds" / "round-03"
+        round_dir.mkdir(parents=True)
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Mission Judgment API",
+                    "status": "approved",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-04-03T00:00:00+00:00",
+                    "approved_at": "2026-04-03T00:10:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Mission Judgment API\n", encoding="utf-8")
+        (round_dir / "acceptance_review.json").write_text(
+            json.dumps(
+                {
+                    "status": "warn",
+                    "summary": "Transcript continuity needs a replay before promotion.",
+                    "confidence": 0.74,
+                    "evaluator": "acceptance_llm",
+                    "acceptance_mode": "exploratory",
+                    "coverage_status": "partial",
+                    "untested_expected_routes": ["/settings"],
+                    "recommended_next_step": "Replay the transcript route with compare enabled.",
+                    "issue_proposals": [
+                        {
+                            "title": "Clarify transcript continuity",
+                            "summary": "Operators can miss whether the latest round is complete.",
+                            "severity": "medium",
+                            "route": f"/?mission={mission_id}&mode=missions&tab=transcript",
+                            "hold_reason": "Replay evidence is still missing.",
+                            "confidence": 0.66,
+                            "why_it_matters": "Operators need a stable transcript handoff.",
+                        }
+                    ],
+                    "artifacts": {
+                        "acceptance_review": f"docs/specs/{mission_id}/rounds/round-03/acceptance_review.json",
+                        "graph_run": f"docs/specs/{mission_id}/rounds/round-03/acceptance_graph_runs/agr-1/graph_run.json",
+                        "graph_profile": "tuned_dashboard_compare_graph",
+                        "compare_overlay": True,
+                        "baseline_ref": "fixture:dashboard-transcript-baseline",
+                        "step_artifacts": [
+                            f"docs/specs/{mission_id}/rounds/round-03/acceptance_graph_runs/agr-1/steps/01-route_inventory.json",
+                            f"docs/specs/{mission_id}/rounds/round-03/acceptance_graph_runs/agr-1/steps/02-compare_replay.json",
+                        ],
+                        "graph_transitions": [
+                            "select_routing",
+                            "collect_evidence",
+                            "candidate_review",
+                            "summarize_judgment",
+                        ],
+                        "final_transition": "summarize_judgment",
+                    },
+                    "campaign": {
+                        "mode": "exploratory",
+                        "goal": "Inspect transcript continuity.",
+                        "primary_routes": [f"/?mission={mission_id}&mode=missions&tab=overview"],
+                        "related_routes": [
+                            f"/?mission={mission_id}&mode=missions&tab=transcript",
+                            f"/?mission={mission_id}&mode=missions&tab=acceptance",
+                        ],
+                        "coverage_expectations": ["overview", "transcript", "acceptance"],
+                        "filing_policy": "auto_file_broken_flows_only",
+                        "exploration_budget": "bounded",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        global_response = client.get("/api/judgment-workbench")
+
+        assert global_response.status_code == 200
+        global_payload = global_response.json()
+        assert global_payload["summary"] == {
+            "workspace_count": 1,
+            "reviewed_count": 1,
+            "candidate_finding_count": 1,
+            "confirmed_issue_count": 0,
+            "compare_active_count": 1,
+        }
+        assert global_payload["review_route"] == "/?mode=judgment"
+        assert global_payload["workspaces"][0]["workspace_id"] == mission_id
+
+        mission_response = client.get(f"/api/missions/{mission_id}/judgment-workbench")
+
+        assert mission_response.status_code == 200
+        mission_payload = mission_response.json()
+        assert mission_payload["mission_id"] == mission_id
+        assert mission_payload["overview"]["judgment_class"] == "candidate_finding"
+        assert mission_payload["candidate_queue"][0]["claim"] == "Clarify transcript continuity"
+        assert mission_payload["compare_view"]["compare_state"] == "active"
+        assert mission_payload["review_route"] == (
+            f"/?mission={mission_id}&mode=missions&tab=judgment"
+        )
+
+        detail_response = client.get(f"/api/missions/{mission_id}/detail")
+
+        assert detail_response.status_code == 200
+        detail_payload = detail_response.json()
+        assert detail_payload["judgment_workbench"]["overview"]["judgment_class"] == (
+            "candidate_finding"
+        )
+        assert detail_payload["judgment_workbench"]["candidate_queue"][0]["repro_status"] == (
+            "needs_repro"
+        )
+
+    def test_learning_workbench_endpoints_and_mission_detail_surface(
+        self,
+        client,
+        repo: Path,
+    ) -> None:
+        from tests.unit.test_learning_workbench import _seed_learning_workspace
+
+        mission_id = "mission-learning-api"
+        _seed_learning_workspace(repo, mission_id)
+
+        global_response = client.get("/api/learning-workbench")
+
+        assert global_response.status_code == 200
+        global_payload = global_response.json()
+        assert global_payload["summary"] == {
+            "workspace_count": 1,
+            "promoted_finding_count": 1,
+            "fixture_candidate_count": 1,
+            "active_promotion_count": 1,
+            "archive_release_count": 1,
+        }
+        assert global_payload["review_route"] == "/?mode=learning"
+        assert global_payload["workspaces"][0]["workspace_id"] == mission_id
+
+        mission_response = client.get(f"/api/missions/{mission_id}/learning-workbench")
+
+        assert mission_response.status_code == 200
+        mission_payload = mission_response.json()
+        assert mission_payload["mission_id"] == mission_id
+        assert mission_payload["overview"]["promoted_finding_count"] == 1
+        assert mission_payload["promotion_timeline"][0]["proposal_id"] == "proposal-1"
+        assert mission_payload["fixture_registry"]["summary"]["candidate_count"] == 1
+        assert mission_payload["review_route"] == (
+            f"/?mission={mission_id}&mode=missions&tab=learning"
+        )
+
+        detail_response = client.get(f"/api/missions/{mission_id}/detail")
+
+        assert detail_response.status_code == 200
+        detail_payload = detail_response.json()
+        assert detail_payload["learning_workbench"]["overview"]["active_promotion_count"] == 1
+        assert detail_payload["learning_workbench"]["patterns"][0]["dedupe_key"] == (
+            "dashboard:transcript-continuity"
+        )
 
     def test_mission_detail_includes_runtime_chain_summary(self, client, repo: Path) -> None:
         mission_id = "mission-runtime-chain-detail"
         specs = repo / "docs" / "specs" / mission_id
         runtime_chain_dir = specs / "operator" / "runtime_chain"
+        round_dir = specs / "rounds" / "round-01"
         specs.mkdir(parents=True)
         runtime_chain_dir.mkdir(parents=True)
+        round_dir.mkdir(parents=True)
         (specs / "mission.json").write_text(
             json.dumps(
                 {
@@ -215,6 +383,35 @@ class TestDashboardAPI:
             encoding="utf-8",
         )
         (specs / "spec.md").write_text("# Mission Runtime Chain Detail\n", encoding="utf-8")
+        (round_dir / "acceptance_review.json").write_text(
+            json.dumps(
+                {
+                    "status": "warn",
+                    "summary": "Acceptance is waiting on transcript evidence.",
+                    "confidence": 0.7,
+                    "evaluator": "acceptance_llm",
+                    "tested_routes": ["/"],
+                    "findings": [],
+                    "issue_proposals": [
+                        {
+                            "title": "Transcript continuity unclear",
+                            "summary": "Transcript continuity unclear",
+                            "why_it_matters": "Operators cannot verify continuity.",
+                            "confidence": 0.7,
+                            "route": "/?mission=mission-runtime-chain-detail&tab=transcript",
+                            "critique_axis": "transcript",
+                            "operator_task": "Review transcript continuity",
+                            "hold_reason": "Need replay evidence.",
+                            "filing_status": "queued"
+                        }
+                    ],
+                    "artifacts": {
+                        "graph_profile": "dashboard_compare_v1"
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
         write_chain_status(
             runtime_chain_dir,
             RuntimeChainStatus(
@@ -236,6 +433,12 @@ class TestDashboardAPI:
         assert payload["runtime_chain"]["current_status"]["phase"] == "heartbeat"
         assert payload["runtime_chain"]["current_status"]["status_reason"] == (
             "acceptance_waiting_on_model"
+        )
+        assert payload["workspace"]["workspace_id"] == mission_id
+        assert payload["workspace"]["active_execution"]["phase"] == "heartbeat"
+        assert payload["workspace"]["active_judgment"]["judgment_class"] == "candidate_finding"
+        assert payload["workspace"]["active_judgment"]["recommended_next_step"] == (
+            "Need replay evidence."
         )
 
     def test_mission_runtime_chain_endpoint_returns_status_and_recent_events(
@@ -531,8 +734,50 @@ class TestDashboardAPI:
         assert data["latest_review"]["untested_expected_routes"] == ["/pricing"]
         assert data["latest_review"]["issue_proposals"][0]["linear_issue_id"] == "SON-777"
         assert data["latest_review"]["judgments"][0]["judgment_class"] == "confirmed_issue"
+        assert data["latest_review"]["shared_judgments"][0]["judgment_class"] == "confirmed_issue"
+        assert data["latest_review"]["shared_judgments"][0]["workspace_id"] == mission_id
+        assert data["latest_review"]["evidence_bundle"]["bundle_kind"] == "acceptance_review"
+        assert data["latest_review"]["evidence_bundle"]["artifact_refs"][0]["artifact_key"] == (
+            "acceptance_review"
+        )
+        assert data["latest_review"]["compare_overlay"]["compare_state"] == "inactive"
+        assert data["latest_review"]["judgment_timeline"][-1]["event_type"] == (
+            "review_state_changed"
+        )
         assert data["latest_review"]["surface_pack"]["pack_key"] == "dashboard_surface_pack_v1"
         assert data["latest_review"]["surface_pack"]["safe_action_budget"] == "bounded"
+        assert data["overview"] == {
+            "base_run_mode": "verify",
+            "judgment_class": "confirmed_issue",
+            "review_state": "reviewed",
+            "compare_state": "inactive",
+            "candidate_finding_count": 0,
+            "confirmed_issue_count": 1,
+            "observation_count": 0,
+            "recommended_next_step": "Expand coverage before filing copy-only issues.",
+            "evidence_summary": "Home page CTA is missing.",
+        }
+        assert data["latest_review"]["evidence_panel"] == {
+            "bundle_kind": "acceptance_review",
+            "route_count": 2,
+            "step_count": 2,
+            "artifact_count": 4,
+            "coverage_status": "partial",
+            "coverage_gaps": ["/pricing"],
+            "evidence_summary": "Home page CTA is missing.",
+        }
+        assert data["latest_review"]["candidate_queue"] == []
+        assert data["latest_review"]["compare_view"] == {
+            "compare_state": "inactive",
+            "baseline_ref": "",
+            "drift_summary": "No comparison baseline was active for this review.",
+            "artifact_drift_count": 0,
+            "judgment_drift_summary": "No judgment drift recorded.",
+        }
+        assert data["latest_review"]["surface_pack_panel"]["surface_name"] == "dashboard"
+        assert data["latest_review"]["surface_pack_panel"]["graph_profiles"] == [
+            "tuned_dashboard_compare_graph"
+        ]
         assert (
             data["latest_review"]["graph_artifacts"]["graph_profile"]
             == "tuned_dashboard_compare_graph"
@@ -541,7 +786,7 @@ class TestDashboardAPI:
         assert data["latest_review"]["graph_artifacts"]["step_count"] == 2
         assert data["latest_review"]["graph_artifacts"]["final_transition"] == "summarize_judgment"
         assert data["latest_review"]["review_route"] == (
-            f"/?mission={mission_id}&mode=missions&tab=acceptance&round=2"
+            f"/?mission={mission_id}&mode=missions&tab=judgment&round=2"
         )
 
     def test_acceptance_review_endpoint_sorts_rounds_numerically(self, client, repo: Path):
@@ -621,7 +866,7 @@ class TestDashboardAPI:
         data = response.json()
         assert data["acceptance_review"]["summary"]["total_reviews"] == 1
         assert data["acceptance_review"]["review_route"] == (
-            f"/?mission={mission_id}&mode=missions&tab=acceptance"
+            f"/?mission={mission_id}&mode=missions&tab=judgment"
         )
 
     def test_acceptance_review_handles_string_confidence_without_500(self, client, repo: Path):
@@ -3988,6 +4233,505 @@ class TestDashboardAPI:
         assert "flywheel" in data
         assert "run_summary" in data
         assert "skills_count" in data
+        assert "execution_substrate" in data
+
+    def test_control_overview_includes_execution_substrate_inventory(self, client, repo: Path):
+        mission_chain_root = (
+            repo / "docs" / "specs" / "mission-control" / "operator" / "runtime_chain"
+        )
+        mission_chain_root.mkdir(parents=True)
+        write_chain_status(
+            mission_chain_root,
+            RuntimeChainStatus(
+                chain_id="chain-mission-control",
+                active_span_id="chain-mission-control:acceptance",
+                subject_kind=RuntimeSubjectKind.ACCEPTANCE,
+                subject_id="mission-control",
+                phase=ChainPhase.HEARTBEAT,
+                status_reason="acceptance_waiting_on_model",
+                updated_at="2026-04-02T16:20:00+00:00",
+            ),
+        )
+
+        response = client.get("/api/control/overview")
+
+        assert response.status_code == 200
+        payload = response.json()
+        substrate = payload["execution_substrate"]
+        assert substrate["summary"]["active_work_count"] >= 1
+        assert any(item["workspace_id"] == "mission-control" for item in substrate["active_work"])
+        assert any(item["agent_id"] == "acceptance_evaluator" for item in substrate["agents"])
+
+    def test_execution_workbench_endpoint_returns_global_operator_surfaces(
+        self,
+        client,
+        repo: Path,
+    ) -> None:
+        from spec_orch.runtime_core.observability.models import (
+            RuntimeBudgetVisibility,
+            RuntimeLiveSummary,
+            RuntimeStallSignal,
+        )
+        from spec_orch.runtime_core.observability.store import write_live_summary
+
+        mission_id = "mission-execution-global-api"
+        operator_dir = repo / "docs" / "specs" / mission_id / "operator"
+        mission_chain_root = operator_dir / "runtime_chain"
+        mission_chain_root.mkdir(parents=True)
+        write_chain_status(
+            mission_chain_root,
+            RuntimeChainStatus(
+                chain_id="chain-mission-execution-global-api",
+                active_span_id="chain-mission-execution-global-api:acceptance",
+                subject_kind=RuntimeSubjectKind.ACCEPTANCE,
+                subject_id=mission_id,
+                phase=ChainPhase.HEARTBEAT,
+                status_reason="acceptance_waiting_on_model",
+                updated_at="2026-04-03T01:20:00+00:00",
+            ),
+        )
+        append_chain_event(
+            mission_chain_root,
+            RuntimeChainEvent(
+                chain_id="chain-mission-execution-global-api",
+                span_id="chain-mission-execution-global-api:acceptance:start",
+                parent_span_id=None,
+                subject_kind=RuntimeSubjectKind.ACCEPTANCE,
+                subject_id=mission_id,
+                phase=ChainPhase.STARTED,
+                status_reason="acceptance_started",
+                updated_at="2026-04-03T01:19:00+00:00",
+            ),
+        )
+        issue_chain_root = repo / ".worktrees" / "SPC-385" / "telemetry" / "runtime_chain"
+        issue_chain_root.mkdir(parents=True)
+        write_chain_status(
+            issue_chain_root,
+            RuntimeChainStatus(
+                chain_id="chain-spc-385",
+                active_span_id="chain-spc-385:issue:verify",
+                subject_kind=RuntimeSubjectKind.ISSUE,
+                subject_id="SPC-385",
+                phase=ChainPhase.DEGRADED,
+                status_reason="verification_blocked",
+                updated_at="2026-04-03T01:21:00+00:00",
+            ),
+        )
+        with (operator_dir / "interventions.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "intervention_id": "intervention-execution-global-api",
+                        "point_key": "scope_gate",
+                        "summary": "Review the scope gate mismatch.",
+                        "questions": ["Should the round continue?"],
+                        "status": "open",
+                        "created_at": "2026-04-03T01:19:30+00:00",
+                        "decision_record_id": "decision-execution-global-api",
+                        "mission_id": mission_id,
+                        "round_id": 1,
+                        "review_route": f"/?mission={mission_id}&mode=missions&tab=approvals&round=1",
+                    }
+                )
+                + "\n"
+            )
+        write_live_summary(
+            operator_dir / "observability" / "round-01-acceptance-graph",
+            RuntimeLiveSummary(
+                subject_key=f"{mission_id}:round-1:acceptance-graph",
+                phase="running",
+                status_reason="waiting_for_operator_review",
+                current_step_key="candidate_review",
+                budget=RuntimeBudgetVisibility(
+                    budget_key="verify_contract_graph",
+                    planned_steps=4,
+                    completed_steps=2,
+                    remaining_steps=2,
+                    loop_budget=1,
+                    remaining_loop_budget=0,
+                    continuation_count=1,
+                    recent_token_growth=700,
+                    justified=False,
+                ),
+                stall_signal=RuntimeStallSignal(
+                    stalled=True,
+                    idle_seconds=16,
+                    reason="operator_wait",
+                    diminishing_returns=False,
+                    repeated_steps=1,
+                ),
+                updated_at="2026-04-03T01:20:30+00:00",
+            ),
+        )
+        round_dir = repo / "docs" / "specs" / mission_id / "rounds" / "round-01"
+        round_dir.mkdir(parents=True)
+        (round_dir / "browser_evidence.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "round_id": 1,
+                    "tested_routes": ["/"],
+                    "interactions": {"/": []},
+                    "screenshots": {"/": str(round_dir / "visual" / "root.png")},
+                    "console_errors": [],
+                    "page_errors": [],
+                    "artifact_paths": {
+                        "round_dir": str(round_dir),
+                        "visual_dir": str(round_dir / "visual"),
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        worker_dir = repo / "docs" / "specs" / mission_id / "workers" / "packet-api"
+        telemetry_dir = worker_dir / "telemetry"
+        telemetry_dir.mkdir(parents=True)
+        (worker_dir / "builder_report.json").write_text(
+            json.dumps(
+                {
+                    "adapter": "acpx_worker",
+                    "agent": "opencode",
+                    "model": "minimax/MiniMax-M2.5",
+                    "succeeded": True,
+                    "exit_code": 0,
+                    "event_count": 2,
+                    "session_name": "worker-session-api",
+                    "terminal_reason": "process_exit_success",
+                    "commands_completed": 1,
+                    "files_changed": [],
+                    "retry_count": 0,
+                    "session_reused": False,
+                    "session_recycled": False,
+                    "session_health": "healthy",
+                    "chain_id": "chain-mission-execution-global-api",
+                    "span_id": "chain-mission-execution-global-api:packet-api:worker",
+                    "parent_span_id": "chain-mission-execution-global-api:packet-api",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (telemetry_dir / "activity.log").write_text(
+            "[01:20:00] MISSION_ Started packet packet-api\n",
+            encoding="utf-8",
+        )
+        (telemetry_dir / "events.jsonl").write_text(
+            json.dumps(
+                {
+                    "timestamp": "2026-04-03T01:20:00+00:00",
+                    "component": "builder",
+                    "event_type": "session/prompt",
+                    "message": "event:session/prompt",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        response = client.get("/api/execution-workbench")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["summary"] == {
+            "running_count": 1,
+            "queued_count": 1,
+            "stalled_count": 1,
+            "degraded_runtime_count": 1,
+            "intervention_needed_count": 2,
+        }
+        assert len(payload["active_work"]) == 2
+        assert {item["agent_id"] for item in payload["agents"]} == {
+            "acceptance_evaluator",
+            "run_controller",
+        }
+        assert payload["runtimes"][0]["runtime_id"] == "runtime:local"
+        assert payload["queue"][0]["queue_state"] == "defer"
+        assert payload["interventions"][0]["action"] == "scope_gate"
+        assert payload["browser_surfaces"][0]["workspace_id"] == mission_id
+        assert payload["terminal_surfaces"][0]["session_count"] == 1
+        assert payload["review_route"] == "/?mode=execution"
+
+    def test_mission_execution_workbench_endpoint_and_detail_surface(
+        self,
+        client,
+        repo: Path,
+    ) -> None:
+        mission_id = "mission-execution-api"
+        specs = repo / "docs" / "specs" / mission_id
+        operator_dir = specs / "operator"
+        chain_root = operator_dir / "runtime_chain"
+        chain_root.mkdir(parents=True)
+        (specs / "mission.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "title": "Mission Execution API",
+                    "status": "executing",
+                    "spec_path": f"docs/specs/{mission_id}/spec.md",
+                    "acceptance_criteria": [],
+                    "constraints": [],
+                    "interface_contracts": [],
+                    "created_at": "2026-04-03T00:00:00+00:00",
+                    "approved_at": "2026-04-03T00:01:00+00:00",
+                    "completed_at": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (specs / "spec.md").write_text("# Mission Execution API\n", encoding="utf-8")
+        write_chain_status(
+            chain_root,
+            RuntimeChainStatus(
+                chain_id="chain-mission-execution-api",
+                active_span_id="chain-mission-execution-api:acceptance",
+                subject_kind=RuntimeSubjectKind.ACCEPTANCE,
+                subject_id=mission_id,
+                phase=ChainPhase.HEARTBEAT,
+                status_reason="acceptance_waiting_on_model",
+                updated_at="2026-04-03T00:20:00+00:00",
+            ),
+        )
+        append_chain_event(
+            chain_root,
+            RuntimeChainEvent(
+                chain_id="chain-mission-execution-api",
+                span_id="chain-mission-execution-api:acceptance:start",
+                parent_span_id=None,
+                subject_kind=RuntimeSubjectKind.ACCEPTANCE,
+                subject_id=mission_id,
+                phase=ChainPhase.STARTED,
+                status_reason="acceptance_started",
+                updated_at="2026-04-03T00:19:00+00:00",
+            ),
+        )
+        append_chain_event(
+            chain_root,
+            RuntimeChainEvent(
+                chain_id="chain-mission-execution-api",
+                span_id="chain-mission-execution-api:acceptance:heartbeat",
+                parent_span_id="chain-mission-execution-api:acceptance:start",
+                subject_kind=RuntimeSubjectKind.ACCEPTANCE,
+                subject_id=mission_id,
+                phase=ChainPhase.HEARTBEAT,
+                status_reason="acceptance_waiting_on_model",
+                updated_at="2026-04-03T00:20:00+00:00",
+            ),
+        )
+        with (operator_dir / "interventions.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "intervention_id": "intervention-execution-api",
+                        "point_key": "scope_gate",
+                        "summary": "Review the scope gate mismatch.",
+                        "questions": ["Should the round continue?"],
+                        "status": "open",
+                        "created_at": "2026-04-03T00:19:30+00:00",
+                        "decision_record_id": "decision-execution-api",
+                        "mission_id": mission_id,
+                        "round_id": 1,
+                        "review_route": f"/?mission={mission_id}&mode=missions&tab=approvals&round=1",
+                    }
+                )
+                + "\n"
+            )
+        round_dir = specs / "rounds" / "round-01"
+        round_dir.mkdir(parents=True)
+        (round_dir / "browser_evidence.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "round_id": 1,
+                    "tested_routes": ["/", f"/?mission={mission_id}&mode=missions&tab=execution"],
+                    "interactions": {"/": []},
+                    "screenshots": {"/": str(round_dir / "visual" / "root.png")},
+                    "console_errors": [],
+                    "page_errors": [],
+                    "artifact_paths": {
+                        "round_dir": str(round_dir),
+                        "visual_dir": str(round_dir / "visual"),
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        worker_dir = specs / "workers" / "packet-execution-api"
+        telemetry_dir = worker_dir / "telemetry"
+        telemetry_dir.mkdir(parents=True)
+        (worker_dir / "builder_report.json").write_text(
+            json.dumps(
+                {
+                    "adapter": "acpx_worker",
+                    "agent": "opencode",
+                    "model": "minimax/MiniMax-M2.5",
+                    "succeeded": True,
+                    "exit_code": 0,
+                    "event_count": 2,
+                    "session_name": "worker-session-execution-api",
+                    "terminal_reason": "process_exit_success",
+                    "commands_completed": 1,
+                    "files_changed": [],
+                    "retry_count": 0,
+                    "session_reused": False,
+                    "session_recycled": False,
+                    "session_health": "healthy",
+                    "chain_id": "chain-mission-execution-api",
+                    "span_id": "chain-mission-execution-api:packet-execution-api:worker",
+                    "parent_span_id": "chain-mission-execution-api:packet-execution-api",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (telemetry_dir / "activity.log").write_text(
+            "[00:20:00] MISSION_ Started packet packet-execution-api\n",
+            encoding="utf-8",
+        )
+        (telemetry_dir / "events.jsonl").write_text(
+            json.dumps(
+                {
+                    "timestamp": "2026-04-03T00:20:00+00:00",
+                    "component": "builder",
+                    "event_type": "session/prompt",
+                    "message": "event:session/prompt",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        execution_response = client.get(f"/api/missions/{mission_id}/execution-workbench")
+
+        assert execution_response.status_code == 200
+        execution_payload = execution_response.json()
+        assert execution_payload["mission_id"] == mission_id
+        assert execution_payload["overview"]["active_work_count"] == 1
+        assert execution_payload["overview"]["queued_count"] == 1
+        assert execution_payload["active_work"][0]["phase"] == "heartbeat"
+        assert execution_payload["event_trail"][-1]["event_summary"] == (
+            "acceptance_waiting_on_model"
+        )
+        assert execution_payload["queue"][0]["queue_name"] == "operator_intervention"
+        assert execution_payload["interventions"][0]["action"] == "scope_gate"
+        assert execution_payload["browser_panel"]["status"] == "available"
+        assert execution_payload["browser_panel"]["tested_route_count"] == 2
+        assert execution_payload["terminal_panel"]["status"] == "available"
+        assert execution_payload["terminal_panel"]["session_count"] == 1
+        assert execution_payload["review_route"] == (
+            f"/?mission={mission_id}&mode=missions&tab=execution"
+        )
+
+        detail_response = client.get(f"/api/missions/{mission_id}/detail")
+
+        assert detail_response.status_code == 200
+        detail_payload = detail_response.json()
+        assert detail_payload["execution_workbench"]["overview"]["active_work_count"] == 1
+        assert detail_payload["execution_workbench"]["queue"][0]["queue_state"] == "defer"
+        assert detail_payload["execution_workbench"]["browser_panel"]["status"] == "available"
+        assert detail_payload["execution_workbench"]["terminal_panel"]["session_count"] == 1
+
+    def test_control_overview_includes_queue_and_pressure_signals(self, client, repo: Path):
+        from spec_orch.runtime_core.observability.models import (
+            RuntimeBudgetVisibility,
+            RuntimeLiveSummary,
+            RuntimeStallSignal,
+        )
+        from spec_orch.runtime_core.observability.store import write_live_summary
+
+        mission_id = "mission-queue-control"
+        operator_dir = repo / "docs" / "specs" / mission_id / "operator"
+        mission_chain_root = operator_dir / "runtime_chain"
+        mission_chain_root.mkdir(parents=True)
+        write_chain_status(
+            mission_chain_root,
+            RuntimeChainStatus(
+                chain_id="chain-mission-queue-control",
+                active_span_id="chain-mission-queue-control:acceptance",
+                subject_kind=RuntimeSubjectKind.ACCEPTANCE,
+                subject_id=mission_id,
+                phase=ChainPhase.HEARTBEAT,
+                status_reason="acceptance_waiting_on_model",
+                updated_at="2026-04-02T16:40:00+00:00",
+            ),
+        )
+        append_chain_event(
+            mission_chain_root,
+            RuntimeChainEvent(
+                chain_id="chain-mission-queue-control",
+                span_id="chain-mission-queue-control:acceptance:start",
+                parent_span_id=None,
+                subject_kind=RuntimeSubjectKind.ACCEPTANCE,
+                subject_id=mission_id,
+                phase=ChainPhase.STARTED,
+                status_reason="acceptance_started",
+                artifact_refs={"log": "docs/specs/mission-queue-control/operator/logs/acceptance.log"},
+                updated_at="2026-04-02T16:39:00+00:00",
+            ),
+        )
+        with (operator_dir / "interventions.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "intervention_id": "intervention-queue-control",
+                        "point_key": "scope_gate",
+                        "summary": "Review the scope gate mismatch.",
+                        "questions": ["Should the round continue?"],
+                        "status": "open",
+                        "created_at": "2026-04-02T16:39:30+00:00",
+                        "decision_record_id": "decision-queue-control",
+                        "mission_id": mission_id,
+                        "round_id": 1,
+                        "review_route": f"/?mission={mission_id}&mode=missions&tab=approvals&round=1",
+                    }
+                )
+                + "\n"
+            )
+        write_live_summary(
+            operator_dir / "observability" / "round-01-acceptance-graph",
+            RuntimeLiveSummary(
+                subject_key=f"{mission_id}:round-1:acceptance-graph",
+                phase="running",
+                status_reason="waiting_for_operator_review",
+                current_step_key="candidate_review",
+                budget=RuntimeBudgetVisibility(
+                    budget_key="verify_contract_graph",
+                    planned_steps=4,
+                    completed_steps=2,
+                    remaining_steps=2,
+                    loop_budget=1,
+                    remaining_loop_budget=0,
+                    continuation_count=1,
+                    recent_token_growth=800,
+                    justified=False,
+                ),
+                stall_signal=RuntimeStallSignal(
+                    stalled=True,
+                    idle_seconds=14,
+                    reason="operator_wait",
+                    diminishing_returns=False,
+                    repeated_steps=1,
+                ),
+                updated_at="2026-04-02T16:40:30+00:00",
+            ),
+        )
+
+        response = client.get("/api/control/overview")
+
+        assert response.status_code == 200
+        substrate = response.json()["execution_substrate"]
+        assert substrate["summary"]["queued_count"] == 1
+        assert substrate["summary"]["pressure_signal_count"] == 1
+        assert substrate["queue"][0]["queue_state"] == "defer"
+        assert substrate["interventions"][0]["action"] == "scope_gate"
+        assert substrate["execution_sessions"][0]["phase"] == "heartbeat"
+        assert substrate["execution_events"][0]["event_type"] == "started"
+        assert substrate["resource_budgets"][0]["budget_key"] == "verify_contract_graph"
+        assert substrate["pressure_signals"][0]["pressure_kind"] == "stall"
+        assert substrate["admission_decisions"][0]["decision"] == "admit"
+        assert substrate["admission_decisions"][1]["decision"] == "defer"
+        runtime = substrate["runtimes"][0]
+        assert runtime["usage_summary"]["open_interventions"] == 1
+        assert runtime["activity_summary"]["pressure_signals"][0]["budget_key"] == (
+            "verify_contract_graph"
+        )
 
     def test_control_skills(self, client, repo: Path):
         skills_dir = repo / ".spec_orch" / "skills"

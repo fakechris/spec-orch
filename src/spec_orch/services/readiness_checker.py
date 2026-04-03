@@ -15,6 +15,12 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from spec_orch.services.linear_intake import (
+    contains_linear_intake_sections,
+    has_blocking_open_questions,
+    parse_linear_intake_description,
+)
+
 if TYPE_CHECKING:
     from spec_orch.domain.context import ContextBundle
 
@@ -87,6 +93,14 @@ class ReadinessChecker:
                 questions=["The issue has no description. Please add context."],
             )
 
+        if contains_linear_intake_sections(description):
+            result = self._check_linear_intake(description)
+            if not result.ready:
+                return result
+            if self._planner is not None:
+                return self._llm_check(description, context)
+            return result
+
         missing = self._rule_check(description)
         if missing:
             return ReadinessResult(
@@ -98,6 +112,39 @@ class ReadinessChecker:
         if self._planner is not None:
             return self._llm_check(description, context)
 
+        return ReadinessResult(ready=True)
+
+    def _check_linear_intake(self, description: str) -> ReadinessResult:
+        document = parse_linear_intake_description(description)
+        missing: list[str] = []
+        questions: list[str] = []
+
+        if not document.problem.strip():
+            missing.append("Problem")
+            questions.append("What is wrong, who is affected, and why does it matter now?")
+        if not document.goal.strip():
+            missing.append("Goal")
+            questions.append("What outcome should this Linear intake item achieve?")
+        if (
+            not document.acceptance.success_conditions
+            and not document.acceptance.failure_conditions
+            and not document.acceptance.verification_expectations
+        ):
+            missing.append("Acceptance")
+            questions.append("What does success and failure look like for this issue?")
+        if not document.acceptance.verification_expectations:
+            missing.append("Verification Expectations")
+            questions.append("How should the system or operator verify this work?")
+        if has_blocking_open_questions(document):
+            missing.append("Blocking Open Questions")
+            questions.extend(document.open_questions)
+
+        if missing:
+            return ReadinessResult(
+                ready=False,
+                missing_fields=missing,
+                questions=questions,
+            )
         return ReadinessResult(ready=True)
 
     def _rule_check(self, description: str) -> list[str]:

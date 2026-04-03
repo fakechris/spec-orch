@@ -1,0 +1,28 @@
+{
+  "findings": [],
+  "issue_proposals": [
+    {
+      "title": "Scope gate reports wrong realized files (internal orchestrator issue, not dashboard)",
+      "summary": "Scope gate reports wrong realized files (internal orchestrator issue, not dashboard)",
+      "severity": "internal",
+      "confidence": 0.0,
+      "repro_steps": [],
+      "expected": "",
+      "actual": "",
+      "route": "",
+      "artifact_paths": {},
+      "critique_axis": "",
+      "operator_task": "",
+      "why_it_matters": "",
+      "hold_reason": "",
+      "linear_issue_id": "",
+      "filing_status": "",
+      "filing_error": "",
+      "bug_type": "ux_gap"
+    }
+  ],
+  "counts": {
+    "findings_count": 0,
+    "issue_proposal_count": 1
+  }
+}

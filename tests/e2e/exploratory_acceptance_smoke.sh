@@ -14,9 +14,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+. "$SCRIPT_DIR/_shared_env.sh"
 FULL_MODE=false
 VARIANT="${SPEC_ORCH_FRESH_VARIANT:-default}"
-DASHBOARD_PORT="${SPEC_ORCH_DASHBOARD_PORT:-8426}"
+REQUESTED_DASHBOARD_PORT="${SPEC_ORCH_DASHBOARD_PORT:-8426}"
+DASHBOARD_PORT=""
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -45,12 +47,7 @@ done
 
 cd "$REPO_ROOT"
 
-if [ -f .env ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . ./.env
-  set +a
-fi
+activate_shared_worktree_context
 
 # Bridge legacy single-model envs into the default reasoning chain for the
 # second-stage exploratory critique. Keep this compatibility shim in the
@@ -126,6 +123,34 @@ done
 if wait "$HARNESS_PID"; then
   ok "fresh ACPX mission smoke harness completed"
 else
+  step "Materialize exploratory acceptance failure report"
+  uv run --python 3.13 python - <<'PY' "$VARIANT" "$HARNESS_LOG" "${MISSION_ID:-}"
+import json
+import sys
+from pathlib import Path
+
+from spec_orch.services.stability_acceptance import (
+    write_exploratory_acceptance_failure_report,
+)
+
+repo_root = Path(".").resolve()
+variant = sys.argv[1]
+log_path = Path(sys.argv[2]).resolve()
+mission_id = sys.argv[3]
+failure_reason = "fresh ACPX mission smoke harness failed"
+if log_path.exists():
+    tail = log_path.read_text(encoding="utf-8", errors="replace").strip().splitlines()[-20:]
+    if tail:
+        failure_reason = "\n".join(tail)
+report = write_exploratory_acceptance_failure_report(
+    repo_root=repo_root,
+    mission_id=mission_id,
+    variant=variant,
+    source="fresh-acpx-mission-smoke",
+    failure_reason=failure_reason,
+)
+print(json.dumps(report))
+PY
   cat "$HARNESS_LOG" >&2 || true
   fail "fresh ACPX mission smoke harness failed"
 fi
@@ -141,22 +166,25 @@ ROUND_DIR="$(find "$MISSION_DIR/rounds" -mindepth 1 -maxdepth 1 -type d | sort |
 [ -n "$ROUND_DIR" ] || fail "could not determine latest round directory for ${MISSION_ID}"
 [ -f "$ROUND_DIR/acceptance_review.json" ] || fail "acceptance_review.json missing"
 
-step "Ensure dashboard available for exploratory critique"
-if uv run --python 3.13 python - <<'PY' "$DASHBOARD_PORT"
+step "Resolve isolated dashboard port"
+DASHBOARD_PORT="$(
+  uv run --python 3.13 python - <<'PY' "$REQUESTED_DASHBOARD_PORT"
 import sys
 
-from spec_orch.services.fresh_acpx_e2e import wait_for_dashboard_ready
+from spec_orch.services.fresh_acpx_e2e import resolve_dashboard_port
 
-port = sys.argv[1]
-result = wait_for_dashboard_ready(f"http://127.0.0.1:{port}/", timeout_seconds=1.0)
-print(result)
+print(resolve_dashboard_port(int(sys.argv[1])))
 PY
-then
-  ok "reusing dashboard at http://127.0.0.1:${DASHBOARD_PORT}"
-else
-  uv run --python 3.13 spec-orch dashboard --port "$DASHBOARD_PORT" >/tmp/spec_orch_exploratory_dashboard.log 2>&1 &
-  DASHBOARD_PID=$!
-  if ! uv run --python 3.13 python - <<'PY' "$DASHBOARD_PORT"
+)"
+[ -n "$DASHBOARD_PORT" ] || fail "could not resolve dashboard port"
+if [ "$DASHBOARD_PORT" != "$REQUESTED_DASHBOARD_PORT" ]; then
+  warn "dashboard port ${REQUESTED_DASHBOARD_PORT} busy; using isolated port ${DASHBOARD_PORT}"
+fi
+
+step "Start isolated dashboard for exploratory critique"
+uv run --python 3.13 spec-orch dashboard --port "$DASHBOARD_PORT" >/tmp/spec_orch_exploratory_dashboard.log 2>&1 &
+DASHBOARD_PID=$!
+if ! uv run --python 3.13 python - <<'PY' "$DASHBOARD_PORT"
 import sys
 
 from spec_orch.services.fresh_acpx_e2e import wait_for_dashboard_ready
@@ -165,12 +193,11 @@ port = sys.argv[1]
 result = wait_for_dashboard_ready(f"http://127.0.0.1:{port}/", timeout_seconds=20.0)
 print(result)
 PY
-  then
-    cat /tmp/spec_orch_exploratory_dashboard.log >&2 || true
-    fail "dashboard never became ready for exploratory critique"
-  fi
-  ok "dashboard started at http://127.0.0.1:${DASHBOARD_PORT}"
+then
+  cat /tmp/spec_orch_exploratory_dashboard.log >&2 || true
+  fail "dashboard never became ready for exploratory critique"
 fi
+ok "dashboard started at http://127.0.0.1:${DASHBOARD_PORT}"
 
 step "Materialize exploratory acceptance smoke report"
 SPEC_ORCH_VISUAL_EVAL_URL="http://127.0.0.1:${DASHBOARD_PORT}" \

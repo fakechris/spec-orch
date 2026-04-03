@@ -46,6 +46,17 @@ def _latest_report(paths: list[Path]) -> dict[str, Any]:
     return payload
 
 
+def _direct_report(path: Path) -> dict[str, Any]:
+    payload = _read_json_object(path)
+    if payload:
+        payload["_path"] = str(path)
+    return payload
+
+
+def _latest_available_report(*paths: Path) -> dict[str, Any]:
+    return _latest_report(list(paths))
+
+
 def _runtime_chain_summary(chain_root: Path) -> dict[str, Any]:
     status = read_chain_status(chain_root)
     if status is None:
@@ -286,6 +297,42 @@ def write_mission_start_acceptance_report(
     return {"json_path": str(json_path), "markdown_path": str(md_path)}
 
 
+def write_mission_start_acceptance_failure_report(
+    *,
+    repo_root: Path,
+    launch_mode: str,
+    variant: str,
+    failure_reason: str,
+    mission_id: str = "",
+) -> dict[str, str]:
+    repo_root = Path(repo_root).resolve()
+    acceptance_dir = repo_root / ".spec_orch" / "acceptance"
+    payload = {
+        "status": "fail",
+        "mission_id": mission_id,
+        "launch_mode": launch_mode,
+        "variant": variant,
+        "failure_reason": failure_reason,
+        "runtime_chain": {},
+    }
+    json_path = acceptance_dir / "mission_start_acceptance.json"
+    md_path = acceptance_dir / "mission_start_acceptance.md"
+    _write_json(json_path, payload)
+    _write_markdown(
+        md_path,
+        [
+            "# Mission-Start Acceptance Smoke",
+            "",
+            "- Status: `fail`",
+            f"- Launch mode: `{launch_mode}`",
+            f"- Variant: `{variant}`",
+            f"- Failure reason: `{failure_reason}`",
+            "",
+        ],
+    )
+    return {"json_path": str(json_path), "markdown_path": str(md_path)}
+
+
 def write_dashboard_ui_acceptance_report(
     *,
     repo_root: Path,
@@ -335,7 +382,9 @@ def write_exploratory_acceptance_report(
         if exploratory_review
         else round_dir / "acceptance_review.json"
     )
-    browser_evidence = _read_json_object(round_dir / "browser_evidence.json")
+    browser_evidence = _read_json_object(round_dir / "exploratory_browser_evidence.json")
+    if not browser_evidence:
+        browser_evidence = _read_json_object(round_dir / "browser_evidence.json")
     fresh_report = _read_json_object(round_dir / "fresh_acpx_mission_e2e_report.json")
     review_status = _normalize_acceptance_status(acceptance_review.get("status", ""))
     status = review_status
@@ -413,6 +462,42 @@ def write_exploratory_acceptance_report(
     return {"json_path": str(json_path), "markdown_path": str(md_path)}
 
 
+def write_exploratory_acceptance_failure_report(
+    *,
+    repo_root: Path,
+    mission_id: str,
+    variant: str,
+    source: str,
+    failure_reason: str,
+) -> dict[str, str]:
+    repo_root = Path(repo_root).resolve()
+    acceptance_dir = repo_root / ".spec_orch" / "acceptance"
+    payload = {
+        "status": "fail",
+        "summary": failure_reason,
+        "mission_id": mission_id,
+        "variant": variant,
+        "source": source,
+        "runtime_chain": {},
+    }
+    json_path = acceptance_dir / "exploratory_acceptance_smoke.json"
+    md_path = acceptance_dir / "exploratory_acceptance_smoke.md"
+    _write_json(json_path, payload)
+    _write_markdown(
+        md_path,
+        [
+            "# Exploratory Acceptance Smoke",
+            "",
+            "- Status: `fail`",
+            f"- Summary: `{failure_reason}`",
+            f"- Variant: `{variant}`",
+            f"- Source: `{source}`",
+            "",
+        ],
+    )
+    return {"json_path": str(json_path), "markdown_path": str(md_path)}
+
+
 def write_stability_acceptance_status(*, repo_root: Path) -> dict[str, str]:
     repo_root = Path(repo_root).resolve()
     acceptance_dir = repo_root / ".spec_orch" / "acceptance"
@@ -420,12 +505,17 @@ def write_stability_acceptance_status(*, repo_root: Path) -> dict[str, str]:
 
     mission_reports = list(specs_dir.glob("*/operator/mission_start_acceptance.json"))
     exploratory_reports = list(specs_dir.glob("*/operator/exploratory_acceptance_smoke.json"))
-
     checks = {
         "issue_start": _read_json_object(acceptance_dir / "issue_start_smoke.json"),
         "dashboard_ui": _read_json_object(acceptance_dir / "dashboard_ui_acceptance.json"),
-        "mission_start": _latest_report(mission_reports),
-        "exploratory": _latest_report(exploratory_reports),
+        "mission_start": _latest_available_report(
+            acceptance_dir / "mission_start_acceptance.json",
+            *mission_reports,
+        ),
+        "exploratory": _latest_available_report(
+            acceptance_dir / "exploratory_acceptance_smoke.json",
+            *exploratory_reports,
+        ),
     }
     checks = {
         name: _augment_report_with_runtime_chain(report, check_name=name)

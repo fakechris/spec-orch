@@ -13,6 +13,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+. "$SCRIPT_DIR/_shared_env.sh"
 FULL_MODE=false
 ISSUE_ID="SPC-1"
 SOURCE="fixture"
@@ -50,6 +51,7 @@ done
 command -v python3 >/dev/null || fail "python3 not found"
 
 cd "$REPO_ROOT"
+activate_shared_worktree_context
 
 if [ "$FULL_MODE" != true ]; then
   warn "Dry-run only. This script expects:"

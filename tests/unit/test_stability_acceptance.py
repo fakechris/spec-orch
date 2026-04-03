@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 
@@ -49,10 +50,13 @@ def test_mission_harness_polls_runtime_chain_status_while_fresh_run_executes() -
         Path(__file__).resolve().parents[2] / "tests" / "e2e" / "mission_start_acceptance.sh"
     ).read_text(encoding="utf-8")
 
+    assert '. "$SCRIPT_DIR/_shared_env.sh"' in script
+    assert "activate_shared_worktree_context" in script
     assert './tests/e2e/fresh_acpx_mission_smoke.sh --full --variant "$VARIANT" >' in script
     assert "HARNESS_PID=$!" in script
     assert "spec-orch chain status --mission-id" in script
     assert 'wait "$HARNESS_PID"' in script
+    assert "write_mission_start_acceptance_failure_report" in script
 
 
 def test_exploratory_harness_polls_runtime_chain_status_while_fresh_run_executes() -> None:
@@ -60,6 +64,8 @@ def test_exploratory_harness_polls_runtime_chain_status_while_fresh_run_executes
         Path(__file__).resolve().parents[2] / "tests" / "e2e" / "exploratory_acceptance_smoke.sh"
     ).read_text(encoding="utf-8")
 
+    assert '. "$SCRIPT_DIR/_shared_env.sh"' in script
+    assert "activate_shared_worktree_context" in script
     assert './tests/e2e/fresh_acpx_mission_smoke.sh --full --variant "$VARIANT" >' in script
     assert "HARNESS_PID=$!" in script
     assert "spec-orch chain status --mission-id" in script
@@ -69,6 +75,30 @@ def test_exploratory_harness_polls_runtime_chain_status_while_fresh_run_executes
     assert 'SPEC_ORCH_VISUAL_EVAL_URL="http://127.0.0.1:${DASHBOARD_PORT}"' in script
     assert "dashboard started at http://127.0.0.1:${DASHBOARD_PORT}" in script
     assert "reusing dashboard at http://127.0.0.1:${DASHBOARD_PORT}" in script
+    assert "write_exploratory_acceptance_failure_report" in script
+
+
+def test_acceptance_harnesses_share_uv_project_environment_resolution() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    shared_helper = (repo_root / "tests" / "e2e" / "_shared_env.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "resolve_uv_project_environment" in shared_helper
+    assert 'printf \'%s\\n\' "$shared_root/.venv-py313"' in shared_helper
+    assert 'export UV_PROJECT_ENVIRONMENT="$shared_uv_env"' in shared_helper
+
+    for name in (
+        "dashboard_ui_acceptance.sh",
+        "issue_start_smoke.sh",
+        "mission_start_acceptance.sh",
+        "exploratory_acceptance_smoke.sh",
+        "fresh_acpx_mission_smoke.sh",
+        "update_stability_acceptance_status.sh",
+    ):
+        script = (repo_root / "tests" / "e2e" / name).read_text(encoding="utf-8")
+        assert '. "$SCRIPT_DIR/_shared_env.sh"' in script
+        assert "activate_shared_worktree_context" in script
 
 
 def test_write_issue_start_acceptance_report_materializes_normalized_attempt(
@@ -279,6 +309,28 @@ def test_write_mission_start_acceptance_report_preserves_fresh_report(
     assert report_json["fresh_report"]["acceptance_review"]["status"] == "pass"
 
 
+def test_write_mission_start_acceptance_failure_report_materializes_direct_fail_payload(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import (
+        write_mission_start_acceptance_failure_report,
+    )
+
+    report = write_mission_start_acceptance_failure_report(
+        repo_root=tmp_path,
+        launch_mode="fresh",
+        variant="default",
+        failure_reason="missing usable model-chain credentials for full mode: planner",
+        mission_id="",
+    )
+
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+    assert report_json["status"] == "fail"
+    assert report_json["launch_mode"] == "fresh"
+    assert report_json["variant"] == "default"
+    assert "planner" in report_json["failure_reason"]
+
+
 def test_write_dashboard_ui_acceptance_report_materializes_surface_summary(
     tmp_path: Path,
 ) -> None:
@@ -424,6 +476,76 @@ def test_write_exploratory_acceptance_report_preserves_round_artifacts(
     assert "Findings: `1`" in report_md
     assert "Issue proposals: `1`" in report_md
     assert "Recommended next step: `Review mission tab naming and evidence grouping.`" in report_md
+
+
+def test_write_exploratory_acceptance_report_prefers_exploratory_browser_evidence(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import write_exploratory_acceptance_report
+
+    mission_id = "fresh-acpx-3"
+    round_dir = tmp_path / "docs" / "specs" / mission_id / "rounds" / "round-01"
+    round_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        round_dir / "exploratory_acceptance_review.json",
+        {
+            "status": "pass",
+            "summary": "Exploratory review succeeded.",
+            "acceptance_mode": "exploratory",
+        },
+    )
+    _write_json(
+        round_dir / "browser_evidence.json",
+        {
+            "tested_routes": ["/"],
+            "interactions": {"/": []},
+        },
+    )
+    _write_json(
+        round_dir / "exploratory_browser_evidence.json",
+        {
+            "tested_routes": ["/?mission=fresh-acpx-3&tab=transcript"],
+            "interactions": {
+                "/?mission=fresh-acpx-3&tab=transcript": [
+                    {"action": "wait_for_selector", "status": "passed"}
+                ]
+            },
+        },
+    )
+
+    report = write_exploratory_acceptance_report(
+        repo_root=tmp_path,
+        mission_id=mission_id,
+        variant="default",
+        round_dir=round_dir,
+        source="fresh-acpx-mission-smoke",
+    )
+
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+    assert report_json["browser_evidence"]["tested_routes"] == [
+        "/?mission=fresh-acpx-3&tab=transcript"
+    ]
+
+
+def test_write_exploratory_acceptance_failure_report_materializes_direct_fail_payload(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import (
+        write_exploratory_acceptance_failure_report,
+    )
+
+    report = write_exploratory_acceptance_failure_report(
+        repo_root=tmp_path,
+        mission_id="",
+        variant="default",
+        source="fresh-acpx-mission-smoke",
+        failure_reason="missing usable model-chain credentials for full mode: planner",
+    )
+
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+    assert report_json["status"] == "fail"
+    assert report_json["source"] == "fresh-acpx-mission-smoke"
+    assert "planner" in report_json["summary"]
 
 
 def test_write_exploratory_acceptance_report_preserves_warn_status_and_harness_taxonomy(
@@ -583,3 +705,87 @@ def test_write_stability_acceptance_status_summarizes_latest_reports(
     assert "Exploratory" in report_md
     assert "fail" in report_md.lower()
     assert "acceptance_model_waiting" in report_md
+
+
+def test_write_stability_acceptance_status_prefers_newer_direct_failure_reports_over_history(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import write_stability_acceptance_status
+
+    acceptance_dir = tmp_path / ".spec_orch" / "acceptance"
+    _write_json(acceptance_dir / "issue_start_smoke.json", {"status": "fail", "issue_id": "SPC-1"})
+    _write_json(
+        acceptance_dir / "dashboard_ui_acceptance.json",
+        {"status": "pass", "suite_summary": {"surface_summary": {"launcher": "pass"}}},
+    )
+    _write_json(
+        acceptance_dir / "mission_start_acceptance.json",
+        {"status": "fail", "failure_reason": "planner creds missing"},
+    )
+    _write_json(
+        acceptance_dir / "exploratory_acceptance_smoke.json",
+        {"status": "fail", "summary": "planner creds missing"},
+    )
+
+    operator_dir = tmp_path / "docs" / "specs" / "fresh-acpx-stale" / "operator"
+    _write_json(
+        operator_dir / "mission_start_acceptance.json",
+        {"status": "pass", "mission_id": "fresh-acpx-stale"},
+    )
+    _write_json(
+        operator_dir / "exploratory_acceptance_smoke.json",
+        {"status": "pass", "mission_id": "fresh-acpx-stale"},
+    )
+    os.utime(operator_dir / "mission_start_acceptance.json", (1, 1))
+    os.utime(operator_dir / "exploratory_acceptance_smoke.json", (1, 1))
+    os.utime(acceptance_dir / "mission_start_acceptance.json", (2, 2))
+    os.utime(acceptance_dir / "exploratory_acceptance_smoke.json", (2, 2))
+
+    report = write_stability_acceptance_status(repo_root=tmp_path)
+
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+    assert report_json["checks"]["mission_start"]["status"] == "fail"
+    assert report_json["checks"]["exploratory"]["status"] == "fail"
+    assert report_json["summary"]["overall_status"] == "fail"
+
+
+def test_write_stability_acceptance_status_prefers_newer_operator_reports_over_stale_direct_failures(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.stability_acceptance import write_stability_acceptance_status
+
+    acceptance_dir = tmp_path / ".spec_orch" / "acceptance"
+    _write_json(acceptance_dir / "issue_start_smoke.json", {"status": "pass", "issue_id": "SPC-1"})
+    _write_json(
+        acceptance_dir / "dashboard_ui_acceptance.json",
+        {"status": "pass", "suite_summary": {"surface_summary": {"launcher": "pass"}}},
+    )
+    _write_json(
+        acceptance_dir / "mission_start_acceptance.json",
+        {"status": "fail", "failure_reason": "stale creds failure"},
+    )
+    _write_json(
+        acceptance_dir / "exploratory_acceptance_smoke.json",
+        {"status": "fail", "summary": "stale creds failure"},
+    )
+
+    operator_dir = tmp_path / "docs" / "specs" / "fresh-acpx-new" / "operator"
+    _write_json(
+        operator_dir / "mission_start_acceptance.json",
+        {"status": "pass", "mission_id": "fresh-acpx-new"},
+    )
+    _write_json(
+        operator_dir / "exploratory_acceptance_smoke.json",
+        {"status": "pass", "mission_id": "fresh-acpx-new"},
+    )
+    os.utime(acceptance_dir / "mission_start_acceptance.json", (1, 1))
+    os.utime(acceptance_dir / "exploratory_acceptance_smoke.json", (1, 1))
+    os.utime(operator_dir / "mission_start_acceptance.json", (2, 2))
+    os.utime(operator_dir / "exploratory_acceptance_smoke.json", (2, 2))
+
+    report = write_stability_acceptance_status(repo_root=tmp_path)
+
+    report_json = json.loads(Path(report["json_path"]).read_text(encoding="utf-8"))
+    assert report_json["checks"]["mission_start"]["status"] == "pass"
+    assert report_json["checks"]["exploratory"]["status"] == "pass"
+    assert report_json["summary"]["overall_status"] == "pass"

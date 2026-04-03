@@ -1,0 +1,40 @@
+{
+  "release_id": "decision-and-judgment-substrate-tranche-son-379-2026-04-02",
+  "release_label": "Decision and Judgment Substrate Tranche SON-379 2026-04-02",
+  "created_at": "2026-04-03T00:02:23Z",
+  "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+  "git_branch": "harnessrefact",
+  "acceptance_suite_version": "formal-acceptance-v1",
+  "overall_status": "pass",
+  "reported_checks": 4,
+  "total_checks": 4,
+  "checks": {
+    "issue_start": "pass",
+    "dashboard_ui": "pass",
+    "mission_start": "pass",
+    "exploratory": "pass"
+  },
+  "source_runs": {
+    "issue_start": "SPC-1",
+    "mission_start": "fresh-acpx-20260402235057-3e3998",
+    "dashboard_ui": "dashboard-ui-local",
+    "exploratory": "fresh-acpx-20260402235529-9b96d6"
+  },
+  "artifacts": {
+    "status_json": ".spec_orch/acceptance/stability_acceptance_status.json",
+    "status_markdown": "docs/plans/2026-03-30-stability-acceptance-status.md",
+    "summary_markdown": "docs/acceptance-history/releases/decision-and-judgment-substrate-tranche-son-379-2026-04-02/summary.md",
+    "findings_json": "docs/acceptance-history/releases/decision-and-judgment-substrate-tranche-son-379-2026-04-02/findings.json",
+    "source_runs_json": "docs/acceptance-history/releases/decision-and-judgment-substrate-tranche-son-379-2026-04-02/source_runs.json",
+    "artifacts_json": "docs/acceptance-history/releases/decision-and-judgment-substrate-tranche-son-379-2026-04-02/artifacts.json",
+    "status_bundle_json": "docs/acceptance-history/releases/decision-and-judgment-substrate-tranche-son-379-2026-04-02/status.json"
+  },
+  "lineage": {
+    "program": "decision-and-judgment-substrate",
+    "notes": [
+      "This bundle captures SON-379 tranche 1, introducing canonical judgment carriers for acceptance-review read models.",
+      "Mission acceptance review now emits evidence bundle, compare overlay, surface pack, judgment timeline, and shared judgments through a dedicated judgment substrate service consumed by dashboard surfaces.",
+      "Source-run compare versus runtime-execution-substrate-tranche-son-374-canonical-carriers-2026-04-02: issue_start stayed on SPC-1; mission_start advanced to fresh-acpx-20260402235057-3e3998; exploratory advanced to fresh-acpx-20260402235529-9b96d6."
+    ]
+  }
+}

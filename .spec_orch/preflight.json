@@ -8,8 +8,7 @@
     {
       "name": "git",
       "status": "pass",
-      "message": "/usr/bin/git",
-      "fix": "brew install git"
+      "message": "/usr/bin/git"
     },
     {
       "name": "core_deps",
@@ -32,19 +31,19 @@
       "message": "/Users/chris/workspace/spec-orch/.env"
     },
     {
-      "name": "llm_api_key",
-      "status": "pass",
-      "message": "SPEC_ORCH_LLM_API_KEY is set"
-    },
-    {
       "name": "config",
       "status": "pass",
-      "message": "spec-orch.toml loaded (9 sections)"
+      "message": "spec-orch.toml loaded (15 sections)"
     },
     {
       "name": "planner_model",
       "status": "pass",
-      "message": "model = MiniMax-M2.5"
+      "message": "model = anthropic/MiniMax-M2.7-highspeed"
+    },
+    {
+      "name": "planner_auth",
+      "status": "pass",
+      "message": "planner credentials resolved (1 usable model-chain profile(s))"
     }
   ],
   "summary": {

@@ -78,6 +78,8 @@
 - Write a spec-and-contract-driven program plan from latest `origin/main`.
 - Convert that plan into Linear-ready Epics and Issues and create them directly in
   Linear when the workspace and API path are verified.
+- Worktree execution environment should reuse one shared Python 3.13 `uv` venv
+  instead of recreating `.venv` inside each worktree.
 
 ### Phases
 | Phase | Status | Notes |
@@ -87,3 +89,20 @@
 | 3. Three-workbench program design | complete | Wrote Execution / Judgment / Learning Workbench plan with explicit spec and contract sections |
 | 4. Linear card synthesis | complete | Converted the new plan into Epic/Issue cards with dependencies and rollout order |
 | 5. Linear creation | in_progress | Team `SON` verified; next step is creating parent and child issues from the plan |
+
+## Current Execution Notes
+- Shared dev environment path for this repo family:
+  `/Users/chris/workspace/spec-orch/.venv-py313`
+- Preferred command prefix in any worktree:
+  `UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ...`
+- Shared `.env` fallback root for all worktrees:
+  `/Users/chris/workspace/spec-orch/.env`
+- Canonical acceptance harnesses now auto-resolve both the shared `.env` and the
+  shared `.venv-py313`; new worktrees should not need local copies of either.
+- Current tranche baseline:
+  `SON-408` / `SON-409` / `SON-410` / `SON-411` implemented, with archived
+  acceptance bundle at
+  `docs/acceptance-history/releases/conversational-intake-tranche-son-408-411-2026-04-02/`.
+- Current formal gate result:
+  `issue_start=pass`, `dashboard_ui=pass`, `mission_start=pass`,
+  `exploratory=fail`.

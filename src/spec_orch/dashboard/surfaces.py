@@ -7,14 +7,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from spec_orch.acceptance_core.calibration import dashboard_surface_pack_v1
-from spec_orch.acceptance_core.disposition import AcceptanceDisposition
-from spec_orch.acceptance_core.models import build_acceptance_judgments
-from spec_orch.domain.models import AcceptanceReviewResult, VisualEvaluationResult
+from spec_orch.domain.models import VisualEvaluationResult
 from spec_orch.runtime_core.readers import (
     read_round_supervision_cycle,
     read_worker_execution_attempt,
 )
+from spec_orch.services.judgment_substrate import build_mission_judgment_substrate
 
 logger = logging.getLogger(__name__)
 
@@ -384,104 +382,7 @@ def _gather_mission_visual_qa(repo_root: Path, mission_id: str) -> dict[str, Any
 
 
 def _gather_mission_acceptance_review(repo_root: Path, mission_id: str) -> dict[str, Any]:
-    rounds_dir = repo_root / "docs" / "specs" / mission_id / "rounds"
-    review_route = f"/?mission={mission_id}&mode=missions&tab=acceptance"
-    if not rounds_dir.exists():
-        return {
-            "mission_id": mission_id,
-            "summary": {
-                "total_reviews": 0,
-                "passes": 0,
-                "warnings": 0,
-                "failures": 0,
-                "filed_issues": 0,
-                "latest_confidence": 0.0,
-            },
-            "review_route": review_route,
-            "latest_review": None,
-            "reviews": [],
-        }
-
-    reviews: list[dict[str, Any]] = []
-    round_dirs: list[tuple[int, Path]] = []
-    for round_dir in rounds_dir.glob("round-*"):
-        try:
-            round_id = int(round_dir.name.split("-")[-1])
-        except (TypeError, ValueError, IndexError):
-            logger.warning("Skipping acceptance directory with invalid round suffix: %s", round_dir)
-            continue
-        round_dirs.append((round_id, round_dir))
-
-    for round_id, round_dir in sorted(round_dirs, key=lambda item: item[0]):
-        review_path = round_dir / "acceptance_review.json"
-        if not review_path.exists():
-            continue
-        try:
-            payload = json.loads(review_path.read_text(encoding="utf-8"))
-            if not isinstance(payload, dict):
-                logger.warning("Ignoring malformed acceptance review payload: %s", review_path)
-                continue
-            review = AcceptanceReviewResult.from_dict(payload)
-        except (OSError, ValueError, json.JSONDecodeError):
-            continue
-
-        review_data = review.to_dict()
-        judgments = [judgment.to_dict() for judgment in build_acceptance_judgments(review)]
-        surface_pack = dashboard_surface_pack_v1(mission_id).to_dict()
-        graph_artifacts = {
-            "graph_run": review.artifacts.get("graph_run", ""),
-            "graph_profile": review.artifacts.get("graph_profile", ""),
-            "step_artifacts": list(review.artifacts.get("step_artifacts", []))
-            if isinstance(review.artifacts.get("step_artifacts"), list)
-            else [],
-            "graph_transitions": list(review.artifacts.get("graph_transitions", []))
-            if isinstance(review.artifacts.get("graph_transitions"), list)
-            else [],
-            "step_count": len(review.artifacts.get("step_artifacts", []))
-            if isinstance(review.artifacts.get("step_artifacts"), list)
-            else 0,
-            "final_transition": str(review.artifacts.get("final_transition", "") or ""),
-        }
-        review_data.update(
-            {
-                "round_id": round_id,
-                "artifact_path": str(review_path.relative_to(repo_root)),
-                "judgments": judgments,
-                "surface_pack": surface_pack,
-                "graph_artifacts": graph_artifacts,
-                "candidate_findings": [
-                    judgment
-                    for judgment in judgments
-                    if judgment.get("judgment_class") == "candidate_finding"
-                ],
-                "filed_issues": [
-                    proposal.to_dict()
-                    for proposal in review.issue_proposals
-                    if proposal.linear_issue_id or proposal.filing_status == "filed"
-                ],
-                "disposition_vocab": [item.value for item in AcceptanceDisposition],
-                "review_route": (
-                    f"/?mission={mission_id}&mode=missions&tab=acceptance&round={round_id}"
-                ),
-            }
-        )
-        reviews.append(review_data)
-
-    summary = {
-        "total_reviews": len(reviews),
-        "passes": sum(1 for review in reviews if review.get("status") == "pass"),
-        "warnings": sum(1 for review in reviews if review.get("status") == "warn"),
-        "failures": sum(1 for review in reviews if review.get("status") == "fail"),
-        "filed_issues": sum(len(review.get("filed_issues", [])) for review in reviews),
-        "latest_confidence": float(reviews[-1].get("confidence", 0.0)) if reviews else 0.0,
-    }
-    return {
-        "mission_id": mission_id,
-        "summary": summary,
-        "review_route": review_route,
-        "latest_review": reviews[-1] if reviews else None,
-        "reviews": reviews,
-    }
+    return build_mission_judgment_substrate(repo_root, mission_id)
 
 
 def _gather_mission_costs(repo_root: Path, mission_id: str) -> dict[str, Any]:
