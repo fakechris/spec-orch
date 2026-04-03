@@ -104,21 +104,17 @@ def load_admission_governor_snapshot(repo_root: Path) -> dict[str, list[dict[str
             str(item.get("subject_id", "")).strip(),
         ),
     ):
-        workspace_id = str(row.get("workspace_id", "")).strip() or str(
-            row.get("subject_id", "")
-        ).strip()
+        workspace_id = (
+            str(row.get("workspace_id", "")).strip() or str(row.get("subject_id", "")).strip()
+        )
         subject_id = str(row.get("subject_id", "")).strip() or workspace_id
         subject_kind = str(row.get("subject_kind", "")).strip() or "issue"
         decision = str(row.get("decision", "")).strip() or "admit"
         required_budgets = [
-            str(item).strip()
-            for item in row.get("required_budgets", [])
-            if str(item).strip()
+            str(item).strip() for item in row.get("required_budgets", []) if str(item).strip()
         ]
         granted_budgets = [
-            str(item).strip()
-            for item in row.get("granted_budgets", [])
-            if str(item).strip()
+            str(item).strip() for item in row.get("granted_budgets", []) if str(item).strip()
         ]
         queue_position_raw = row.get("queue_position")
         queue_position = int(queue_position_raw) if isinstance(queue_position_raw, int) else None

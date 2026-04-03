@@ -139,9 +139,7 @@ def _seed_learning_workspace(repo_root: Path, mission_id: str) -> None:
     acceptance_history_dir = repo_root / "docs" / "acceptance-history"
     acceptance_history_dir.mkdir(parents=True, exist_ok=True)
     release_dir = (
-        acceptance_history_dir
-        / "releases"
-        / "judgment-workbench-tranche-son-390-2026-04-03"
+        acceptance_history_dir / "releases" / "judgment-workbench-tranche-son-390-2026-04-03"
     )
     release_dir.mkdir(parents=True, exist_ok=True)
     (release_dir / "source_runs.json").write_text(

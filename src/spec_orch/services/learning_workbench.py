@@ -153,9 +153,7 @@ def _promotion_rows(
                 ),
                 "origin_review_ref": record.origin_review_ref
                 or (
-                    str(metadata.get("origin_review_ref", ""))
-                    if isinstance(metadata, dict)
-                    else ""
+                    str(metadata.get("origin_review_ref", "")) if isinstance(metadata, dict) else ""
                 ),
                 "promotion_target": record.promotion_target or "EvolutionProposalRef",
                 "promotion_reason": record.promotion_reason,

@@ -364,7 +364,9 @@ class TestDashboardAPI:
         assert mission_payload["overview"]["promoted_finding_count"] == 1
         assert mission_payload["promotion_policy"]["summary"]["promote_count"] == 1
         assert mission_payload["promotion_timeline"][0]["proposal_id"] == "proposal-1"
-        assert mission_payload["promotion_timeline"][0]["origin_finding_ref"] == "candidate:learning-1"
+        assert (
+            mission_payload["promotion_timeline"][0]["origin_finding_ref"] == "candidate:learning-1"
+        )
         assert mission_payload["fixture_registry"]["summary"]["candidate_count"] == 1
         assert mission_payload["review_route"] == (
             f"/?mission={mission_id}&mode=missions&tab=learning"
@@ -375,7 +377,12 @@ class TestDashboardAPI:
         assert detail_response.status_code == 200
         detail_payload = detail_response.json()
         assert detail_payload["learning_workbench"]["overview"]["active_promotion_count"] == 1
-        assert detail_payload["learning_workbench"]["promotion_policy"]["summary"]["linked_release_count"] == 1
+        assert (
+            detail_payload["learning_workbench"]["promotion_policy"]["summary"][
+                "linked_release_count"
+            ]
+            == 1
+        )
         assert detail_payload["learning_workbench"]["patterns"][0]["dedupe_key"] == (
             "dashboard:transcript-continuity"
         )
@@ -409,12 +416,11 @@ class TestDashboardAPI:
             item for item in payload["workspace_storylines"] if item["workspace_id"] == mission_id
         )
         assert storyline["workspace_id"] == mission_id
-        assert storyline["governance_story"]["learning"][
-            "promotion_decision"
-        ] == "promote"
-        assert storyline["lineage_drilldown"][
-            "source_run_compare_summary"
-        ] == "mission_start advanced; exploratory advanced"
+        assert storyline["governance_story"]["learning"]["promotion_decision"] == "promote"
+        assert (
+            storyline["lineage_drilldown"]["source_run_compare_summary"]
+            == "mission_start advanced; exploratory advanced"
+        )
         assert storyline["lineage_drilldown"]["compare_counts"]["advanced"] == 2
         assert payload["review_route"] == "/?mode=showcase"
 
@@ -4890,7 +4896,9 @@ class TestDashboardAPI:
             ),
             encoding="utf-8",
         )
-        (mission_root / "spec.md").write_text("# Mission Execution Admission API\n", encoding="utf-8")
+        (mission_root / "spec.md").write_text(
+            "# Mission Execution Admission API\n", encoding="utf-8"
+        )
 
         governor = AdmissionGovernor(repo, max_concurrent=1)
         governor.record_decision(

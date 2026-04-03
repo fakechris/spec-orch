@@ -203,7 +203,7 @@ def _seed_showcase_workspace(repo_root: Path, mission_id: str) -> None:
                             "docs/acceptance-history/releases/"
                             "showcase-tranche-son-363-seed-2026-04-03"
                         ),
-                    }
+                    },
                 ]
             }
         ),
@@ -217,11 +217,7 @@ def _seed_showcase_workspace(repo_root: Path, mission_id: str) -> None:
         json.dumps(
             {
                 "release_id": "learning-promotion-discipline-tranche-1-2026-04-03",
-                "lineage": {
-                    "notes": [
-                        "Previous release before showcase compare narrative."
-                    ]
-                },
+                "lineage": {"notes": ["Previous release before showcase compare narrative."]},
             }
         ),
         encoding="utf-8",
@@ -378,15 +374,9 @@ def test_build_showcase_workbench_surfaces_release_timeline_and_workspace_storyl
         item for item in payload["workspace_storylines"] if item["workspace_id"] == mission_id
     )
     assert storyline["workspace_id"] == mission_id
-    assert storyline["routes"]["judgment"] == (
-        f"/?mission={mission_id}&mode=missions&tab=judgment"
-    )
-    assert storyline["governance_story"]["structural"]["quality_signal"] == (
-        "regression"
-    )
-    assert storyline["governance_story"]["learning"]["promotion_decision"] == (
-        "promote"
-    )
+    assert storyline["routes"]["judgment"] == (f"/?mission={mission_id}&mode=missions&tab=judgment")
+    assert storyline["governance_story"]["structural"]["quality_signal"] == ("regression")
+    assert storyline["governance_story"]["learning"]["promotion_decision"] == ("promote")
     assert storyline["lineage_drilldown"]["latest_release_id"] == (
         "showcase-tranche-son-363-seed-2026-04-03"
     )

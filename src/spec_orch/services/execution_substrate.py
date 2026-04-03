@@ -680,9 +680,7 @@ def build_execution_substrate_snapshot(repo_root: Path) -> dict[str, Any]:
     ]
     runtimes = [item.to_dict() for item in runtime_models]
     governor_snapshot = load_admission_governor_snapshot(Path(repo_root))
-    queue.extend(
-        item for item in governor_snapshot.get("queue", []) if isinstance(item, dict)
-    )
+    queue.extend(item for item in governor_snapshot.get("queue", []) if isinstance(item, dict))
     resource_budgets.extend(
         item for item in governor_snapshot.get("resource_budgets", []) if isinstance(item, dict)
     )
@@ -727,19 +725,13 @@ def build_execution_substrate_snapshot(repo_root: Path) -> dict[str, Any]:
         )
         activity_summary["budget_keys"] = sorted(existing_budget_keys)
         existing_pressure_signals = [
-            item
-            for item in activity_summary.get("pressure_signals", [])
-            if isinstance(item, dict)
+            item for item in activity_summary.get("pressure_signals", []) if isinstance(item, dict)
         ]
         existing_pressure_signals.extend(
             {
                 "budget_key": str(item.get("budget_key", "")).strip(),
                 "status_reason": str(item.get("reason", "")).strip(),
-                **(
-                    item.get("details", {})
-                    if isinstance(item.get("details"), dict)
-                    else {}
-                ),
+                **(item.get("details", {}) if isinstance(item.get("details"), dict) else {}),
             }
             for item in governor_snapshot.get("pressure_signals", [])
             if isinstance(item, dict)

@@ -3,7 +3,9 @@ from __future__ import annotations
 from spec_orch.services.learning_promotion_policy import evaluate_learning_promotion
 
 
-def _finding(*, provenance: str = "reviewed", workflow_state: str = "promoted") -> dict[str, object]:
+def _finding(
+    *, provenance: str = "reviewed", workflow_state: str = "promoted"
+) -> dict[str, object]:
     return {
         "mission_id": "mission-learning",
         "judgment_id": "proposal:learning-1",

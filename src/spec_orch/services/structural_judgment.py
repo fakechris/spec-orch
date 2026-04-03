@@ -112,8 +112,10 @@ def build_structural_judgment(
             bottleneck = value
             break
 
-    drift_status = "drift_detected" if compare_state == "active" and artifact_drift_count > 0 else (
-        "compared_clean" if compare_state == "active" else "not_compared"
+    drift_status = (
+        "drift_detected"
+        if compare_state == "active" and artifact_drift_count > 0
+        else ("compared_clean" if compare_state == "active" else "not_compared")
     )
     return {
         "structural_judgment_id": f"{workspace_id}:structural",

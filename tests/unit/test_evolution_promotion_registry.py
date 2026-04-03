@@ -117,7 +117,10 @@ def test_retire_marks_record_and_preserves_reason(tmp_path: Path) -> None:
         signal_origins=["acceptance_review"],
     )
 
-    assert registry.retire(promotion.promotion_id, reason="Superseded by fixture replay bundle") is True
+    assert (
+        registry.retire(promotion.promotion_id, reason="Superseded by fixture replay bundle")
+        is True
+    )
 
     retired = registry.get(promotion.promotion_id)
     assert retired is not None

@@ -263,9 +263,7 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
                     },
                     "learning": {
                         "promotion_decision": str(first_learning_decision.get("action", "")),
-                        "promotion_state": str(
-                            first_learning_decision.get("promotion_state", "")
-                        ),
+                        "promotion_state": str(first_learning_decision.get("promotion_state", "")),
                         "linked_release_count": len(linked_releases),
                     },
                 },
