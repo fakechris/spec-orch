@@ -142,6 +142,27 @@ def _control_overview(repo_root: Path) -> dict[str, Any]:
         "run_summary": {},
         "skills_count": 0,
         "reactions_count": 0,
+        "execution_substrate": {
+            "summary": {
+                "active_work_count": 0,
+                "agent_count": 0,
+                "runtime_count": 0,
+                "running_count": 0,
+                "queued_count": 0,
+                "degraded_count": 0,
+                "intervention_needed_count": 0,
+            },
+            "active_work": [],
+            "agents": [],
+            "runtimes": [],
+            "queue": [],
+            "interventions": [],
+            "execution_sessions": [],
+            "execution_events": [],
+            "resource_budgets": [],
+            "pressure_signals": [],
+            "admission_decisions": [],
+        },
     }
     try:
         from spec_orch.services.eval_runner import EvalRunner
@@ -176,6 +197,13 @@ def _control_overview(repo_root: Path) -> dict[str, Any]:
             overview["reactions_count"] = len(items) if isinstance(items, list) else 0
         except Exception:
             pass
+
+    try:
+        from spec_orch.services.execution_substrate import build_execution_substrate_snapshot
+
+        overview["execution_substrate"] = build_execution_substrate_snapshot(repo_root)
+    except Exception:
+        logger.debug("Control tower: execution substrate unavailable", exc_info=True)
 
     overview["flywheel"] = {
         "P0_context_contract": "done",

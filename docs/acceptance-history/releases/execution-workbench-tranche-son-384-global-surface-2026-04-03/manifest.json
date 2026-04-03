@@ -1,0 +1,40 @@
+{
+  "release_id": "execution-workbench-tranche-son-384-global-surface-2026-04-03",
+  "release_label": "Execution Workbench Tranche SON-384 Global Surface 2026-04-03",
+  "created_at": "2026-04-03T01:59:54Z",
+  "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+  "git_branch": "harnessrefact",
+  "acceptance_suite_version": "formal-acceptance-v1",
+  "overall_status": "pass",
+  "reported_checks": 4,
+  "total_checks": 4,
+  "checks": {
+    "issue_start": "pass",
+    "dashboard_ui": "pass",
+    "mission_start": "pass",
+    "exploratory": "pass"
+  },
+  "source_runs": {
+    "issue_start": "SPC-1",
+    "mission_start": "fresh-acpx-20260403013517-a8c5f4",
+    "dashboard_ui": "dashboard-ui-local",
+    "exploratory": "fresh-acpx-20260403015000-5951da"
+  },
+  "artifacts": {
+    "status_json": ".spec_orch/acceptance/stability_acceptance_status.json",
+    "status_markdown": "docs/plans/2026-03-30-stability-acceptance-status.md",
+    "summary_markdown": "docs/acceptance-history/releases/execution-workbench-tranche-son-384-global-surface-2026-04-03/summary.md",
+    "findings_json": "docs/acceptance-history/releases/execution-workbench-tranche-son-384-global-surface-2026-04-03/findings.json",
+    "source_runs_json": "docs/acceptance-history/releases/execution-workbench-tranche-son-384-global-surface-2026-04-03/source_runs.json",
+    "artifacts_json": "docs/acceptance-history/releases/execution-workbench-tranche-son-384-global-surface-2026-04-03/artifacts.json",
+    "status_bundle_json": "docs/acceptance-history/releases/execution-workbench-tranche-son-384-global-surface-2026-04-03/status.json"
+  },
+  "lineage": {
+    "program": "execution-workbench-global-surface",
+    "notes": [
+      "This bundle captures SON-384 tranche 2, adding the first global Execution Workbench surface over the canonical execution substrate.",
+      "The dashboard now exposes a top-level execution mode plus a dedicated API for Active Work, Agents, Runtimes, queue state, interventions, and recent execution events.",
+      "Source-run compare versus decision-judgment-substrate-and-execution-workbench-tranche-son-379-384-2026-04-03: issue_start stayed on SPC-1; mission_start advanced to fresh-acpx-20260403013517-a8c5f4; exploratory advanced to fresh-acpx-20260403015000-5951da."
+    ]
+  }
+}

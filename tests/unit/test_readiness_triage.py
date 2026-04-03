@@ -180,6 +180,74 @@ Build it.
     assert result.ready
 
 
+LINEAR_INTAKE_DESCRIPTION = """\
+## Problem
+
+Operators cannot tell whether the issue is intake-complete.
+
+## Goal
+
+Show readiness and acceptance authoring directly in Linear.
+
+## Acceptance
+
+### Success Conditions
+
+- The issue exposes the intake contract.
+
+### Verification Expectations
+
+- Readiness checker accepts the intake format.
+
+## Evidence Expectations
+
+- readiness output
+
+## Open Questions
+
+- [non_blocking] Should the dashboard mirror the same summary?
+
+## Current System Understanding
+
+The issue is ready once the open questions are non-blocking.
+"""
+
+
+def test_linear_intake_description_passes_readiness() -> None:
+    checker = ReadinessChecker()
+    result = checker.check(LINEAR_INTAKE_DESCRIPTION)
+
+    assert result.ready is True
+    assert result.missing_fields == []
+
+
+def test_linear_intake_description_requires_verification_expectations() -> None:
+    checker = ReadinessChecker()
+    result = checker.check(
+        LINEAR_INTAKE_DESCRIPTION.replace(
+            "### Verification Expectations\n\n- Readiness checker accepts the intake format.\n\n",
+            "",
+        )
+    )
+
+    assert result.ready is False
+    assert "Verification Expectations" in result.missing_fields
+
+
+def test_linear_intake_description_blocks_on_blocking_open_questions() -> None:
+    checker = ReadinessChecker()
+    result = checker.check(
+        LINEAR_INTAKE_DESCRIPTION.replace(
+            "[non_blocking] Should the dashboard mirror the same summary?",
+            "[blocking] Should this create a workspace immediately?",
+        )
+    )
+
+    assert result.ready is False
+    assert "Blocking Open Questions" in result.missing_fields
+    assert any("workspace immediately" in question for question in result.questions)
+
+
 # ── ReadinessChecker with LLM ──
 
 

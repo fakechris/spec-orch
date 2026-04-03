@@ -10,8 +10,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+. "$SCRIPT_DIR/_shared_env.sh"
 
 cd "$REPO_ROOT"
+activate_shared_worktree_context
 
 uv run --python 3.13 python - <<'PY'
 import json

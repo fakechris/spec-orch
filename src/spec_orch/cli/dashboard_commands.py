@@ -12,6 +12,7 @@ from spec_orch.cli._helpers import (
     _print_jsonl,
     _run_preflight_inline,
 )
+from spec_orch.services.env_files import find_dotenv_path
 from spec_orch.services.workspace_service import WorkspaceService
 
 
@@ -118,17 +119,20 @@ def init_project(
     config_path.write_text(toml_content)
     typer.echo(f"\nWrote {config_path}")
 
-    env_path = root / ".env"
-    if not env_path.exists():
+    env_path = find_dotenv_path(root)
+    local_env_path = root / ".env"
+    if env_path is None:
         example_path = root / ".env.example"
         if example_path.exists():
             import shutil as _shutil
 
-            _shutil.copy2(example_path, env_path)
-            typer.echo(f"Copied {example_path} → {env_path}")
+            _shutil.copy2(example_path, local_env_path)
+            typer.echo(f"Copied {example_path} → {local_env_path}")
             typer.echo("Edit .env to set your API keys before using spec-orch.")
         else:
             typer.echo("Tip: create a .env file with SPEC_ORCH_LLM_API_KEY=your-key")
+    elif env_path != local_env_path:
+        typer.echo(f"Using shared env file: {env_path}")
 
     typer.echo("\nRunning preflight check...")
     _run_preflight_inline(root)

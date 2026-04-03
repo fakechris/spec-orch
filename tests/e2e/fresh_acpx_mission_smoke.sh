@@ -23,8 +23,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+. "$SCRIPT_DIR/_shared_env.sh"
 FULL_MODE=false
-DASHBOARD_PORT="${SPEC_ORCH_DASHBOARD_PORT:-8426}"
+REQUESTED_DASHBOARD_PORT="${SPEC_ORCH_DASHBOARD_PORT:-8426}"
+DASHBOARD_PORT=""
 FRESH_VARIANT="${SPEC_ORCH_FRESH_VARIANT:-default}"
 
 RED='\033[0;31m'
@@ -68,12 +70,7 @@ fi
 
 [ -f spec-orch.toml ] || fail "spec-orch.toml missing"
 
-if [ -f .env ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . ./.env
-  set +a
-fi
+activate_shared_worktree_context
 
 # Bridge legacy single-model envs into the default reasoning chain when the
 # repo still uses SPEC_ORCH_* values in .env. Keep this at the harness layer
@@ -319,10 +316,30 @@ done
 [ -n "$ROUND_DIR" ] || fail "no fresh round directory appeared under ${SPEC_DIR}/rounds"
 ok "fresh round detected: ${ROUND_DIR}"
 
+step "Resolve isolated dashboard ports"
+mapfile -t DASHBOARD_PORT_CANDIDATES < <(
+  uv run --python 3.13 python - <<'PY' "$REQUESTED_DASHBOARD_PORT"
+import sys
+
+from spec_orch.services.fresh_acpx_e2e import resolve_dashboard_port_candidates
+
+for port in resolve_dashboard_port_candidates(int(sys.argv[1])):
+    print(port)
+PY
+)
+[ "${#DASHBOARD_PORT_CANDIDATES[@]}" -gt 0 ] || fail "could not resolve dashboard port"
+if [ "${DASHBOARD_PORT_CANDIDATES[0]}" != "$REQUESTED_DASHBOARD_PORT" ]; then
+  warn "dashboard port ${REQUESTED_DASHBOARD_PORT} busy; using isolated port ${DASHBOARD_PORT_CANDIDATES[0]}"
+fi
+
 step "Start dashboard for post-run workflow replay"
-uv run --python 3.13 spec-orch dashboard --port "$DASHBOARD_PORT" >/tmp/spec_orch_fresh_dashboard.log 2>&1 &
-DASHBOARD_PID=$!
-if ! uv run --python 3.13 python - <<'PY' "$DASHBOARD_PORT"
+FRESH_DASHBOARD_LOG=/tmp/spec_orch_fresh_dashboard.log
+DASHBOARD_STARTED=false
+for candidate_port in "${DASHBOARD_PORT_CANDIDATES[@]}"; do
+  DASHBOARD_PORT="$candidate_port"
+  uv run --python 3.13 spec-orch dashboard --port "$DASHBOARD_PORT" >"$FRESH_DASHBOARD_LOG" 2>&1 &
+  DASHBOARD_PID=$!
+  if uv run --python 3.13 python - <<'PY' "$DASHBOARD_PORT"
 import sys
 
 from spec_orch.services.fresh_acpx_e2e import wait_for_dashboard_ready
@@ -331,11 +348,21 @@ port = sys.argv[1]
 result = wait_for_dashboard_ready(f"http://127.0.0.1:{port}/", timeout_seconds=20.0)
 print(result)
 PY
-then
-  cat /tmp/spec_orch_fresh_dashboard.log >&2 || true
+  then
+    DASHBOARD_STARTED=true
+    break
+  fi
   kill "$DASHBOARD_PID" >/dev/null 2>&1 || true
+  wait "$DASHBOARD_PID" >/dev/null 2>&1 || true
+  DASHBOARD_PID=""
+  if grep -qiE "address already in use|Errno 98|Errno 48" "$FRESH_DASHBOARD_LOG"; then
+    warn "dashboard port ${DASHBOARD_PORT} raced busy during startup; retrying on a new isolated port"
+    continue
+  fi
+  cat "$FRESH_DASHBOARD_LOG" >&2 || true
   fail "dashboard never became ready"
-fi
+done
+[ "$DASHBOARD_STARTED" = true ] || fail "dashboard could not start on any isolated port"
 ok "dashboard started at http://127.0.0.1:${DASHBOARD_PORT}"
 
 step "Run post-run workflow replay and acceptance review"
@@ -386,7 +413,7 @@ workflow_replay = {
         "overview": f"/?mission={mission_id}&mode=missions&tab=overview",
         "transcript": f"/?mission={mission_id}&mode=missions&tab=transcript",
         "approvals": f"/?mission={mission_id}&mode=missions&tab=approvals",
-        "acceptance": f"/?mission={mission_id}&mode=missions&tab=acceptance",
+        "judgment": f"/?mission={mission_id}&mode=missions&tab=judgment",
     },
 }
 artifacts = {

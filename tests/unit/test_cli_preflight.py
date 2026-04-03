@@ -66,3 +66,41 @@ def test_run_preflight_marks_planner_not_ready_without_usable_chain_credentials(
     assert "run" in report["not_ready"]
     assert "plan" in report["not_ready"]
     assert "discuss" in report["not_ready"]
+
+
+def test_run_preflight_accepts_shared_legacy_dotenv_for_default_model_chain(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from spec_orch.cli._helpers import _run_preflight
+
+    shared_root = tmp_path / "shared"
+    worktree = tmp_path / "worktrees" / "feature"
+    shared_root.mkdir(parents=True)
+    worktree.mkdir(parents=True)
+    _write_config(worktree / "spec-orch.toml")
+    (shared_root / ".env").write_text(
+        "\n".join(
+            [
+                "SPEC_ORCH_LLM_API_KEY=shared-key",
+                "SPEC_ORCH_LLM_API_BASE=https://api.minimaxi.com/anthropic",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("SPEC_ORCH_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("SPEC_ORCH_LLM_API_BASE", raising=False)
+    monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
+    monkeypatch.delenv("MINIMAX_ANTHROPIC_BASE_URL", raising=False)
+    monkeypatch.setattr(
+        "spec_orch.services.env_files.resolve_git_common_dir",
+        lambda start=None: shared_root / ".git",
+    )
+
+    report = _run_preflight(worktree)
+
+    checks = {entry["name"]: entry for entry in report["checks"]}
+    assert checks["dotenv"]["status"] == "pass"
+    assert checks["dotenv"]["message"] == str((shared_root / ".env").resolve())
+    assert checks["planner_auth"]["status"] == "pass"
+    assert "run" in report["ready"]

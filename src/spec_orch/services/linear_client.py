@@ -196,6 +196,40 @@ class LinearClient:
         create: dict[str, Any] = result.get("commentCreate", {})
         return create
 
+    def update_issue_description(
+        self,
+        issue_id: str,
+        *,
+        description: str,
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        if title is None:
+            result = self.query(
+                """
+                mutation($issueId: String!, $description: String!) {
+                  issueUpdate(id: $issueId, input: { description: $description }) {
+                    success
+                    issue { id description }
+                  }
+                }
+                """,
+                variables={"issueId": issue_id, "description": description},
+            )
+        else:
+            result = self.query(
+                """
+                mutation($issueId: String!, $description: String!, $title: String!) {
+                  issueUpdate(id: $issueId, input: { description: $description, title: $title }) {
+                    success
+                    issue { id title description }
+                  }
+                }
+                """,
+                variables={"issueId": issue_id, "description": description, "title": title},
+            )
+        update: dict[str, Any] = result.get("issueUpdate", {})
+        return update
+
     def list_comments(
         self,
         issue_id: str,

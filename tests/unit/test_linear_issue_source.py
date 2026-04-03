@@ -121,3 +121,48 @@ def test_context_parses_asterisk_bullet_files():
     assert "src/spec_orch/cli.py" in issue.context.files_to_read
     assert "src/spec_orch/services/run_controller.py" in issue.context.files_to_read
     assert "Architecture" in issue.context.architecture_notes
+
+
+def test_load_parses_linear_native_intake_shape() -> None:
+    raw = {
+        "id": "uuid-7",
+        "identifier": "SON-408",
+        "title": "Linear-native conversational intake",
+        "description": (
+            "## Problem\n"
+            "Operators cannot tell whether intake is complete.\n\n"
+            "## Goal\n"
+            "Make intake status visible in Linear.\n\n"
+            "## Constraints\n"
+            "- Keep SON-410 schema extraction for later.\n\n"
+            "## Acceptance\n\n"
+            "### Success Conditions\n"
+            "- Intake sections render in a stable order.\n\n"
+            "### Verification Expectations\n"
+            "- Readiness checker accepts the issue.\n"
+            "- Writeback can post a summary comment.\n\n"
+            "### Human Judgment Required\n"
+            "- The current system understanding reads clearly.\n\n"
+            "## Evidence Expectations\n"
+            "- readiness output\n"
+            "- Linear summary comment\n\n"
+            "## Open Questions\n"
+            "- [non_blocking] Should dashboard mirror the wording?\n\n"
+            "## Current System Understanding\n"
+            "Issue is ready for workspace handoff once the verification expectations are explicit.\n"
+        ),
+    }
+    source, _ = _make_source(raw)
+    issue = source.load("SON-408")
+
+    assert issue.issue_id == "SON-408"
+    assert issue.summary.startswith("Operators cannot tell")
+    assert "Make intake status visible in Linear." in (issue.builder_prompt or "")
+    assert "Issue is ready for workspace handoff" in (issue.builder_prompt or "")
+    assert issue.context.constraints == ["Keep SON-410 schema extraction for later."]
+    assert issue.acceptance_criteria == [
+        "success: Intake sections render in a stable order.",
+        "verify: Readiness checker accepts the issue.",
+        "verify: Writeback can post a summary comment.",
+        "human: The current system understanding reads clearly.",
+    ]

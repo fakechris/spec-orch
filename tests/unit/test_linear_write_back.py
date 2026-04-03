@@ -10,6 +10,11 @@ from spec_orch.domain.models import (
     ReviewSummary,
     RunResult,
 )
+from spec_orch.services.linear_intake import (
+    LinearAcceptanceDraft,
+    LinearIntakeDocument,
+    LinearIntakeState,
+)
 from spec_orch.services.linear_write_back import LinearWriteBackService
 
 
@@ -93,3 +98,53 @@ def test_post_gate_update(tmp_path: Path) -> None:
     assert "Gate Re-evaluation" in body
     assert "review" in body
     assert "# Updated" in body
+
+
+def _make_linear_intake_document() -> LinearIntakeDocument:
+    return LinearIntakeDocument(
+        problem="Operators cannot tell whether the issue is ready.",
+        goal="Show readiness directly in Linear.",
+        constraints=["Keep SON-410 schema work separate."],
+        acceptance=LinearAcceptanceDraft(
+            success_conditions=["The issue has an explicit intake structure."],
+            verification_expectations=["Readiness accepts the new shape."],
+            human_judgment_required=["The current system understanding is clear."],
+        ),
+        evidence_expectations=["readiness output"],
+        open_questions=["[non_blocking] Dashboard copy parity?"],
+        current_system_understanding="Issue is ready for workspace handoff.",
+    )
+
+
+def test_post_intake_summary_formats_linear_native_sections() -> None:
+    client = MagicMock()
+    client.add_comment.return_value = {"success": True}
+    svc = LinearWriteBackService(client=client)
+
+    svc.post_intake_summary(
+        linear_id="abc-789",
+        state=LinearIntakeState.READY_FOR_WORKSPACE,
+        intake=_make_linear_intake_document(),
+    )
+
+    body = client.add_comment.call_args[0][1]
+    assert "SpecOrch Intake Summary" in body
+    assert "ready_for_workspace" in body
+    assert "Current System Understanding" in body
+    assert "Dashboard copy parity?" in body
+
+
+def test_rewrite_issue_for_intake_updates_linear_description() -> None:
+    client = MagicMock()
+    client.update_issue_description.return_value = {"success": True}
+    svc = LinearWriteBackService(client=client)
+
+    svc.rewrite_issue_for_intake(
+        linear_id="abc-789",
+        intake=_make_linear_intake_document(),
+    )
+
+    client.update_issue_description.assert_called_once()
+    description = client.update_issue_description.call_args.kwargs["description"]
+    assert "## Problem" in description
+    assert "## Acceptance" in description

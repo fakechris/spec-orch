@@ -57,6 +57,14 @@ Dashboard 现在已经进入 operator-console 形态，首页主要看三块：
 - `Visual QA`
 - `Costs`
 
+workbench cutover 后，operator 侧应优先使用：
+
+- `Execution` 处理 active work / queue / runtimes / browser / terminal
+- `Judgment` 处理 acceptance evidence / compare / candidate findings / review state
+- `Learning` 处理 promotion / memory / archive lineage
+
+`Acceptance` 仍然保留，但它现在是 raw acceptance artifact 的兼容入口，不再是 canonical review surface。
+
 其中 approval workspace 已经支持直接发送预设 guidance：
 
 - `Approve`

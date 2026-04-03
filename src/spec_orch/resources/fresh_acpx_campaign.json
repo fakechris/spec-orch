@@ -9,7 +9,7 @@
   "related_routes": [
     "/?mission={mission_id}&mode=missions&tab=transcript",
     "/?mission={mission_id}&mode=missions&tab=approvals",
-    "/?mission={mission_id}&mode=missions&tab=acceptance"
+    "/?mission={mission_id}&mode=missions&tab=judgment"
   ],
   "interaction_plans": {
     "/": [
@@ -32,8 +32,8 @@
       },
       {
         "action": "click_selector",
-        "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"acceptance\"]",
-        "description": "Open the acceptance tab."
+        "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"judgment\"]",
+        "description": "Open the judgment tab."
       }
     ]
   },
@@ -42,13 +42,13 @@
     "mission inventory",
     "fresh mission detail",
     "post-run transcript",
-    "acceptance review"
+    "judgment review"
   ],
   "required_interactions": [
     "open launcher",
     "switch into missions mode",
     "inspect the fresh mission detail",
-    "open transcript and acceptance tabs"
+    "open transcript and judgment tabs"
   ],
   "min_primary_routes": 2,
   "related_route_budget": 3,

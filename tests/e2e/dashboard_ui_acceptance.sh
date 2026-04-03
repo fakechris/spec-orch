@@ -13,6 +13,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+. "$SCRIPT_DIR/_shared_env.sh"
 FULL_MODE=false
 
 RED='\033[0;31m'
@@ -36,6 +37,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 cd "$REPO_ROOT"
+activate_shared_worktree_context
 
 if [ "$FULL_MODE" != true ]; then
   warn "Dry-run only. This script runs the canonical dashboard/UI acceptance subset."

@@ -15,10 +15,15 @@ Dashboard 的 WebSocket 连接返回 403。
 litellm.AuthenticationError: Missing API key
 ```
 
-**原因**: `SPEC_ORCH_LLM_API_KEY` 未设置或为空。
-**修复**: 编辑 `.env`，设置 `SPEC_ORCH_LLM_API_KEY=your-key`，然后重启进程。
+**原因**: 当前 worktree 和共享主仓都没有可用 `.env`，或 `.env` 里没有
+`SPEC_ORCH_LLM_API_KEY` / `SPEC_ORCH_LLM_API_BASE`。
+**修复**: 编辑共享 `.env`
+（`$(cd "$(git rev-parse --git-common-dir)/.." && pwd)/.env`），设置
+`SPEC_ORCH_LLM_API_KEY=your-key` 和
+`SPEC_ORCH_LLM_API_BASE=https://api.minimaxi.com/anthropic`，然后重启进程。
 
-Dashboard 和 Daemon 共享同一个 `.env`。两者都通过 CLI 入口点自动加载。
+Dashboard、Daemon、Doctor、acceptance harness 都会先读当前 worktree 的
+`.env`，没有时自动回退到共享主仓 `.env`。
 
 ## Planner 不可用
 

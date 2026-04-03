@@ -219,6 +219,108 @@ def test_create_mission_draft_writes_meta_and_spec(repo: Path) -> None:
     assert meta["constraints"] == ["Keep scope tiny."]
 
 
+def test_create_mission_draft_persists_dashboard_intake_workspace(repo: Path) -> None:
+    from spec_orch.dashboard.launcher import _create_mission_draft
+
+    result = _create_mission_draft(
+        repo,
+        {
+            "title": "Dashboard Intake",
+            "mission_id": "dashboard-intake",
+            "problem": "Operators cannot preview canonical intake state from the dashboard.",
+            "goal": "Make dashboard intake preview readiness before launch.",
+            "intent": "Turn launcher into intake workspace v0.",
+            "acceptance_criteria": [
+                "Operators can see readiness before workspace handoff.",
+                "Operators can inspect a canonical issue preview.",
+            ],
+            "constraints": ["Keep SON-410 schema lock for later."],
+            "evidence_expectations": ["readiness panel", "canonical issue preview"],
+            "open_questions": ["Should intake drafts support templates?"],
+            "current_system_understanding": "Launcher owns mission drafting before execution.",
+        },
+    )
+
+    workspace_path = (
+        repo / "docs" / "specs" / "dashboard-intake" / "operator" / "intake_workspace.json"
+    )
+    assert workspace_path.exists()
+    workspace = json.loads(workspace_path.read_text(encoding="utf-8"))
+    assert result["intake_workspace"]["state"] == "ready_for_workspace"
+    assert workspace["state"] == "ready_for_workspace"
+    assert workspace["readiness"]["is_ready"] is True
+    assert workspace["handoff"]["state"] == "ready_for_workspace"
+    assert workspace["handoff"]["workspace"]["workspace_id"] == "dashboard-intake"
+    assert workspace["handoff"]["workspace"]["active_execution"]["phase"] == "intake"
+    assert workspace["handoff"]["active_execution"]["status"] == "pending"
+    assert workspace["handoff"]["initial_judgment"]["status"] == "pending"
+    assert workspace["handoff"]["learning_lineage"]["status"] == "pending"
+    assert (
+        workspace["canonical_issue"]["problem"]
+        == "Operators cannot preview canonical intake state from the dashboard."
+    )
+    assert workspace["canonical_issue"]["acceptance"]["verification_expectations"] == [
+        "readiness panel",
+        "canonical issue preview",
+    ]
+
+
+def test_dashboard_intake_workspace_marks_missing_problem_and_goal_as_clarifying(
+    repo: Path,
+) -> None:
+    from spec_orch.dashboard.launcher import _build_dashboard_intake_workspace
+
+    workspace = _build_dashboard_intake_workspace(
+        repo,
+        mission_id="clarify-me",
+        payload={
+            "title": "Clarify Me",
+            "intent": "Need more structure.",
+            "acceptance_criteria": [],
+            "constraints": [],
+            "evidence_expectations": [],
+            "open_questions": ["[blocking] What exact operator flow is in scope?"],
+        },
+    )
+
+    assert workspace["state"] == "clarifying"
+    assert workspace["readiness"]["is_ready"] is False
+    assert "problem" in workspace["readiness"]["missing_fields"]
+    assert "goal" in workspace["readiness"]["missing_fields"]
+    assert workspace["handoff"]["state"] == "draft_only"
+
+
+def test_dashboard_intake_workspace_can_be_loaded_for_existing_mission(repo: Path) -> None:
+    from spec_orch.dashboard.launcher import (
+        _create_mission_draft,
+        _load_dashboard_intake_workspace,
+    )
+
+    _create_mission_draft(
+        repo,
+        {
+            "title": "Existing Intake",
+            "mission_id": "existing-intake",
+            "problem": "Operators need a stable intake workspace.",
+            "goal": "Preserve structured intake between launcher actions.",
+            "intent": "Load persisted workspace.",
+            "acceptance_criteria": ["The dashboard reloads the saved intake state."],
+            "constraints": [],
+            "evidence_expectations": ["persisted intake workspace"],
+            "open_questions": [],
+            "current_system_understanding": "Launcher persists operator draft state.",
+        },
+    )
+
+    loaded = _load_dashboard_intake_workspace(repo, "existing-intake")
+
+    assert loaded is not None
+    assert loaded["mission_id"] == "existing-intake"
+    assert (
+        loaded["canonical_issue"]["goal"] == "Preserve structured intake between launcher actions."
+    )
+
+
 def test_build_fresh_acpx_mission_request_generates_unique_local_bootstrap(repo: Path) -> None:
     from spec_orch.dashboard.launcher import _build_fresh_acpx_mission_request
 

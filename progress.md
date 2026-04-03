@@ -119,6 +119,63 @@
   - Recorded the resulting IDs into:
     - `docs/plans/2026-04-01-operator-workbench-linear-plan.md`
 
+## Session: 2026-04-02 SON-408 Tranche Start
+
+### Phase 0: Shared worktree environment correction
+- **Status:** in_progress
+- Actions taken:
+  - Confirmed the repo requires Python `>=3.11`, while ad hoc shell defaults were
+    drifting between system Python and worktree-local `.venv`.
+  - Standardized on a shared `uv` environment for all SpecOrch worktrees:
+    `/Users/chris/workspace/spec-orch/.venv-py313`
+  - Recorded the preferred command prefix for future tranche work:
+    `UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ...`
+  - Updated `docs/agent-guides/setup.md` so future worktrees do not recreate `.venv`
+    per branch.
+
+## Session: 2026-04-02 Conversational Intake Tranche SON-408..411
+
+### Phase 1: SON-408 Linear-native conversational intake
+- **Status:** complete
+- Actions taken:
+  - Added Linear-native intake parsing, readiness evaluation, and write-back wiring.
+  - Bridged the new intake sections into the current issue source and Linear update flow.
+
+### Phase 2: SON-409 dashboard intake workspace
+- **Status:** complete
+- Actions taken:
+  - Added a dashboard intake workspace preview/read model to the launcher flow.
+  - Persisted intake workspace state under mission operator paths and exposed new launcher APIs.
+
+### Phase 3: SON-410 canonical issue / acceptance schema
+- **Status:** complete
+- Actions taken:
+  - Added canonical intake models and canonical issue construction for Linear and dashboard entry paths.
+  - Kept a legacy bridge so current runtime paths can still consume normalized issues.
+
+### Phase 4: SON-411 intake-to-workspace handoff contract
+- **Status:** complete
+- Actions taken:
+  - Added a workspace handoff builder with placeholder execution/judgment/learning seams.
+  - Surfaced the handoff payload inside the dashboard intake workspace.
+
+### Phase 5: Tranche closeout and formal acceptance
+- **Status:** complete
+- Actions taken:
+  - Fixed a harness bug where canonical shell runners did not inherit the shared `.venv-py313`.
+  - Fixed a status aggregation bug where stale direct fail reports could override newer operator reports.
+  - Re-ran canonical acceptance:
+    - `issue_start`: pass
+    - `dashboard_ui`: pass
+    - `mission_start`: pass
+    - `exploratory`: fail
+  - Archived the tranche as:
+    - `docs/acceptance-history/releases/conversational-intake-tranche-son-408-411-2026-04-02/`
+
+### Current program state
+- `SON-408` through `SON-411` are complete at the current minimal tranche level.
+- The next real blocker is no longer harness/env drift; it is the exploratory acceptance failure on fresh workflow replay evidence.
+
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|

@@ -3,7 +3,15 @@ from __future__ import annotations
 import re
 
 from spec_orch.domain.models import Issue, IssueContext
+from spec_orch.services.canonical_issue import (
+    canonical_issue_from_linear_intake,
+    legacy_issue_from_canonical,
+)
 from spec_orch.services.linear_client import LinearClient
+from spec_orch.services.linear_intake import (
+    contains_linear_intake_sections,
+    parse_linear_intake_description,
+)
 
 BUILDER_PROMPT_SECTION = re.compile(r"## Builder Prompt\s*\n(.*?)(?=\n## |\Z)", re.DOTALL)
 ACCEPTANCE_CRITERIA_SECTION = re.compile(r"## Acceptance Criteria\s*\n(.*?)(?=\n## |\Z)", re.DOTALL)
@@ -23,12 +31,26 @@ class LinearIssueSource:
     def load(self, issue_id: str) -> Issue:
         raw = self._client.get_issue(issue_id)
         description = raw.get("description", "") or ""
+        labels_data = raw.get("labels", {}).get("nodes", [])
+        labels = [lbl.get("name", "") for lbl in labels_data if lbl.get("name")]
+
+        if contains_linear_intake_sections(description):
+            intake = parse_linear_intake_description(description)
+            canonical = canonical_issue_from_linear_intake(
+                issue_id=raw.get("identifier", issue_id),
+                title=raw.get("title", ""),
+                intake=intake,
+            )
+            issue = legacy_issue_from_canonical(
+                canonical,
+                default_verification_commands=self._default_verification,
+            )
+            issue.labels = labels
+            return issue
+
         builder_prompt = self._extract_section(BUILDER_PROMPT_SECTION, description)
         acceptance_criteria = self._extract_list(ACCEPTANCE_CRITERIA_SECTION, description)
         context = self._extract_context(description)
-
-        labels_data = raw.get("labels", {}).get("nodes", [])
-        labels = [lbl.get("name", "") for lbl in labels_data if lbl.get("name")]
 
         return Issue(
             issue_id=raw.get("identifier", issue_id),

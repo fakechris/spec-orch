@@ -1443,9 +1443,7 @@ class RoundOrchestrator:
                 ),
                 "visual_qa": f"/?mission={mission_id}&mode=missions&tab=visual&round={round_id}",
                 "costs": f"/?mission={mission_id}&mode=missions&tab=costs&round={round_id}",
-                "acceptance": (
-                    f"/?mission={mission_id}&mode=missions&tab=acceptance&round={round_id}"
-                ),
+                "judgment": (f"/?mission={mission_id}&mode=missions&tab=judgment&round={round_id}"),
             },
             "workflow_assertions": self._build_workflow_assertions(),
         }
@@ -1808,7 +1806,7 @@ class RoundOrchestrator:
             "overview": f"{base}overview",
             "transcript": f"{base}transcript",
             "approvals": f"{base}approvals",
-            "acceptance": f"{base}acceptance",
+            "judgment": f"{base}judgment",
             "visual_qa": f"{base}visual",
             "costs": f"{base}costs",
         }
@@ -1819,7 +1817,7 @@ class RoundOrchestrator:
             return {
                 "transcript": 0,
                 "approvals": 1,
-                "acceptance": 2,
+                "judgment": 2,
                 "visual": 3,
                 "costs": 4,
                 "overview": 5,
@@ -1836,7 +1834,7 @@ class RoundOrchestrator:
         if mode is AcceptanceMode.EXPLORATORY:
             return {
                 "transcript": 0,
-                "acceptance": 1,
+                "judgment": 1,
                 "costs": 2,
                 "visual": 3,
                 "approvals": 4,
@@ -1847,7 +1845,7 @@ class RoundOrchestrator:
             "visual": 1,
             "costs": 2,
             "approvals": 3,
-            "acceptance": 4,
+            "judgment": 4,
             "overview": 5,
         }
 
@@ -2005,16 +2003,16 @@ class RoundOrchestrator:
                     timeout_ms=4000,
                 ),
             ]
-        if "tab=acceptance" in route:
+        if "tab=judgment" in route:
             return [
                 AcceptanceInteractionStep(
                     action="click_selector",
                     target=(
                         '[data-automation-target="internal-route"]'
-                        '[data-route-label="Open acceptance review"]'
+                        '[data-route-label="Open raw acceptance artifact"]'
                     ),
                     description=(
-                        "Follow the acceptance affordance exposed by the mission context rail."
+                        "Follow the raw acceptance artifact bridge exposed by Judgment Workbench."
                     ),
                     timeout_ms=1500,
                 )
@@ -2176,13 +2174,13 @@ class RoundOrchestrator:
                 ),
                 AcceptanceInteractionStep(
                     action="click_selector",
-                    target='[data-automation-target="mission-tab"][data-tab-key="acceptance"]',
-                    description="Open the Acceptance tab from mission detail.",
+                    target='[data-automation-target="mission-tab"][data-tab-key="judgment"]',
+                    description="Open the Judgment tab from mission detail.",
                 ),
                 AcceptanceInteractionStep(
                     action="wait_for_selector",
-                    target='[data-automation-target="mission-tab"][data-tab-key="acceptance"][data-active="true"]',
-                    description="Confirm the Acceptance tab became active.",
+                    target='[data-automation-target="mission-tab"][data-tab-key="judgment"][data-active="true"]',
+                    description="Confirm the Judgment tab became active.",
                 ),
                 AcceptanceInteractionStep(
                     action="click_selector",
@@ -2223,7 +2221,7 @@ class RoundOrchestrator:
             "the transcript tab can be opened from mission detail",
             "the approvals surface exposes actionable operator controls when present",
             "the visual QA tab can be opened from mission detail",
-            "the acceptance tab can be opened from mission detail",
+            "the judgment tab can be opened from mission detail",
             "the costs tab can be opened from mission detail",
         ]
 
@@ -2234,6 +2232,7 @@ class RoundOrchestrator:
             "overview": "Overview",
             "transcript": "Transcript",
             "approvals": "Approvals",
+            "judgment": "Judgment",
             "visual": "Visual QA",
             "visual-qa": "Visual QA",
             "acceptance": "Acceptance",

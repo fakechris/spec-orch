@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import json
 import os
+import socket
 import time
 import tomllib
 from dataclasses import replace
@@ -14,6 +15,11 @@ from urllib.request import urlopen
 from spec_orch.domain.models import AcceptanceFinding, AcceptanceReviewResult
 from spec_orch.services.acceptance.browser_evidence import collect_playwright_browser_evidence
 from spec_orch.services.litellm_profile import resolve_role_litellm_settings
+
+_DEFAULT_DASHBOARD_PORT_RETRY_ATTEMPTS = 3
+_MAX_COMPACT_REVIEW_FINDINGS = 5
+_MAX_COMPACT_REVIEW_PROPOSALS = 5
+_MAX_COMPACT_BROWSER_STEPS = 8
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -185,7 +191,20 @@ def _existing_browser_evidence_covers_campaign(
         required_routes.update(related_routes[:related_route_budget])
     else:
         required_routes.update(related_routes)
-    return required_routes.issubset(covered_routes)
+    if not required_routes.issubset(covered_routes):
+        return False
+
+    interactions = browser_evidence.get("interactions")
+    if not isinstance(interactions, dict):
+        return False
+    interaction_plans = dict(getattr(campaign, "interaction_plans", {}) or {})
+    for route, planned_steps in interaction_plans.items():
+        if route not in required_routes or not planned_steps:
+            continue
+        route_logs = interactions.get(route)
+        if not isinstance(route_logs, list) or not route_logs:
+            return False
+    return True
 
 
 def _build_execution_lifecycle_manager(repo_root: Path) -> Any:
@@ -259,6 +278,44 @@ def wait_for_dashboard_ready(
         time.sleep(poll_interval_seconds)
 
 
+def resolve_dashboard_port(preferred_port: int) -> int:
+    return resolve_dashboard_port_candidates(preferred_port, attempts=1)[0]
+
+
+def resolve_dashboard_port_candidates(
+    preferred_port: int,
+    *,
+    attempts: int = _DEFAULT_DASHBOARD_PORT_RETRY_ATTEMPTS,
+) -> list[int]:
+    requested_port = int(preferred_port)
+    candidate_count = max(1, int(attempts))
+    candidates: list[int] = []
+    if requested_port > 0 and _dashboard_port_is_available(requested_port):
+        candidates.append(requested_port)
+    while len(candidates) < candidate_count:
+        candidate = _reserve_dashboard_port()
+        if candidate not in candidates:
+            candidates.append(candidate)
+    return candidates
+
+
+def _reserve_dashboard_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(1)
+        return int(sock.getsockname()[1])
+
+
+def _dashboard_port_is_available(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
+
+
 def run_fresh_launch_and_pickup(*, repo_root: Path, mission_id: str) -> dict[str, Any]:
     from spec_orch.dashboard.launcher import _launch_mission
 
@@ -329,22 +386,32 @@ def materialize_fresh_execution_artifacts(
 
     mission_bootstrap = _read_json(operator_dir / "mission_bootstrap.json")
     launch = _read_json(operator_dir / "launch.json")
+    launch_pickup = _read_json(operator_dir / "launch_pickup.json")
     round_summary = _read_json(round_dir / "round_summary.json")
     builder_execution_summary = {
         "round_id": round_summary.get("round_id"),
         "status": round_summary.get("status"),
         "worker_results": list(round_summary.get("worker_results", [])),
     }
+    daemon_run = launch_pickup.get("daemon_run", {}) if isinstance(launch_pickup, dict) else {}
+    if not isinstance(daemon_run, dict) or not daemon_run:
+        daemon_run = {
+            "mission_id": mission_id,
+            "proof_type": "fresh_execution",
+            "runner_status": (
+                str(launch.get("runner", {}).get("status", "")).strip()
+                or ("started" if launch_result.get("background_runner_started") else "unknown")
+            ),
+            "launch_phase": (
+                str(launch.get("last_launch", {}).get("state", {}).get("phase", "")).strip()
+                or str(launch_result.get("state", {}).get("phase", "")).strip()
+            ),
+        }
     daemon_run = {
+        **daemon_run,
         "mission_id": mission_id,
         "proof_type": "fresh_execution",
         "fresh_round_path": str(round_dir),
-        "runner_status": (
-            str(launch.get("runner", {}).get("status", "")).strip()
-            or ("started" if launch_result.get("background_runner_started") else "unknown")
-        ),
-        "launch_phase": str(launch.get("last_launch", {}).get("state", {}).get("phase", "")).strip()
-        or str(launch_result.get("state", {}).get("phase", "")).strip(),
     }
 
     _write_json(operator_dir / "daemon_run.json", daemon_run)
@@ -402,6 +469,276 @@ def build_fresh_exploratory_artifacts(
         artifacts["round_summary"] = round_summary
 
     return artifacts
+
+
+def _compact_worker_results_for_evaluator(worker_results: Any) -> list[dict[str, Any]]:
+    if not isinstance(worker_results, list):
+        return []
+    compacted: list[dict[str, Any]] = []
+    for item in worker_results:
+        if not isinstance(item, dict):
+            continue
+        payload: dict[str, Any] = {}
+        for key in ("packet_id", "succeeded", "adapter", "agent", "status"):
+            value = item.get(key)
+            if value not in (None, "", [], {}):
+                payload[key] = value
+        if payload:
+            compacted.append(payload)
+    return compacted
+
+
+def _compact_acceptance_review_for_evaluator(review: Any) -> dict[str, Any]:
+    if not isinstance(review, dict):
+        return {}
+    payload: dict[str, Any] = {}
+    for key in (
+        "status",
+        "summary",
+        "confidence",
+        "tested_routes",
+        "acceptance_mode",
+        "coverage_status",
+        "untested_expected_routes",
+        "recommended_next_step",
+    ):
+        value = review.get(key)
+        if value not in (None, "", [], {}):
+            payload[key] = value
+    findings = review.get("findings")
+    if isinstance(findings, list) and findings:
+        compact_findings: list[dict[str, Any]] = []
+        for item in findings[:_MAX_COMPACT_REVIEW_FINDINGS]:
+            if not isinstance(item, dict):
+                continue
+            compact_item = {
+                key: item[key]
+                for key in ("severity", "summary", "route", "critique_axis")
+                if item.get(key) not in (None, "", [], {})
+            }
+            if compact_item:
+                compact_findings.append(compact_item)
+        if compact_findings:
+            payload["findings"] = compact_findings
+    issue_proposals = review.get("issue_proposals")
+    if isinstance(issue_proposals, list) and issue_proposals:
+        compact_proposals: list[dict[str, Any]] = []
+        for item in issue_proposals[:_MAX_COMPACT_REVIEW_PROPOSALS]:
+            if not isinstance(item, dict):
+                continue
+            compact_item = {
+                key: item[key]
+                for key in ("title", "summary", "severity", "route", "critique_axis")
+                if item.get(key) not in (None, "", [], {})
+            }
+            if compact_item:
+                compact_proposals.append(compact_item)
+        if compact_proposals:
+            payload["issue_proposals"] = compact_proposals
+    return payload
+
+
+def _compact_mission_for_evaluator(mission_payload: Any) -> dict[str, Any]:
+    if not isinstance(mission_payload, dict):
+        return {}
+    payload: dict[str, Any] = {}
+    for key in ("mission_id", "title", "intent", "acceptance_criteria", "constraints"):
+        value = mission_payload.get(key)
+        if value not in (None, "", [], {}):
+            payload[key] = value
+    metadata = mission_payload.get("metadata")
+    if isinstance(metadata, dict) and metadata:
+        payload["metadata"] = dict(metadata)
+    return payload
+
+
+def _compact_browser_evidence_for_evaluator(browser_evidence: Any) -> dict[str, Any]:
+    if not isinstance(browser_evidence, dict):
+        return {}
+    payload: dict[str, Any] = {}
+    tested_routes = browser_evidence.get("tested_routes")
+    if isinstance(tested_routes, list) and tested_routes:
+        payload["tested_routes"] = [str(route) for route in tested_routes if str(route).strip()]
+    interactions = browser_evidence.get("interactions")
+    if isinstance(interactions, dict) and interactions:
+        compact_interactions: dict[str, list[dict[str, Any]]] = {}
+        for route, steps in interactions.items():
+            if not isinstance(steps, list) or not steps:
+                continue
+            compact_steps: list[dict[str, Any]] = []
+            for step in steps[:_MAX_COMPACT_BROWSER_STEPS]:
+                if not isinstance(step, dict):
+                    continue
+                compact_step = {
+                    key: step[key]
+                    for key in ("action", "target", "description", "status")
+                    if step.get(key) not in (None, "", [], {})
+                }
+                if compact_step:
+                    compact_steps.append(compact_step)
+            compact_interactions[str(route)] = compact_steps
+        if compact_interactions:
+            payload["interactions"] = compact_interactions
+    for key in ("console_errors", "page_errors", "artifact_paths"):
+        value = browser_evidence.get(key)
+        if value not in (None, "", [], {}):
+            payload[key] = value
+    return payload
+
+
+def _compact_fresh_execution_for_evaluator(fresh_execution: Any) -> dict[str, Any]:
+    if not isinstance(fresh_execution, dict):
+        return {}
+    payload: dict[str, Any] = {}
+    for key in ("proof_type", "fresh_round_path"):
+        value = fresh_execution.get(key)
+        if value not in (None, "", [], {}):
+            payload[key] = value
+    mission_bootstrap = fresh_execution.get("mission_bootstrap")
+    if isinstance(mission_bootstrap, dict) and mission_bootstrap:
+        payload["mission_bootstrap"] = _compact_mission_for_evaluator(mission_bootstrap)
+    launch = fresh_execution.get("launch")
+    if isinstance(launch, dict) and launch:
+        compact_launch: dict[str, Any] = {}
+        runner = launch.get("runner")
+        if isinstance(runner, dict) and runner:
+            compact_launch["runner"] = {
+                key: runner[key] for key in ("status",) if runner.get(key) not in (None, "", [], {})
+            }
+        last_launch = launch.get("last_launch")
+        if isinstance(last_launch, dict):
+            state = last_launch.get("state")
+            if isinstance(state, dict) and state:
+                compact_state = {
+                    key: state[key]
+                    for key in ("phase", "current_round", "updated_at")
+                    if state.get(key) not in (None, "", [], {})
+                }
+                if compact_state:
+                    compact_launch["last_launch"] = {"state": compact_state}
+        if compact_launch:
+            payload["launch"] = compact_launch
+    daemon_run = fresh_execution.get("daemon_run")
+    if isinstance(daemon_run, dict) and daemon_run:
+        compact_daemon = {
+            key: daemon_run[key]
+            for key in ("runner_status", "fresh_round_path")
+            if daemon_run.get(key) not in (None, "", [], {})
+        }
+        state = daemon_run.get("state")
+        if isinstance(state, dict) and state:
+            compact_state = {
+                key: state[key]
+                for key in ("phase", "current_round", "updated_at")
+                if state.get(key) not in (None, "", [], {})
+            }
+            if compact_state:
+                compact_daemon["state"] = compact_state
+        if compact_daemon:
+            payload["daemon_run"] = compact_daemon
+    builder_execution_summary = fresh_execution.get("builder_execution_summary")
+    if isinstance(builder_execution_summary, dict) and builder_execution_summary:
+        compact_summary = {
+            key: builder_execution_summary[key]
+            for key in ("round_id", "status")
+            if builder_execution_summary.get(key) not in (None, "", [], {})
+        }
+        worker_results = _compact_worker_results_for_evaluator(
+            builder_execution_summary.get("worker_results")
+        )
+        if worker_results:
+            compact_summary["worker_results"] = worker_results
+        if compact_summary:
+            payload["builder_execution_summary"] = compact_summary
+    return payload
+
+
+def _compact_workflow_replay_for_evaluator(workflow_replay: Any) -> dict[str, Any]:
+    if not isinstance(workflow_replay, dict):
+        return {}
+    payload: dict[str, Any] = {}
+    for key in ("proof_type", "review_routes", "workflow_assertions"):
+        value = workflow_replay.get(key)
+        if value not in (None, "", [], {}):
+            payload[key] = value
+    return payload
+
+
+def _compact_round_summary_for_evaluator(round_summary: Any) -> dict[str, Any]:
+    if not isinstance(round_summary, dict):
+        return {}
+    payload: dict[str, Any] = {}
+    for key in ("round_id", "wave_id", "status", "decision"):
+        value = round_summary.get(key)
+        if value not in (None, "", [], {}):
+            payload[key] = value
+    worker_results = _compact_worker_results_for_evaluator(round_summary.get("worker_results"))
+    if worker_results:
+        payload["worker_results"] = worker_results
+    return payload
+
+
+def _compact_fresh_report_for_evaluator(report_payload: Any) -> dict[str, Any]:
+    if not isinstance(report_payload, dict):
+        return {}
+    payload: dict[str, Any] = {}
+    for key in ("mission_id", "variant", "dashboard_url", "remaining_gaps"):
+        value = report_payload.get(key)
+        if value not in (None, "", [], {}):
+            payload[key] = value
+    return payload
+
+
+def _compact_exploratory_artifacts_for_evaluator(
+    artifacts: dict[str, Any],
+) -> dict[str, Any]:
+    compacted: dict[str, Any] = {}
+    mission = _compact_mission_for_evaluator(artifacts.get("mission"))
+    if mission:
+        compacted["mission"] = mission
+    browser_evidence = _compact_browser_evidence_for_evaluator(artifacts.get("browser_evidence"))
+    if browser_evidence:
+        compacted["browser_evidence"] = browser_evidence
+    fresh_report = _compact_fresh_report_for_evaluator(
+        artifacts.get("fresh_acpx_mission_e2e_report")
+    )
+    if fresh_report:
+        compacted["fresh_acpx_mission_e2e_report"] = fresh_report
+    fresh_execution = _compact_fresh_execution_for_evaluator(artifacts.get("fresh_execution"))
+    if fresh_execution:
+        compacted["fresh_execution"] = fresh_execution
+    workflow_replay = _compact_workflow_replay_for_evaluator(artifacts.get("workflow_replay"))
+    if workflow_replay:
+        compacted["workflow_replay"] = workflow_replay
+    review_routes = artifacts.get("review_routes")
+    if isinstance(review_routes, dict) and review_routes:
+        compacted["review_routes"] = dict(review_routes)
+    workflow_browser_evidence = _compact_browser_evidence_for_evaluator(
+        artifacts.get("workflow_browser_evidence")
+    )
+    if workflow_browser_evidence:
+        compacted["workflow_browser_evidence"] = workflow_browser_evidence
+    workflow_acceptance_review = _compact_acceptance_review_for_evaluator(
+        artifacts.get("workflow_acceptance_review")
+    )
+    if workflow_acceptance_review:
+        compacted["workflow_acceptance_review"] = workflow_acceptance_review
+    round_summary = _compact_round_summary_for_evaluator(artifacts.get("round_summary"))
+    if round_summary:
+        compacted["round_summary"] = round_summary
+    if (
+        "proof_split" in artifacts
+        and "fresh_execution" not in compacted
+        and "workflow_replay" not in compacted
+    ):
+        proof_split = artifacts.get("proof_split")
+        if isinstance(proof_split, dict) and proof_split:
+            compacted["proof_split"] = {
+                key: {"proof_type": str(value.get("proof_type", "")).strip()}
+                for key, value in proof_split.items()
+                if isinstance(value, dict) and str(value.get("proof_type", "")).strip()
+            }
+    return compacted
 
 
 def run_fresh_exploratory_acceptance_review(
@@ -474,6 +811,7 @@ def run_fresh_exploratory_acceptance_review(
             if isinstance(prior_browser_evidence, dict) and prior_browser_evidence:
                 artifacts["workflow_browser_evidence"] = dict(prior_browser_evidence)
             artifacts["browser_evidence"] = refreshed_browser_evidence
+    evaluator_artifacts = _compact_exploratory_artifacts_for_evaluator(artifacts)
 
     evaluator = _invoke_supported_kwargs(
         LiteLLMAcceptanceEvaluator,
@@ -489,7 +827,7 @@ def run_fresh_exploratory_acceptance_review(
         round_id=round_id,
         round_dir=round_dir,
         worker_results=[],
-        artifacts=artifacts,
+        artifacts=evaluator_artifacts,
         repo_root=repo_root,
         campaign=campaign,
     )

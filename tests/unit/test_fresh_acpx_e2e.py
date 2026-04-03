@@ -681,6 +681,270 @@ api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
     assert captured["artifacts"]["browser_evidence"]["tested_routes"] == ["/", transcript_route]
 
 
+def test_run_fresh_exploratory_acceptance_review_compacts_evaluator_artifacts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from spec_orch.domain.models import AcceptanceCampaign, AcceptanceMode, AcceptanceReviewResult
+    from spec_orch.services.fresh_acpx_e2e import run_fresh_exploratory_acceptance_review
+
+    repo_root = tmp_path
+    (repo_root / "spec-orch.toml").write_text(
+        """
+[acceptance_evaluator]
+adapter = "litellm"
+model = "MiniMax-M2.7-highspeed"
+api_type = "anthropic"
+api_key_env = "MINIMAX_API_KEY"
+api_base_env = "MINIMAX_ANTHROPIC_BASE_URL"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
+    monkeypatch.setenv("MINIMAX_ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+
+    mission_id = "fresh-acpx-1"
+    round_dir = repo_root / "docs" / "specs" / mission_id / "rounds" / "round-02"
+    round_dir.mkdir(parents=True, exist_ok=True)
+    (round_dir / "round_summary.json").write_text('{"round_id": 2}\n', encoding="utf-8")
+
+    oversized_artifacts = {
+        "mission": {
+            "mission_id": mission_id,
+            "title": "Fresh mission",
+            "intent": "Validate a narrow fresh ACPX path.",
+            "acceptance_criteria": ["criterion-a"],
+            "constraints": ["constraint-a"],
+            "metadata": {"fresh_variant": "default"},
+            "post_run_campaign": {"primary_routes": ["/", "/?mode=missions"]},
+        },
+        "browser_evidence": {
+            "tested_routes": ["/", "/?mode=missions"],
+            "interactions": {"/": [{"action": "click_selector", "status": "passed"}]},
+            "console_errors": [],
+            "page_errors": [],
+        },
+        "fresh_acpx_mission_e2e_report": {
+            "mission_id": mission_id,
+            "variant": "default",
+            "dashboard_url": "http://127.0.0.1:8426",
+            "fresh_execution": {"fresh_round_path": str(round_dir), "worker_results": [1, 2, 3]},
+            "workflow_replay": {"review_routes": {"overview": "/?mission=fresh-acpx-1"}},
+            "acceptance_review": {
+                "status": "pass",
+                "summary": "Workflow replay already passed.",
+                "artifacts": {"proof_split": {"workflow_replay": {"huge": "payload"}}},
+            },
+            "remaining_gaps": ["gap-a"],
+        },
+        "fresh_execution": {
+            "proof_type": "fresh_execution",
+            "mission_bootstrap": {"mission_id": mission_id, "title": "Fresh mission"},
+            "launch": {"runner": {"status": "foreground_required"}},
+            "daemon_run": {
+                "runner_status": "finished",
+                "state": {"phase": "all_done", "current_round": 1},
+            },
+            "fresh_round_path": str(round_dir),
+            "builder_execution_summary": {
+                "round_id": 2,
+                "status": "decided",
+                "worker_results": [
+                    {"packet_id": "pkt-1", "succeeded": True, "adapter": "acpx_worker"},
+                    {"packet_id": "pkt-2", "succeeded": True, "adapter": "acpx_worker"},
+                ],
+            },
+        },
+        "workflow_replay": {
+            "proof_type": "workflow_replay",
+            "review_routes": {
+                "overview": f"/?mission={mission_id}&mode=missions&tab=overview",
+                "judgment": f"/?mission={mission_id}&mode=missions&tab=judgment",
+            },
+            "workflow_assertions": ["assertion-a"],
+        },
+        "review_routes": {
+            "overview": f"/?mission={mission_id}&mode=missions&tab=overview",
+        },
+        "proof_split": {
+            "fresh_execution": {"proof_type": "fresh_execution", "huge": "payload"},
+            "workflow_replay": {"proof_type": "workflow_replay", "huge": "payload"},
+        },
+        "workflow_acceptance_review": {
+            "status": "pass",
+            "summary": "Workflow acceptance pass",
+            "confidence": 0.91,
+            "tested_routes": ["/", "/?mode=missions"],
+            "artifacts": {"proof_split": {"workflow_replay": {"huge": "payload"}}},
+            "findings": [{"summary": "finding-a"}],
+        },
+        "round_summary": {
+            "round_id": 2,
+            "status": "decided",
+            "decision": {"action": "pass", "reason_code": "none"},
+            "worker_results": [{"packet_id": "pkt-1"}, {"packet_id": "pkt-2"}],
+        },
+    }
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "spec_orch.services.fresh_acpx_e2e.build_fresh_exploratory_artifacts",
+        lambda **kwargs: oversized_artifacts,
+    )
+
+    class FakeOrchestrator:
+        def __init__(self, *, repo_root: Path, **_: object) -> None:
+            pass
+
+        def _build_acceptance_campaign(self, *, mission_id: str, artifacts: dict, mode_override):
+            return AcceptanceCampaign(
+                mode=AcceptanceMode.EXPLORATORY,
+                goal="Dogfood the output from an operator perspective.",
+                primary_routes=["/"],
+            )
+
+    class FakeEvaluator:
+        def __init__(self, **kwargs) -> None:
+            pass
+
+        def evaluate_acceptance(self, **kwargs):
+            captured["artifacts"] = kwargs["artifacts"]
+            return AcceptanceReviewResult(
+                status="pass",
+                summary="Exploratory review succeeded.",
+                confidence=0.9,
+                evaluator="fake_acceptance",
+            )
+
+    monkeypatch.setattr("spec_orch.services.round_orchestrator.RoundOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(
+        "spec_orch.services.acceptance.litellm_acceptance_evaluator.LiteLLMAcceptanceEvaluator",
+        FakeEvaluator,
+    )
+
+    report = run_fresh_exploratory_acceptance_review(
+        repo_root=repo_root,
+        mission_id=mission_id,
+        round_dir=round_dir,
+        mission_payload={"mission_id": mission_id},
+        browser_evidence={"status": "ok"},
+    )
+
+    compacted = captured["artifacts"]
+    assert report["status"] == "pass"
+    assert isinstance(compacted, dict)
+    assert "proof_split" not in compacted
+    assert "post_run_campaign" not in compacted["mission"]
+    assert "fresh_execution" not in compacted["fresh_acpx_mission_e2e_report"]
+    assert "workflow_replay" not in compacted["fresh_acpx_mission_e2e_report"]
+    assert "acceptance_review" not in compacted["fresh_acpx_mission_e2e_report"]
+    assert "artifacts" not in compacted["workflow_acceptance_review"]
+    assert compacted["workflow_acceptance_review"]["summary"] == "Workflow acceptance pass"
+    assert len(json.dumps(compacted, ensure_ascii=False)) < len(
+        json.dumps(oversized_artifacts, ensure_ascii=False)
+    )
+
+
+def test_existing_browser_evidence_requires_non_empty_logs_for_interaction_routes() -> None:
+    from spec_orch.domain.models import (
+        AcceptanceCampaign,
+        AcceptanceInteractionStep,
+        AcceptanceMode,
+    )
+    from spec_orch.services.fresh_acpx_e2e import _existing_browser_evidence_covers_campaign
+
+    transcript_route = "/?mission=fresh-acpx-1&mode=missions&tab=transcript"
+    campaign = AcceptanceCampaign(
+        mode=AcceptanceMode.EXPLORATORY,
+        goal="Dogfood the output from an operator perspective.",
+        primary_routes=["/"],
+        related_routes=[transcript_route],
+        interaction_plans={
+            transcript_route: [
+                AcceptanceInteractionStep(
+                    action="wait_for_selector",
+                    target='[data-automation-target="transcript-filter"][data-filter-key="all"]',
+                    description="Confirm transcript controls are visible.",
+                )
+            ]
+        },
+    )
+
+    stale_browser_evidence = {
+        "tested_routes": ["/", transcript_route],
+        "interactions": {
+            "/": [{"action": "click_selector", "status": "passed"}],
+            transcript_route: [],
+        },
+    }
+
+    assert _existing_browser_evidence_covers_campaign(stale_browser_evidence, campaign) is False
+
+
+def test_materialize_fresh_execution_artifacts_prefers_launch_pickup_daemon_run(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.fresh_acpx_e2e import materialize_fresh_execution_artifacts
+
+    repo_root = tmp_path
+    mission_id = "fresh-acpx-1"
+    operator_dir = repo_root / "docs" / "specs" / mission_id / "operator"
+    round_dir = repo_root / "docs" / "specs" / mission_id / "rounds" / "round-01"
+    operator_dir.mkdir(parents=True, exist_ok=True)
+    round_dir.mkdir(parents=True, exist_ok=True)
+
+    (operator_dir / "mission_bootstrap.json").write_text(
+        json.dumps({"mission_id": mission_id, "title": "Fresh ACPX Mission"}) + "\n",
+        encoding="utf-8",
+    )
+    (operator_dir / "launch.json").write_text(
+        json.dumps(
+            {
+                "last_launch": {"state": {"mission_id": mission_id, "phase": "executing"}},
+                "runner": {"status": "foreground_required"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (operator_dir / "launch_pickup.json").write_text(
+        json.dumps(
+            {
+                "mission_id": mission_id,
+                "daemon_run": {
+                    "mission_id": mission_id,
+                    "proof_type": "fresh_execution",
+                    "runner_status": "finished",
+                    "state": {
+                        "mission_id": mission_id,
+                        "phase": "all_done",
+                        "current_round": 1,
+                    },
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (round_dir / "round_summary.json").write_text(
+        json.dumps({"round_id": 1, "status": "decided", "worker_results": []}) + "\n",
+        encoding="utf-8",
+    )
+
+    proof = materialize_fresh_execution_artifacts(
+        repo_root=repo_root,
+        mission_id=mission_id,
+        round_dir=round_dir,
+        launch_result={
+            "background_runner_started": False,
+            "state": {"mission_id": mission_id, "phase": "executing"},
+        },
+    )
+
+    assert proof["daemon_run"]["runner_status"] == "finished"
+    assert proof["daemon_run"]["state"]["phase"] == "all_done"
+
+
 def test_run_fresh_execution_once_advances_lifecycle_and_records_daemon_run(
     tmp_path: Path,
     monkeypatch,
@@ -837,6 +1101,114 @@ def test_wait_for_dashboard_ready_treats_http_error_status_as_ready(monkeypatch)
 
     assert result["ready"] is True
     assert result["status"] == 404
+
+
+def test_resolve_dashboard_port_prefers_requested_port_when_available() -> None:
+    from spec_orch.services.fresh_acpx_e2e import resolve_dashboard_port
+
+    port = resolve_dashboard_port(0)
+
+    assert isinstance(port, int)
+    assert port > 0
+
+
+def test_resolve_dashboard_port_avoids_busy_requested_port() -> None:
+    import socket
+
+    from spec_orch.services.fresh_acpx_e2e import resolve_dashboard_port
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(1)
+        busy_port = sock.getsockname()[1]
+
+        resolved_port = resolve_dashboard_port(busy_port)
+
+    assert resolved_port != busy_port
+    assert resolved_port > 0
+
+
+def test_resolve_dashboard_port_candidates_prioritize_requested_port() -> None:
+    from spec_orch.services.fresh_acpx_e2e import resolve_dashboard_port_candidates
+
+    candidates = resolve_dashboard_port_candidates(0, attempts=3)
+
+    assert len(candidates) == 3
+    assert len(set(candidates)) == len(candidates)
+    assert all(port > 0 for port in candidates)
+
+
+def test_resolve_dashboard_port_candidates_skip_busy_requested_port() -> None:
+    import socket
+
+    from spec_orch.services.fresh_acpx_e2e import resolve_dashboard_port_candidates
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(1)
+        busy_port = sock.getsockname()[1]
+
+        candidates = resolve_dashboard_port_candidates(busy_port, attempts=3)
+
+    assert len(candidates) == 3
+    assert busy_port not in candidates
+    assert len(set(candidates)) == len(candidates)
+
+
+def test_compact_acceptance_review_for_evaluator_limits_entries() -> None:
+    from spec_orch.services.fresh_acpx_e2e import _compact_acceptance_review_for_evaluator
+
+    payload = _compact_acceptance_review_for_evaluator(
+        {
+            "status": "warn",
+            "summary": "review",
+            "findings": [
+                {
+                    "severity": "medium",
+                    "summary": f"finding-{index}",
+                    "route": "/",
+                    "critique_axis": "ux",
+                }
+                for index in range(7)
+            ],
+            "issue_proposals": [
+                {
+                    "title": f"proposal-{index}",
+                    "summary": "summary",
+                    "severity": "medium",
+                    "route": "/",
+                    "critique_axis": "ux",
+                }
+                for index in range(7)
+            ],
+        }
+    )
+
+    assert len(payload["findings"]) == 5
+    assert len(payload["issue_proposals"]) == 5
+
+
+def test_compact_browser_evidence_for_evaluator_limits_interaction_steps() -> None:
+    from spec_orch.services.fresh_acpx_e2e import _compact_browser_evidence_for_evaluator
+
+    payload = _compact_browser_evidence_for_evaluator(
+        {
+            "tested_routes": ["/"],
+            "interactions": {
+                "/": [
+                    {
+                        "action": "click",
+                        "target": f"target-{index}",
+                        "description": f"step-{index}",
+                        "status": "ok",
+                    }
+                    for index in range(10)
+                ]
+            },
+        }
+    )
+
+    assert len(payload["interactions"]["/"]) == 8
 
 
 def test_assert_fresh_plan_budget_rejects_broad_plan() -> None:

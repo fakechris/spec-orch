@@ -1,0 +1,39 @@
+{
+  "release_id": "runtime-execution-substrate-tranche-son-374-2026-04-02",
+  "release_label": "Runtime and Execution Substrate Tranche SON-374 2026-04-02",
+  "created_at": "2026-04-02T15:47:50Z",
+  "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+  "git_branch": "harnessrefact",
+  "acceptance_suite_version": "formal-acceptance-v1",
+  "overall_status": "pass",
+  "reported_checks": 4,
+  "total_checks": 4,
+  "checks": {
+    "issue_start": "pass",
+    "mission_start": "pass",
+    "dashboard_ui": "pass",
+    "exploratory": "pass"
+  },
+  "source_runs": {
+    "issue_start": "SPC-1",
+    "mission_start": "fresh-acpx-20260402153311-954579",
+    "dashboard_ui": "dashboard-ui-local",
+    "exploratory": "fresh-acpx-20260402153712-22e11a"
+  },
+  "artifacts": {
+    "status_json": ".spec_orch/acceptance/stability_acceptance_status.json",
+    "status_markdown": "docs/plans/2026-03-30-stability-acceptance-status.md",
+    "summary_markdown": "docs/acceptance-history/releases/runtime-execution-substrate-tranche-son-374-2026-04-02/summary.md",
+    "findings_json": "docs/acceptance-history/releases/runtime-execution-substrate-tranche-son-374-2026-04-02/findings.json",
+    "source_runs_json": "docs/acceptance-history/releases/runtime-execution-substrate-tranche-son-374-2026-04-02/source_runs.json",
+    "artifacts_json": "docs/acceptance-history/releases/runtime-execution-substrate-tranche-son-374-2026-04-02/artifacts.json"
+  },
+  "lineage": {
+    "program": "runtime-execution-substrate",
+    "notes": [
+      "This bundle captures SON-374 tranche 1, adding execution substrate inventory to the control overview read model.",
+      "The tranche also fixed the exploratory acceptance harness bug where oversized evaluator artifacts caused parse drift and a warn fallback.",
+      "Source-run compare versus shared-operator-semantics-tranche-son-370-read-side-2026-04-02: issue_start stayed on SPC-1; mission_start advanced to fresh-acpx-20260402153311-954579; exploratory advanced to fresh-acpx-20260402153712-22e11a."
+    ]
+  }
+}

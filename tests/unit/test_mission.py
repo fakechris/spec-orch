@@ -69,6 +69,35 @@ def test_get_mission(tmp_path: Path):
     assert m.mission_id == "test-1"
 
 
+def test_get_mission_unknown_status_falls_back_to_drafting(tmp_path: Path, caplog) -> None:
+    svc = MissionService(repo_root=tmp_path)
+    mission_dir = tmp_path / "docs" / "specs" / "test-unknown"
+    mission_dir.mkdir(parents=True)
+    (mission_dir / "mission.json").write_text(
+        """
+{
+  "mission_id": "test-unknown",
+  "title": "Test Unknown",
+  "status": "mystery_status",
+  "spec_path": "docs/specs/test-unknown/spec.md",
+  "acceptance_criteria": [],
+  "constraints": [],
+  "interface_contracts": [],
+  "created_at": "2026-04-03T00:00:00+00:00",
+  "approved_at": null,
+  "completed_at": null
+}
+""".strip()
+        + "\n"
+    )
+    (mission_dir / "spec.md").write_text("# Test Unknown\n")
+
+    mission = svc.get_mission("test-unknown")
+
+    assert mission.status == MissionStatus.DRAFTING
+    assert "unknown mission status" in caplog.text.lower()
+
+
 def test_get_mission_not_found(tmp_path: Path):
     svc = MissionService(repo_root=tmp_path)
     with pytest.raises(FileNotFoundError):

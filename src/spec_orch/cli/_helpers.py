@@ -15,6 +15,7 @@ from typing import IO, Any
 
 import typer
 
+from spec_orch.services.env_files import find_dotenv_path, load_dotenv
 from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 
 # ---------------------------------------------------------------------------
@@ -37,24 +38,8 @@ def _version_callback(value: bool) -> None:
 
 
 def _load_dotenv() -> None:
-    """Load .env from repo root (or parents) if present."""
-    candidate = Path.cwd()
-    for _ in range(5):
-        env_path = candidate / ".env"
-        if env_path.is_file():
-            for line in env_path.read_text().splitlines():
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key, value = key.strip(), value.strip()
-                if key and key not in os.environ:
-                    os.environ[key] = value
-            break
-        parent = candidate.parent
-        if parent == candidate:
-            break
-        candidate = parent
+    """Load .env from the current worktree or shared repo root if present."""
+    load_dotenv(Path.cwd())
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +80,8 @@ def _run_preflight(
     """Run preflight checks and return the report dict (no I/O side effects)."""
     import importlib.util
     import shutil as _shutil
+
+    load_dotenv(root)
 
     checks: list[dict[str, Any]] = []
 
@@ -137,12 +124,12 @@ def _run_preflight(
     else:
         _add("dashboard_deps", "pass", "fastapi, uvicorn, websockets")
 
-    env_path = root / ".env"
+    env_path = find_dotenv_path(root)
     _add(
         "dotenv",
-        "pass" if env_path.exists() else "warn",
-        str(env_path) if env_path.exists() else ".env not found",
-        "cp .env.example .env && $EDITOR .env" if not env_path.exists() else None,
+        "pass" if env_path is not None else "warn",
+        str(env_path) if env_path is not None else ".env not found",
+        "cp .env.example .env && $EDITOR .env" if env_path is None else None,
     )
 
     config_path = root / "spec-orch.toml"

@@ -1,0 +1,20 @@
+{
+  "overall_status": "pass",
+  "reported_checks": 4,
+  "total_checks": 4,
+  "checks": {
+    "issue_start": {
+      "status": "pass"
+    },
+    "mission_start": {
+      "status": "pass"
+    },
+    "dashboard_ui": {
+      "status": "pass"
+    },
+    "exploratory": {
+      "status": "pass"
+    }
+  },
+  "frozen": true
+}

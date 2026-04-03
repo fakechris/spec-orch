@@ -1243,7 +1243,7 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
             "transcript": "/?mission=mission-1&tab=transcript",
             "approvals": "/?mission=mission-1&tab=approvals",
             "visual_qa": "/?mission=mission-1&tab=visual",
-            "acceptance": "/?mission=mission-1&tab=acceptance",
+            "judgment": "/?mission=mission-1&tab=judgment",
             "costs": "/?mission=mission-1&tab=costs",
         },
     }
@@ -1276,7 +1276,7 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     assert workflow.related_routes == [
         "/?mission=mission-1&tab=transcript",
         "/?mission=mission-1&tab=approvals",
-        "/?mission=mission-1&tab=acceptance",
+        "/?mission=mission-1&tab=judgment",
         "/?mission=mission-1&tab=visual",
         "/?mission=mission-1&tab=costs",
     ]
@@ -1361,7 +1361,11 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     )
     assert (
         workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][6].target
-        == '[data-automation-target="mission-tab"][data-tab-key="acceptance"]'
+        == '[data-automation-target="mission-tab"][data-tab-key="judgment"]'
+    )
+    assert (
+        workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][7].target
+        == '[data-automation-target="mission-tab"][data-tab-key="judgment"][data-active="true"]'
     )
     assert (
         workflow.interaction_plans["/?mission=mission-1&mode=missions&tab=overview"][8].target
@@ -1385,7 +1389,7 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
         "the transcript tab can be opened from mission detail",
         "the approvals surface exposes actionable operator controls when present",
         "the visual QA tab can be opened from mission detail",
-        "the acceptance tab can be opened from mission detail",
+        "the judgment tab can be opened from mission detail",
         "the costs tab can be opened from mission detail",
     ]
 
@@ -1405,13 +1409,13 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     assert exploratory.related_route_budget == 4
     assert exploratory.related_routes == [
         "/?mission=mission-1&tab=transcript",
-        "/?mission=mission-1&tab=acceptance",
+        "/?mission=mission-1&tab=judgment",
         "/?mission=mission-1&tab=costs",
         "/?mission=mission-1&tab=visual",
     ]
     assert exploratory.allowed_expansions == [
         "/?mission=mission-1&tab=transcript",
-        "/?mission=mission-1&tab=acceptance",
+        "/?mission=mission-1&tab=judgment",
         "/?mission=mission-1&tab=costs",
         "/?mission=mission-1&tab=visual",
     ]
@@ -1476,10 +1480,10 @@ def test_build_acceptance_campaign_sets_mode_specific_coverage_budgets(
     )
     assert exploratory.interaction_plans["/?mission=mission-1&tab=transcript"][6].timeout_ms == 4000
     assert (
-        exploratory.interaction_plans["/?mission=mission-1&tab=acceptance"][0].target
-        == '[data-automation-target="internal-route"][data-route-label="Open acceptance review"]'
+        exploratory.interaction_plans["/?mission=mission-1&tab=judgment"][0].target
+        == '[data-automation-target="internal-route"][data-route-label="Open raw acceptance artifact"]'
     )
-    assert exploratory.interaction_plans["/?mission=mission-1&tab=acceptance"][0].timeout_ms == 1500
+    assert exploratory.interaction_plans["/?mission=mission-1&tab=judgment"][0].timeout_ms == 1500
     assert (
         exploratory.interaction_plans["/?mission=mission-1&tab=visual"][0].target
         == '[data-automation-target="internal-route"][data-route-label="Open visual review"]'
@@ -1586,7 +1590,7 @@ def test_build_acceptance_campaign_uses_default_dashboard_review_routes_for_expl
     ]
     assert campaign.related_routes == [
         "/?mission=mission-2&mode=missions&tab=transcript",
-        "/?mission=mission-2&mode=missions&tab=acceptance",
+        "/?mission=mission-2&mode=missions&tab=judgment",
         "/?mission=mission-2&mode=missions&tab=costs",
         "/?mission=mission-2&mode=missions&tab=visual",
     ]

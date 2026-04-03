@@ -9,6 +9,146 @@
       "findings_count": 0,
       "issue_proposal_count": 0,
       "bundle_path": "docs/acceptance-history/releases/acceptance-freeze-baseline-2026-04-02"
+    },
+    {
+      "release_id": "conversational-intake-tranche-son-408-411-2026-04-02",
+      "release_label": "Conversational Intake Tranche SON-408-411 2026-04-02",
+      "created_at": "2026-04-02T12:49:47Z",
+      "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/conversational-intake-tranche-son-408-411-2026-04-02"
+    },
+    {
+      "release_id": "shared-operator-semantics-tranche-son-370-2026-04-02",
+      "release_label": "Shared Operator Semantics Tranche SON-370 2026-04-02",
+      "created_at": "2026-04-02T14:17:25Z",
+      "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/shared-operator-semantics-tranche-son-370-2026-04-02"
+    },
+    {
+      "release_id": "shared-operator-semantics-tranche-son-370-read-side-2026-04-02",
+      "release_label": "Shared Operator Semantics Tranche SON-370 Read Side 2026-04-02",
+      "created_at": "2026-04-02T14:54:24Z",
+      "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/shared-operator-semantics-tranche-son-370-read-side-2026-04-02"
+    },
+    {
+      "release_id": "runtime-execution-substrate-tranche-son-374-2026-04-02",
+      "release_label": "Runtime and Execution Substrate Tranche SON-374 2026-04-02",
+      "created_at": "2026-04-02T15:47:50Z",
+      "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 1,
+      "bundle_path": "docs/acceptance-history/releases/runtime-execution-substrate-tranche-son-374-2026-04-02"
+    },
+    {
+      "release_id": "runtime-execution-substrate-tranche-son-374-queue-pressure-2026-04-02",
+      "release_label": "Runtime and Execution Substrate Tranche SON-374 Queue Pressure 2026-04-02",
+      "created_at": "2026-04-02T19:42:56Z",
+      "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 3,
+      "bundle_path": "docs/acceptance-history/releases/runtime-execution-substrate-tranche-son-374-queue-pressure-2026-04-02"
+    },
+    {
+      "release_id": "runtime-execution-substrate-tranche-son-374-canonical-carriers-2026-04-02",
+      "release_label": "Runtime and Execution Substrate Tranche SON-374 Canonical Carriers 2026-04-02",
+      "created_at": "2026-04-02T20:15:10Z",
+      "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/runtime-execution-substrate-tranche-son-374-canonical-carriers-2026-04-02"
+    },
+    {
+      "release_id": "decision-and-judgment-substrate-tranche-son-379-2026-04-02",
+      "release_label": "Decision and Judgment Substrate Tranche SON-379 2026-04-02",
+      "created_at": "2026-04-03T00:02:23Z",
+      "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/decision-and-judgment-substrate-tranche-son-379-2026-04-02"
+    },
+    {
+      "release_id": "decision-judgment-substrate-and-execution-workbench-tranche-son-379-384-2026-04-03",
+      "release_label": "Decision and Judgment Substrate Tranche SON-379 and Execution Workbench Tranche SON-384 2026-04-03",
+      "created_at": "2026-04-03T00:35:47Z",
+      "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/decision-judgment-substrate-and-execution-workbench-tranche-son-379-384-2026-04-03"
+    },
+    {
+      "release_id": "execution-workbench-tranche-son-384-global-surface-2026-04-03",
+      "release_label": "Execution Workbench Tranche SON-384 Global Surface 2026-04-03",
+      "created_at": "2026-04-03T01:59:54Z",
+      "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/execution-workbench-tranche-son-384-global-surface-2026-04-03"
+    },
+    {
+      "release_id": "execution-workbench-tranche-son-384-browser-terminal-panels-2026-04-03",
+      "release_label": "Execution Workbench Tranche SON-384 Browser and Terminal Panels 2026-04-03",
+      "created_at": "2026-04-03T02:36:52Z",
+      "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/execution-workbench-tranche-son-384-browser-terminal-panels-2026-04-03"
+    },
+    {
+      "release_id": "judgment-workbench-tranche-son-390-2026-04-03",
+      "release_label": "Judgment Workbench Tranche SON-390 2026-04-03",
+      "created_at": "2026-04-03T03:37:05Z",
+      "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/judgment-workbench-tranche-son-390-2026-04-03"
+    },
+    {
+      "release_id": "learning-workbench-tranche-son-396-2026-04-03",
+      "release_label": "Learning Workbench Tranche SON-396 2026-04-03",
+      "created_at": "2026-04-03T04:47:49Z",
+      "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/learning-workbench-tranche-son-396-2026-04-03"
+    },
+    {
+      "release_id": "surface-cleanup-and-cutover-tranche-son-402-2026-04-03",
+      "release_label": "Surface Cleanup and Cutover Tranche SON-402 2026-04-03",
+      "created_at": "2026-04-03T06:03:03Z",
+      "git_commit": "1e662f9e24fa039c8e98bc7000d5633f27ce0d22",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/surface-cleanup-and-cutover-tranche-son-402-2026-04-03"
+    },
+    {
+      "release_id": "showcase-narrative-layer-tranche-son-363-2026-04-03",
+      "release_label": "Showcase Narrative Layer Tranche SON-363 2026-04-03",
+      "created_at": "2026-04-03T06:43:32Z",
+      "git_commit": "db9e272b2440cb34d2a389b930e1aeb6730b9dbb",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/showcase-narrative-layer-tranche-son-363-2026-04-03"
     }
   ]
 }

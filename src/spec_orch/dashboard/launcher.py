@@ -11,9 +11,17 @@ from uuid import uuid4
 
 from spec_orch.acceptance_core.calibration import dashboard_surface_pack_v1
 from spec_orch.acceptance_core.routing import AcceptanceSurfacePackRef
+from spec_orch.services.canonical_issue import canonical_issue_from_dashboard_payload
 from spec_orch.services.fresh_verification import build_fresh_verification_commands
+from spec_orch.services.intake_handoff import build_workspace_handoff
 from spec_orch.services.lifecycle_manager import MissionLifecycleManager
 from spec_orch.services.linear_client import LinearClient, resolve_linear_token
+from spec_orch.services.linear_intake import (
+    LinearAcceptanceDraft,
+    LinearIntakeDocument,
+    derive_linear_intake_state,
+    has_blocking_open_questions,
+)
 from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 from spec_orch.services.mission_service import MissionService
 from spec_orch.services.promotion_service import load_plan
@@ -79,6 +87,10 @@ def _operator_dir(repo_root: Path, mission_id: str) -> Path:
     return path
 
 
+def _intake_workspace_path(repo_root: Path, mission_id: str) -> Path:
+    return _operator_dir(repo_root, mission_id) / "intake_workspace.json"
+
+
 def _launch_meta_path(repo_root: Path, mission_id: str) -> Path:
     return _operator_dir(repo_root, mission_id) / "launch.json"
 
@@ -126,6 +138,148 @@ def _build_spec_markdown(
         + "".join(f"- {item}\n" for item in constraints)
         + "\n## Interface Contracts\n\n"
         "<!-- frozen APIs / schemas -->\n"
+    )
+
+
+def _normalize_lines(items: Any) -> list[str]:
+    if not isinstance(items, list):
+        return []
+    return [str(item).strip() for item in items if str(item).strip()]
+
+
+def _dashboard_intake_document_from_payload(payload: dict[str, Any]) -> LinearIntakeDocument:
+    evidence_expectations = _normalize_lines(payload.get("evidence_expectations", []))
+    verification_expectations = _normalize_lines(payload.get("verification_expectations", []))
+    if not verification_expectations:
+        verification_expectations = list(evidence_expectations)
+    return LinearIntakeDocument(
+        problem=str(payload.get("problem", "")).strip(),
+        goal=str(payload.get("goal", "")).strip(),
+        constraints=_normalize_lines(payload.get("constraints", [])),
+        acceptance=LinearAcceptanceDraft(
+            success_conditions=_normalize_lines(payload.get("acceptance_criteria", [])),
+            verification_expectations=verification_expectations,
+        ),
+        evidence_expectations=evidence_expectations,
+        open_questions=_normalize_lines(payload.get("open_questions", [])),
+        current_system_understanding=str(payload.get("current_system_understanding", "")).strip(),
+    )
+
+
+def _dashboard_intake_missing_fields(document: LinearIntakeDocument) -> list[str]:
+    missing: list[str] = []
+    if not document.problem.strip():
+        missing.append("problem")
+    if not document.goal.strip():
+        missing.append("goal")
+    if not document.acceptance.success_conditions:
+        missing.append("acceptance")
+    if not document.acceptance.verification_expectations:
+        missing.append("verification_expectations")
+    return missing
+
+
+def _handoff_state_for_dashboard_intake(document: LinearIntakeDocument) -> str:
+    state = derive_linear_intake_state(document)
+    if state.value in {"ready_for_workspace", "workspace_created"}:
+        return state.value
+    if document.problem.strip() and document.goal.strip():
+        return "canonicalized"
+    return "draft_only"
+
+
+def _build_dashboard_intake_workspace(
+    repo_root: Path,
+    *,
+    mission_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    document = _dashboard_intake_document_from_payload(payload)
+    state = derive_linear_intake_state(document)
+    missing_fields = _dashboard_intake_missing_fields(document)
+    blocking_questions = [
+        item for item in document.open_questions if item.strip().lower().startswith("[blocking]")
+    ]
+    is_ready = not missing_fields and not has_blocking_open_questions(document)
+    handoff_state = _handoff_state_for_dashboard_intake(document)
+    if is_ready:
+        recommendation = "create_workspace"
+    elif document.problem.strip() and document.goal.strip():
+        recommendation = "write_back_to_linear"
+    else:
+        recommendation = "stay_in_intake"
+    title = str(payload.get("title", "")).strip() or mission_id
+    canonical_issue = canonical_issue_from_dashboard_payload(
+        issue_id=mission_id,
+        title=title,
+        payload=payload,
+    )
+    handoff = build_workspace_handoff(canonical_issue, subject_kind="mission")
+    return {
+        "mission_id": mission_id,
+        "origin": "dashboard",
+        "state": state.value,
+        "draft": {
+            "title": title,
+            "intent": str(payload.get("intent", "")).strip(),
+            "problem": document.problem,
+            "goal": document.goal,
+            "constraints": list(document.constraints),
+            "acceptance": {
+                "success_conditions": list(document.acceptance.success_conditions),
+                "verification_expectations": list(document.acceptance.verification_expectations),
+            },
+            "evidence_expectations": list(document.evidence_expectations),
+            "open_questions": list(document.open_questions),
+            "current_system_understanding": document.current_system_understanding,
+        },
+        "readiness": {
+            "is_ready": is_ready,
+            "missing_fields": missing_fields,
+            "blocking_open_questions": blocking_questions,
+            "recommendation": recommendation,
+        },
+        "canonical_issue": canonical_issue.to_dict(),
+        "handoff": {
+            **handoff,
+            "state": handoff_state,
+            "next_action": recommendation,
+        },
+    }
+
+
+def _persist_dashboard_intake_workspace(
+    repo_root: Path,
+    *,
+    mission_id: str,
+    workspace: dict[str, Any],
+) -> dict[str, Any]:
+    _intake_workspace_path(repo_root, mission_id).write_text(
+        json.dumps(workspace, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return workspace
+
+
+def _load_dashboard_intake_workspace(repo_root: Path, mission_id: str) -> dict[str, Any] | None:
+    path = _intake_workspace_path(repo_root, mission_id)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _preview_dashboard_intake_workspace(repo_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    raw_mission_id = payload.get("mission_id")
+    mission_id = raw_mission_id.strip() if isinstance(raw_mission_id, str) else ""
+    mission_id = mission_id or "draft-preview"
+    return _build_dashboard_intake_workspace(
+        repo_root,
+        mission_id=mission_id,
+        payload=payload,
     )
 
 
@@ -378,11 +532,21 @@ def _create_mission_draft(repo_root: Path, payload: dict[str, Any]) -> dict[str,
         ),
         encoding="utf-8",
     )
+    intake_workspace = _persist_dashboard_intake_workspace(
+        repo_root,
+        mission_id=mission.mission_id,
+        workspace=_build_dashboard_intake_workspace(
+            repo_root,
+            mission_id=mission.mission_id,
+            payload=payload,
+        ),
+    )
     return {
         "mission_id": mission.mission_id,
         "title": mission.title,
         "status": mission.status.value,
         "spec_path": mission.spec_path,
+        "intake_workspace": intake_workspace,
     }
 
 

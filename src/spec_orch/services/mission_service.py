@@ -21,6 +21,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _MISSION_META = "mission.json"
+
+
+def _coerce_mission_status(value: str) -> MissionStatus:
+    normalized = str(value).strip().lower()
+    aliases = {
+        "executing": MissionStatus.IN_PROGRESS,
+        "in_progress": MissionStatus.IN_PROGRESS,
+        "planned": MissionStatus.APPROVED,
+        "planning": MissionStatus.APPROVED,
+        "promoting": MissionStatus.APPROVED,
+    }
+    if normalized in aliases:
+        return aliases[normalized]
+    try:
+        return MissionStatus(normalized)
+    except ValueError:
+        logger.warning("Unknown mission status %r; coercing to drafting", value)
+        return MissionStatus.DRAFTING
+
+
 _SPECS_DIR = "docs/specs"
 _MAX_EXAMPLE_CHARS = 24_000
 
@@ -168,7 +188,7 @@ class MissionService:
             raise FileNotFoundError(f"Mission not found: {mission_id}")
         data = json.loads(meta_path.read_text())
         if "status" in data and isinstance(data["status"], str):
-            data["status"] = MissionStatus(data["status"])
+            data["status"] = _coerce_mission_status(data["status"])
         return Mission(**data)
 
     def list_missions(self) -> list[Mission]:
@@ -178,7 +198,7 @@ class MissionService:
         for meta_path in sorted(self.specs_dir.glob(f"*/{_MISSION_META}")):
             data = json.loads(meta_path.read_text())
             if "status" in data and isinstance(data["status"], str):
-                data["status"] = MissionStatus(data["status"])
+                data["status"] = _coerce_mission_status(data["status"])
             missions.append(Mission(**data))
         return missions
 
