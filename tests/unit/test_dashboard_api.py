@@ -396,7 +396,11 @@ class TestDashboardAPI:
         payload = response.json()
         assert payload["summary"]["release_count"] == 1
         assert payload["release_timeline"][0]["release_label"] == "Showcase Narrative Seed"
+        assert payload["release_timeline"][0]["workspace_ids"] == [mission_id]
         assert payload["workspace_storylines"][0]["workspace_id"] == mission_id
+        assert payload["workspace_storylines"][0]["governance_story"]["learning"][
+            "promotion_decision"
+        ] == "promote"
         assert payload["review_route"] == "/?mode=showcase"
 
     def test_mission_detail_includes_runtime_chain_summary(self, client, repo: Path) -> None:

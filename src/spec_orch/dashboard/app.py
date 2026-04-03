@@ -1733,6 +1733,14 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
         <span>${escHtml(String(item.issue_proposal_count || 0))} proposals</span>
       </div>
       <div class="context-meta">
+        <span>Linked workspaces</span>
+        <span>${escHtml((item.workspace_ids || []).join(', ') || 'None linked')}</span>
+      </div>
+      <div class="context-meta">
+        <span>Lineage notes</span>
+        <span>${escHtml((item.lineage_notes || []).join(' | ') || 'No lineage notes')}</span>
+      </div>
+      <div class="context-meta">
         ${item.summary_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(item.summary_artifact_path)}" target="_blank" rel="noreferrer">Bundle summary</a>` : ''}
         ${item.status_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(item.status_artifact_path)}" target="_blank" rel="noreferrer">Status JSON</a>` : ''}
       </div>
@@ -1747,6 +1755,18 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
         <span>${escHtml(item.workspace_id || '')}</span>
       </div>
       <div class="context-meta">${escHtml(item.narrative || 'No storyline yet.')}</div>
+      <div class="context-meta">
+        <span>Governance Story</span>
+        <span>
+          ${escHtml(item.governance_story?.execution?.current_phase || 'unknown phase')}
+          · ${escHtml(item.governance_story?.structural?.quality_signal || 'no quality signal')}
+          · Promotion decision ${escHtml(item.governance_story?.learning?.promotion_decision || 'hold')}
+        </span>
+      </div>
+      <div class="context-meta">
+        <span>Latest release notes</span>
+        <span>${escHtml((item.lineage_drilldown?.latest_release_notes || []).join(' | ') || 'No release notes')}</span>
+      </div>
       <div class="context-meta">
         ${item.routes?.execution ? renderInternalRouteButton(item.routes.execution, 'Execution') : ''}
         ${item.routes?.judgment ? renderInternalRouteButton(item.routes.judgment, 'Judgment') : ''}
@@ -1904,6 +1924,14 @@ function renderShowcaseContextRail(showcase, detail) {
               <span>${escHtml(latestRelease.created_at || '')}</span>
             </div>
             <div class="context-meta">
+              <span>Linked workspaces</span>
+              <span>${escHtml((latestRelease.workspace_ids || []).join(', ') || 'None linked')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Lineage notes</span>
+              <span>${escHtml((latestRelease.lineage_notes || []).join(' | ') || 'No lineage notes')}</span>
+            </div>
+            <div class="context-meta">
               ${latestRelease.summary_artifact_path ? `<a class="btn btn-sm" href="/artifacts/${escAttr(latestRelease.summary_artifact_path)}" target="_blank" rel="noreferrer">Open summary</a>` : ''}
             </div>
           </div>
@@ -1917,6 +1945,14 @@ function renderShowcaseContextRail(showcase, detail) {
           <div class="context-card">
             <div class="context-title">${escHtml(item.title || item.workspace_id || 'workspace')}</div>
             <div class="context-meta">${escHtml(item.narrative || 'No narrative')}</div>
+            <div class="context-meta">
+              <span>Governance Story</span>
+              <span>${escHtml(item.governance_story?.structural?.quality_signal || 'no quality signal')} · Promotion decision ${escHtml(item.governance_story?.learning?.promotion_decision || 'hold')}</span>
+            </div>
+            <div class="context-meta">
+              <span>Latest release notes</span>
+              <span>${escHtml((item.lineage_drilldown?.latest_release_notes || []).join(' | ') || 'No release notes')}</span>
+            </div>
           </div>
         `).join('') : '<div class="empty-panel">No workspace narratives yet.</div>'}
       </div>

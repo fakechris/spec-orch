@@ -179,6 +179,16 @@
       "findings_count": 0,
       "issue_proposal_count": 0,
       "bundle_path": "docs/acceptance-history/releases/learning-promotion-discipline-tranche-1-2026-04-03"
+    },
+    {
+      "release_id": "showcase-narrative-layer-tranche-son-363-governance-lineage-2026-04-03",
+      "release_label": "Showcase Narrative Layer Tranche SON-363 Governance Lineage 2026-04-03",
+      "created_at": "2026-04-03T12:36:30Z",
+      "git_commit": "15219b6476e7900a0d2c46912fe5898760177c7b",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/showcase-narrative-layer-tranche-son-363-governance-lineage-2026-04-03"
     }
   ]
 }

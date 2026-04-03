@@ -10,8 +10,10 @@ from spec_orch.acceptance_core.models import (
     AcceptanceWorkflowState,
     CandidateFinding,
 )
+from spec_orch.domain.models import EvolutionChangeType, EvolutionProposal
 from spec_orch.runtime_chain.models import ChainPhase, RuntimeChainStatus, RuntimeSubjectKind
 from spec_orch.runtime_chain.store import write_chain_status
+from spec_orch.services.evolution.promotion_registry import PromotionOrigin, PromotionRegistry
 from spec_orch.services.memory.service import MemoryService
 
 
@@ -54,6 +56,13 @@ def _seed_showcase_workspace(repo_root: Path, mission_id: str) -> None:
                 "acceptance_mode": "exploratory",
                 "coverage_status": "complete",
                 "recommended_next_step": "Archive this rerun for operator showcase.",
+                "structural_judgment": {
+                    "quality_signal": "stable",
+                    "bottleneck": "none",
+                    "rule_violations": [],
+                    "baseline_diff": {"baseline_ref": "fixture:dashboard-transcript-regression"},
+                    "current_state": "verified",
+                },
             }
         ),
         encoding="utf-8",
@@ -100,7 +109,37 @@ def _seed_showcase_workspace(repo_root: Path, mission_id: str) -> None:
             )
         ],
     )
+    svc.record_evolution_journal(
+        evolver_name="prompt_evolver",
+        stage="promote",
+        summary="Promoted transcript continuity guidance for showcase lineage.",
+        metadata={
+            "proposal_id": "proposal-showcase-1",
+            "mission_id": mission_id,
+            "origin_finding_ref": "candidate:showcase-1",
+            "origin_review_ref": "proposal:showcase-1",
+            "promoted": True,
+        },
+    )
     svc.synthesize_active_learning_slice("self", top_k=5)
+    PromotionRegistry(repo_root).record_promotion(
+        EvolutionProposal(
+            proposal_id="proposal-showcase-1",
+            evolver_name="prompt_evolver",
+            change_type=EvolutionChangeType.PROMPT_VARIANT,
+            content={"variant_id": "transcript-continuity-showcase"},
+            evidence=[{"type": "acceptance_review", "mission_id": mission_id}],
+            confidence=0.9,
+        ),
+        origin=PromotionOrigin.ACCEPTANCE_REVIEW,
+        reviewed_evidence_count=1,
+        signal_origins=["acceptance_review"],
+        workspace_id=mission_id,
+        origin_finding_ref="candidate:showcase-1",
+        origin_review_ref="proposal:showcase-1",
+        promotion_target="EvolutionProposalRef",
+        promotion_reason="Stable rerun ready for showcase narrative.",
+    )
 
     (repo_root / "docs" / "acceptance-history").mkdir(parents=True, exist_ok=True)
     (repo_root / "docs" / "acceptance-history" / "index.json").write_text(
@@ -127,6 +166,20 @@ def _seed_showcase_workspace(repo_root: Path, mission_id: str) -> None:
     )
     (bundle_dir / "summary.md").write_text(
         "# Showcase Narrative Seed\n\nThis bundle proves the rerun passed.\n",
+        encoding="utf-8",
+    )
+    (bundle_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "release_id": "showcase-tranche-son-363-seed-2026-04-03",
+                "lineage": {
+                    "notes": [
+                        "Seed showcase bundle proving replay, judgment, and learning lineage.",
+                        "Source-run compare versus prior seed: mission_start and exploratory stayed green.",
+                    ]
+                },
+            }
+        ),
         encoding="utf-8",
     )
     (bundle_dir / "status.json").write_text(
@@ -196,9 +249,20 @@ def test_build_showcase_workbench_surfaces_release_timeline_and_workspace_storyl
         "showcase-tranche-son-363-seed-2026-04-03"
     )
     assert payload["release_timeline"][0]["summary_artifact_path"].endswith("summary.md")
+    assert payload["release_timeline"][0]["workspace_ids"] == [mission_id]
+    assert "Seed showcase bundle" in payload["release_timeline"][0]["lineage_notes"][0]
     assert payload["workspace_storylines"][0]["workspace_id"] == mission_id
     assert payload["workspace_storylines"][0]["routes"]["judgment"] == (
         f"/?mission={mission_id}&mode=missions&tab=judgment"
+    )
+    assert payload["workspace_storylines"][0]["governance_story"]["structural"]["quality_signal"] == (
+        "regression"
+    )
+    assert payload["workspace_storylines"][0]["governance_story"]["learning"]["promotion_decision"] == (
+        "promote"
+    )
+    assert payload["workspace_storylines"][0]["lineage_drilldown"]["latest_release_id"] == (
+        "showcase-tranche-son-363-seed-2026-04-03"
     )
     assert "Execution completed" in payload["workspace_storylines"][0]["narrative"]
     assert payload["highlights"][0]["kind"] == "release"

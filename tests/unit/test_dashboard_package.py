@@ -218,6 +218,21 @@ def test_dashboard_operator_modes_and_launcher_actions_expose_workflow_targets()
     assert 'data-mode-key="showcase"' in source
     assert 'data-mode-key="approvals"' in source
     assert 'data-mode-key="evidence"' in source
+
+
+def test_dashboard_showcase_surface_renders_governance_and_lineage_fields() -> None:
+    app_path = Path(__file__).resolve().parents[2] / "src/spec_orch/dashboard/app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert "Linked workspaces" in source
+    assert "Lineage notes" in source
+    assert "Governance Story" in source
+    assert "Promotion decision" in source
+    assert "Latest release notes" in source
+    assert "item.workspace_ids" in source
+    assert "item.lineage_notes" in source
+    assert "item.governance_story" in source
+    assert "item.lineage_drilldown" in source
     assert "button.dataset.active = selectedOperatorMode === mode ? 'true' : 'false';" in source
     assert 'data-automation-target="launcher-action"' in source
     assert 'data-automation-target="launcher-field"' in source

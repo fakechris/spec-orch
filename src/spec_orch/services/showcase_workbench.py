@@ -48,8 +48,27 @@ def _release_timeline(repo_root: Path, releases: list[dict[str, Any]]) -> list[d
         findings_payload = (
             _load_json(bundle_dir / "findings.json") if bundle_dir is not None else None
         )
+        manifest_payload = (
+            _load_json(bundle_dir / "manifest.json") if bundle_dir is not None else None
+        )
+        source_runs_payload = (
+            _load_json(bundle_dir / "source_runs.json") if bundle_dir is not None else None
+        )
         findings = (
             findings_payload.get("findings", []) if isinstance(findings_payload, dict) else []
+        )
+        source_runs = source_runs_payload if isinstance(source_runs_payload, dict) else {}
+        workspace_ids = sorted(
+            {
+                str(item.get("mission_id", "")).strip()
+                for item in source_runs.values()
+                if isinstance(item, dict) and str(item.get("mission_id", "")).strip()
+            }
+        )
+        lineage_notes = (
+            manifest_payload.get("lineage", {}).get("notes", [])
+            if isinstance(manifest_payload, dict)
+            else []
         )
         timeline.append(
             {
@@ -66,6 +85,8 @@ def _release_timeline(repo_root: Path, releases: list[dict[str, Any]]) -> list[d
                 "source_runs_artifact_path": source_runs_artifact_path,
                 "artifacts_artifact_path": artifacts_artifact_path,
                 "findings_artifact_path": findings_artifact_path,
+                "workspace_ids": workspace_ids,
+                "lineage_notes": [item for item in lineage_notes if isinstance(item, str)],
             }
         )
     timeline.sort(key=lambda item: str(item.get("created_at", "")), reverse=True)
@@ -99,6 +120,8 @@ def _workspace_narrative(
 
 
 def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
+    releases = _load_release_index(repo_root)
+    release_timeline = _release_timeline(repo_root, releases)
     storylines: list[dict[str, Any]] = []
     specs_root = repo_root / "docs" / "specs"
     if not specs_root.exists():
@@ -113,6 +136,18 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
         execution = build_mission_execution_workbench(repo_root, mission_id, [])
         judgment = build_mission_judgment_workbench(repo_root, mission_id)
         learning = build_mission_learning_workbench(repo_root, mission_id)
+        linked_releases = [
+            item for item in release_timeline if mission_id in item.get("workspace_ids", [])
+        ]
+        latest_release = linked_releases[0] if linked_releases else None
+        learning_decisions = learning.get("promotion_policy", {}).get("decisions", [])
+        first_learning_decision = (
+            learning_decisions[0]
+            if isinstance(learning_decisions, list) and learning_decisions
+            else {}
+        )
+        structural_judgment = judgment.get("structural_judgment", {})
+        execution_overview = execution.get("overview", {})
         storylines.append(
             {
                 "workspace_id": mission_id,
@@ -137,6 +172,44 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
                     ),
                     "last_learning_summary": str(
                         learning.get("overview", {}).get("last_learning_summary", "")
+                    ),
+                },
+                "governance_story": {
+                    "execution": {
+                        "admission_decision_count": int(
+                            execution_overview.get("admission_decision_count", 0) or 0
+                        ),
+                        "pressure_signal_count": int(
+                            execution_overview.get("pressure_signal_count", 0) or 0
+                        ),
+                        "current_phase": str(execution_overview.get("current_phase", "")),
+                    },
+                    "structural": {
+                        "quality_signal": str(structural_judgment.get("quality_signal", "")),
+                        "bottleneck": str(structural_judgment.get("bottleneck", "")),
+                        "baseline_ref": str(
+                            structural_judgment.get("baseline_diff", {}).get("baseline_ref", "")
+                        ),
+                    },
+                    "learning": {
+                        "promotion_decision": str(first_learning_decision.get("action", "")),
+                        "promotion_state": str(
+                            first_learning_decision.get("promotion_state", "")
+                        ),
+                        "linked_release_count": len(linked_releases),
+                    },
+                },
+                "lineage_drilldown": {
+                    "latest_release_id": (
+                        str(latest_release.get("release_id", "")) if latest_release else ""
+                    ),
+                    "latest_release_summary_artifact": (
+                        str(latest_release.get("summary_artifact_path", ""))
+                        if latest_release
+                        else ""
+                    ),
+                    "latest_release_notes": (
+                        list(latest_release.get("lineage_notes", [])) if latest_release else []
                     ),
                 },
                 "routes": {
