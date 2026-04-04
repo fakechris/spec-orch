@@ -17,6 +17,29 @@ from spec_orch.services.evolution.promotion_registry import PromotionOrigin, Pro
 from spec_orch.services.memory.service import MemoryService
 
 
+def _seed_idle_workspace(repo_root: Path, mission_id: str) -> None:
+    specs_dir = repo_root / "docs" / "specs" / mission_id
+    specs_dir.mkdir(parents=True, exist_ok=True)
+    (specs_dir / "mission.json").write_text(
+        json.dumps(
+            {
+                "mission_id": mission_id,
+                "title": "Idle Workspace",
+                "status": "drafting",
+                "spec_path": f"docs/specs/{mission_id}/spec.md",
+                "acceptance_criteria": [],
+                "constraints": [],
+                "interface_contracts": [],
+                "created_at": "2026-04-03T00:00:00+00:00",
+                "approved_at": None,
+                "completed_at": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (specs_dir / "spec.md").write_text("# Idle Workspace\n", encoding="utf-8")
+
+
 def _seed_showcase_workspace(repo_root: Path, mission_id: str) -> None:
     specs_dir = repo_root / "docs" / "specs" / mission_id
     round_dir = specs_dir / "rounds" / "round-02"
@@ -344,6 +367,8 @@ def test_build_showcase_workbench_surfaces_release_timeline_and_workspace_storyl
         "passing_release_count": 2,
         "workspace_story_count": 2,
         "highlight_count": 2,
+        "advanced_check_count": 2,
+        "watchlist_count": 2,
     }
     assert payload["release_timeline"][0]["release_id"] == (
         "showcase-tranche-son-363-seed-2026-04-03"
@@ -364,6 +389,9 @@ def test_build_showcase_workbench_surfaces_release_timeline_and_workspace_storyl
         "mission_start advanced",
         "exploratory advanced",
     ]
+    assert payload["release_timeline"][0]["storyline_headline"] == (
+        "1 linked workspace; mission_start advanced; exploratory advanced"
+    )
     assert payload["release_timeline"][0]["source_run_compare"]["mission_start"]["status"] == (
         "advanced"
     )
@@ -396,9 +424,63 @@ def test_build_showcase_workbench_surfaces_release_timeline_and_workspace_storyl
     assert storyline["lineage_drilldown"]["source_run_compare_summary"] == (
         "mission_start advanced; exploratory advanced"
     )
+    assert storyline["journey_summary"] == (
+        "1 archived releases; latest showcase-tranche-son-363-seed-2026-04-03"
+    )
+    assert [item["release_id"] for item in storyline["release_journey"]] == [
+        "showcase-tranche-son-363-seed-2026-04-03",
+    ]
+    assert storyline["release_journey"][-1]["storyline_headline"] == (
+        "1 linked workspace; mission_start advanced; exploratory advanced"
+    )
+    assert storyline["release_journey"][-1]["source_run_compare_summary"] == (
+        "mission_start advanced; exploratory advanced"
+    )
+    assert storyline["release_journey"][-1]["compare_target_release_id"] == (
+        "learning-promotion-discipline-tranche-1-2026-04-03"
+    )
+    assert storyline["release_journey"][-1]["summary_artifact_path"].endswith("summary.md")
+    assert storyline["turning_points"][0]["kind"] == "structural"
+    assert storyline["turning_points"][0]["summary"] == "Structural regression remained visible."
+    assert storyline["turning_points"][1]["kind"] == "compare"
+    assert storyline["turning_points"][1]["summary"] == (
+        "mission_start advanced; exploratory advanced"
+    )
+    assert storyline["next_pivot"] == {
+        "label": "Open judgment workbench",
+        "reason": "Structural regression remained visible.",
+        "route": f"/?mission={mission_id}&mode=missions&tab=judgment",
+    }
     assert "Execution completed" in storyline["narrative"]
     assert payload["highlights"][0]["kind"] == "release"
     assert payload["highlights"][1]["kind"] == "workspace"
+    assert payload["watchlist"][0]["workspace_id"] == mission_id
+    assert payload["watchlist"][0]["focus"] == "structural regression"
+    assert payload["watchlist"][0]["compare_focus"] == [
+        "mission_start advanced",
+        "exploratory advanced",
+    ]
+    assert payload["watchlist"][0]["priority_score"] == 9
+    assert payload["watchlist"][0]["priority_reason"] == (
+        "Structural regression plus advanced source-run drift plus learning promote keeps this workspace at the top."
+    )
+    assert (
+        payload["watchlist"][0]["latest_turning_point"] == "Structural regression remained visible."
+    )
+    assert payload["watchlist"][0]["route"] == (
+        f"/?mission={mission_id}&mode=missions&tab=judgment"
+    )
+    assert payload["brief"] == {
+        "headline": "2 releases archived; 2 advanced checks; 2 workspaces on watch",
+        "latest_release_id": "showcase-tranche-son-363-seed-2026-04-03",
+        "top_watch_focus": "structural regression",
+        "top_turning_point": "Structural regression remained visible.",
+        "next_route": f"/?mission={mission_id}&mode=missions&tab=judgment",
+        "next_route_label": "Open judgment workbench",
+        "top_watch_reason": (
+            "Structural regression plus advanced source-run drift plus learning promote keeps this workspace at the top."
+        ),
+    }
     assert payload["review_route"] == "/?mode=showcase"
 
 
@@ -491,3 +573,33 @@ def test_build_showcase_workbench_reports_when_source_runs_are_missing(tmp_path:
     }
     assert payload["release_timeline"][0]["source_run_compare"] == {}
     assert payload["release_timeline"][0]["source_run_compare_summary"] == "no source runs recorded"
+
+
+def test_build_showcase_workbench_brief_follows_top_watch_and_excludes_idle_storylines(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.showcase_workbench import build_showcase_workbench
+
+    mission_id = "mission-showcase"
+    _seed_showcase_workspace(tmp_path, mission_id)
+    _seed_idle_workspace(tmp_path, "a-idle-workspace")
+
+    payload = build_showcase_workbench(tmp_path)
+
+    assert [item["workspace_id"] for item in payload["workspace_storylines"]] == [
+        "a-idle-workspace",
+        "mission-showcase",
+        "mission-showcase-previous",
+    ]
+    assert [item["workspace_id"] for item in payload["watchlist"]] == [
+        "mission-showcase",
+        "mission-showcase-previous",
+    ]
+    assert payload["highlights"][1]["title"] == "Mission Showcase Workspace"
+    assert payload["highlights"][1]["route"] == (
+        f"/?mission={mission_id}&mode=missions&tab=judgment"
+    )
+    assert payload["summary"]["watchlist_count"] == 2
+    assert payload["brief"]["top_watch_focus"] == "structural regression"
+    assert payload["brief"]["next_route"] == (f"/?mission={mission_id}&mode=missions&tab=judgment")
+    assert payload["brief"]["next_route_label"] == "Open judgment workbench"

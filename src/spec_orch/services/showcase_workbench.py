@@ -92,6 +92,17 @@ def _compare_source_runs(
     return compare, summary, counts, focus
 
 
+def _storyline_headline(item: dict[str, Any]) -> str:
+    workspace_count = len(item.get("workspace_ids", []))
+    workspace_label = (
+        "1 linked workspace" if workspace_count == 1 else f"{workspace_count} linked workspaces"
+    )
+    compare_focus = [entry for entry in item.get("compare_focus", []) if isinstance(entry, str)]
+    if compare_focus:
+        return "; ".join([workspace_label, *compare_focus])
+    return workspace_label
+
+
 def _release_timeline(repo_root: Path, releases: list[dict[str, Any]]) -> list[dict[str, Any]]:
     timeline: list[dict[str, Any]] = []
     for release in releases:
@@ -162,6 +173,7 @@ def _release_timeline(repo_root: Path, releases: list[dict[str, Any]]) -> list[d
         item["compare_counts"] = compare_counts
         item["compare_focus"] = compare_focus
         item["source_run_compare_summary"] = compare_summary
+        item["storyline_headline"] = _storyline_headline(item)
     for item in timeline:
         item.pop("_source_runs", None)
     return timeline
@@ -193,6 +205,71 @@ def _workspace_narrative(
     return ". ".join(part.rstrip(".") for part in parts if part).strip()
 
 
+def _turning_points(
+    *,
+    structural_signal: str,
+    compare_summary: str,
+    learning_decision: str,
+) -> list[dict[str, str]]:
+    points: list[dict[str, str]] = []
+    if structural_signal and structural_signal not in {"stable", "healthy", "pass"}:
+        summary = (
+            "Structural regression remained visible."
+            if structural_signal == "regression"
+            else f"Structural {structural_signal} remained visible."
+        )
+        points.append({"kind": "structural", "summary": summary})
+    if compare_summary and compare_summary != "all source runs stayed":
+        points.append({"kind": "compare", "summary": compare_summary})
+    if learning_decision and learning_decision not in {"hold", "pending", ""}:
+        points.append(
+            {"kind": "learning", "summary": f"Learning decision moved to {learning_decision}."}
+        )
+    return points
+
+
+def _next_pivot(
+    *,
+    routes: dict[str, str],
+    turning_points: list[dict[str, str]],
+    structural_signal: str,
+    learning_decision: str,
+) -> dict[str, str]:
+    if turning_points:
+        top = turning_points[0]
+        kind = str(top.get("kind", ""))
+        reason = str(top.get("summary", ""))
+        if kind in {"structural", "compare"}:
+            return {
+                "label": "Open judgment workbench",
+                "reason": reason,
+                "route": str(routes.get("judgment", "")),
+            }
+        if kind == "learning":
+            return {
+                "label": "Open learning workbench",
+                "reason": reason,
+                "route": str(routes.get("learning", "")),
+            }
+    if structural_signal:
+        return {
+            "label": "Open judgment workbench",
+            "reason": f"Structural signal: {structural_signal}.",
+            "route": str(routes.get("judgment", "")),
+        }
+    if learning_decision:
+        return {
+            "label": "Open learning workbench",
+            "reason": f"Learning decision: {learning_decision}.",
+            "route": str(routes.get("learning", "")),
+        }
+    return {
+        "label": "Open execution workbench",
+        "reason": "Execution status is the next best pivot.",
+        "route": str(routes.get("execution", "")),
+    }
+
+
 def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
     releases = _load_release_index(repo_root)
     release_timeline = _release_timeline(repo_root, releases)
@@ -214,6 +291,21 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
             item for item in release_timeline if mission_id in item.get("workspace_ids", [])
         ]
         latest_release = linked_releases[0] if linked_releases else None
+        release_journey = [
+            {
+                "release_id": str(item.get("release_id", "")),
+                "release_label": str(item.get("release_label", "")),
+                "created_at": str(item.get("created_at", "")),
+                "overall_status": str(item.get("overall_status", "")),
+                "compare_target_release_id": str(item.get("compare_target_release_id", "")),
+                "summary_artifact_path": str(item.get("summary_artifact_path", "")),
+                "source_run_compare_summary": str(item.get("source_run_compare_summary", "")),
+                "storyline_headline": str(item.get("storyline_headline", "")),
+                "compare_focus": list(item.get("compare_focus", [])),
+                "lineage_notes": list(item.get("lineage_notes", [])),
+            }
+            for item in reversed(linked_releases)
+        ]
         learning_decisions = learning.get("promotion_policy", {}).get("decisions", [])
         first_learning_decision = (
             learning_decisions[0]
@@ -222,12 +314,33 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
         )
         structural_judgment = judgment.get("structural_judgment", {})
         execution_overview = execution.get("overview", {})
+        structural_signal = str(structural_judgment.get("quality_signal", ""))
+        learning_decision = str(first_learning_decision.get("action", ""))
+        compare_summary = (
+            str(latest_release.get("source_run_compare_summary", "")) if latest_release else ""
+        )
+        routes = {
+            "overview": f"/?mission={mission_id}&mode=missions&tab=overview",
+            "execution": f"/?mission={mission_id}&mode=missions&tab=execution",
+            "judgment": f"/?mission={mission_id}&mode=missions&tab=judgment",
+            "learning": f"/?mission={mission_id}&mode=missions&tab=learning",
+        }
+        turning_points = _turning_points(
+            structural_signal=structural_signal,
+            compare_summary=compare_summary,
+            learning_decision=learning_decision,
+        )
         storylines.append(
             {
                 "workspace_id": mission_id,
                 "title": str(mission_payload.get("title", mission_id)),
                 "status": str(mission_payload.get("status", "")),
                 "narrative": _workspace_narrative(execution, judgment, learning),
+                "journey_summary": (
+                    f"{len(release_journey)} archived releases; latest "
+                    f"{str(latest_release.get('release_id', '')) if latest_release else 'none'}"
+                ),
+                "release_journey": release_journey,
                 "execution_summary": {
                     "current_phase": str(execution.get("overview", {}).get("current_phase", "")),
                     "last_event_summary": str(
@@ -248,6 +361,13 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
                         learning.get("overview", {}).get("last_learning_summary", "")
                     ),
                 },
+                "turning_points": turning_points,
+                "next_pivot": _next_pivot(
+                    routes=routes,
+                    turning_points=turning_points,
+                    structural_signal=structural_signal,
+                    learning_decision=learning_decision,
+                ),
                 "governance_story": {
                     "execution": {
                         "admission_decision_count": int(
@@ -259,14 +379,14 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
                         "current_phase": str(execution_overview.get("current_phase", "")),
                     },
                     "structural": {
-                        "quality_signal": str(structural_judgment.get("quality_signal", "")),
+                        "quality_signal": structural_signal,
                         "bottleneck": str(structural_judgment.get("bottleneck", "")),
                         "baseline_ref": str(
                             structural_judgment.get("baseline_diff", {}).get("baseline_ref", "")
                         ),
                     },
                     "learning": {
-                        "promotion_decision": str(first_learning_decision.get("action", "")),
+                        "promotion_decision": learning_decision,
                         "promotion_state": str(first_learning_decision.get("promotion_state", "")),
                         "linked_release_count": len(linked_releases),
                     },
@@ -300,12 +420,7 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
                         list(latest_release.get("lineage_notes", [])) if latest_release else []
                     ),
                 },
-                "routes": {
-                    "overview": f"/?mission={mission_id}&mode=missions&tab=overview",
-                    "execution": f"/?mission={mission_id}&mode=missions&tab=execution",
-                    "judgment": f"/?mission={mission_id}&mode=missions&tab=judgment",
-                    "learning": f"/?mission={mission_id}&mode=missions&tab=learning",
-                },
+                "routes": routes,
             }
         )
     storylines.sort(key=lambda item: str(item.get("workspace_id", "")))
@@ -315,6 +430,7 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
 def _highlights(
     release_timeline: list[dict[str, Any]],
     storylines: list[dict[str, Any]],
+    watchlist: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     highlights: list[dict[str, Any]] = []
     if release_timeline:
@@ -331,8 +447,20 @@ def _highlights(
                 "route": f"/artifacts/{latest.get('summary_artifact_path', '')}",
             }
         )
-    if storylines:
-        workspace = storylines[0]
+    top_watch = watchlist[0] if watchlist else {}
+    workspace = (
+        next(
+            (
+                item
+                for item in storylines
+                if str(item.get("workspace_id", "")) == str(top_watch.get("workspace_id", ""))
+            ),
+            {},
+        )
+        if top_watch
+        else (storylines[0] if storylines else {})
+    )
+    if workspace:
         highlights.append(
             {
                 "kind": "workspace",
@@ -344,11 +472,134 @@ def _highlights(
     return highlights
 
 
+def _watchlist(storylines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    watchlist: list[dict[str, Any]] = []
+    for item in storylines:
+        structural_signal = str(
+            item.get("governance_story", {}).get("structural", {}).get("quality_signal", "")
+        ).strip()
+        compare_focus = [
+            entry
+            for entry in item.get("lineage_drilldown", {}).get("compare_focus", [])
+            if isinstance(entry, str)
+        ]
+        learning_decision = str(
+            item.get("governance_story", {}).get("learning", {}).get("promotion_decision", "")
+        ).strip()
+        has_structural_signal = structural_signal and structural_signal not in {
+            "stable",
+            "healthy",
+            "pass",
+        }
+        has_compare_focus = bool(compare_focus)
+        has_learning_signal = learning_decision and learning_decision not in {
+            "hold",
+            "pending",
+            "",
+        }
+        if not (has_structural_signal or has_compare_focus or has_learning_signal):
+            continue
+        if structural_signal and structural_signal not in {"stable", "healthy", "pass"}:
+            focus = (
+                "structural regression"
+                if structural_signal == "regression"
+                else f"structural {structural_signal}"
+            )
+        elif compare_focus:
+            focus = compare_focus[0]
+        elif learning_decision:
+            focus = f"learning {learning_decision}"
+        else:
+            focus = "workspace lineage"
+        priority_score = 1
+        priority_reasons: list[str] = []
+        if structural_signal == "regression":
+            priority_score += 5
+            priority_reasons.append("Structural regression")
+        elif structural_signal and structural_signal not in {"stable", "healthy", "pass"}:
+            priority_score += 3
+            priority_reasons.append(f"Structural {structural_signal}")
+        advanced_count = len(compare_focus)
+        if advanced_count:
+            priority_score += min(advanced_count, 3)
+            priority_reasons.append("advanced source-run drift")
+        if learning_decision and learning_decision not in {"hold", "pending", ""}:
+            priority_score += 1
+            priority_reasons.append(f"learning {learning_decision}")
+        priority_reason = (
+            " plus ".join(priority_reasons) + " keeps this workspace at the top."
+            if priority_reasons
+            else "Workspace lineage still needs operator attention."
+        )
+        watchlist.append(
+            {
+                "workspace_id": str(item.get("workspace_id", "")),
+                "title": str(item.get("title", item.get("workspace_id", ""))),
+                "focus": focus,
+                "compare_focus": compare_focus,
+                "journey_summary": str(item.get("journey_summary", "")),
+                "priority_score": priority_score,
+                "priority_reason": priority_reason[:1].upper() + priority_reason[1:],
+                "latest_turning_point": str(
+                    (item.get("turning_points", [{}]) or [{}])[0].get("summary", "")
+                ),
+                "route": str(item.get("routes", {}).get("judgment", "")),
+            }
+        )
+    watchlist.sort(
+        key=lambda item: (
+            -int(item.get("priority_score", 0) or 0),
+            str(item.get("workspace_id", "")),
+        )
+    )
+    return watchlist
+
+
+def _brief(
+    release_timeline: list[dict[str, Any]],
+    watchlist: list[dict[str, Any]],
+    storylines: list[dict[str, Any]],
+) -> dict[str, str]:
+    advanced_check_count = sum(
+        int(item.get("compare_counts", {}).get("advanced", 0) or 0) for item in release_timeline
+    )
+    latest_release_id = str(release_timeline[0].get("release_id", "")) if release_timeline else ""
+    top_watch = watchlist[0] if watchlist else {}
+    top_storyline = (
+        next(
+            (
+                item
+                for item in storylines
+                if str(item.get("workspace_id", "")) == str(top_watch.get("workspace_id", ""))
+            ),
+            {},
+        )
+        if top_watch
+        else (storylines[0] if storylines else {})
+    )
+    next_pivot = top_storyline.get("next_pivot", {}) if isinstance(top_storyline, dict) else {}
+    return {
+        "headline": (
+            f"{len(release_timeline)} releases archived; "
+            f"{advanced_check_count} advanced checks; "
+            f"{len(watchlist)} workspaces on watch"
+        ),
+        "latest_release_id": latest_release_id,
+        "top_watch_focus": str(top_watch.get("focus", "")),
+        "top_turning_point": str(top_watch.get("latest_turning_point", "")),
+        "top_watch_reason": str(top_watch.get("priority_reason", "")),
+        "next_route": str(next_pivot.get("route", "")),
+        "next_route_label": str(next_pivot.get("label", "")),
+    }
+
+
 def build_showcase_workbench(repo_root: Path) -> dict[str, Any]:
     releases = _load_release_index(repo_root)
     release_timeline = _release_timeline(repo_root, releases)
     storylines = _workspace_storylines(repo_root)
-    highlights = _highlights(release_timeline, storylines)
+    watchlist = _watchlist(storylines)
+    highlights = _highlights(release_timeline, storylines, watchlist)
+    brief = _brief(release_timeline, watchlist, storylines)
     return {
         "summary": {
             "release_count": len(release_timeline),
@@ -357,10 +608,17 @@ def build_showcase_workbench(repo_root: Path) -> dict[str, Any]:
             ),
             "workspace_story_count": len(storylines),
             "highlight_count": len(highlights),
+            "advanced_check_count": sum(
+                int(item.get("compare_counts", {}).get("advanced", 0) or 0)
+                for item in release_timeline
+            ),
+            "watchlist_count": len(watchlist),
         },
+        "brief": brief,
         "release_timeline": release_timeline,
         "workspace_storylines": storylines,
         "highlights": highlights,
+        "watchlist": watchlist,
         "review_route": "/?mode=showcase",
     }
 
