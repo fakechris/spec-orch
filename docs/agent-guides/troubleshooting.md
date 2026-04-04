@@ -1,5 +1,16 @@
 # 排查问题
 
+## Overview
+
+这份指南用于处理最常见的环境、配置和依赖问题。目标不是堆更多补丁，而是先定位问题到底落在 `Instructions / State / Verification / Scope / Lifecycle` 的哪一个 subsystem。
+
+## When to Use
+
+- CLI / daemon / dashboard 启动失败
+- LLM / planner / builder 认证失败
+- 当前 worktree 和共享主仓配置不一致
+- acceptance 结果看起来像 harness 问题而不是产品问题
+
 首先运行 `spec-orch preflight`，它会检查所有常见问题并给出修复建议。
 
 ## WebSocket 403
@@ -59,3 +70,31 @@ spec-orch preflight --json    # 结构化输出
 spec-orch doctor --fix-hints  # 每项都带修复命令
 cat .spec_orch/preflight.json # 上次 preflight 结果
 ```
+
+## Rules
+
+- 先定位是环境问题、配置问题还是 acceptance harness 问题，再决定是否算产品 bug。
+- 同一错误不要机械重试三次；第二次就要换方法。
+- 当前 worktree 缺配置时，优先检查共享主仓 `.env` 回退逻辑。
+
+## Common Rationalizations
+
+- “这看起来像产品 bug，先跳过 preflight”
+  - 先别跳。很多 acceptance fail 其实是环境或 harness 问题。
+- “当前 worktree 没 `.env` 也没关系，之前那个 worktree 好用”
+  - 不对。先确认共享 `.env` 回退是否真的生效。
+- “我只缺一个 key，不会影响整体”
+  - 常见情况是 key 在、base URL 不在，结果 profile 仍不可用。
+
+## Red Flags
+
+- 同一条 acceptance 路径在不同 worktree 表现不一致
+- `api_key_present=true` 但 `usable_profiles=0`
+- dashboard / daemon / harness 读到的 env 来源不一致
+
+## Verification
+
+- 跑 `spec-orch preflight --json`
+- 必要时跑 `spec-orch doctor --fix-hints`
+- 修完后重跑原路径，不要只看命令退出码
+- 如果是 acceptance 失败，再回到顶层 report 检查是否应该先归类为 `harness_bug`

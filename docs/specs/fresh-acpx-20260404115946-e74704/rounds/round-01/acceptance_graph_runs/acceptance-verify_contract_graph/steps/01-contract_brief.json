@@ -1,0 +1,73 @@
+{
+  "step_key": "contract_brief",
+  "decision": "pass",
+  "outputs": {
+    "contract_summary": {
+      "mission_id": "fresh-acpx-20260404115946-e74704",
+      "title": "Fresh ACPX Mission E2E Narrow Smoke",
+      "mission_type": "fresh_execution",
+      "execution_mode": "local_only",
+      "wave_count": 1,
+      "packet_count": 2
+    },
+    "acceptance_criteria": [
+      "A fresh mission can be created for this run.",
+      "The plan stays within one wave and at most two work packets.",
+      "The mission can be launched and produce fresh round artifacts.",
+      "Post-run workflow replay can validate the resulting dashboard surfaces."
+    ],
+    "constraints": [
+      "Keep the first fresh mission path narrow and local-only.",
+      "Do not reuse historical round artifacts as fresh proof.",
+      "Plan budget: at most 1 wave and at most 2 work packets.",
+      "Only touch src/contracts/mission_types.ts and src/contracts/artifact_types.ts inside worker workspaces.",
+      "Do not implement dashboard runtime changes, test harnesses, or replay engines during the fresh proof run."
+    ],
+    "deliverables": {
+      "acpx-fresh-contract-mission-types": {
+        "file": "src/contracts/mission_types.ts",
+        "succeeded": true,
+        "all_verification_steps_passed": true,
+        "mergeable": true,
+        "scope_clean": true
+      },
+      "acpx-fresh-contract-artifact-types": {
+        "file": "src/contracts/artifact_types.ts",
+        "succeeded": true,
+        "all_verification_steps_passed": true,
+        "mergeable": true,
+        "scope_clean": true
+      }
+    },
+    "verification_results": {
+      "total_steps_per_file": 6,
+      "steps": [
+        "scaffold_exists",
+        "typescript_contract_tokens",
+        "typescript_schema_surface",
+        "typescript_typecheck",
+        "typescript_lint_smoke",
+        "typescript_import_smoke"
+      ],
+      "all_passed": true
+    },
+    "wave_0_outcome": {
+      "status": "complete",
+      "decision": "continue",
+      "reason_code": "wave_0_complete_gates_passed",
+      "confidence": 0.98,
+      "summary": "Wave 0 contract scaffold complete. Both TypeScript contract files passed all 6 verification steps and are mergeable. Scope clean."
+    },
+    "post_run_phase": {
+      "pending": true,
+      "goal": "Validate the post-run dashboard workflow for a fresh ACPX mission",
+      "primary_routes": 3,
+      "related_routes": 3,
+      "workflow_assertions_count": 11
+    }
+  },
+  "next_transition": "{'step_key': 'workflow_replay', 'action': 'validate_dashboard_surfaces', 'depends_on': ['contract_brief'], 'review_routes': ['/?mission=fresh-acpx-20260404115946-e74704&mode=missions&tab=overview', '/?mission=fresh-acpx-20260404115946-e74704&mode=missions&tab=transcript&round=1', '/?mission=fresh-acpx-20260404115946-e74704&mode=missions&tab=approvals&round=1', '/?mission=fresh-acpx-20260404115946-e74704&mode=missions&tab=visual&round=1', '/?mission=fresh-acpx-20260404115946-e74704&mode=missions&tab=costs&round=1', '/?mission=fresh-acpx-20260404115946-e74704&mode=missions&tab=judgment&round=1']}",
+  "warnings": [],
+  "review_markdown": "## Contract Brief Review\n\n### Mission: Fresh ACPX Mission E2E Narrow Smoke\n\n**Status: ✅ Wave 0 Complete - Gates Passed**\n\n#### Contract Summary\n- **Mission ID**: `fresh-acpx-20260404115946-e74704`\n- **Type**: Fresh ACPX execution proof (local-only)\n- **Scope**: 1 wave, 2 work packets maximum\n\n#### Acceptance Criteria (4)\n1. Fresh mission creation - **Achieved**\n2. Plan within 1 wave, ≤2 packets - **Achieved**\n3. Mission launch with fresh round artifacts - **Achieved**\n4. Post-run workflow replay validation - **Pending**\n\n#### Delivered Artifacts\n| Packet | File | Status | Verification Steps | Scope |\n|--------|------|--------|-------------------|-------|\n| `acpx-fresh-contract-mission-types` | `src/contracts/mission_types.ts` | ✅ Succeeded | 6/6 Passed | Clean |\n| `acpx-fresh-contract-artifact-types` | `src/contracts/artifact_types.ts` | ✅ Succeeded | 6/6 Passed | Clean |\n\n#### Verification Gate Results\n- **TypeScript compilation**: ✅ Passed (tsc --noEmit)\n- **Schema surface**: ✅ Exported interfaces/types present\n- **Import smoke test**: ✅ Module imports resolve\n- **Lint smoke**: ✅ No trailing whitespace or tabs\n- **Scope enforcement**: ✅ Only touched allowed contract files\n- **Mergeability**: ✅ Both gates report mergeable: true\n\n#### Next Phase\nPost-run **workflow replay** to validate dashboard surfaces across 6 routes with 11 workflow assertions covering:\n- Launcher panel\n- Mission inventory\n- Fresh mission detail views\n- Transcript, approvals, visual QA, judgment, and costs tabs\n\n**Confidence**: 0.98 (gates passed, scope clean)",
+  "created_at": "2026-04-04T12:03:17.203682+00:00"
+}

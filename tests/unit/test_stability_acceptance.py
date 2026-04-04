@@ -529,7 +529,20 @@ def test_write_exploratory_acceptance_report_preserves_round_artifacts(
         round_dir / "browser_evidence.json",
         {
             "tested_routes": ["/", "/settings"],
-            "screenshots": ["shot-1.png"],
+            "screenshots": {"settings": "shot-1.png"},
+            "interactions": {
+                "/settings": [
+                    {
+                        "step_id": "step-01",
+                        "marker": "STEP_FAIL",
+                        "expected": "Open settings.",
+                        "actual": "Button missing.",
+                        "screenshot_path": "shot-1.png",
+                        "before_snapshot_ref": "before:step-01",
+                        "after_snapshot_ref": "after:step-01",
+                    }
+                ]
+            },
         },
     )
 
@@ -560,6 +573,8 @@ def test_write_exploratory_acceptance_report_preserves_round_artifacts(
     assert report_json["acceptance_mode"] == "exploratory"
     assert report_json["coverage_status"] == "complete"
     assert report_json["browser_evidence"]["tested_routes"] == ["/", "/settings"]
+    assert report_json["browser_evidence"]["interactions"]["/settings"][0]["marker"] == "STEP_FAIL"
+    assert report_json["browser_evidence"]["interactions"]["/settings"][0]["step_id"] == "step-01"
     assert report_json["acceptance_review"]["acceptance_mode"] == "exploratory"
     assert (
         report_json["acceptance_review"]["artifacts"]["graph_profile"] == "tuned_exploratory_graph"

@@ -1,0 +1,43 @@
+{
+  "round_id": 1,
+  "wave_id": 0,
+  "status": "decided",
+  "started_at": "2026-04-04T12:00:02.918776+00:00",
+  "completed_at": "2026-04-04T12:02:50.230799+00:00",
+  "worker_results": [
+    {
+      "packet_id": "acpx-fresh-contract-mission-types",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-mission-types/builder_report.json",
+      "incoming_events_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-mission-types/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-mission-types/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-mission-types/telemetry/activity.log"
+    },
+    {
+      "packet_id": "acpx-fresh-contract-artifact-types",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-artifact-types/builder_report.json",
+      "incoming_events_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-artifact-types/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-artifact-types/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-artifact-types/telemetry/activity.log"
+    }
+  ],
+  "decision": {
+    "action": "continue",
+    "reason_code": "wave_0_complete_gates_passed",
+    "summary": "Wave 0 contract scaffold complete. Both TypeScript contract files (mission_types.ts, artifact_types.ts) passed all 6 verification steps and are mergeable. Scope clean. Next: post-run replay validation or advance to next wave.",
+    "confidence": 0.98,
+    "affected_workers": [],
+    "artifacts": {},
+    "session_ops": {
+      "reuse": [],
+      "spawn": [],
+      "cancel": []
+    },
+    "blocking_questions": []
+  }
+}

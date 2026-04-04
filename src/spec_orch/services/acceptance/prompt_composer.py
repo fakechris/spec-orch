@@ -156,6 +156,10 @@ def compose_acceptance_prompt(
         critique_focus = ", ".join(active_campaign.critique_focus) or "none"
         stop_conditions = ", ".join(active_campaign.stop_conditions) or "none"
         evidence_budget = active_campaign.evidence_budget or "none"
+        functional_plan = ", ".join(active_campaign.functional_plan) or "none"
+        adversarial_plan = ", ".join(active_campaign.adversarial_plan) or "none"
+        coverage_gaps = ", ".join(active_campaign.coverage_gaps) or "none"
+        merged_plan = ", ".join(active_campaign.merged_plan) or "none"
         exploratory_contract = (
             "## Exploratory Contract\n"
             f"- Seed routes: {seed_routes}\n"
@@ -163,6 +167,11 @@ def compose_acceptance_prompt(
             f"- Critique focus: {critique_focus}\n"
             f"- Stop conditions: {stop_conditions}\n"
             f"- Evidence budget: {evidence_budget}\n\n"
+            "## Exploratory Planning Rounds\n"
+            f"- Functional plan: {functional_plan}\n"
+            f"- Adversarial plan: {adversarial_plan}\n"
+            f"- Coverage gaps: {coverage_gaps}\n"
+            f"- Merged plan: {merged_plan}\n\n"
         )
     exploratory_output_guidance = ""
     if active_campaign.mode is AcceptanceMode.EXPLORATORY:

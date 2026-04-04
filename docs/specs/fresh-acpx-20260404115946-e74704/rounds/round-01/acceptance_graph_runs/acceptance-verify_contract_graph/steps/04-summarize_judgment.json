@@ -1,0 +1,32 @@
+{
+  "step_key": "summarize_judgment",
+  "decision": "pass",
+  "outputs": {
+    "summary": "Wave 0 of the fresh ACPX mission completed successfully. Both TypeScript contract files (src/contracts/mission_types.ts and src/contracts/artifact_types.ts) passed all 6 verification gates: scaffold existence, contract token presence, schema surface detection, TypeScript typecheck, lint smoke, and import smoke. Both workers executed cleanly within the 1-wave, 2-packet budget constraint. Gate verdicts confirm mergeable status with all-in-scope file changes. Confidence at 0.98.",
+    "verdict": "wave_0_complete_gates_passed",
+    "accepted_artifacts": [
+      "src/contracts/mission_types.ts",
+      "src/contracts/artifact_types.ts"
+    ],
+    "acceptance_coverage": {
+      "criterion_1_create_fresh_mission": "covered",
+      "criterion_2_one_wave_two_packets": "covered",
+      "criterion_3_launch_produce_artifacts": "covered",
+      "criterion_4_postrun_replay_validation": "pending_workflow_replay"
+    },
+    "constraint_compliance": {
+      "narrow_local_only": true,
+      "no_historical_artifacts": true,
+      "within_budget": true,
+      "only_targeted_files": true,
+      "no_dashboard_changes": true
+    },
+    "confidence": 0.98
+  },
+  "next_transition": "",
+  "warnings": [
+    "Post-run workflow replay validation (criterion 4) is prepared but not yet executed in this round. The fresh execution phase is complete; the workflow_replay proof split remains to be exercised for full acceptance."
+  ],
+  "review_markdown": "## Judgment Summary: Fresh ACPX Mission E2E Narrow Smoke\n\n### Outcome: PASS\n\n**Decision Reason:** `wave_0_complete_gates_passed`\n\n### Execution Snapshot\n| Packet | Status | Verification Steps | Mergeable |\n|--------|--------|---------------------|-----------|\n| `acpx-fresh-contract-mission-types` | ✅ Succeeded | 6/6 passed | Yes |\n| `acpx-fresh-contract-artifact-types` | ✅ Succeeded | 6/6 passed | Yes |\n\n### Verification Gates Passed\n- `scaffold_exists` — Both `.ts` files present at `src/contracts/`\n- `typescript_contract_tokens` — Required `export`, `interface`/`type`/`enum` tokens detected\n- `typescript_schema_surface` — Schema interface/type/const surfaces detected\n- `typescript_typecheck` — `tsc --noEmit` succeeded for both files\n- `typescript_lint_smoke` — No trailing whitespace, no tabs, proper terminal newline\n- `typescript_import_smoke` — Import smoke test compiled cleanly\n\n### Acceptance Criteria Coverage\n| Criterion | Status |\n|-----------|--------|\n| Fresh mission created | ✅ |\n| Within 1 wave, ≤2 packets | ✅ |\n| Launched with fresh artifacts | ✅ |\n| Post-run replay validates dashboard | ⏳ Prepared (workflow_replay pending) |\n\n### Constraints Compliance\nAll five constraints satisfied:\n- ✅ Narrow local-only path\n- ✅ No historical artifact reuse\n- ✅ Within 1-wave, 2-packet budget\n- ✅ Only `mission_types.ts` and `artifact_types.ts` touched\n- ✅ No dashboard/runtime changes implemented\n\n### Artifacts Produced\n- `src/contracts/mission_types.ts`\n- `src/contracts/artifact_types.ts`\n\n### Confidence: 0.98\n\n### Next\nThe fresh execution phase is complete. The workflow replay split is ready to validate the dashboard surfaces (`/`, `/?mode=missions`, and mission detail tabs including transcript, judgment, etc.).",
+  "created_at": "2026-04-04T12:04:32.934063+00:00"
+}

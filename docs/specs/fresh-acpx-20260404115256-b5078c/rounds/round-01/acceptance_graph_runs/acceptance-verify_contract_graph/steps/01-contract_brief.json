@@ -1,0 +1,87 @@
+{
+  "step_key": "contract_brief",
+  "decision": "continue",
+  "outputs": {
+    "contract_summary": {
+      "mission_id": "fresh-acpx-20260404115256-b5078c",
+      "title": "Fresh ACPX Mission E2E Narrow Smoke",
+      "proof_type": "fresh_execution + workflow_replay",
+      "scope": {
+        "max_waves": 1,
+        "max_packets": 2,
+        "target_files": [
+          "src/contracts/mission_types.ts",
+          "src/contracts/artifact_types.ts"
+        ]
+      },
+      "local_only": true,
+      "fresh_artifacts": true
+    },
+    "success_conditions": {
+      "fresh_execution_phase": {
+        "criteria": [
+          "Fresh mission can be created for this run",
+          "Plan stays within 1 wave and at most 2 work packets",
+          "Mission can be launched and produce fresh round artifacts"
+        ],
+        "constraints": [
+          "Keep path narrow and local-only",
+          "Do not reuse historical round artifacts",
+          "Only touch specified contract files",
+          "No dashboard runtime changes or test harnesses"
+        ],
+        "current_status": "PASSED",
+        "evidence": {
+          "wave_0_complete": true,
+          "packets_succeeded": [
+            "acpx-contract-mission-types",
+            "acpx-contract-artifact-types"
+          ],
+          "all_verification_checks_passed": true,
+          "scope_violations": 0,
+          "gate_verdicts_mergeable": true,
+          "confidence": 0.98
+        }
+      },
+      "workflow_replay_phase": {
+        "criteria": [
+          "Post-run workflow replay validates dashboard surfaces"
+        ],
+        "assertions_to_verify": [
+          "launcher panel can be opened from header",
+          "needs attention mode can be selected",
+          "missions mode can be selected",
+          "decision queue mode can be selected",
+          "deep evidence mode can be selected",
+          "target mission can be selected from mission list",
+          "transcript tab can be opened",
+          "approvals surface exposes operator controls",
+          "visual QA tab can be opened",
+          "judgment tab can be opened",
+          "costs tab can be opened"
+        ],
+        "review_routes": [
+          "/?mission=fresh-acpx-20260404115256-b5078c&mode=missions&tab=overview",
+          "/?mission=fresh-acpx-20260404115256-b5078c&mode=missions&tab=transcript&round=1",
+          "/?mission=fresh-acpx-20260404115256-b5078c&mode=missions&tab=approvals&round=1",
+          "/?mission=fresh-acpx-20260404115256-b5078c&mode=missions&tab=visual&round=1",
+          "/?mission=fresh-acpx-20260404115256-b5078c&mode=missions&tab=costs&round=1",
+          "/?mission=fresh-acpx-20260404115256-b5078c&mode=missions&tab=judgment&round=1"
+        ],
+        "current_status": "PENDING_EXECUTION"
+      }
+    },
+    "verification_completion": {
+      "fresh_execution_complete": true,
+      "wave_0_decision": "terminal_wave_complete",
+      "manifest_artifacts": [
+        "workers/acpx-contract-mission-types/src/contracts/mission_types.ts",
+        "workers/acpx-contract-artifact-types/src/contracts/artifact_types.ts"
+      ]
+    }
+  },
+  "next_transition": "{'target_step': 'workflow_replay', 'reason': 'Fresh execution phase complete. Both packets succeeded with all 6 verification checks passing per packet. Gate verdicts indicate mergeable status. Scope restricted to exactly the two specified contract files with zero out-of-scope mutations. All acceptance criteria and constraints satisfied. Terminal wave reached. Next logical step is workflow replay phase to validate post-run dashboard surfaces.', 'workflow_replay_goals': {'primary_routes': ['/', '/?mode=missions', '/?mission=fresh-acpx-20260404115256-b5078c&mode=missions&tab=overview'], 'required_interactions': ['open launcher', 'switch into missions mode', 'inspect fresh mission detail', 'open transcript and judgment tabs'], 'coverage_expectations': ['launcher entry', 'mission inventory', 'fresh mission detail', 'post-run transcript', 'judgment review']}}",
+  "warnings": [],
+  "review_markdown": "## Contract Brief Review\n\n### Mission: Fresh ACPX Mission E2E Narrow Smoke\n\n**Objective:** Verify the declared feature (ACPX contract scaffolding) and directly affected routes.\n\n---\n\n### Fresh Execution Phase: ✅ COMPLETE\n\n| Criterion | Status |\n|-----------|--------|\n| Fresh mission created | ✅ |\n| Within 1 wave, ≤2 packets | ✅ |\n| Fresh round artifacts produced | ✅ |\n| Scope restricted to contract files | ✅ |\n| No historical artifact reuse | ✅ |\n\n**Execution Results:**\n- Wave 0 (terminal): Both packets completed successfully\n- `acpx-contract-mission-types`: 6/6 verification checks passed\n- `acpx-contract-artifact-types`: 6/6 verification checks passed\n- Gate verdicts: mergeable\n- Confidence: 0.98\n\n---\n\n### Workflow Replay Phase: ⏳ PENDING\n\n**Goal:** Validate post-run dashboard surfaces for the fresh mission.\n\n**Key Assertions to Verify:**\n1. Launcher panel accessible from header\n2. Missions mode selectable from mission control\n3. Fresh mission selectable from inventory\n4. Transcript, approvals, visual QA, judgment, costs tabs all openable\n\n---\n\n### Conclusion\n\nThe fresh execution contract is satisfied. The next step is workflow replay validation of the dashboard surfaces.\n",
+  "created_at": "2026-04-04T11:56:48.053082+00:00"
+}

@@ -92,6 +92,14 @@ Looks acceptable.
             coverage_expectations=["launcher", "transcript"],
             filing_policy="auto_file_regressions_only",
             exploration_budget="medium",
+            functional_plan=["Validate the launcher route."],
+            adversarial_plan=["Probe transcript navigation drift."],
+            coverage_gaps=["Review costs tab only if evidence stays incomplete."],
+            merged_plan=[
+                "Validate the launcher route.",
+                "Probe transcript navigation drift.",
+                "Review costs tab only if evidence stays incomplete.",
+            ],
         ),
     )
 
@@ -102,6 +110,10 @@ Looks acceptable.
     assert '"round_summary"' in prompt
     assert '"review_routes"' in prompt
     assert '"campaign"' in prompt
+    assert '"functional_plan"' in prompt
+    assert '"adversarial_plan"' in prompt
+    assert '"coverage_gaps"' in prompt
+    assert '"merged_plan"' in prompt
     assert "/?mission=mission-1&tab=transcript" in prompt
 
 

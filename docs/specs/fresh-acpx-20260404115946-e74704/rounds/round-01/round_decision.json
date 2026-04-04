@@ -1,0 +1,14 @@
+{
+  "action": "continue",
+  "reason_code": "wave_0_complete_gates_passed",
+  "summary": "Wave 0 contract scaffold complete. Both TypeScript contract files (mission_types.ts, artifact_types.ts) passed all 6 verification steps and are mergeable. Scope clean. Next: post-run replay validation or advance to next wave.",
+  "confidence": 0.98,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

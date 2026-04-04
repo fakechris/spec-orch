@@ -1,5 +1,16 @@
 # 启动服务
 
+## Overview
+
+本指南描述 dashboard、daemon 和 evolution 相关服务怎么启动，以及 operator 应该把哪些 surface 当成 canonical 工作面。
+
+## When to Use
+
+- 要启动 dashboard / daemon
+- 要做 supervised mission 调试
+- 要跑 canonical acceptance 前的服务准备
+- 要确认 operator 应该看哪个 workbench surface
+
 ## Dashboard (Web UI)
 
 ```bash
@@ -85,6 +96,34 @@ workbench cutover 后，operator 侧应优先使用：
 - 所有环境变量由 CLI 入口点自动加载，不需要每个进程单独设置
 - 在项目根目录执行命令（与 `spec-orch.toml` 同级）
 - 建议统一用 Python 3.13 环境执行本项目命令，例如 `uv run --python 3.13 ...`
+
+## Rules
+
+- dashboard 和 daemon 是独立进程，但必须读同一套配置和共享 `.env` 回退逻辑。
+- operator 侧优先使用 `Execution / Judgment / Learning`，不要把 `Acceptance` 当主入口。
+- 做 acceptance/hardening 时，先确保服务启动方式和 workspace/base 没漂。
+
+## Common Rationalizations
+
+- “dashboard 起来了就算环境正常”
+  - 不够。daemon、LLM auth、shared env fallback 也必须一致。
+- “Acceptance tab 还能看，就先继续用旧 surface”
+  - 不对。它现在只是兼容入口，不是 canonical review surface。
+- “只看一个进程的日志就够了”
+  - 不够。很多问题是 dashboard / daemon / worker 三层状态错位。
+
+## Red Flags
+
+- dashboard 能开，daemon 心跳不更新
+- 不同 worktree 各自读不同 `.env`
+- operator 在旧 surface 和新 workbench 间来回切，导致状态判断不一致
+
+## Verification
+
+- `spec-orch preflight`
+- `spec-orch daemon health`
+- 打开 dashboard 并确认 `Execution / Judgment / Learning` surface 可访问
+- 如果跑 supervised mission，再确认 worker telemetry 和 dashboard state 对得上
 
 ## Evolution 管线
 
