@@ -193,22 +193,19 @@ class AdmissionGovernor:
             for scope in budget_scopes:
                 saturated = scope["budget_state"] == "saturated"
                 runtime_role = str(scope.get("runtime_role", "")).strip()
-                if (
-                    saturated
-                    and (
-                        (
-                            decision == "defer"
-                            and pressure_reason == "daemon_concurrency_limit"
-                            and runtime_role == "daemon"
-                        )
-                        or (
-                            decision == "defer"
-                            and pressure_reason == "mission_capacity_limit"
-                            and runtime_role == "mission"
-                        )
-                        or (decision == "reject" and runtime_role == "worker")
-                        or (decision == "degrade" and runtime_role == "verifier")
+                if saturated and (
+                    (
+                        decision == "defer"
+                        and pressure_reason == "daemon_concurrency_limit"
+                        and runtime_role == "daemon"
                     )
+                    or (
+                        decision == "defer"
+                        and pressure_reason == "mission_capacity_limit"
+                        and runtime_role == "mission"
+                    )
+                    or (decision == "reject" and runtime_role == "worker")
+                    or (decision == "degrade" and runtime_role == "verifier")
                 ):
                     scope["reason"] = pressure_reason
         return {

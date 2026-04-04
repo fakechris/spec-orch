@@ -343,5 +343,7 @@ def test_build_execution_substrate_snapshot_tracks_worker_and_verifier_budget_sc
     assert snapshot["summary"]["pressure_by_role"]["verifier"] == 1
     assert snapshot["summary"]["pressure_by_role"]["worker"] == 1
     assert {
-        item["subject_kind"] for item in snapshot["resource_budgets"] if item["budget_state"] == "saturated"
+        item["subject_kind"]
+        for item in snapshot["resource_budgets"]
+        if item["budget_state"] == "saturated"
     } >= {"worker", "verifier"}

@@ -539,8 +539,7 @@ def evidence_bundle_from_acceptance_review(
         if normalized in _VERIFIER_ARTIFACT_KEYS or "graph" in normalized:
             return "verifier"
         if any(
-            token in normalized
-            for token in ("builder", "execution", "transcript", "implementer")
+            token in normalized for token in ("builder", "execution", "transcript", "implementer")
         ):
             return "implementer"
         return "verifier"

@@ -398,10 +398,9 @@ class TestDashboardAPI:
             ]
             == 1
         )
-        assert (
-            detail_payload["learning_workbench"]["archive_lineage"]["raw_release_ids"]
-            == ["judgment-workbench-tranche-son-390-2026-04-03"]
-        )
+        assert detail_payload["learning_workbench"]["archive_lineage"]["raw_release_ids"] == [
+            "judgment-workbench-tranche-son-390-2026-04-03"
+        ]
         assert detail_payload["learning_workbench"]["patterns"][0]["dedupe_key"] == (
             "dashboard:transcript-continuity"
         )

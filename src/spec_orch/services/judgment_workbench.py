@@ -203,9 +203,7 @@ def build_judgment_workbench(repo_root: Path) -> dict[str, Any]:
     for item in structural_watch:
         family = str(item.get("primary_rule_family", "")).strip()
         if family:
-            structural_rule_family_counts[family] = (
-                structural_rule_family_counts.get(family, 0) + 1
-            )
+            structural_rule_family_counts[family] = structural_rule_family_counts.get(family, 0) + 1
     summary = {
         "workspace_count": len(workspaces),
         "reviewed_count": len(workspaces),

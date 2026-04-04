@@ -442,9 +442,7 @@ class TestContextLayerPayloads:
         assert payloads["evidence"] == {
             "reviewed_acceptance_findings": [{"finding_id": "finding-1"}]
         }
-        assert payloads["archive_lineage"] == {
-            "recent_evolution_journal": [{"key": "journal-1"}]
-        }
+        assert payloads["archive_lineage"] == {"recent_evolution_journal": [{"key": "journal-1"}]}
         assert payloads["promoted_learning"] == {
             "active_self_learnings": [{"key": "self-1"}],
             "active_delivery_learnings": [{"key": "delivery-1"}],

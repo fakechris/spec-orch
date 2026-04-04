@@ -164,9 +164,7 @@ def build_structural_judgment(
         rule_family = _rule_family_for_rule(str(item.get("rule_id", "")).strip())
         if rule_family in rule_family_counts:
             rule_family_counts[rule_family] += 1
-    active_families = [
-        family for family, count in rule_family_counts.items() if count > 0
-    ]
+    active_families = [family for family, count in rule_family_counts.items() if count > 0]
     drift_summary = "No comparison baseline was active."
     drift_hotspots: list[str] = []
     if compare_state == "active" and artifact_drift_count > 0:
