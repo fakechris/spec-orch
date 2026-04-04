@@ -1,5 +1,42 @@
 # 运行 Pipeline
 
+## Overview
+
+本指南覆盖 `spec-orch` 的单次运行、canonical acceptance、artifact 阅读路径，以及 tranche closeout 的固定动作。当前主线已经不再重画架构，重点是把 acceptance 和 hardening 做稳定。
+
+## When to Use
+
+- 要手动跑单个 issue 或 mission
+- 要跑 canonical acceptance 并判断这轮是否可以收口
+- 要阅读 run / mission / exploratory artifacts
+- 要在 tranche 结束后做 source-run 对比和 release archive 归档
+
+## Workflow
+
+1. 先跑目标路径的 run 或 acceptance。
+2. 先看顶层 report，再看 nested review / artifacts。
+3. 用 `Instructions / State / Verification / Scope / Lifecycle` 五个 subsystem 做 tranche review。
+4. 给五个 subsystem 打分，最低分的那个就是下一轮 bottleneck。
+5. 先修 `harness_bug`，再 rerun，再看 `n2n_bug / ux_gap`。
+6. canonical suite 可信后，写入 `docs/acceptance-history/`。
+
+## Context / Memory Taxonomy
+
+后续所有 acceptance / hardening 改动都应明确落在这五层中的哪一层：
+
+- `Active Context`
+  - 当前 run、当前 mission、当前 operator 正在消费的即时上下文。
+- `Working State`
+  - 还在变化的中间态，例如 queue、mission packet、approval workspace。
+- `Review Evidence`
+  - acceptance / browser / compare / transcript 等审阅证据。
+- `Archive`
+  - release acceptance bundle、history index、source-run lineage。
+- `Promoted Learning`
+  - 已经被接受并进入长期策略/规则/记忆层的结论。
+
+不要把这五层重新混回一个笼统的 “memory” bucket。
+
 ## 单次运行
 
 ```bash
@@ -69,6 +106,23 @@ finding taxonomy 当前约定为：
 4. 再把剩余 finding 分流到 `n2n_bug` 或 `ux_gap`。
 5. 每修一轮，再 rerun 同一路径，用 `source_run` 对比前后结果。
 6. 当 canonical suite 形成正式版本基线后，把该版本写入 `docs/acceptance-history/` 归档。
+
+## 5-Subsystem Tranche Review Checklist
+
+每次 tranche closeout 后，固定从这五个 subsystem 做 review：
+
+- `Instructions`
+  - 指令、计划、skill/workflow 文档是否明确，是否还有含糊空间。
+- `State`
+  - runtime state、workspace state、acceptance state 是否一致且可恢复。
+- `Verification`
+  - acceptance / evidence / compare 是否独立可信，是否存在自证通过。
+- `Scope`
+  - 当前 tranche 是否真的只改了该改的 seam，没有把主线扩散。
+- `Lifecycle`
+  - run -> rerun -> archive -> history index 的收口是否完整。
+
+如果某一项最低分，就把它当作下一轮 bottleneck，而不是再拍脑袋选题。
 
 正式版本归档当前应至少包含：
 
@@ -185,3 +239,33 @@ spec-orch discuss --issue-id "SON-123"   # 与 LLM 讨论 issue
 spec-orch plan --issue-id "SON-123"      # 生成 spec
 spec-orch readiness --issue-id "SON-123" # 检查 spec 就绪度
 ```
+
+## Rules
+
+- 先看顶层 report，再下产品结论。
+- top-level report 和 nested review 不一致时，先归类为 `harness_bug`。
+- exploratory 或 feature acceptance 的证据必须可复查，不能只靠一句总结。
+- 每个 tranche 结束后都要做 formal acceptance 和 archive closeout。
+
+## Common Rationalizations
+
+- “这轮只是小改，不用跑 canonical acceptance”
+  - 错。只要会影响 acceptance 可信度、workflow 或 operator surface，就要跑。
+- “nested review 看起来没问题，顶层 report 可以先忽略”
+  - 错。顶层 report 不可信时，说明 harness 还没收稳。
+- “先修产品问题，harness bug 后面再补”
+  - 错。harness bug 会污染后续所有产品判断。
+
+## Red Flags
+
+- 同一路径 rerun 后还在读旧 artifact
+- source-run before/after 无法对齐
+- acceptance 结论由 implementer 自己生成并自己判定
+- archive bundle 缺字段或 index 没刷新
+
+## Verification
+
+- 跑目标 acceptance 路径并确认顶层 report 可读
+- 看 `finding_taxonomy` 是否完成分流
+- 看 `source_run` 是否能比较 before/after
+- 确认 `docs/acceptance-history/index.json` 和本轮 bundle 已更新

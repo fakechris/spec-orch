@@ -284,6 +284,14 @@ def test_run_fresh_exploratory_acceptance_review_uses_exploratory_campaign(
     assert captured["mode_override"] is AcceptanceMode.EXPLORATORY
     assert isinstance(captured["campaign"], AcceptanceCampaign)
     assert captured["campaign"].filing_policy == "hold_ux_concerns_for_operator_review"
+    assert captured["campaign"].functional_plan
+    assert captured["campaign"].adversarial_plan
+    assert captured["campaign"].coverage_gaps
+    assert captured["campaign"].merged_plan
+    assert report["artifacts"]["exploratory_planning"]["functional_plan"]
+    assert report["artifacts"]["exploratory_planning"]["adversarial_plan"]
+    assert report["artifacts"]["exploratory_planning"]["coverage_gaps"]
+    assert report["artifacts"]["exploratory_planning"]["merged_plan"]
     assert captured["api_key"] == "sk-minimax"
     assert captured["api_base"] == "https://api.minimaxi.com/anthropic"
 

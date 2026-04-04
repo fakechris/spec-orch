@@ -16,6 +16,75 @@ from spec_orch.services.visual.playwright_visual_eval import (
 logger = logging.getLogger(__name__)
 
 
+def _step_marker_for_status(status: str) -> str:
+    normalized = status.strip().lower()
+    if normalized == "failed":
+        return "STEP_FAIL"
+    if normalized == "skipped":
+        return "STEP_SKIP"
+    return "STEP_PASS"
+
+
+def _expected_for_interaction(entry: dict[str, Any]) -> str:
+    description = str(entry.get("description", "") or "").strip()
+    if description:
+        return description
+    action = str(entry.get("action", "") or "").strip()
+    target = str(entry.get("target", "") or "").strip()
+    if action and target:
+        return f"{action} {target}"
+    if target:
+        return target
+    return "Interaction completes successfully."
+
+
+def _actual_for_interaction(entry: dict[str, Any], *, status: str) -> str:
+    message = str(entry.get("message", "") or "").strip()
+    if message:
+        return message
+    normalized = status.strip().lower()
+    if normalized == "failed":
+        return "Step failed."
+    if normalized == "skipped":
+        return "Skipped."
+    return "Step completed."
+
+
+def _normalize_interaction_log(
+    steps: list[dict[str, Any]],
+    *,
+    screenshot_path: Path,
+) -> list[dict[str, Any]]:
+    normalized_steps: list[dict[str, Any]] = []
+    for index, step in enumerate(steps, start=1):
+        if not isinstance(step, dict):
+            continue
+        status = str(step.get("status", "passed") or "passed").strip().lower() or "passed"
+        step_id = str(step.get("step_id", "") or f"step-{index:02d}").strip() or f"step-{index:02d}"
+        marker = str(step.get("marker", "") or _step_marker_for_status(status)).strip()
+        normalized_step = dict(step)
+        normalized_step["status"] = status
+        normalized_step["step_id"] = step_id
+        normalized_step["marker"] = marker
+        normalized_step["expected"] = str(
+            step.get("expected", "") or _expected_for_interaction(step)
+        ).strip()
+        normalized_step["actual"] = str(
+            step.get("actual", "") or _actual_for_interaction(step, status=status)
+        ).strip()
+        normalized_step["screenshot_path"] = str(
+            step.get("screenshot_path", "") or str(screenshot_path)
+        ).strip()
+        normalized_step["before_snapshot_ref"] = str(
+            step.get("before_snapshot_ref", "") or f"{step_id}:before"
+        ).strip()
+        normalized_step["after_snapshot_ref"] = str(
+            step.get("after_snapshot_ref", "") or f"{step_id}:after"
+        ).strip()
+        normalized_steps.append(normalized_step)
+    return normalized_steps
+
+
 def build_acceptance_browser_request(
     *,
     mission_id: str,
@@ -114,7 +183,13 @@ def collect_browser_evidence(
         "producer_role": "verifier",
         "verification_origin": "browser_verifier",
         "tested_routes": [snapshot.path for snapshot in snapshots],
-        "interactions": {snapshot.path: snapshot.interaction_log for snapshot in snapshots},
+        "interactions": {
+            snapshot.path: _normalize_interaction_log(
+                snapshot.interaction_log,
+                screenshot_path=snapshot.screenshot_path,
+            )
+            for snapshot in snapshots
+        },
         "screenshots": screenshots,
         "console_errors": console_errors,
         "page_errors": page_errors,

@@ -1,0 +1,43 @@
+{
+  "round_id": 1,
+  "wave_id": 0,
+  "status": "decided",
+  "started_at": "2026-04-04T11:53:21.247793+00:00",
+  "completed_at": "2026-04-04T11:56:25.268687+00:00",
+  "worker_results": [
+    {
+      "packet_id": "acpx-contract-mission-types",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115256-b5078c/workers/acpx-contract-mission-types/builder_report.json",
+      "incoming_events_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115256-b5078c/workers/acpx-contract-mission-types/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115256-b5078c/workers/acpx-contract-mission-types/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115256-b5078c/workers/acpx-contract-mission-types/telemetry/activity.log"
+    },
+    {
+      "packet_id": "acpx-contract-artifact-types",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115256-b5078c/workers/acpx-contract-artifact-types/builder_report.json",
+      "incoming_events_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115256-b5078c/workers/acpx-contract-artifact-types/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115256-b5078c/workers/acpx-contract-artifact-types/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115256-b5078c/workers/acpx-contract-artifact-types/telemetry/activity.log"
+    }
+  ],
+  "decision": {
+    "action": "continue",
+    "reason_code": "terminal_wave_complete",
+    "summary": "Wave 0 complete. Both packets (acpx-contract-mission-types, acpx-contract-artifact-types) succeeded with all 6 verification checks passing. Gate verdicts are mergeable. Scope restricted to exactly src/contracts/mission_types.ts and src/contracts/artifact_types.ts \u2014 no out-of-scope mutations. Acceptance criteria and all five constraints satisfied. This is the terminal wave; no remaining work packets.",
+    "confidence": 0.98,
+    "affected_workers": [],
+    "artifacts": {},
+    "session_ops": {
+      "reuse": [],
+      "spawn": [],
+      "cancel": []
+    },
+    "blocking_questions": []
+  }
+}

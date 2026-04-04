@@ -1,0 +1,40 @@
+{
+  "release_id": "acceptance-hardening-protocol-tranche-1-2026-04-04",
+  "release_label": "Acceptance Hardening Protocol Tranche 1 2026-04-04",
+  "created_at": "2026-04-04T12:08:40Z",
+  "git_commit": "f5a167797f771473142a77cd1a623376ee7d57b5",
+  "git_branch": "acceptance-hardening-protocol-start",
+  "acceptance_suite_version": "formal-acceptance-v1",
+  "overall_status": "pass",
+  "reported_checks": 4,
+  "total_checks": 4,
+  "checks": {
+    "issue_start": "pass",
+    "dashboard_ui": "pass",
+    "mission_start": "pass",
+    "exploratory": "pass"
+  },
+  "source_runs": {
+    "issue_start": "SPC-1",
+    "mission_start": "fresh-acpx-20260404115256-b5078c",
+    "dashboard_ui": "dashboard-ui-local",
+    "exploratory": "fresh-acpx-20260404115946-e74704"
+  },
+  "artifacts": {
+    "status_json": ".spec_orch/acceptance/stability_acceptance_status.json",
+    "status_markdown": "docs/plans/2026-03-30-stability-acceptance-status.md",
+    "summary_markdown": "docs/acceptance-history/releases/acceptance-hardening-protocol-tranche-1-2026-04-04/summary.md",
+    "findings_json": "docs/acceptance-history/releases/acceptance-hardening-protocol-tranche-1-2026-04-04/findings.json",
+    "source_runs_json": "docs/acceptance-history/releases/acceptance-hardening-protocol-tranche-1-2026-04-04/source_runs.json",
+    "artifacts_json": "docs/acceptance-history/releases/acceptance-hardening-protocol-tranche-1-2026-04-04/artifacts.json",
+    "status_bundle_json": "docs/acceptance-history/releases/acceptance-hardening-protocol-tranche-1-2026-04-04/status.json"
+  },
+  "lineage": {
+    "program": "acceptance-hardening-protocol",
+    "notes": [
+      "This bundle captures tranche 1 of the acceptance hardening protocol wave by turning research-derived review language into live docs and acceptance contracts.",
+      "Exploratory acceptance now carries explicit functional/adversarial/coverage planning rounds plus a merged plan, while browser evidence emits normalized STEP_PASS/STEP_FAIL/STEP_SKIP markers and fixed failure artifact fields.",
+      "Source-run compare versus learning-promotion-discipline-tranche-2-2026-04-04: issue_start stayed on SPC-1; dashboard_ui stayed on dashboard-ui-local; mission_start advanced to fresh-acpx-20260404115256-b5078c; exploratory advanced to fresh-acpx-20260404115946-e74704."
+    ]
+  }
+}

@@ -239,12 +239,23 @@ def _execute_interaction_plan(
     timeout_ms: int,
 ) -> list[dict[str, Any]]:
     log: list[dict[str, Any]] = []
-    for step in steps:
+    blocked = False
+    for index, step in enumerate(steps, start=1):
         entry: dict[str, Any] = {
+            "step_id": f"step-{index:02d}",
             "action": step.action,
             "target": step.target,
             "description": step.description,
+            "expected": step.description or f"{step.action} {step.target}",
+            "before_snapshot_ref": f"step-{index:02d}:before",
+            "after_snapshot_ref": f"step-{index:02d}:after",
         }
+        if blocked:
+            entry["status"] = "skipped"
+            entry["marker"] = "STEP_SKIP"
+            entry["actual"] = "Skipped."
+            log.append(entry)
+            continue
         step_timeout_ms = _resolve_step_timeout_ms(step.timeout_ms, fallback_timeout_ms=timeout_ms)
         try:
             if step.action == "click_text":
@@ -266,10 +277,15 @@ def _execute_interaction_plan(
                 raise ValueError(f"Unsupported interaction action: {step.action}")
         except Exception as exc:
             entry["status"] = "failed"
+            entry["marker"] = "STEP_FAIL"
             entry["message"] = f"{step.action} {step.target!r} failed: {exc}"
+            entry["actual"] = str(entry["message"])
             log.append(entry)
-            break
+            blocked = True
+            continue
         entry["status"] = "passed"
+        entry["marker"] = "STEP_PASS"
+        entry["actual"] = "Step completed."
         log.append(entry)
     return log
 

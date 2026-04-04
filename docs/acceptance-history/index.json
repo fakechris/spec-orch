@@ -249,6 +249,16 @@
       "findings_count": 0,
       "issue_proposal_count": 0,
       "bundle_path": "docs/acceptance-history/releases/learning-promotion-discipline-tranche-2-2026-04-04"
+    },
+    {
+      "release_id": "acceptance-hardening-protocol-tranche-1-2026-04-04",
+      "release_label": "Acceptance Hardening Protocol Tranche 1 2026-04-04",
+      "created_at": "2026-04-04T12:08:40Z",
+      "git_commit": "f5a167797f771473142a77cd1a623376ee7d57b5",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/acceptance-hardening-protocol-tranche-1-2026-04-04"
     }
   ]
 }

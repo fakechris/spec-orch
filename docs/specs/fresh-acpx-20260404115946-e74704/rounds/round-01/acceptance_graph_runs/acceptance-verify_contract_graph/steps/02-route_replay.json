@@ -1,0 +1,54 @@
+{
+  "step_key": "route_replay",
+  "decision": "continue",
+  "outputs": {
+    "step_key": "route_replay",
+    "mission_id": "fresh-acpx-20260404115946-e74704",
+    "round_id": 1,
+    "wave_id": 0,
+    "review_routes_validated": [
+      "/?mission=fresh-acpx-20260404115946-e74704&mode=missions&tab=overview",
+      "/?mission=fresh-acpx-20260404115946-e74704&mode=missions&tab=transcript&round=1",
+      "/?mission=fresh-acpx-20260404115946-e74704&mode=missions&tab=approvals&round=1",
+      "/?mission=fresh-acpx-20260404115946-e74704&mode=missions&tab=visual&round=1",
+      "/?mission=fresh-acpx-20260404115946-e74704&mode=missions&tab=costs&round=1",
+      "/?mission=fresh-acpx-20260404115946-e74704&mode=missions&tab=judgment&round=1"
+    ],
+    "workflow_assertions_validated": [
+      "launcher panel can be opened from the header",
+      "needs attention mode can be selected from mission control",
+      "missions mode can be selected from mission control",
+      "decision queue mode can be selected from mission control",
+      "deep evidence mode can be selected from mission control",
+      "the target mission can be selected from the mission list",
+      "the transcript tab can be opened from mission detail",
+      "the approvals surface exposes actionable operator controls when present",
+      "the visual QA tab can be opened from mission detail",
+      "the judgment tab can be opened from mission detail",
+      "the costs tab can be opened from mission detail"
+    ],
+    "route_replay_evidence": {
+      "proof_type": "workflow_replay",
+      "fresh_execution_complete": true,
+      "round_1_complete": true,
+      "both_workers_succeeded": true,
+      "mergeable_artifacts": [
+        "src/contracts/mission_types.ts",
+        "src/contracts/artifact_types.ts"
+      ],
+      "all_verification_steps_passed": true,
+      "gate_verdicts_mergeable": true,
+      "contract_evidence_captured": true
+    },
+    "artifact_paths": [
+      "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-mission-types/builder_report.json",
+      "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-mission-types/src/contracts/mission_types.ts",
+      "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-artifact-types/builder_report.json",
+      "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-artifact-types/src/contracts/artifact_types.ts"
+    ]
+  },
+  "next_transition": "{'action': 'advance_to_post_run_completion', 'reason': 'route_replay_complete_all_workflow_assertions_passed', 'summary': 'Post-run dashboard workflow replay completed successfully. All declared routes are accessible and workflow assertions validated. Both contract artifacts (mission_types.ts, artifact_types.ts) passed all 6 verification steps and are mergeable. Route replay captured full contract evidence for the fresh ACPX mission.'}",
+  "warnings": [],
+  "review_markdown": "## Route Replay Evidence\n\n### Step: route_replay\n**Mission**: Fresh ACPX Mission E2E Narrow Smoke (`fresh-acpx-20260404115946-e74704`)\n\n### Contract Evidence Captured\n\n#### Fresh Execution Results\n- **Round 1**: Completed (2026-04-04T12:00:02 → 12:02:50)\n- **Workers**: 2 (both succeeded)\n  - `acpx-fresh-contract-mission-types` ✓\n  - `acpx-fresh-contract-artifact-types` ✓\n\n#### Artifact Verification (6 Steps Each)\n1. **scaffold_exists**: ✓ Both files present in worker workspaces\n2. **typescript_contract_tokens**: ✓ All files contain `export`, `interface`, `type`, or `enum`\n3. **typescript_schema_surface**: ✓ All files expose Schema/schema surface\n4. **typescript_typecheck**: ✓ `tsc --noEmit` passes for both files\n5. **typescript_lint_smoke**: ✓ No trailing whitespace, no tabs, proper newline termination\n6. **typescript_import_smoke**: ✓ Import smoke test passes via tsc\n\n#### Gate Verdicts\n- `acpx-fresh-contract-mission-types`: **MERGEABLE** - scope clean, all in-scope\n- `acpx-fresh-contract-artifact-types`: **MERGEABLE** - scope clean, all in-scope\n\n### Workflow Replay Validation\n\n#### Primary Routes Verified\n- `/` - Dashboard root ✓\n- `/?mode=missions` - Mission inventory ✓\n- `/?mission=fresh-acpx-20260404115946-e74704&mode=missions&tab=overview` ✓\n\n#### Related Routes Verified\n- transcript tab ✓\n- approvals tab ✓\n- judgment tab ✓\n- visual QA tab ✓\n- costs tab ✓\n\n#### Workflow Assertions\nAll 11 assertions validated:\n1. Launcher panel opens from header ✓\n2. Needs attention mode selectable ✓\n3. Missions mode selectable ✓\n4. Decision queue mode selectable ✓\n5. Deep evidence mode selectable ✓\n6. Target mission selectable from list ✓\n7. Transcript tab opens from detail ✓\n8. Approvals surface exposes controls ✓\n9. Visual QA tab opens ✓\n10. Judgment tab opens ✓\n11. Costs tab opens ✓\n\n### Conclusion\n**Route replay successfully captured all contract evidence.** The fresh ACPX mission produced two verified TypeScript contract files that passed all verification gates. The post-run dashboard workflow replay confirmed all declared routes are functional and all workflow assertions pass. Both artifacts are mergeable and ready for integration.",
+  "created_at": "2026-04-04T12:03:44.704365+00:00"
+}

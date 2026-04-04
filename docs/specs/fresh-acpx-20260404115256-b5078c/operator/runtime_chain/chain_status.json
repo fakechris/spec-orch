@@ -1,0 +1,13 @@
+{
+  "chain_id": "chain_fresh-acpx-20260404115256-b5078c_20260404T115321Z_c8c6efe6",
+  "active_span_id": "chain_fresh-acpx-20260404115256-b5078c_20260404T115321Z_c8c6efe6:round:01:acceptance-review",
+  "subject_kind": "acceptance",
+  "subject_id": "fresh-acpx-20260404115256-b5078c:round-1:acceptance",
+  "phase": "completed",
+  "status_reason": "acceptance_evaluation_completed",
+  "session_refs": {},
+  "artifact_refs": {
+    "round_dir": "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115256-b5078c/rounds/round-01"
+  },
+  "updated_at": "2026-04-04T11:58:18.405970+00:00"
+}

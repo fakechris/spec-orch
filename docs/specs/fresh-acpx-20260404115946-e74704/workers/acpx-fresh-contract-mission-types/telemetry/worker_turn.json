@@ -1,0 +1,16 @@
+{
+  "session_name": "mission-fresh-acpx-20260404115946-e74704-acpx-fresh-contract-mission-types",
+  "terminal_reason": "process_exit_success",
+  "succeeded": true,
+  "retry_count": 0,
+  "event_count": 121,
+  "commands_completed": 8,
+  "files_changed": [
+    "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-mission-types/src/contracts/mission_types.ts"
+  ],
+  "session_reused": false,
+  "session_health": "healthy",
+  "chain_id": "chain_fresh-acpx-20260404115946-e74704_20260404T120002Z_f7fdde92",
+  "span_id": "chain_fresh-acpx-20260404115946-e74704_20260404T120002Z_f7fdde92:round:01:packet:acpx-fresh-contract-mission-types:worker",
+  "parent_span_id": "chain_fresh-acpx-20260404115946-e74704_20260404T120002Z_f7fdde92:round:01:packet:acpx-fresh-contract-mission-types"
+}

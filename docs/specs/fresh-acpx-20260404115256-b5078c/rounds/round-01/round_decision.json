@@ -1,0 +1,14 @@
+{
+  "action": "continue",
+  "reason_code": "terminal_wave_complete",
+  "summary": "Wave 0 complete. Both packets (acpx-contract-mission-types, acpx-contract-artifact-types) succeeded with all 6 verification checks passing. Gate verdicts are mergeable. Scope restricted to exactly src/contracts/mission_types.ts and src/contracts/artifact_types.ts — no out-of-scope mutations. Acceptance criteria and all five constraints satisfied. This is the terminal wave; no remaining work packets.",
+  "confidence": 0.98,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

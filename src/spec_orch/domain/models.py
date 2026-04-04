@@ -766,6 +766,10 @@ class AcceptanceCampaign:
     critique_focus: list[str] = field(default_factory=list)
     stop_conditions: list[str] = field(default_factory=list)
     evidence_budget: str = ""
+    functional_plan: list[str] = field(default_factory=list)
+    adversarial_plan: list[str] = field(default_factory=list)
+    coverage_gaps: list[str] = field(default_factory=list)
+    merged_plan: list[str] = field(default_factory=list)
 
     @staticmethod
     def _safe_int(value: Any, default: int = 0) -> int:
@@ -798,6 +802,10 @@ class AcceptanceCampaign:
             "critique_focus": self.critique_focus,
             "stop_conditions": self.stop_conditions,
             "evidence_budget": self.evidence_budget,
+            "functional_plan": self.functional_plan,
+            "adversarial_plan": self.adversarial_plan,
+            "coverage_gaps": self.coverage_gaps,
+            "merged_plan": self.merged_plan,
         }
 
     @classmethod
@@ -836,6 +844,10 @@ class AcceptanceCampaign:
             critique_focus=_coerce_str_list(data.get("critique_focus", [])),
             stop_conditions=_coerce_str_list(data.get("stop_conditions", [])),
             evidence_budget=data.get("evidence_budget", ""),
+            functional_plan=_coerce_str_list(data.get("functional_plan", [])),
+            adversarial_plan=_coerce_str_list(data.get("adversarial_plan", [])),
+            coverage_gaps=_coerce_str_list(data.get("coverage_gaps", [])),
+            merged_plan=_coerce_str_list(data.get("merged_plan", [])),
         )
 
 

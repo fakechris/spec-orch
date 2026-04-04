@@ -1,0 +1,34 @@
+{
+  "step_key": "assert_contract",
+  "decision": "contract_holds",
+  "outputs": {
+    "verification_summary": {
+      "wave_0_complete": true,
+      "packets_succeeded": [
+        "acpx-contract-mission-types",
+        "acpx-contract-artifact-types"
+      ],
+      "all_verification_checks_passed": true,
+      "gate_verdicts_mergeable": true,
+      "scope_compliant": true
+    },
+    "acceptance_criteria_status": {
+      "fresh_mission_creatable": true,
+      "within_one_wave_two_packets": true,
+      "fresh_round_artifacts_produced": true,
+      "post_run_workflow_replay_defined": true
+    },
+    "constraints_status": {
+      "narrow_local_only_path": true,
+      "no_historical_artifacts_reused": true,
+      "budget_respected": true,
+      "only_targeted_files_touched": true,
+      "no_dashboard_runtime_changes": true
+    },
+    "confidence": 0.98
+  },
+  "next_transition": "",
+  "warnings": [],
+  "review_markdown": "## Contract Assertion: HOLD\n\n### Verification Result\nAll declared features and directly affected routes are verified:\n\n- **Wave 0 (Terminal)**: Complete with both work packets succeeding\n- **Packet: acpx-contract-mission-types**: All 6 verification checks passed (scaffold, contract tokens, schema surface, typecheck, lint smoke, import smoke)\n- **Packet: acpx-contract-artifact-types**: All 6 verification checks passed\n- **Gate Verdicts**: Both packets are mergeable with no failed conditions\n- **Scope**: Restricted exactly to `src/contracts/mission_types.ts` and `src/contracts/artifact_types.ts` — no out-of-scope mutations\n\n### Acceptance Criteria\n| Criterion | Status |\n|-----------|--------|\n| Fresh mission can be created | ✓ |\n| Plan within 1 wave / 2 packets | ✓ |\n| Mission produces fresh round artifacts | ✓ |\n| Post-run workflow replay defined | ✓ |\n\n### Constraints\n| Constraint | Status |\n|------------|--------|\n| Narrow local-only path | ✓ |\n| No historical artifact reuse | ✓ |\n| Budget: 1 wave, 2 packets max | ✓ |\n| Only target contract files touched | ✓ |\n| No dashboard runtime changes | ✓ |\n\n### Conclusion\n**Contract holds.** The mission successfully completed its terminal wave with all verification checks passing, scope constraints satisfied, and acceptance criteria met. This is a terminal wave with no remaining work packets. No further transitions are required.",
+  "created_at": "2026-04-04T11:57:30.275678+00:00"
+}

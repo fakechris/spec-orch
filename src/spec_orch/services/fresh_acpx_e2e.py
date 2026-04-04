@@ -138,12 +138,112 @@ def _finalize_exploratory_campaign(campaign: Any) -> Any:
     exploration_budget = getattr(campaign, "exploration_budget", "") or ""
     if exploration_budget == "bounded":
         exploration_budget = "wide"
+    primary_routes = [
+        str(route).strip()
+        for route in list(getattr(campaign, "primary_routes", []) or [])
+        if str(route).strip()
+    ]
+    related_routes = [
+        str(route).strip()
+        for route in list(getattr(campaign, "related_routes", []) or [])
+        if str(route).strip()
+    ]
+    required_interactions = [
+        str(item).strip()
+        for item in list(getattr(campaign, "required_interactions", []) or [])
+        if str(item).strip()
+    ]
+    allowed_expansions = [
+        str(item).strip()
+        for item in list(getattr(campaign, "allowed_expansions", []) or [])
+        if str(item).strip()
+    ]
+    functional_plan = [
+        str(item).strip()
+        for item in list(getattr(campaign, "functional_plan", []) or [])
+        if str(item).strip()
+    ]
+    if not functional_plan:
+        target_routes = ", ".join(primary_routes) or "the primary operator route"
+        functional_plan = [f"Validate the primary task flow across {target_routes}."]
+        if required_interactions:
+            functional_plan.append(
+                "Complete required interactions: " + ", ".join(required_interactions) + "."
+            )
+    adversarial_plan = [
+        str(item).strip()
+        for item in list(getattr(campaign, "adversarial_plan", []) or [])
+        if str(item).strip()
+    ]
+    if not adversarial_plan:
+        adversarial_plan = [
+            "Probe misleading terminology, confusing transitions, and broken evidence handoffs."
+        ]
+        if critique_focus:
+            adversarial_plan.append("Stress critique axes: " + ", ".join(critique_focus) + ".")
+    coverage_gaps = [
+        str(item).strip()
+        for item in list(getattr(campaign, "coverage_gaps", []) or [])
+        if str(item).strip()
+    ]
+    if not coverage_gaps:
+        uncovered_routes = related_routes or allowed_expansions
+        if uncovered_routes:
+            coverage_gaps = [
+                "Review uncovered adjacent surfaces: " + ", ".join(uncovered_routes) + "."
+            ]
+        else:
+            coverage_gaps = [
+                (
+                    "Check for missing review surfaces, hidden evidence paths, "
+                    "and unvisited operator branches."
+                )
+            ]
+    merged_plan = [
+        str(item).strip()
+        for item in list(getattr(campaign, "merged_plan", []) or [])
+        if str(item).strip()
+    ]
+    if not merged_plan:
+        merged_plan = []
+        for item in functional_plan + adversarial_plan + coverage_gaps:
+            if item not in merged_plan:
+                merged_plan.append(item)
     return replace(
         campaign,
         critique_focus=critique_focus,
         filing_policy=filing_policy,
         exploration_budget=exploration_budget,
+        functional_plan=functional_plan,
+        adversarial_plan=adversarial_plan,
+        coverage_gaps=coverage_gaps,
+        merged_plan=merged_plan,
     )
+
+
+def _exploratory_planning_payload(campaign: Any) -> dict[str, list[str]]:
+    return {
+        "functional_plan": [
+            str(item).strip()
+            for item in list(getattr(campaign, "functional_plan", []) or [])
+            if str(item).strip()
+        ],
+        "adversarial_plan": [
+            str(item).strip()
+            for item in list(getattr(campaign, "adversarial_plan", []) or [])
+            if str(item).strip()
+        ],
+        "coverage_gaps": [
+            str(item).strip()
+            for item in list(getattr(campaign, "coverage_gaps", []) or [])
+            if str(item).strip()
+        ],
+        "merged_plan": [
+            str(item).strip()
+            for item in list(getattr(campaign, "merged_plan", []) or [])
+            if str(item).strip()
+        ],
+    }
 
 
 def _collect_exploratory_browser_evidence(
@@ -723,6 +823,13 @@ def _compact_exploratory_artifacts_for_evaluator(
     )
     if workflow_acceptance_review:
         compacted["workflow_acceptance_review"] = workflow_acceptance_review
+    exploratory_planning = artifacts.get("exploratory_planning")
+    if isinstance(exploratory_planning, dict) and exploratory_planning:
+        compacted["exploratory_planning"] = {
+            key: [str(item).strip() for item in value if str(item).strip()]
+            for key, value in exploratory_planning.items()
+            if isinstance(key, str) and isinstance(value, list)
+        }
     round_summary = _compact_round_summary_for_evaluator(artifacts.get("round_summary"))
     if round_summary:
         compacted["round_summary"] = round_summary
@@ -776,6 +883,8 @@ def run_fresh_exploratory_acceptance_review(
         mode_override=AcceptanceMode.EXPLORATORY,
     )
     campaign = _finalize_exploratory_campaign(campaign)
+    exploratory_planning = _exploratory_planning_payload(campaign)
+    artifacts["exploratory_planning"] = exploratory_planning
 
     round_summary = _read_json(round_dir / "round_summary.json")
     raw_round_id = round_summary.get("round_id")
@@ -838,6 +947,9 @@ def run_fresh_exploratory_acceptance_review(
         "acceptance_evaluator_config",
         {},
     )
+    artifacts_block = payload.setdefault("artifacts", {})
+    if isinstance(artifacts_block, dict):
+        artifacts_block["exploratory_planning"] = exploratory_planning
     if isinstance(acceptance_config, dict):
         acceptance_config.setdefault("model", str(settings["model"]))
         acceptance_config.setdefault("api_type", str(settings["api_type"]))

@@ -66,7 +66,14 @@ def test_collect_browser_evidence_returns_operator_friendly_payload(tmp_path: Pa
                 screenshot_path=home_png,
                 console_errors=["ReferenceError: boom"],
                 page_errors=[],
-                interaction_log=[{"action": "click_text", "status": "passed"}],
+                interaction_log=[
+                    {
+                        "action": "click_text",
+                        "target": "Transcript",
+                        "description": "Open transcript timeline.",
+                        "status": "passed",
+                    }
+                ],
             ),
             PageSnapshot(
                 path="/settings",
@@ -75,7 +82,21 @@ def test_collect_browser_evidence_returns_operator_friendly_payload(tmp_path: Pa
                 screenshot_path=settings_png,
                 console_errors=[],
                 page_errors=["Unhandled exception"],
-                interaction_log=[{"action": "click_text", "status": "failed"}],
+                interaction_log=[
+                    {
+                        "action": "click_text",
+                        "target": "Acceptance",
+                        "description": "Open acceptance evidence.",
+                        "status": "failed",
+                        "message": "selector missing",
+                    },
+                    {
+                        "action": "wait_for_selector",
+                        "target": "[data-role='acceptance-panel']",
+                        "description": "Wait for acceptance panel.",
+                        "status": "skipped",
+                    },
+                ],
             ),
         ],
     )
@@ -87,10 +108,20 @@ def test_collect_browser_evidence_returns_operator_friendly_payload(tmp_path: Pa
         "/": str(home_png),
         "/settings": str(settings_png),
     }
-    assert evidence["interactions"] == {
-        "/": [{"action": "click_text", "status": "passed"}],
-        "/settings": [{"action": "click_text", "status": "failed"}],
-    }
+    assert evidence["interactions"]["/"][0]["marker"] == "STEP_PASS"
+    assert evidence["interactions"]["/"][0]["step_id"] == "step-01"
+    assert evidence["interactions"]["/"][0]["expected"] == "Open transcript timeline."
+    assert evidence["interactions"]["/"][0]["actual"] == "Step completed."
+    assert evidence["interactions"]["/"][0]["screenshot_path"] == str(home_png)
+    assert evidence["interactions"]["/settings"][0]["marker"] == "STEP_FAIL"
+    assert evidence["interactions"]["/settings"][0]["step_id"] == "step-01"
+    assert evidence["interactions"]["/settings"][0]["expected"] == "Open acceptance evidence."
+    assert evidence["interactions"]["/settings"][0]["actual"] == "selector missing"
+    assert evidence["interactions"]["/settings"][0]["screenshot_path"] == str(settings_png)
+    assert evidence["interactions"]["/settings"][0]["before_snapshot_ref"]
+    assert evidence["interactions"]["/settings"][0]["after_snapshot_ref"]
+    assert evidence["interactions"]["/settings"][1]["marker"] == "STEP_SKIP"
+    assert evidence["interactions"]["/settings"][1]["actual"] == "Skipped."
     assert evidence["artifact_paths"]["round_dir"] == str(round_dir)
     assert evidence["artifact_paths"]["visual_dir"] == str(visual_dir)
     assert evidence["console_errors"] == [{"path": "/", "message": "ReferenceError: boom"}]

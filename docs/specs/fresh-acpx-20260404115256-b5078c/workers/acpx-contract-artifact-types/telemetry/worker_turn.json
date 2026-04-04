@@ -1,0 +1,16 @@
+{
+  "session_name": "mission-fresh-acpx-20260404115256-b5078c-acpx-contract-artifact-types",
+  "terminal_reason": "process_exit_success",
+  "succeeded": true,
+  "retry_count": 0,
+  "event_count": 86,
+  "commands_completed": 8,
+  "files_changed": [
+    "/Users/chris/workspace/spec-orch/.worktrees/acceptance-hardening-protocol-start/docs/specs/fresh-acpx-20260404115256-b5078c/workers/acpx-contract-artifact-types/src/contracts/artifact_types.ts"
+  ],
+  "session_reused": false,
+  "session_health": "healthy",
+  "chain_id": "chain_fresh-acpx-20260404115256-b5078c_20260404T115321Z_c8c6efe6",
+  "span_id": "chain_fresh-acpx-20260404115256-b5078c_20260404T115321Z_c8c6efe6:round:01:packet:acpx-contract-artifact-types:worker",
+  "parent_span_id": "chain_fresh-acpx-20260404115256-b5078c_20260404T115321Z_c8c6efe6:round:01:packet:acpx-contract-artifact-types"
+}
