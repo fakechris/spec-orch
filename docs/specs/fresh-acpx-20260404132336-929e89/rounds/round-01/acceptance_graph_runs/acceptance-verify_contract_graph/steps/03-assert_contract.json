@@ -1,0 +1,40 @@
+{
+  "step_key": "assert_contract",
+  "decision": "contract_holds",
+  "outputs": {
+    "round_id": 1,
+    "wave_id": 0,
+    "packets_executed": 2,
+    "packets_succeeded": 2,
+    "verifier_checks_passed": {
+      "acpx-contract-mission-types": 6,
+      "acpx-contract-artifact-types": 6
+    },
+    "gates_mergeable": true,
+    "all_in_scope": true,
+    "typescript_compilation": "clean",
+    "fresh_artifacts_produced": [
+      "src/contracts/mission_types.ts",
+      "src/contracts/artifact_types.ts"
+    ],
+    "acceptance_criteria_status": {
+      "fresh_mission_creatable": true,
+      "within_budget": true,
+      "fresh_round_artifacts_produced": true,
+      "post_run_workflow_pending": true
+    },
+    "constraints_satisfied": {
+      "local_only": true,
+      "no_historical_reuse": true,
+      "budget_respected": true,
+      "only_contract_files": true,
+      "no_dashboard_changes": true
+    }
+  },
+  "next_transition": "proceed_to_workflow_replay",
+  "warnings": [
+    "Post-run workflow replay has not yet been executed; final acceptance criterion 4 (dashboard surface validation) remains pending until workflow_replay step completes"
+  ],
+  "review_markdown": "## Contract Assertion: PASSED\n\n### Summary\nThe declared feature contract **holds** after Round 1 (Wave 0) execution.\n\n### Evidence\n\n| Criterion | Status | Evidence |\n|-----------|--------|----------|\n| Fresh mission created | ✅ | mission_id: `fresh-acpx-20260404132336-929e89` |\n| ≤1 wave, ≤2 packets | ✅ | 1 wave, 2 packets (`acpx-contract-mission-types`, `acpx-contract-artifact-types`) |\n| Fresh round artifacts produced | ✅ | Both builder reports succeeded; TypeScript compilation clean |\n| Post-run workflow replay | ⏳ Pending | Workflow replay step not yet executed |\n\n### Gate Verdict Analysis\n\nBoth work packets achieved **mergeable=true** with **all_in_scope=true**:\n- `acpx-contract-mission-types`: Realized `src/contracts/mission_types.ts` — only allowed file touched ✅\n- `acpx-contract-artifact-types`: Realized `src/contracts/artifact_types.ts` — only allowed file touched ✅\n\n### Constraint Compliance\n\nAll five constraints are satisfied:\n1. **Local-only path**: Execution used local worktrees, no remote dependencies\n2. **No historical reuse**: Round artifacts are fresh; `fresh_execution` proof_type confirmed\n3. **Budget respected**: Exactly 1 wave, 2 packets (within max of 1 wave / 2 packets)\n4. **Only contract files**: Gate verdicts confirm realized_files === allowed_files for both packets\n5. **No dashboard runtime changes**: Constraint explicitly honored during fresh proof run\n\n### Verdict\n\n**The contract holds.** Round 1 is complete and all contract obligations up to this point are satisfied. The mission may proceed to the `workflow_replay` step to validate the remaining acceptance criterion (post-run dashboard surface validation).",
+  "created_at": "2026-04-04T13:27:48.400140+00:00"
+}

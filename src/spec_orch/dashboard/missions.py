@@ -144,6 +144,67 @@ def _mission_sort_timestamp(mission: dict[str, Any]) -> str:
     return value if isinstance(value, str) else ""
 
 
+def _round_failure_state(round_summary: dict[str, Any]) -> dict[str, Any] | None:
+    worker_results = round_summary.get("worker_results", [])
+    if not isinstance(worker_results, list) or not worker_results:
+        return None
+
+    total_worker_count = len([item for item in worker_results if isinstance(item, dict)])
+    failed_worker_count = sum(
+        1 for item in worker_results if isinstance(item, dict) and item.get("succeeded") is False
+    )
+    if failed_worker_count == 0:
+        return None
+
+    decision = round_summary.get("decision", {})
+    if not isinstance(decision, dict):
+        decision = {}
+
+    decision_action = str(decision.get("action") or "").strip().lower()
+    reason_code = str(decision.get("reason_code") or "").strip()
+    summary = str(decision.get("summary") or "").strip() or (
+        f"{failed_worker_count} of {total_worker_count} builders failed."
+    )
+    status = "attention_required" if decision_action == "ask_human" else "failed"
+    return {
+        "status": status,
+        "decision_action": decision_action or "unknown",
+        "reason_code": reason_code,
+        "failed_worker_count": failed_worker_count,
+        "total_worker_count": total_worker_count,
+        "summary": summary,
+    }
+
+
+def _round_diagnostic_artifacts(
+    *,
+    review_memo: str | None,
+    worker_results: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    artifacts: list[dict[str, str]] = []
+    for item in worker_results:
+        if not isinstance(item, dict) or item.get("succeeded") is not False:
+            continue
+        for key, label in (
+            ("report_path", "Builder report"),
+            ("events_path", "Telemetry events"),
+            ("activity_log_path", "Activity log"),
+        ):
+            value = str(item.get(key) or "").strip()
+            if not value:
+                continue
+            artifacts.append(
+                {
+                    "label": label,
+                    "path": value,
+                    "packet_id": str(item.get("packet_id") or "").strip(),
+                }
+            )
+    if review_memo:
+        artifacts.append({"label": "Supervisor review", "path": review_memo, "packet_id": ""})
+    return artifacts
+
+
 def _mission_available_actions(
     mission_status: str,
     lifecycle: dict[str, Any] | None,
@@ -479,6 +540,9 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
                 review_artifact = normalized.get("artifacts", {}).get("review_report")
                 visual_artifact = normalized.get("artifacts", {}).get("visual_report")
                 payload = dict(summary_payload)
+                worker_results = payload.get("worker_results", [])
+                if not isinstance(worker_results, list):
+                    worker_results = []
                 payload["paths"] = {
                     "round_dir": str(round_dir.relative_to(repo_root)),
                     "review_memo": (
@@ -492,6 +556,11 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
                         else None
                     ),
                 }
+                payload["failure_state"] = _round_failure_state(payload)
+                payload["diagnostic_artifacts"] = _round_diagnostic_artifacts(
+                    review_memo=payload["paths"]["review_memo"],
+                    worker_results=[item for item in worker_results if isinstance(item, dict)],
+                )
                 round_summaries.append(payload)
                 continue
 
@@ -516,6 +585,9 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
             review_path = round_dir / "supervisor_review.md"
             visual_path = round_dir / "visual_evaluation.json"
             payload = dict(summary_payload)
+            worker_results = payload.get("worker_results", [])
+            if not isinstance(worker_results, list):
+                worker_results = []
             payload["paths"] = {
                 "round_dir": str(round_dir.relative_to(repo_root)),
                 "review_memo": (
@@ -525,6 +597,11 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
                     str(visual_path.relative_to(repo_root)) if visual_path.exists() else None
                 ),
             }
+            payload["failure_state"] = _round_failure_state(payload)
+            payload["diagnostic_artifacts"] = _round_diagnostic_artifacts(
+                review_memo=payload["paths"]["review_memo"],
+                worker_results=[item for item in worker_results if isinstance(item, dict)],
+            )
             round_summaries.append(payload)
 
     packets: list[dict[str, Any]] = []
@@ -545,6 +622,30 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
 
     actions = _mission_available_actions(mission.status.value, lifecycle)
     execution_workbench = build_mission_execution_workbench(repo_root, mission_id, actions)
+    latest_round = round_summaries[-1] if round_summaries else None
+    latest_failure_state = (
+        latest_round.get("failure_state") if isinstance(latest_round, dict) else None
+    )
+    mission_health = None
+    if isinstance(latest_failure_state, dict):
+        diagnostic_artifacts = (
+            latest_round.get("diagnostic_artifacts", []) if isinstance(latest_round, dict) else []
+        )
+        if not isinstance(diagnostic_artifacts, list):
+            diagnostic_artifacts = []
+        mission_health = {
+            "status": str(latest_failure_state.get("status") or "attention_required"),
+            "summary": (
+                f"{int(latest_failure_state.get('failed_worker_count', 0))} of "
+                f"{int(latest_failure_state.get('total_worker_count', 0))} builders failed; "
+                "inspect diagnostics before retrying."
+            ),
+            "decision_action": str(latest_failure_state.get("decision_action") or ""),
+            "reason_code": str(latest_failure_state.get("reason_code") or ""),
+            "failed_worker_count": int(latest_failure_state.get("failed_worker_count", 0)),
+            "total_worker_count": int(latest_failure_state.get("total_worker_count", 0)),
+            "diagnostic_artifact_count": len(diagnostic_artifacts),
+        }
 
     return {
         "mission": {
@@ -572,6 +673,7 @@ def _gather_mission_detail(repo_root: Path, mission_id: str) -> dict[str, Any] |
         "learning_workbench": learning_workbench,
         "costs": costs,
         "runtime_chain": runtime_chain,
+        "mission_health": mission_health,
         "workspace": workspace.to_dict(),
         "execution_workbench": execution_workbench,
         "artifacts": {

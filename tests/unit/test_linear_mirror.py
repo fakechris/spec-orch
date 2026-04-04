@@ -42,6 +42,12 @@ def test_render_linear_mirror_section_round_trips_json_payload() -> None:
             "Phase 2 in progress: sync Linear and chat-to-issue.",
         ],
     )
+    mirror["governance_sync"] = {
+        "latest_acceptance_status": "pass",
+        "latest_release_id": "self-hosting-wave-1",
+        "latest_release_bundle_path": "docs/acceptance-history/releases/self-hosting-wave-1",
+        "next_bottleneck": "Lifecycle",
+    }
 
     rendered = render_linear_mirror_section(mirror)
     reparsed = parse_linear_mirror_section(rendered)
@@ -54,6 +60,7 @@ def test_render_linear_mirror_section_round_trips_json_payload() -> None:
         "Phase 1 complete: context and governance hardened.",
         "Phase 2 in progress: sync Linear and chat-to-issue.",
     ]
+    assert reparsed["governance_sync"]["next_bottleneck"] == "Lifecycle"
 
 
 def test_merge_linear_mirror_section_replaces_existing_payload() -> None:

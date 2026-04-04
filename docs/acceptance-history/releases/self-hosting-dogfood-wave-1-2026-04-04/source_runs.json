@@ -1,0 +1,49 @@
+{
+  "issue_start": {
+    "issue_id": "SPC-1",
+    "report_path": ".spec_orch/acceptance/issue_start_smoke.json",
+    "runtime_chain_root": ".worktrees/SPC-1/telemetry/runtime_chain"
+  },
+  "mission_start": {
+    "mission_id": "fresh-acpx-20260404132336-929e89",
+    "round_id": "round-01",
+    "report_path": "docs/specs/fresh-acpx-20260404132336-929e89/operator/mission_start_acceptance.json",
+    "runtime_chain_root": {
+      "chain_id": "chain_fresh-acpx-20260404132336-929e89_20260404T132353Z_b0dec89b",
+      "active_span_id": "chain_fresh-acpx-20260404132336-929e89_20260404T132353Z_b0dec89b:round:01:acceptance-review",
+      "subject_kind": "acceptance",
+      "subject_id": "fresh-acpx-20260404132336-929e89:round-1:acceptance",
+      "phase": "completed",
+      "status_reason": "acceptance_evaluation_completed",
+      "session_refs": {},
+      "artifact_refs": {
+        "round_dir": "docs/specs/fresh-acpx-20260404132336-929e89/rounds/round-01"
+      },
+      "updated_at": "2026-04-04T13:28:34.494575+00:00",
+      "chain_root": "docs/specs/fresh-acpx-20260404132336-929e89/operator/runtime_chain"
+    }
+  },
+  "dashboard_ui": {
+    "run_id": "dashboard-ui-local",
+    "report_path": ".spec_orch/acceptance/dashboard_ui_acceptance.json"
+  },
+  "exploratory": {
+    "mission_id": "fresh-acpx-20260404132921-a1f9ee",
+    "round_id": "round-01",
+    "report_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/operator/exploratory_acceptance_smoke.json",
+    "runtime_chain_root": {
+      "chain_id": "chain_fresh-acpx-20260404132921-a1f9ee_20260404T132940Z_3763cfdc",
+      "active_span_id": "chain_fresh-acpx-20260404132921-a1f9ee_20260404T132940Z_3763cfdc:round:01:acceptance-review",
+      "subject_kind": "acceptance",
+      "subject_id": "fresh-acpx-20260404132921-a1f9ee:round-1:acceptance",
+      "phase": "completed",
+      "status_reason": "acceptance_evaluation_completed",
+      "session_refs": {},
+      "artifact_refs": {
+        "round_dir": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01"
+      },
+      "updated_at": "2026-04-04T13:35:20.651197+00:00",
+      "chain_root": "docs/specs/fresh-acpx-20260404132921-a1f9ee/operator/runtime_chain"
+    }
+  }
+}

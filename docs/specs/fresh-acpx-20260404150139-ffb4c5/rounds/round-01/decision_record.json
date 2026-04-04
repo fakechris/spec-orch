@@ -1,0 +1,16 @@
+{
+  "record_id": "fresh-acpx-20260404150139-ffb4c5-round-1-review",
+  "point_key": "mission.round.review",
+  "authority": "llm_owned",
+  "owner": "litellm_supervisor_adapter",
+  "selected_action": "continue",
+  "summary": "Wave 0 complete. Both scaffold packets succeeded and passed all verification gates. Plan budget exhausted — mission is done.",
+  "rationale": "",
+  "confidence": 0.95,
+  "context_artifacts": [
+    "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01/supervisor_review.md",
+    "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01/round_decision.json"
+  ],
+  "blocking_questions": [],
+  "created_at": "2026-04-04T15:04:40.423231+00:00"
+}

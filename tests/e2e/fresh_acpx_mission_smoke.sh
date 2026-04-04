@@ -385,6 +385,7 @@ from spec_orch.services.fresh_acpx_e2e import (
     write_fresh_acpx_mission_report,
 )
 from spec_orch.services.mission_service import MissionService
+from spec_orch.services.path_sanitizer import sanitize_text_artifact_tree
 from spec_orch.services.round_orchestrator import build_fresh_acpx_post_run_campaign
 
 repo_root = Path(".").resolve()
@@ -455,15 +456,18 @@ result = adapter.evaluate_acceptance(
     json.dumps(result.to_dict(), indent=2) + "\n",
     encoding="utf-8",
 )
-report = write_fresh_acpx_mission_report(
-    round_dir=round_dir,
-    mission_id=mission_id,
-    dashboard_url=f"http://127.0.0.1:{port}/?mission={mission_id}&mode=missions&tab=overview",
-    fresh_execution=fresh_execution,
-    workflow_replay=workflow_replay,
-    acceptance_review=result,
-)
-print(json.dumps(report))
+try:
+    report = write_fresh_acpx_mission_report(
+        round_dir=round_dir,
+        mission_id=mission_id,
+        dashboard_url=f"http://127.0.0.1:{port}/?mission={mission_id}&mode=missions&tab=overview",
+        fresh_execution=fresh_execution,
+        workflow_replay=workflow_replay,
+        acceptance_review=result,
+    )
+    print(json.dumps(report))
+finally:
+    sanitize_text_artifact_tree(repo_root / "docs" / "specs" / mission_id, repo_root=repo_root)
 PY
 
 ok "fresh mission workflow replay completed"

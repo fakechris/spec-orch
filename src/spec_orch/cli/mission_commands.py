@@ -172,25 +172,47 @@ def promote_plan(
 def linear_sync(
     mission_id: str | None = typer.Argument(None, help="Optional mission ID to sync."),
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+    report: bool = typer.Option(False, "--report", help="Report drift without writing Linear."),
+    json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON output."),
 ) -> None:
     """Backfill structured Linear mirror state for bound missions."""
     from spec_orch.dashboard.launcher import _get_linear_settings
     from spec_orch.services.linear_client import LinearClient
-    from spec_orch.services.linear_plan_sync import sync_linear_mission_mirrors
+    from spec_orch.services.linear_plan_sync import (
+        collect_linear_mission_mirror_drifts,
+        sync_linear_mission_mirrors,
+    )
 
     token_env, _team_key = _get_linear_settings(Path(repo_root))
     client = LinearClient(token_env=token_env)
     try:
-        results = sync_linear_mission_mirrors(
-            Path(repo_root),
-            client=client,
-            mission_id=mission_id,
-        )
+        if report:
+            results = collect_linear_mission_mirror_drifts(
+                Path(repo_root),
+                client=client,
+                mission_id=mission_id,
+            )
+        else:
+            results = sync_linear_mission_mirrors(
+                Path(repo_root),
+                client=client,
+                mission_id=mission_id,
+            )
     finally:
         client.close()
 
     if not results:
         typer.echo("no bound Linear issues found to sync")
+        return
+
+    if report:
+        if json_output:
+            typer.echo(json.dumps(results, indent=2))
+            return
+        typer.echo(f"reported {len(results)} Linear issue mirrors")
+        for item in results:
+            linear_label = item["linear_identifier"] or item["linear_issue_id"]
+            typer.echo(f"  {item['mission_id']} -> {linear_label} [{item['status']}]")
         return
 
     typer.echo(f"synced {len(results)} Linear issue mirrors")

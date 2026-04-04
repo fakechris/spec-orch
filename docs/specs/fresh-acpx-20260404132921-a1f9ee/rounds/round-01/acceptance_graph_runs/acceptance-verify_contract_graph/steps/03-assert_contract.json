@@ -1,0 +1,62 @@
+{
+  "step_key": "assert_contract",
+  "decision": "pass",
+  "outputs": {
+    "assertion_results": {
+      "acceptance_criteria_1_fresh_mission_creatable": {
+        "asserted": true,
+        "evidence": "Mission fresh-acpx-20260404132921-a1f9ee was created and launched with phase 'executing' at 2026-04-04T13:29:39.636357+00:00"
+      },
+      "acceptance_criteria_2_plan_within_budget": {
+        "asserted": true,
+        "evidence": "Wave 0 completed with exactly 2 work packets (fresh-acpx-mission-types-scaffold, fresh-acpx-artifact-types-scaffold). No remaining waves. Plan budget respected: 1 wave ≤ 1 max, 2 packets ≤ 2 max."
+      },
+      "acceptance_criteria_3_mission_launched_with_artifacts": {
+        "asserted": true,
+        "evidence": "Round 1 completed with status 'decided'. Both workers succeeded. Round artifacts produced: mission_types.ts and artifact_types.ts with all 6 verification steps passing (exit 0)."
+      },
+      "acceptance_criteria_4_workflow_replay_planned": {
+        "asserted": true,
+        "evidence": "Post-run campaign defined with primary routes (/, /?mode=missions, /?mission=...&tab=overview) and 11 workflow assertions for dashboard validation."
+      },
+      "constraint_narrow_local_only": {
+        "asserted": true,
+        "evidence": "execution_mode: 'fresh_acpx_mission', local_only: true, safe_cleanup: true"
+      },
+      "constraint_no_historical_artifacts": {
+        "asserted": true,
+        "evidence": "fresh: true, fresh_variant: 'default'. Builder reports show fresh scaffold generation only."
+      },
+      "constraint_budget_respected": {
+        "asserted": true,
+        "evidence": "max_waves: 1, max_packets: 2. Realized: 1 wave, 2 packets."
+      },
+      "constraint_scope_discipline": {
+        "asserted": true,
+        "evidence": "Gate verdicts show all_in_scope: true. Packet 1 realized: src/contracts/mission_types.ts (allowed). Packet 2 realized: src/contracts/artifact_types.ts (allowed). Zero out-of-scope files."
+      },
+      "constraint_no_dashboard_changes": {
+        "asserted": true,
+        "evidence": "Only contract files touched inside worker workspaces. No runtime, harness, or replay engine implementation during fresh proof run."
+      }
+    },
+    "gate_verdict_summary": {
+      "fresh-acpx-mission-types-scaffold": {
+        "mergeable": true,
+        "failed_conditions": []
+      },
+      "fresh-acpx-artifact-types-scaffold": {
+        "mergeable": true,
+        "failed_conditions": []
+      }
+    },
+    "verification_pass_rate": "12/12 steps (6 steps × 2 packets)",
+    "confidence": 0.97
+  },
+  "next_transition": "workflow_replay",
+  "warnings": [
+    "Acceptance criterion 4 ('Post-run workflow replay can validate the resulting dashboard surfaces') validates the separate workflow_replay proof phase, not the fresh_execution phase. The assertion here confirms the post-run campaign is planned; actual dashboard validation occurs in the workflow_replay step."
+  ],
+  "review_markdown": "## Contract Assertion: fresh-acpx-20260404132921-a1f9ee\n\n### Verdict: ✅ PASS\n\nThe contract holds. All acceptance criteria and constraints have been satisfied by the fresh execution phase.\n\n### Evidence Summary\n\n| Criterion | Status | Evidence |\n|-----------|--------|----------|\n| Fresh mission created | ✅ | Mission ID fresh-acpx-20260404132921-a1f9ee created and launched |\n| Plan within budget | ✅ | 1 wave, 2 packets (limits: 1 wave, 2 packets) |\n| Fresh artifacts produced | ✅ | Round 1 completed; 2 TypeScript contract files scaffolded |\n| Workflow replay planned | ✅ | 6 review routes defined; 11 workflow assertions specified |\n\n### Constraint Compliance\n\n| Constraint | Status | Notes |\n|------------|--------|-------|\n| Narrow local-only | ✅ | local_only=true, safe_cleanup=true |\n| No historical artifacts | ✅ | fresh=true, fresh_variant=default |\n| Budget respected | ✅ | Exactly 1 wave, 2 packets |\n| Scope discipline | ✅ | Zero out-of-scope files; only allowed contracts touched |\n| No dashboard changes | ✅ | Only src/contracts/*.ts files modified |\n\n### Verification Results\n- **Steps passed**: 12/12 (6 verification steps × 2 work packets)\n- **Gate verdicts**: Both packets mergeable with no failed conditions\n- **Decision reason**: wave_complete_green_gates\n\n### Next Step\nTransition to `workflow_replay` to validate the post-run dashboard surfaces per the planned campaign.",
+  "created_at": "2026-04-04T13:33:57.562380+00:00"
+}

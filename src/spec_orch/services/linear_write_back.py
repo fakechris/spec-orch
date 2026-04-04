@@ -13,7 +13,10 @@ from spec_orch.services.linear_mirror import (
     merge_linear_mirror_section,
     render_linear_mirror_section,
 )
-from spec_orch.services.linear_plan_sync import build_linear_mirror_for_mission
+from spec_orch.services.linear_plan_sync import (
+    build_linear_mirror_for_mission,
+    collect_linear_mission_mirror_drifts,
+)
 
 
 class LinearWriteBackService:
@@ -65,6 +68,24 @@ class LinearWriteBackService:
         description = merge_linear_mirror_section(current_description, mirror)
         self._client.update_issue_description(linear_id, description=description)
         return mirror
+
+    def preview_issue_mirror_drift_from_mission(
+        self,
+        *,
+        repo_root: Path,
+        mission_id: str,
+        linear_id: str,
+    ) -> dict[str, object] | None:
+        drifts = collect_linear_mission_mirror_drifts(
+            repo_root,
+            client=self._client,
+            mission_id=mission_id,
+        )
+        normalized_linear_id = str(linear_id).strip()
+        for item in drifts:
+            if str(item.get("linear_issue_id", "")).strip() == normalized_linear_id:
+                return item
+        return None
 
     def update_state_on_merge(self, *, linear_id: str, target_state: str = "Done") -> None:
         self._client.update_issue_state(linear_id, target_state)

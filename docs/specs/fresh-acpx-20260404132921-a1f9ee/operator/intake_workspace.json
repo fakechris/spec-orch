@@ -1,0 +1,170 @@
+{
+  "mission_id": "fresh-acpx-20260404132921-a1f9ee",
+  "origin": "dashboard",
+  "state": "clarifying",
+  "draft": {
+    "title": "Fresh ACPX Mission E2E Narrow Smoke",
+    "intent": "Create one fresh local-only mission that proves ACPX execution by scaffolding exactly two tiny TypeScript contract files under src/contracts: mission_types.ts and artifact_types.ts. The first fresh path must stay minimal and only produce enough round artifacts to prove fresh execution before post-run workflow replay.",
+    "problem": "",
+    "goal": "",
+    "constraints": [
+      "Keep the first fresh mission path narrow and local-only.",
+      "Do not reuse historical round artifacts as fresh proof.",
+      "Plan budget: at most 1 wave and at most 2 work packets.",
+      "Only touch src/contracts/mission_types.ts and src/contracts/artifact_types.ts inside worker workspaces.",
+      "Do not implement dashboard runtime changes, test harnesses, or replay engines during the fresh proof run."
+    ],
+    "acceptance": {
+      "success_conditions": [
+        "A fresh mission can be created for this run.",
+        "The plan stays within one wave and at most two work packets.",
+        "The mission can be launched and produce fresh round artifacts.",
+        "Post-run workflow replay can validate the resulting dashboard surfaces."
+      ],
+      "verification_expectations": []
+    },
+    "evidence_expectations": [],
+    "open_questions": [],
+    "current_system_understanding": ""
+  },
+  "readiness": {
+    "is_ready": false,
+    "missing_fields": [
+      "problem",
+      "goal",
+      "verification_expectations"
+    ],
+    "blocking_open_questions": [],
+    "recommendation": "stay_in_intake"
+  },
+  "canonical_issue": {
+    "issue_id": "fresh-acpx-20260404132921-a1f9ee",
+    "title": "Fresh ACPX Mission E2E Narrow Smoke",
+    "problem": "",
+    "goal": "",
+    "constraints": [
+      "Keep the first fresh mission path narrow and local-only.",
+      "Do not reuse historical round artifacts as fresh proof.",
+      "Plan budget: at most 1 wave and at most 2 work packets.",
+      "Only touch src/contracts/mission_types.ts and src/contracts/artifact_types.ts inside worker workspaces.",
+      "Do not implement dashboard runtime changes, test harnesses, or replay engines during the fresh proof run."
+    ],
+    "acceptance": {
+      "success_conditions": [
+        "A fresh mission can be created for this run.",
+        "The plan stays within one wave and at most two work packets.",
+        "The mission can be launched and produce fresh round artifacts.",
+        "Post-run workflow replay can validate the resulting dashboard surfaces."
+      ],
+      "failure_conditions": [],
+      "verification_expectations": [],
+      "human_judgment_required": [],
+      "priority_routes_or_surfaces": []
+    },
+    "evidence_expectations": [],
+    "open_questions": [],
+    "current_plan_hint": "Create one fresh local-only mission that proves ACPX execution by scaffolding exactly two tiny TypeScript contract files under src/contracts: mission_types.ts and artifact_types.ts. The first fresh path must stay minimal and only produce enough round artifacts to prove fresh execution before post-run workflow replay.",
+    "origin": "dashboard",
+    "source_refs": [
+      {
+        "kind": "dashboard_draft",
+        "ref": "fresh-acpx-20260404132921-a1f9ee"
+      }
+    ]
+  },
+  "handoff": {
+    "state": "draft_only",
+    "workspace_id": "fresh-acpx-20260404132921-a1f9ee",
+    "subject_ref": "mission:fresh-acpx-20260404132921-a1f9ee",
+    "blockers": [
+      "problem",
+      "goal",
+      "verification_expectations"
+    ],
+    "workspace": {
+      "workspace_id": "fresh-acpx-20260404132921-a1f9ee",
+      "workspace_kind": "mission",
+      "workspace_title": "Fresh ACPX Mission E2E Narrow Smoke",
+      "subject_id": "fresh-acpx-20260404132921-a1f9ee",
+      "subject_kind": "mission",
+      "source_system": "dashboard",
+      "state_summary": "draft_only",
+      "created_at": "2026-04-04T13:29:21.589396+00:00",
+      "updated_at": "2026-04-04T13:29:21.589396+00:00",
+      "active_execution_session_id": "fresh-acpx-20260404132921-a1f9ee:execution",
+      "active_judgment_id": "fresh-acpx-20260404132921-a1f9ee:judgment",
+      "learning_timeline_id": "fresh-acpx-20260404132921-a1f9ee:learning",
+      "subject": {
+        "subject_id": "fresh-acpx-20260404132921-a1f9ee",
+        "subject_kind": "mission",
+        "subject_title": "Fresh ACPX Mission E2E Narrow Smoke",
+        "source_ref": "fresh-acpx-20260404132921-a1f9ee",
+        "owner_ref": ""
+      },
+      "active_execution": {
+        "execution_session_id": "fresh-acpx-20260404132921-a1f9ee:execution",
+        "run_id": "",
+        "agent_id": "",
+        "runtime_id": "",
+        "phase": "intake",
+        "health": "pending",
+        "status_reason": "waiting_for_execution",
+        "queue_state": "pending",
+        "last_event_at": "",
+        "available_actions": [
+          "clarify_intake"
+        ]
+      },
+      "active_judgment": {
+        "judgment_id": "fresh-acpx-20260404132921-a1f9ee:judgment",
+        "workspace_id": "fresh-acpx-20260404132921-a1f9ee",
+        "base_run_mode": "recon",
+        "graph_profile": "intake_handoff",
+        "risk_posture": "pending",
+        "judgment_class": "observation",
+        "review_state": "pending",
+        "confidence": 0.0,
+        "impact_if_true": "",
+        "repro_status": "not_run",
+        "recommended_next_step": "Complete intake and unblock workspace creation.",
+        "summary": "Judgment pending until execution evidence exists.",
+        "candidate_finding": null,
+        "observation": null
+      },
+      "learning_lineage": {
+        "learning_lineage_id": "fresh-acpx-20260404132921-a1f9ee:learning",
+        "workspace_id": "fresh-acpx-20260404132921-a1f9ee",
+        "promoted_refs": [],
+        "memory_refs": [],
+        "fixture_refs": [],
+        "policy_refs": [],
+        "evolution_refs": [],
+        "status": "pending"
+      }
+    },
+    "active_execution": {
+      "status": "pending",
+      "subject_ref": "mission:fresh-acpx-20260404132921-a1f9ee",
+      "phase": "intake",
+      "execution_session_id": "fresh-acpx-20260404132921-a1f9ee:execution"
+    },
+    "initial_judgment": {
+      "status": "pending",
+      "subject_ref": "mission:fresh-acpx-20260404132921-a1f9ee",
+      "judgment_id": "fresh-acpx-20260404132921-a1f9ee:judgment"
+    },
+    "learning_lineage": {
+      "status": "pending",
+      "subject_ref": "mission:fresh-acpx-20260404132921-a1f9ee",
+      "learning_lineage_id": "fresh-acpx-20260404132921-a1f9ee:learning"
+    },
+    "operator_summary": "Fresh ACPX Mission E2E Narrow Smoke",
+    "source_refs": [
+      {
+        "kind": "dashboard_draft",
+        "ref": "fresh-acpx-20260404132921-a1f9ee"
+      }
+    ],
+    "next_action": "stay_in_intake"
+  }
+}

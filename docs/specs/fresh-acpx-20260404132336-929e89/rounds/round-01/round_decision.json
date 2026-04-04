@@ -1,0 +1,14 @@
+{
+  "action": "continue",
+  "reason_code": "wave_0_complete_all_packets_passed",
+  "summary": "Wave 0 (Contract Freeze / Scaffold) executed cleanly. Both packets (acpx-contract-mission-types, acpx-contract-artifact-types) succeeded in builder and verifier phases. All six verification checks passed, both gates merged with all_in_scope=true. TypeScript compilation clean. Wave complete per plan.",
+  "confidence": 0.92,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

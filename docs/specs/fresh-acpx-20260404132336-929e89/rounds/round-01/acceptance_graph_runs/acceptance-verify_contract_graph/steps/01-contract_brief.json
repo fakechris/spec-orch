@@ -1,0 +1,73 @@
+{
+  "step_key": "contract_brief",
+  "decision": "continue",
+  "outputs": {
+    "contract_summary": {
+      "mission_id": "fresh-acpx-20260404132336-929e89",
+      "title": "Fresh ACPX Mission E2E Narrow Smoke",
+      "purpose": "End-to-end smoke test proving fresh ACPX mission execution by scaffolding two minimal TypeScript contract files",
+      "target_files": [
+        "src/contracts/mission_types.ts",
+        "src/contracts/artifact_types.ts"
+      ]
+    },
+    "success_conditions": {
+      "acceptance_criteria": [
+        "A fresh mission can be created for this run",
+        "The plan stays within one wave and at most two work packets",
+        "The mission can be launched and produce fresh round artifacts",
+        "Post-run workflow replay can validate the resulting dashboard surfaces"
+      ],
+      "verification_gates": [
+        "scaffold_exists: File paths must exist",
+        "typescript_contract_tokens: Files contain export, interface, type, or enum declarations",
+        "typescript_schema_surface: Files expose Schema/schema tokens or exported types",
+        "typescript_typecheck: tsc --noEmit passes with zero errors",
+        "typescript_lint_smoke: No trailing whitespace, tabs, or missing terminal newlines",
+        "typescript_import_smoke: Files can be imported without compilation errors"
+      ],
+      "scope_constraints": [
+        "Only src/contracts/mission_types.ts and src/contracts/artifact_types.ts",
+        "No dashboard runtime changes, test harnesses, or replay engines",
+        "No reuse of historical round artifacts",
+        "Local-only execution"
+      ]
+    },
+    "round_1_status": {
+      "round_id": 1,
+      "wave_id": 0,
+      "status": "completed",
+      "packets": [
+        {
+          "packet_id": "acpx-contract-mission-types",
+          "succeeded": true,
+          "all_verification_passed": true,
+          "mergeable": true,
+          "all_in_scope": true
+        },
+        {
+          "packet_id": "acpx-contract-artifact-types",
+          "succeeded": true,
+          "all_verification_passed": true,
+          "mergeable": true,
+          "all_in_scope": true
+        }
+      ],
+      "decision": "continue",
+      "reason_code": "wave_0_complete_all_packets_passed",
+      "confidence": 0.92
+    },
+    "remaining_proof": {
+      "fresh_execution": "COMPLETE",
+      "workflow_replay": "PENDING - validate dashboard surfaces via replay campaign"
+    }
+  },
+  "next_transition": "contract_brief → workflow_replay (pending completion of fresh execution proof and transition to post-run validation)",
+  "warnings": [
+    "Decision confidence at 0.92 indicates some residual uncertainty; monitoring for issues during remaining proof phases",
+    "Round 1 wave 0 decision was 'continue' - mission execution is still in progress",
+    "Workflow replay phase not yet executed - contract success depends on post-run dashboard validation"
+  ],
+  "review_markdown": "## Contract Brief: Fresh ACPX Mission E2E Narrow Smoke\n\n### Mission Purpose\nProve fresh ACPX mission execution by scaffolding two minimal TypeScript contract files (`mission_types.ts` and `artifact_types.ts`) under `src/contracts/`. This is a narrow E2E smoke test validating the complete mission bootstrap-to-artifact pipeline.\n\n### Contract Boundaries\n- **In Scope:** Two TypeScript contract files, local-only execution, one wave, two packets max\n- **Out of Scope:** Dashboard runtime changes, test harnesses, replay engines, historical artifact reuse\n\n### Acceptance Criteria\n1. ✅ Fresh mission successfully created\n2. ✅ Execution bounded to ≤1 wave and ≤2 packets\n3. ✅ Mission launched with fresh round artifacts produced\n4. ⏳ Post-run workflow replay validates dashboard surfaces\n\n### Wave 0 Verdict: PASSED\n| Packet | Build | Verify | Merge | Scope |\n|--------|-------|--------|-------|-------|\n| acpx-contract-mission-types | ✅ | ✅ 6/6 | ✅ | ✅ all_in_scope |\n| acpx-contract-artifact-types | ✅ | ✅ 6/6 | ✅ | ✅ all_in_scope |\n\n### TypeScript Compliance\n- `tsc --noEmit` clean for both files\n- No trailing whitespace, tabs, or missing terminal newlines\n- Import smoke tests pass\n\n### Remaining Work\nThe **fresh execution proof is complete**. Next phase is **workflow replay** to validate dashboard surfaces via the post-run campaign covering launcher entry, mission inventory, fresh mission detail, transcript, and judgment review.\n\n**Decision: CONTINUE** to workflow_replay step.",
+  "created_at": "2026-04-04T13:27:04.918775+00:00"
+}

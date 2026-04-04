@@ -1,0 +1,59 @@
+{
+  "step_key": "route_replay",
+  "decision": "assess",
+  "outputs": {
+    "declared_routes_captured": true,
+    "route_count": 6,
+    "review_routes": {
+      "overview": "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview",
+      "transcript": "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript&round=1",
+      "approvals": "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=approvals&round=1",
+      "visual_qa": "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=visual&round=1",
+      "costs": "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=costs&round=1",
+      "judgment": "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment&round=1"
+    },
+    "workflow_assertions_captured": true,
+    "assertion_count": 11,
+    "workflow_assertions": [
+      "launcher panel can be opened from the header",
+      "needs attention mode can be selected from mission control",
+      "missions mode can be selected from mission control",
+      "decision queue mode can be selected from mission control",
+      "deep evidence mode can be selected from mission control",
+      "the target mission can be selected from the mission list",
+      "the transcript tab can be opened from mission detail",
+      "the approvals surface exposes actionable operator controls when present",
+      "the visual QA tab can be opened from mission detail",
+      "the judgment tab can be opened from mission detail",
+      "the costs tab can be opened from mission detail"
+    ],
+    "contract_evidence_summary": {
+      "fresh_execution_proof": "mission:fresh-acpx-20260404132921-a1f9ee",
+      "execution_complete": true,
+      "wave_count": 1,
+      "packet_count": 2,
+      "all_packets_succeeded": true,
+      "all_verification_steps_passed": true,
+      "all_gates_mergeable": true,
+      "artifact_files": [
+        "src/contracts/mission_types.ts",
+        "src/contracts/artifact_types.ts"
+      ],
+      "verification_coverage": [
+        "scaffold_exists",
+        "typescript_contract_tokens",
+        "typescript_schema_surface",
+        "typescript_typecheck",
+        "typescript_lint_smoke",
+        "typescript_import_smoke"
+      ]
+    }
+  },
+  "next_transition": "",
+  "warnings": [
+    "route_replay step can only capture declared route evidence from graph state; actual browser/dashboard replay requires an active frontend runtime which is not available in this graph execution context",
+    "Workflow assertions are documented for downstream verification but cannot be mechanically validated in this step without a live dashboard session"
+  ],
+  "review_markdown": "## Route Replay Step Assessment\n\n### Evidence Captured\n\n**Declared Review Routes (6)**\n| Route Key | Path |\n|-----------|------|\n| overview | `/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview` |\n| transcript | `/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript&round=1` |\n| approvals | `/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=approvals&round=1` |\n| visual_qa | `/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=visual&round=1` |\n| costs | `/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=costs&round=1` |\n| judgment | `/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment&round=1` |\n\n**Workflow Assertions (11)**\n1. launcher panel can be opened from the header\n2. needs attention mode can be selected from mission control\n3. missions mode can be selected from mission control\n4. decision queue mode can be selected from mission control\n5. deep evidence mode can be selected from mission control\n6. the target mission can be selected from the mission list\n7. the transcript tab can be opened from mission detail\n8. the approvals surface exposes actionable operator controls when present\n9. the visual QA tab can be opened from mission detail\n10. the judgment tab can be opened from mission detail\n11. the costs tab can be opened from mission detail\n\n### Contract Evidence Summary\n\nThe declared route and workflow assertions are properly captured from the mission's `workflow_replay` proof type. The parent fresh execution completed successfully:\n\n| Metric | Value |\n|--------|-------|\n| Mission ID | fresh-acpx-20260404132921-a1f9ee |\n| Waves Completed | 1 |\n| Packets Completed | 2 (both succeeded) |\n| Verification Steps | 6/6 passed per packet |\n| Gate Verdicts | Both mergeable |\n| Confidence | 0.97 |\n\n### Scope Constraint\n\nThis step only **captures** the declared routes and assertions from graph state. Actual route replay (navigating to URLs, interacting with selectors) requires a running dashboard frontend, which is outside the graph execution boundary.\n\n### Verdict\n\n**Routes and assertions are documented and ready for downstream workflow replay validation.**",
+  "created_at": "2026-04-04T13:33:23.302995+00:00"
+}

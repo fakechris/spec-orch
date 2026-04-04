@@ -1,0 +1,206 @@
+{
+  "mission_id": "fresh-acpx-20260404132921-a1f9ee",
+  "round_id": 1,
+  "producer_role": "verifier",
+  "verification_origin": "browser_verifier",
+  "tested_routes": [
+    "/",
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview",
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript",
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment",
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=approvals"
+  ],
+  "interactions": {
+    "/": [
+      {
+        "step_id": "step-01",
+        "action": "click_selector",
+        "target": "[data-automation-target=\"open-launcher\"]",
+        "description": "Open the launcher to establish operator context.",
+        "expected": "Open the launcher to establish operator context.",
+        "before_snapshot_ref": "step-01:before",
+        "after_snapshot_ref": "step-01:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/root.png"
+      },
+      {
+        "step_id": "step-02",
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"launcher-action\"][data-launcher-action=\"refresh-readiness\"]",
+        "description": "Confirm launcher actions are visible before exploring mission surfaces.",
+        "expected": "Confirm launcher actions are visible before exploring mission surfaces.",
+        "before_snapshot_ref": "step-02:before",
+        "after_snapshot_ref": "step-02:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/root.png"
+      }
+    ],
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview": [
+      {
+        "step_id": "step-01",
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260404132921-a1f9ee\"]",
+        "description": "Confirm mission detail is ready before branching into adjacent surfaces.",
+        "expected": "Confirm mission detail is ready before branching into adjacent surfaces.",
+        "before_snapshot_ref": "step-01:before",
+        "after_snapshot_ref": "step-01:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=overview.png"
+      },
+      {
+        "step_id": "step-02",
+        "action": "click_selector",
+        "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
+        "description": "Probe the transcript surface from the overview entry point.",
+        "expected": "Probe the transcript surface from the overview entry point.",
+        "before_snapshot_ref": "step-02:before",
+        "after_snapshot_ref": "step-02:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=overview.png"
+      },
+      {
+        "step_id": "step-03",
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"][data-active=\"true\"]",
+        "description": "Confirm the transcript branch became active.",
+        "expected": "Confirm the transcript branch became active.",
+        "before_snapshot_ref": "step-03:before",
+        "after_snapshot_ref": "step-03:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=overview.png"
+      }
+    ],
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript": [
+      {
+        "step_id": "step-01",
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260404132921-a1f9ee\"]",
+        "description": "Confirm mission detail is ready before judging transcript discoverability.",
+        "expected": "Confirm mission detail is ready before judging transcript discoverability.",
+        "before_snapshot_ref": "step-01:before",
+        "after_snapshot_ref": "step-01:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=transcript.png"
+      },
+      {
+        "step_id": "step-02",
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"transcript-filter\"][data-filter-key=\"all\"]",
+        "description": "Confirm transcript controls are visible on the route.",
+        "expected": "Confirm transcript controls are visible on the route.",
+        "before_snapshot_ref": "step-02:before",
+        "after_snapshot_ref": "step-02:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=transcript.png"
+      },
+      {
+        "step_id": "step-03",
+        "action": "click_selector",
+        "target": "[data-automation-target=\"transcript-filter\"][data-filter-key=\"all\"]",
+        "description": "Reset transcript filters before judging discoverability.",
+        "expected": "Reset transcript filters before judging discoverability.",
+        "before_snapshot_ref": "step-03:before",
+        "after_snapshot_ref": "step-03:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=transcript.png"
+      },
+      {
+        "step_id": "step-04",
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"transcript-filter\"][data-filter-key=\"all\"][data-active=\"true\"]",
+        "description": "Confirm transcript evidence is shown in the broadest view.",
+        "expected": "Confirm transcript evidence is shown in the broadest view.",
+        "before_snapshot_ref": "step-04:before",
+        "after_snapshot_ref": "step-04:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=transcript.png"
+      },
+      {
+        "step_id": "step-05",
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"transcript-block\"]",
+        "description": "Wait for the transcript timeline to expose at least one evidence block.",
+        "expected": "Wait for the transcript timeline to expose at least one evidence block.",
+        "before_snapshot_ref": "step-05:before",
+        "after_snapshot_ref": "step-05:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=transcript.png"
+      },
+      {
+        "step_id": "step-06",
+        "action": "click_selector",
+        "target": "[data-automation-target=\"transcript-block\"][data-active=\"true\"]",
+        "description": "Inspect the currently active transcript block for context continuity.",
+        "expected": "Inspect the currently active transcript block for context continuity.",
+        "before_snapshot_ref": "step-06:before",
+        "after_snapshot_ref": "step-06:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=transcript.png"
+      },
+      {
+        "step_id": "step-07",
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"transcript-inspector\"]",
+        "description": "Confirm transcript evidence details are visible after selecting a block.",
+        "expected": "Confirm transcript evidence details are visible after selecting a block.",
+        "before_snapshot_ref": "step-07:before",
+        "after_snapshot_ref": "step-07:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=transcript.png"
+      }
+    ],
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment": [
+      {
+        "step_id": "step-01",
+        "action": "click_selector",
+        "target": "[data-automation-target=\"internal-route\"][data-route-label=\"Open raw acceptance artifact\"]",
+        "description": "Follow the raw acceptance artifact bridge exposed by Judgment Workbench.",
+        "expected": "Follow the raw acceptance artifact bridge exposed by Judgment Workbench.",
+        "before_snapshot_ref": "step-01:before",
+        "after_snapshot_ref": "step-01:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=judgment.png"
+      }
+    ],
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=approvals": []
+  },
+  "screenshots": {
+    "/": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/root.png",
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=overview.png",
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=transcript.png",
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=judgment.png",
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=approvals": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual/_mission=fresh-acpx-20260404132921-a1f9ee_mode=missions_tab=approvals.png"
+  },
+  "console_errors": [],
+  "page_errors": [],
+  "artifact_paths": {
+    "round_dir": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01",
+    "visual_dir": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual"
+  }
+}

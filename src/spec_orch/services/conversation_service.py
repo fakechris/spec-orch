@@ -66,8 +66,11 @@ class ConversationService:
     ) -> str | None:
         """Process an incoming message and return a reply (or None for commands)."""
         thread = self._get_or_create_thread(msg.thread_id, msg.channel)
+        cmd_match = _COMMAND_RE.search(msg.content)
 
         if thread.status != ThreadStatus.ACTIVE:
+            if cmd_match and cmd_match.group(1).strip().lower() == "freeze":
+                return self._frozen_thread_freeze_reply(thread)
             return f"This thread is {thread.status.value}. Start a new one to continue."
 
         thread.messages.append(msg)
@@ -84,7 +87,6 @@ class ConversationService:
                     self._emit_conductor_event("formalized", thread.thread_id, response.intent)
                 return result
 
-        cmd_match = _COMMAND_RE.search(msg.content)
         if cmd_match:
             return self._handle_command(cmd_match.group(1).strip(), thread)
 
@@ -228,6 +230,18 @@ class ConversationService:
             f"Run `spec-orch mission approve {mission.mission_id}` when ready."
         )
 
+    def _frozen_thread_freeze_reply(self, thread: ConversationThread) -> str:
+        mission_line = f"Mission: {thread.mission_id}" if thread.mission_id else "Mission: unknown"
+        spec_line = (
+            f"Spec: `{thread.spec_snapshot}`" if thread.spec_snapshot else "Spec: unavailable"
+        )
+        return (
+            f"Thread `{thread.thread_id}` is already frozen.\n"
+            f"{mission_line}\n"
+            f"{spec_line}\n"
+            "Use the existing mission instead of freezing again."
+        )
+
     def _persist_thread_intake_artifacts(
         self,
         *,
@@ -265,15 +279,27 @@ class ConversationService:
         )
 
         linear_ref = self._latest_linear_ref(thread)
-        if linear_ref:
-            launch_meta = {
-                "linear_issue": {
-                    "id": linear_ref["linear_issue_id"],
-                    "identifier": linear_ref["linear_identifier"],
-                    "title": title,
-                }
+        launch_meta = {
+            "conversation_thread": {
+                "thread_id": thread.thread_id,
+                "channel": thread.channel,
+                "status": ThreadStatus.FROZEN.value,
             }
-            _write_launch_metadata(self.repo_root, mission_id, launch_meta)
+        }
+        if linear_ref:
+            launch_meta["conversation_thread"].update(
+                {
+                    "linear_issue_id": linear_ref["linear_issue_id"],
+                    "linear_identifier": linear_ref["linear_identifier"],
+                }
+            )
+            launch_meta["linear_issue"] = {
+                "id": linear_ref["linear_issue_id"],
+                "identifier": linear_ref["linear_identifier"],
+                "title": title,
+            }
+        _write_launch_metadata(self.repo_root, mission_id, launch_meta)
+        if linear_ref:
             try:
                 self._sync_linear_issue_from_thread(
                     mission_id=mission_id,

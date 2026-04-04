@@ -1,0 +1,13 @@
+{
+  "chain_id": "chain_fresh-acpx-20260404145540-399122_20260404T145606Z_4f1ab621",
+  "active_span_id": "chain_fresh-acpx-20260404145540-399122_20260404T145606Z_4f1ab621:round:01:acceptance-review",
+  "subject_kind": "acceptance",
+  "subject_id": "fresh-acpx-20260404145540-399122:round-1:acceptance",
+  "phase": "completed",
+  "status_reason": "acceptance_evaluation_completed",
+  "session_refs": {},
+  "artifact_refs": {
+    "round_dir": "docs/specs/fresh-acpx-20260404145540-399122/rounds/round-01"
+  },
+  "updated_at": "2026-04-04T15:01:07.372371+00:00"
+}

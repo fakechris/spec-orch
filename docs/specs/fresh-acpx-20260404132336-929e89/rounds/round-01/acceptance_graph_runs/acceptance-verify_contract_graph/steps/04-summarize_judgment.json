@@ -1,0 +1,38 @@
+{
+  "step_key": "summarize_judgment",
+  "decision": "pass",
+  "outputs": {
+    "judgment_summary": "Wave 0 (Contract Freeze / Scaffold) executed cleanly. Both work packets succeeded and all verification checks passed. The mission has produced two fresh TypeScript contract artifacts: mission_types.ts and artifact_types.ts. Both gates merged with all_in_scope=true. The plan budget was respected (1 wave, 2 packets) and only allowed files were touched. The mission is ready for post-run workflow replay validation.",
+    "verdict": "continue_to_workflow_replay",
+    "confidence": 0.92,
+    "artifacts_produced": [
+      {
+        "packet_id": "acpx-contract-mission-types",
+        "file": "src/contracts/mission_types.ts",
+        "verification": "all_passed"
+      },
+      {
+        "packet_id": "acpx-contract-artifact-types",
+        "file": "src/contracts/artifact_types.ts",
+        "verification": "all_passed"
+      }
+    ],
+    "verification_summary": {
+      "total_packets": 2,
+      "packets_succeeded": 2,
+      "all_checks_passed": true,
+      "gates_mergeable": true,
+      "all_in_scope": true
+    },
+    "acceptance_criteria_status": {
+      "fresh_mission_created": true,
+      "within_budget": true,
+      "fresh_artifacts_produced": true,
+      "ready_for_workflow_replay": true
+    }
+  },
+  "next_transition": "workflow_replay",
+  "warnings": [],
+  "review_markdown": "## Final Judgment: PASS\n\n### Summary\nThe Fresh ACPX Mission E2E Narrow Smoke completed successfully. Wave 0 executed cleanly with both work packets passing all verification checks.\n\n### Results by Packet\n| Packet | Status | File | Verification |\n|--------|--------|------|--------------|\n| acpx-contract-mission-types | ✅ Pass | src/contracts/mission_types.ts | All 6 checks passed |\n| acpx-contract-artifact-types | ✅ Pass | src/contracts/artifact_types.ts | All 6 checks passed |\n\n### Verification Details\n- **scaffold_exists**: ✅ Both files exist\n- **typescript_contract_tokens**: ✅ Contains export, interface, type, or enum\n- **typescript_schema_surface**: ✅ Contains schema surface tokens\n- **typescript_typecheck**: ✅ TypeScript compilation clean\n- **typescript_lint_smoke**: ✅ No trailing whitespace, tabs, or missing newlines\n- **typescript_import_smoke**: ✅ Import resolution successful\n\n### Gate Verdicts\nBoth packets mergeable with `all_in_scope=true` — only allowed files were modified.\n\n### Acceptance Criteria\n| Criterion | Status |\n|-----------|--------|\n| Fresh mission created | ✅ |\n| Within 1 wave, ≤2 packets | ✅ |\n| Fresh round artifacts produced | ✅ |\n| Ready for workflow replay | ✅ |\n\n### Next Step\nProceed to **workflow_replay** to validate post-run dashboard surfaces.",
+  "created_at": "2026-04-04T13:28:03.021545+00:00"
+}

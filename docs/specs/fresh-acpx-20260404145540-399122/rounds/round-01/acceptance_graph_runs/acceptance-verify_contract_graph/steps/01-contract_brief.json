@@ -1,0 +1,64 @@
+{
+  "step_key": "contract_brief",
+  "decision": "continue",
+  "outputs": {
+    "contract_summary": "Fresh ACPX Mission E2E Narrow Smoke - A minimal local-only mission proving ACPX execution by scaffolding two TypeScript contract files: mission_types.ts and artifact_types.ts.",
+    "success_conditions": {
+      "mission_creation": "A fresh mission can be created for this run",
+      "plan_constraints": "Plan stays within one wave and at most two work packets",
+      "artifacts_production": "Mission can be launched and produce fresh round artifacts",
+      "dashboard_validation": "Post-run workflow replay can validate the resulting dashboard surfaces"
+    },
+    "constraints_enforced": {
+      "local_only": "First fresh mission path is narrow and local-only",
+      "no_reuse": "No reuse of historical round artifacts as fresh proof",
+      "budget_compliance": "Plan budget: 1 wave, 2 work packets max",
+      "scope_tightening": "Only touch src/contracts/mission_types.ts and src/contracts/artifact_types.ts inside worker workspaces",
+      "no_runtime_changes": "No dashboard runtime changes, test harnesses, or replay engines during fresh proof run"
+    },
+    "verification_status": {
+      "all_gates_passed": true,
+      "round_status": "completed",
+      "wave_status": "decided",
+      "packet_results": {
+        "fresh-acpx-mission-types": {
+          "succeeded": true,
+          "mergeable": true,
+          "verification_steps_passed": [
+            "scaffold_exists",
+            "typescript_contract_tokens",
+            "typescript_schema_surface",
+            "typescript_typecheck",
+            "typescript_lint_smoke",
+            "typescript_import_smoke"
+          ]
+        },
+        "fresh-acpx-artifact-types": {
+          "succeeded": true,
+          "mergeable": true,
+          "verification_steps_passed": [
+            "scaffold_exists",
+            "typescript_contract_tokens",
+            "typescript_schema_surface",
+            "typescript_typecheck",
+            "typescript_lint_smoke",
+            "typescript_import_smoke"
+          ]
+        }
+      },
+      "scope_compliance": "All in scope - only src/contracts/mission_types.ts and src/contracts/artifact_types.ts were touched",
+      "failed_conditions": []
+    },
+    "mission_phase": "executing",
+    "terminal_wave": true,
+    "confidence": 0.98,
+    "next_proof_phase": "workflow_replay"
+  },
+  "next_transition": "workflow_replay",
+  "warnings": [
+    "Terminal wave reached - fresh execution proof complete, workflow replay validation pending",
+    "Runner status: foreground_required - human interaction may be needed to complete workflow replay"
+  ],
+  "review_markdown": "## Contract Brief: Fresh ACPX Mission E2E Narrow Smoke\n\n### Mission Intent\nProve ACPX execution via a minimal fresh local-only mission that scaffolds exactly two TypeScript contract files under `src/contracts/`.\n\n### Success Conditions\n| # | Criterion | Status |\n|---|-----------|--------|\n| 1 | Fresh mission can be created | ✅ Verified |\n| 2 | Plan within 1 wave / 2 work packets | ✅ Verified |\n| 3 | Mission launches and produces fresh round artifacts | ✅ Verified |\n| 4 | Post-run workflow replay validates dashboard surfaces | ⏳ Pending (workflow_replay phase) |\n\n### Constraints Compliance\n- **Local-only**: Enforced ✅\n- **No historical artifact reuse**: Enforced ✅\n- **Budget (1 wave, 2 packets)**: Enforced ✅\n- **File scope**: Only `src/contracts/mission_types.ts` and `src/contracts/artifact_types.ts` touched ✅\n- **No runtime changes**: Enforced ✅\n\n### Gate Verdicts\nBoth work packets returned **mergeable=true** with **zero failed conditions**.\n\n### Next Step\nTransition to **workflow_replay** to validate post-run dashboard surfaces (launcher entry, mission inventory, fresh mission detail, transcript tab, judgment tab).",
+  "created_at": "2026-04-04T14:59:16.498941+00:00"
+}

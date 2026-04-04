@@ -2,61 +2,52 @@
 
 ## 2026-04-04
 
-- Created clean worktree from latest `main`: `acceptance-hardening-protocol-start`.
-- Confirmed baseline focused suite:
-  - `UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_stability_acceptance.py tests/unit/test_dashboard_api.py -q`
-  - Result: `108 passed`
-- Reviewed research handoff in `llm_planner_orch` and extracted four implementation themes:
-  - tranche review checklist
-  - context taxonomy
-  - exploratory planning contract
-  - browser acceptance evidence protocol
-- Confirmed protocol gaps with `rg`: no current `STEP_PASS/FAIL/SKIP` or exploratory planning-round carriers in `src/` and `tests/`.
-- Updated `docs/agent-guides/run-pipeline.md`, `services.md`, and `troubleshooting.md` with:
-  - 5-subsystem tranche review checklist
-  - bottleneck-first ritual
-  - context/memory taxonomy
-  - `Overview / When to Use / Rules / Common Rationalizations / Red Flags / Verification`
-- Verified doc coverage with `rg -n "Instructions|Working State|Promoted Learning|bottleneck|Common Rationalizations|Red Flags|Verification" docs/agent-guides`.
-- Extended `AcceptanceCampaign` and exploratory acceptance flow with:
-  - `functional_plan`
-  - `adversarial_plan`
-  - `coverage_gaps`
-  - `merged_plan`
-- `run_fresh_exploratory_acceptance_review()` now persists `artifacts.exploratory_planning` and prompt composition exposes the new contract.
-- Browser evidence now normalizes step-level markers and failure evidence fields:
-  - `STEP_PASS`
-  - `STEP_FAIL`
-  - `STEP_SKIP`
-  - `step_id`
-  - `expected`
-  - `actual`
-  - `screenshot_path`
-  - `before_snapshot_ref`
-  - `after_snapshot_ref`
-- Focused verification passed:
-  - `pytest tests/unit/test_fresh_acpx_e2e.py tests/unit/test_litellm_acceptance_evaluator.py tests/unit/test_browser_evidence.py tests/unit/test_stability_acceptance.py tests/unit/test_playwright_visual_eval.py -q`
-  - Result: `97 passed`
-  - `ruff check src/ tests/`
-  - `ruff format --check src/ tests/`
-  - `mypy src/spec_orch/`
-- Canonical acceptance closeout passed serially:
-  - `./tests/e2e/issue_start_smoke.sh --full`
-  - `./tests/e2e/dashboard_ui_acceptance.sh --full`
-  - `./tests/e2e/mission_start_acceptance.sh --full`
-  - `./tests/e2e/exploratory_acceptance_smoke.sh --full`
-  - `./tests/e2e/update_stability_acceptance_status.sh`
-- Consolidated status after rerun:
-  - `overall_status=pass`
-  - `issue_start=pass`
-  - `dashboard_ui=pass`
-  - `mission_start=pass`
-  - `exploratory=pass`
-- Exploratory taxonomy after rerun stayed clean:
-  - `harness_bug=0`
-  - `n2n_bug=0`
-  - `ux_gap=0`
-- Wrote release bundle:
-  - `docs/acceptance-history/releases/acceptance-hardening-protocol-tranche-1-2026-04-04`
-- Updated rolling archive index:
-  - `docs/acceptance-history/index.json`
+### Session Start
+
+- Confirmed latest `main` at `4e7c0ab`
+- Created clean worktree `self-hosting-dogfood-start`
+- Verified `.worktrees` is git-ignored
+- Ran focused baseline suite: `67 passed`
+
+### Current Focus
+
+- Wave complete; ready for commit/PR
+- Scope:
+  - Linear drift inventory + safe backfill
+  - richer plan mirror contract
+  - chat-to-issue lifecycle dogfood
+  - acceptance/archive closeout
+
+### Notes
+
+- Main repo has unrelated untracked noise; work proceeds only in the new worktree.
+- The next tranche should prefer report-first Linear sync before any mass write-back.
+- Task 1 complete:
+  - added `linear-sync --report`
+  - added `linear-sync --json`
+  - added drift preview without write-back
+  - verification: `50 passed`, `ruff check`, `ruff format --check`, `mypy`
+- Task 2 complete:
+  - added `governance_sync` to the mirror
+  - mirrors latest acceptance status, latest release bundle, and next bottleneck
+  - verification: `18 passed`, `ruff check`, `ruff format --check`, `mypy`
+- Task 3 complete:
+  - freeze now responds idempotently for already-frozen threads
+  - launch metadata now keeps `conversation_thread` provenance
+  - verification: `18 passed`, `ruff check`, `ruff format --check`, `mypy`
+- Task 4 complete:
+  - canonical acceptance full smoke passed
+  - archive bundle written under `docs/acceptance-history/releases/self-hosting-dogfood-wave-1-2026-04-04`
+  - `docs/acceptance-history/index.json` updated
+  - repo-level verification: `ruff check src/ tests/`, `ruff format --check src/ tests/`, `mypy src/spec_orch/`
+- Post-closeout hardening:
+  - found a remaining artifact hygiene gap after the green acceptance run
+  - root cause was not the acceptance status writer, but absolute paths leaking through fresh `docs/specs/*` source-run carriers
+  - fixed by adding mission-tree text artifact sanitization and wiring it into both fresh ACPX harnesses
+  - refreshed the current mission/exploratory source runs in place and rebuilt the release bundle against the latest fresh mission ids
+  - fresh verification after the fix:
+    - `111 passed`
+    - `ruff check src/ tests/`
+    - `ruff format --check src/ tests/`
+    - `mypy src/spec_orch/`
+    - `rg -n '/Users/chris/|/private/var/' docs/specs/fresh-acpx-* .spec_orch/acceptance docs/acceptance-history/releases/self-hosting-dogfood-wave-1-2026-04-04` returned no matches

@@ -67,7 +67,7 @@
   },
   "run_exit_code": 0,
   "attempt": {
-    "attempt_id": "run_SPC-1_20260404T115141Z_9c840ff8",
+    "attempt_id": "run_SPC-1_20260404T145455Z_63d00b71",
     "unit_kind": "issue",
     "unit_id": "SPC-1",
     "owner_kind": "run_controller",
@@ -91,7 +91,7 @@
           "minimax/MiniMax-M2.5",
           "opencode",
           "-s",
-          "builder-run_SPC-1_20260404T115141Z_9c840ff8",
+          "builder-run_SPC-1_20260404T145455Z_63d00b71",
           "You are the SpecOrch mission worker for this workspace. Continue implementation directly and keep file paths relative to cwd.\n\nYou are the SpecOrch builder for this issue workspace. Your current working directory IS the project root \u2014 all file paths must be relative to it. Move directly into implementation and verification. Minimize workflow narration and process summaries.\n\n## Task\nIssue-start smoke task. Work only inside this issue workspace.\n\n1. Create or overwrite `.spec_orch_smoke/issue_start_builder.txt`.\n2. Write exactly three lines:\n   - `issue_id=SPC-1`\n   - `smoke=issue_start_builder`\n   - `workspace_ok=yes`\n3. Do not modify `src/` or `tests/`.\n4. Do not invoke `spec-orch`, daemon commands, or nested pipeline commands.\n5. After writing the file, run the configured verification commands and report the results.\n\n## Verification Commands\n- smoke_check: `{python} -c from pathlib import Path; p=Path('.spec_orch_smoke/issue_start_builder.txt'); expected='issue_id=SPC-1\\nsmoke=issue_start_builder\\nworkspace_ok=yes'; actual=p.read_text(encoding='utf-8'); assert actual == expected, actual`\n- build: `{python} -c print('issue-start smoke build ok')`\n\n## Spec\n# Build MVP runner\n\n## Intent\n- Issue: SPC-1\n- Title: Build MVP runner\n\n## Boundaries\n- MVP prototype only\n"
         ],
         "report_path": ".worktrees/SPC-1/builder_report.json",
@@ -110,10 +110,10 @@
           "model": "minimax/MiniMax-M2.5",
           "succeeded": true,
           "exit_code": 0,
-          "event_count": 54,
-          "session_name": "builder-run_SPC-1_20260404T115141Z_9c840ff8",
+          "event_count": 48,
+          "session_name": "builder-run_SPC-1_20260404T145455Z_63d00b71",
           "terminal_reason": "process_exit_success",
-          "commands_completed": 5,
+          "commands_completed": 4,
           "files_changed": [
             ".spec_orch_smoke/issue_start_builder.txt"
           ],
@@ -124,7 +124,7 @@
           "chain_id": null,
           "span_id": null,
           "parent_span_id": null,
-          "run_id": "run_SPC-1_20260404T115141Z_9c840ff8"
+          "run_id": "run_SPC-1_20260404T145455Z_63d00b71"
         }
       },
       "verification": {
@@ -218,14 +218,14 @@
         }
       }
     },
-    "continuity_id": "run_SPC-1_20260404T115141Z_9c840ff8",
+    "continuity_id": "run_SPC-1_20260404T145455Z_63d00b71",
     "attempt_state": "completed",
     "started_at": null,
     "completed_at": null
   },
   "runtime_chain": {
-    "chain_id": "run_SPC-1_20260404T115141Z_9c840ff8",
-    "active_span_id": "run_SPC-1_20260404T115141Z_9c840ff8:issue:gate",
+    "chain_id": "run_SPC-1_20260404T145455Z_63d00b71",
+    "active_span_id": "run_SPC-1_20260404T145455Z_63d00b71:issue:gate",
     "subject_kind": "issue",
     "subject_id": "SPC-1",
     "phase": "degraded",
@@ -235,7 +235,7 @@
       "report": ".worktrees/SPC-1/report.json",
       "explain": ".worktrees/SPC-1/explain.md"
     },
-    "updated_at": "2026-04-04T11:52:20.469775+00:00",
+    "updated_at": "2026-04-04T14:55:37.201540+00:00",
     "chain_root": ".worktrees/SPC-1/telemetry/runtime_chain"
   }
 }

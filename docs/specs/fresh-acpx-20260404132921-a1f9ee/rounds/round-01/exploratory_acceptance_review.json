@@ -1,0 +1,308 @@
+{
+  "status": "pass",
+  "summary": "Exploratory validation confirmed all dashboard surfaces (overview, transcript, judgment, approvals) rendered and interacted correctly. All planned interactions passed. No materially broken flows, no evidence of IA confusion, terminology ambiguity, discoverability gaps, or context-switching friction. Mission objective (narrow ACPX smoke proof with fresh artifacts) achieved and validated.",
+  "confidence": 0.96,
+  "evaluator": "exploratory-round-01",
+  "findings": [],
+  "issue_proposals": [],
+  "artifacts": {
+    "round_dir": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01",
+    "visual_dir": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01/visual",
+    "dashboard_url": "http://127.0.0.1:64695/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview",
+    "workflow_acceptance_review": "pass (0.97 confidence)",
+    "remaining_gaps_declared_by_builder": [
+      "Fresh proof still does not establish provider-agnostic portability.",
+      "Fresh proof covers one narrow path until more fresh mission scenarios are added."
+    ],
+    "review_producer_role": "verifier",
+    "verification_origin": "independent_verifier",
+    "fresh_execution": {
+      "proof_type": "fresh_execution",
+      "fresh_round_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01",
+      "mission_bootstrap": {
+        "mission_id": "fresh-acpx-20260404132921-a1f9ee",
+        "title": "Fresh ACPX Mission E2E Narrow Smoke",
+        "intent": "Create one fresh local-only mission that proves ACPX execution by scaffolding exactly two tiny TypeScript contract files under src/contracts: mission_types.ts and artifact_types.ts. The first fresh path must stay minimal and only produce enough round artifacts to prove fresh execution before post-run workflow replay.",
+        "acceptance_criteria": [
+          "A fresh mission can be created for this run.",
+          "The plan stays within one wave and at most two work packets.",
+          "The mission can be launched and produce fresh round artifacts.",
+          "Post-run workflow replay can validate the resulting dashboard surfaces."
+        ],
+        "constraints": [
+          "Keep the first fresh mission path narrow and local-only.",
+          "Do not reuse historical round artifacts as fresh proof.",
+          "Plan budget: at most 1 wave and at most 2 work packets.",
+          "Only touch src/contracts/mission_types.ts and src/contracts/artifact_types.ts inside worker workspaces.",
+          "Do not implement dashboard runtime changes, test harnesses, or replay engines during the fresh proof run."
+        ],
+        "metadata": {
+          "artifact_namespace": "fresh-acpx-mission-e2e",
+          "replay_type": "fresh_acpx_mission",
+          "max_waves": 1,
+          "max_packets": 2,
+          "fresh": true,
+          "generated_at": "2026-04-04T13:29:21.588644+00:00",
+          "mission_id_prefix": "fresh-acpx-",
+          "fresh_variant": "default",
+          "launcher_path": "approve_plan_launch",
+          "requires_linear": false
+        }
+      },
+      "launch": {
+        "runner": {
+          "status": "foreground_required"
+        },
+        "last_launch": {
+          "state": {
+            "phase": "executing",
+            "current_round": 0,
+            "updated_at": "2026-04-04T13:29:39.636357+00:00"
+          }
+        }
+      },
+      "daemon_run": {
+        "runner_status": "finished",
+        "fresh_round_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/rounds/round-01",
+        "state": {
+          "phase": "all_done",
+          "current_round": 1,
+          "updated_at": "2026-04-04T13:35:20.660017+00:00"
+        }
+      },
+      "builder_execution_summary": {
+        "round_id": 1,
+        "status": "decided",
+        "worker_results": [
+          {
+            "packet_id": "fresh-acpx-mission-types-scaffold",
+            "succeeded": true,
+            "adapter": "acpx_worker",
+            "agent": "opencode"
+          },
+          {
+            "packet_id": "fresh-acpx-artifact-types-scaffold",
+            "succeeded": true,
+            "adapter": "acpx_worker",
+            "agent": "opencode"
+          }
+        ]
+      }
+    },
+    "workflow_replay": {
+      "proof_type": "workflow_replay",
+      "review_routes": {
+        "overview": "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview",
+        "transcript": "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript",
+        "approvals": "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=approvals",
+        "judgment": "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment"
+      }
+    },
+    "acceptance_evaluator_config": {
+      "model": "anthropic/MiniMax-M2.7-highspeed",
+      "api_type": "anthropic",
+      "api_key_present": true,
+      "api_base_present": true,
+      "api_base_env": "MINIMAX_ANTHROPIC_BASE_URL"
+    },
+    "exploratory_planning": {
+      "functional_plan": [
+        "Validate the primary task flow across /, /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview.",
+        "Complete required interactions: complete the intended operator task, switch into adjacent surfaces when the task suggests it."
+      ],
+      "adversarial_plan": [
+        "Probe misleading terminology, confusing transitions, and broken evidence handoffs.",
+        "Stress critique axes: information architecture confusion, ambiguous terminology, discoverability gaps, context switching friction."
+      ],
+      "coverage_gaps": [
+        "Review uncovered adjacent surfaces: /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript, /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment, /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=approvals."
+      ],
+      "merged_plan": [
+        "Validate the primary task flow across /, /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview.",
+        "Complete required interactions: complete the intended operator task, switch into adjacent surfaces when the task suggests it.",
+        "Probe misleading terminology, confusing transitions, and broken evidence handoffs.",
+        "Stress critique axes: information architecture confusion, ambiguous terminology, discoverability gaps, context switching friction.",
+        "Review uncovered adjacent surfaces: /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript, /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment, /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=approvals."
+      ]
+    }
+  },
+  "tested_routes": [
+    "/",
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview",
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript",
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment",
+    "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=approvals"
+  ],
+  "acceptance_mode": "exploratory",
+  "coverage_status": "complete",
+  "untested_expected_routes": [],
+  "recommended_next_step": "",
+  "campaign": {
+    "mode": "exploratory",
+    "goal": "Dogfood the output from an operator perspective.",
+    "primary_routes": [
+      "/",
+      "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview"
+    ],
+    "related_routes": [
+      "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript",
+      "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment",
+      "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=approvals"
+    ],
+    "interaction_plans": {
+      "/": [
+        {
+          "action": "click_selector",
+          "target": "[data-automation-target=\"open-launcher\"]",
+          "description": "Open the launcher to establish operator context.",
+          "value": "",
+          "timeout_ms": 0
+        },
+        {
+          "action": "wait_for_selector",
+          "target": "[data-automation-target=\"launcher-action\"][data-launcher-action=\"refresh-readiness\"]",
+          "description": "Confirm launcher actions are visible before exploring mission surfaces.",
+          "value": "",
+          "timeout_ms": 0
+        }
+      ],
+      "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview": [
+        {
+          "action": "wait_for_selector",
+          "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260404132921-a1f9ee\"]",
+          "description": "Confirm mission detail is ready before branching into adjacent surfaces.",
+          "value": "",
+          "timeout_ms": 0
+        },
+        {
+          "action": "click_selector",
+          "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
+          "description": "Probe the transcript surface from the overview entry point.",
+          "value": "",
+          "timeout_ms": 0
+        },
+        {
+          "action": "wait_for_selector",
+          "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"][data-active=\"true\"]",
+          "description": "Confirm the transcript branch became active.",
+          "value": "",
+          "timeout_ms": 0
+        }
+      ],
+      "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript": [
+        {
+          "action": "wait_for_selector",
+          "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260404132921-a1f9ee\"]",
+          "description": "Confirm mission detail is ready before judging transcript discoverability.",
+          "value": "",
+          "timeout_ms": 4000
+        },
+        {
+          "action": "wait_for_selector",
+          "target": "[data-automation-target=\"transcript-filter\"][data-filter-key=\"all\"]",
+          "description": "Confirm transcript controls are visible on the route.",
+          "value": "",
+          "timeout_ms": 4000
+        },
+        {
+          "action": "click_selector",
+          "target": "[data-automation-target=\"transcript-filter\"][data-filter-key=\"all\"]",
+          "description": "Reset transcript filters before judging discoverability.",
+          "value": "",
+          "timeout_ms": 4000
+        },
+        {
+          "action": "wait_for_selector",
+          "target": "[data-automation-target=\"transcript-filter\"][data-filter-key=\"all\"][data-active=\"true\"]",
+          "description": "Confirm transcript evidence is shown in the broadest view.",
+          "value": "",
+          "timeout_ms": 4000
+        },
+        {
+          "action": "wait_for_selector",
+          "target": "[data-automation-target=\"transcript-block\"]",
+          "description": "Wait for the transcript timeline to expose at least one evidence block.",
+          "value": "",
+          "timeout_ms": 4000
+        },
+        {
+          "action": "click_selector",
+          "target": "[data-automation-target=\"transcript-block\"][data-active=\"true\"]",
+          "description": "Inspect the currently active transcript block for context continuity.",
+          "value": "",
+          "timeout_ms": 4000
+        },
+        {
+          "action": "wait_for_selector",
+          "target": "[data-automation-target=\"transcript-inspector\"]",
+          "description": "Confirm transcript evidence details are visible after selecting a block.",
+          "value": "",
+          "timeout_ms": 4000
+        }
+      ],
+      "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment": [
+        {
+          "action": "click_selector",
+          "target": "[data-automation-target=\"internal-route\"][data-route-label=\"Open raw acceptance artifact\"]",
+          "description": "Follow the raw acceptance artifact bridge exposed by Judgment Workbench.",
+          "value": "",
+          "timeout_ms": 1500
+        }
+      ]
+    },
+    "coverage_expectations": [
+      "operator can establish launcher context",
+      "operator can inspect mission detail from the overview surface",
+      "operator can expand into adjacent mission surfaces",
+      "operator can inspect at least one deeper evidence surface"
+    ],
+    "required_interactions": [
+      "complete the intended operator task",
+      "switch into adjacent surfaces when the task suggests it"
+    ],
+    "min_primary_routes": 2,
+    "related_route_budget": 4,
+    "interaction_budget": "wide",
+    "filing_policy": "hold_ux_concerns_for_operator_review",
+    "exploration_budget": "wide",
+    "seed_routes": [
+      "/",
+      "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview"
+    ],
+    "allowed_expansions": [
+      "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript",
+      "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment",
+      "/?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=approvals"
+    ],
+    "critique_focus": [
+      "information architecture confusion",
+      "ambiguous terminology",
+      "discoverability gaps",
+      "context switching friction"
+    ],
+    "stop_conditions": [
+      "stop when the route budget is exhausted",
+      "stop when no adjacent surface adds new operator evidence",
+      "stop after confirming a materially broken flow"
+    ],
+    "evidence_budget": "bounded",
+    "functional_plan": [
+      "Validate the primary task flow across /, /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview.",
+      "Complete required interactions: complete the intended operator task, switch into adjacent surfaces when the task suggests it."
+    ],
+    "adversarial_plan": [
+      "Probe misleading terminology, confusing transitions, and broken evidence handoffs.",
+      "Stress critique axes: information architecture confusion, ambiguous terminology, discoverability gaps, context switching friction."
+    ],
+    "coverage_gaps": [
+      "Review uncovered adjacent surfaces: /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript, /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment, /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=approvals."
+    ],
+    "merged_plan": [
+      "Validate the primary task flow across /, /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=overview.",
+      "Complete required interactions: complete the intended operator task, switch into adjacent surfaces when the task suggests it.",
+      "Probe misleading terminology, confusing transitions, and broken evidence handoffs.",
+      "Stress critique axes: information architecture confusion, ambiguous terminology, discoverability gaps, context switching friction.",
+      "Review uncovered adjacent surfaces: /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=transcript, /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=judgment, /?mission=fresh-acpx-20260404132921-a1f9ee&mode=missions&tab=approvals."
+    ]
+  }
+}

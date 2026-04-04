@@ -1,0 +1,19 @@
+{
+  "session_name": "mission-fresh-acpx-20260404145540-399122-fresh-acpx-artifact-types",
+  "terminal_reason": "process_exit_success",
+  "succeeded": true,
+  "retry_count": 0,
+  "event_count": 154,
+  "commands_completed": 14,
+  "files_changed": [
+    "<external-path>/workspace/spec-orch",
+    "<shared-repo>/docs/specs/fresh-acpx-20260404145540-399122/workers/fresh-acpx-artifact-types",
+    "<shared-repo>/docs/specs/fresh-acpx-20260404115946-e74704/workers/acpx-fresh-contract-mission-types/src/contracts/mission_types.ts",
+    "docs/specs/fresh-acpx-20260404145540-399122/workers/fresh-acpx-artifact-types/src/contracts/artifact_types.ts"
+  ],
+  "session_reused": false,
+  "session_health": "healthy",
+  "chain_id": "chain_fresh-acpx-20260404145540-399122_20260404T145606Z_4f1ab621",
+  "span_id": "chain_fresh-acpx-20260404145540-399122_20260404T145606Z_4f1ab621:round:01:packet:fresh-acpx-artifact-types:worker",
+  "parent_span_id": "chain_fresh-acpx-20260404145540-399122_20260404T145606Z_4f1ab621:round:01:packet:fresh-acpx-artifact-types"
+}

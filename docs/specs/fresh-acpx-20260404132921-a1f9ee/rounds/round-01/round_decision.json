@@ -1,0 +1,14 @@
+{
+  "action": "continue",
+  "reason_code": "wave_complete_green_gates",
+  "summary": "Wave 0 (Contract Freeze / Scaffold) completed successfully. Both packets (mission_types.ts and artifact_types.ts) passed all 6 verification steps with exit 0, gate verdicts are mergeable with no failed conditions, scope stayed strictly within allowed files, plan budget respected, and all 9 acceptance criteria satisfied. No blocking issues. Mission has no remaining waves.",
+  "confidence": 0.97,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

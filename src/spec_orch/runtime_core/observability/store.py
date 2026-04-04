@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from spec_orch.runtime_core.observability.models import (
     RuntimeBatchSummary,
@@ -11,6 +12,7 @@ from spec_orch.runtime_core.observability.models import (
     RuntimeStepSummary,
 )
 from spec_orch.services.io import atomic_write_json
+from spec_orch.services.path_sanitizer import resolve_repo_root, sanitize_value
 
 PROGRESS_EVENTS_FILENAME = "progress_events.jsonl"
 LIVE_SUMMARY_FILENAME = "live_summary.json"
@@ -19,11 +21,22 @@ STEP_SUMMARIES_FILENAME = "step_summaries.jsonl"
 BATCH_SUMMARIES_FILENAME = "batch_summaries.jsonl"
 
 
+def _sanitized_payload(root: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    repo_root = resolve_repo_root(root)
+    sanitized = sanitize_value(
+        payload,
+        repo_root=repo_root,
+    )
+    return sanitized if isinstance(sanitized, dict) else {}
+
+
 def append_progress_event(root: Path, event: RuntimeProgressEvent) -> Path:
     path = Path(root) / PROGRESS_EVENTS_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+        handle.write(
+            json.dumps(_sanitized_payload(path.parent, event.to_dict()), ensure_ascii=False) + "\n"
+        )
     return path
 
 
@@ -43,7 +56,7 @@ def read_progress_events(root: Path) -> list[RuntimeProgressEvent]:
 
 def write_live_summary(root: Path, summary: RuntimeLiveSummary) -> Path:
     path = Path(root) / LIVE_SUMMARY_FILENAME
-    atomic_write_json(path, summary.to_dict())
+    atomic_write_json(path, _sanitized_payload(path.parent, summary.to_dict()))
     return path
 
 
@@ -61,7 +74,9 @@ def append_recap(root: Path, recap: RuntimeRecap) -> Path:
     path = Path(root) / RECAPS_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(recap.to_dict(), ensure_ascii=False) + "\n")
+        handle.write(
+            json.dumps(_sanitized_payload(path.parent, recap.to_dict()), ensure_ascii=False) + "\n"
+        )
     return path
 
 
@@ -69,7 +84,10 @@ def append_step_summary(root: Path, summary: RuntimeStepSummary) -> Path:
     path = Path(root) / STEP_SUMMARIES_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(summary.to_dict(), ensure_ascii=False) + "\n")
+        handle.write(
+            json.dumps(_sanitized_payload(path.parent, summary.to_dict()), ensure_ascii=False)
+            + "\n"
+        )
     return path
 
 
@@ -91,7 +109,10 @@ def append_batch_summary(root: Path, summary: RuntimeBatchSummary) -> Path:
     path = Path(root) / BATCH_SUMMARIES_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(summary.to_dict(), ensure_ascii=False) + "\n")
+        handle.write(
+            json.dumps(_sanitized_payload(path.parent, summary.to_dict()), ensure_ascii=False)
+            + "\n"
+        )
     return path
 
 

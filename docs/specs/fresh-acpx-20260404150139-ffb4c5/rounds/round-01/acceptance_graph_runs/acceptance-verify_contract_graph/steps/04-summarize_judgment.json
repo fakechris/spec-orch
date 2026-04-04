@@ -1,0 +1,29 @@
+{
+  "step_key": "summarize_judgment",
+  "decision": "accept",
+  "outputs": {
+    "mission_id": "fresh-acpx-20260404150139-ffb4c5",
+    "title": "Fresh ACPX Mission E2E Narrow Smoke",
+    "round_id": 1,
+    "wave_id": 0,
+    "status": "decided",
+    "verdict": "complete",
+    "succeeded_packets": [
+      "scaffold-mission-types",
+      "scaffold-artifact-types"
+    ],
+    "failed_packets": [],
+    "all_gates_passed": true,
+    "scope_violations": [],
+    "confidence": 0.95,
+    "artifact_paths": [
+      "src/contracts/mission_types.ts",
+      "src/contracts/artifact_types.ts"
+    ],
+    "judgment_summary": "Wave 0 complete. Both scaffold packets succeeded and passed all verification gates. Plan budget exhausted — mission is done."
+  },
+  "next_transition": "",
+  "warnings": [],
+  "review_markdown": "## Final Judgment: ACCEPT\n\n**Mission**: Fresh ACPX Mission E2E Narrow Smoke (`fresh-acpx-20260404150139-ffb4c5`)\n\n### Execution Summary\n- **Round 1, Wave 0** — Completed successfully\n- **Work Packets**: 2 of 2 succeeded\n  - `scaffold-mission-types` ✅\n  - `scaffold-artifact-types` ✅\n\n### Acceptance Criteria Assessment\n\n| Criterion | Status |\n|-----------|--------|\n| Fresh mission created for this run | ✅ |\n| Plan within 1 wave and ≤2 packets | ✅ |\n| Mission launched with fresh round artifacts | ✅ |\n| Post-run workflow replay validation | Pending (separate workflow phase) |\n\n### Verification Gates\nBoth packets passed all verification steps:\n- `scaffold_exists` — files present at expected paths\n- `typescript_contract_tokens` — export/interface/type/enum tokens found\n- `typescript_schema_surface` — Schema surface exposed\n- `typescript_typecheck` — `tsc --noEmit` passed\n- `typescript_lint_smoke` — no trailing whitespace, no tabs, terminal newline present\n- `typescript_import_smoke` — import smoke test passed\n\n### Scope Compliance\nAll gate verdicts report `mergeable: true` with `failed_conditions: []`. Both packets respected scope constraints:\n- `scaffold-mission-types`: only touched `src/contracts/mission_types.ts` ✅\n- `scaffold-artifact-types`: only touched `src/contracts/artifact_types.ts` ✅\n\n### Conclusion\nThe mission achieved its narrow objective: proving fresh ACPX execution by scaffolding exactly two minimal TypeScript contract files. Plan budget exhausted. No scope violations. High confidence (0.95).\n\n**Decision: ACCEPT**",
+  "created_at": "2026-04-04T15:06:23.885745+00:00"
+}

@@ -1,0 +1,90 @@
+{
+  "mission_id": "fresh-acpx-20260404150139-ffb4c5",
+  "round_id": 1,
+  "producer_role": "verifier",
+  "verification_origin": "browser_verifier",
+  "tested_routes": [
+    "/",
+    "/?mode=missions",
+    "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=overview",
+    "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=transcript",
+    "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=approvals",
+    "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=judgment"
+  ],
+  "interactions": {
+    "/": [
+      {
+        "step_id": "step-01",
+        "action": "click_selector",
+        "target": "[data-automation-target=\"open-launcher\"]",
+        "description": "Open the launcher from the dashboard header.",
+        "expected": "Open the launcher from the dashboard header.",
+        "before_snapshot_ref": "step-01:before",
+        "after_snapshot_ref": "step-01:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01/visual/root.png"
+      },
+      {
+        "step_id": "step-02",
+        "action": "click_selector",
+        "target": "[data-automation-target=\"operator-mode\"][data-mode-key=\"missions\"]",
+        "description": "Switch into the mission inventory.",
+        "expected": "Switch into the mission inventory.",
+        "before_snapshot_ref": "step-02:before",
+        "after_snapshot_ref": "step-02:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01/visual/root.png"
+      }
+    ],
+    "/?mode=missions": [],
+    "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=overview": [
+      {
+        "step_id": "step-01",
+        "action": "click_selector",
+        "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
+        "description": "Open the transcript tab.",
+        "expected": "Open the transcript tab.",
+        "before_snapshot_ref": "step-01:before",
+        "after_snapshot_ref": "step-01:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01/visual/_mission=fresh-acpx-20260404150139-ffb4c5_mode=missions_tab=overview.png"
+      },
+      {
+        "step_id": "step-02",
+        "action": "click_selector",
+        "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"judgment\"]",
+        "description": "Open the judgment tab.",
+        "expected": "Open the judgment tab.",
+        "before_snapshot_ref": "step-02:before",
+        "after_snapshot_ref": "step-02:after",
+        "status": "passed",
+        "marker": "STEP_PASS",
+        "actual": "Step completed.",
+        "screenshot_path": "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01/visual/_mission=fresh-acpx-20260404150139-ffb4c5_mode=missions_tab=overview.png"
+      }
+    ],
+    "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=transcript": [],
+    "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=approvals": [],
+    "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=judgment": []
+  },
+  "screenshots": {
+    "/": "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01/visual/root.png",
+    "/?mode=missions": "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01/visual/_mode=missions.png",
+    "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=overview": "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01/visual/_mission=fresh-acpx-20260404150139-ffb4c5_mode=missions_tab=overview.png",
+    "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=transcript": "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01/visual/_mission=fresh-acpx-20260404150139-ffb4c5_mode=missions_tab=transcript.png",
+    "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=approvals": "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01/visual/_mission=fresh-acpx-20260404150139-ffb4c5_mode=missions_tab=approvals.png",
+    "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=judgment": "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01/visual/_mission=fresh-acpx-20260404150139-ffb4c5_mode=missions_tab=judgment.png"
+  },
+  "console_errors": [],
+  "page_errors": [],
+  "artifact_paths": {
+    "round_dir": "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01",
+    "visual_dir": "docs/specs/fresh-acpx-20260404150139-ffb4c5/rounds/round-01/visual"
+  }
+}

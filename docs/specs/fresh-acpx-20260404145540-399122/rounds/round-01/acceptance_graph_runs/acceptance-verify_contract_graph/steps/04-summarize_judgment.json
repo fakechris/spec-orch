@@ -1,0 +1,50 @@
+{
+  "step_key": "summarize_judgment",
+  "decision": "accept",
+  "outputs": {
+    "mission_id": "fresh-acpx-20260404145540-399122",
+    "round_id": 1,
+    "wave_id": 0,
+    "status": "decided",
+    "all_gates_passed": true,
+    "work_packets": [
+      {
+        "packet_id": "fresh-acpx-mission-types",
+        "succeeded": true,
+        "mergeable": true,
+        "file": "src/contracts/mission_types.ts"
+      },
+      {
+        "packet_id": "fresh-acpx-artifact-types",
+        "succeeded": true,
+        "mergeable": true,
+        "file": "src/contracts/artifact_types.ts"
+      }
+    ],
+    "verification_results": {
+      "scaffold_exists": "passed",
+      "typescript_contract_tokens": "passed",
+      "typescript_schema_surface": "passed",
+      "typescript_typecheck": "passed",
+      "typescript_lint_smoke": "passed",
+      "typescript_import_smoke": "passed"
+    },
+    "scope_compliance": {
+      "all_in_scope": true,
+      "out_of_scope_files": [],
+      "realized_files": [
+        "src/contracts/mission_types.ts",
+        "src/contracts/artifact_types.ts"
+      ]
+    },
+    "confidence": 0.98,
+    "action": "continue",
+    "reason_code": "all_gates_passed",
+    "summary": "Round 1 complete. Both work packets succeeded and passed all automated verification steps. Both gates returned mergeable=true with zero failed conditions. Scope compliance confirmed: only the allowed contract files were touched. This was the terminal wave; mission ready to finalize.",
+    "judgment_summary": "Mission accepted. All acceptance criteria met: fresh mission created, plan stayed within 1 wave/2 work packets, fresh round artifacts produced, and scope constraints fully honored."
+  },
+  "next_transition": "",
+  "warnings": [],
+  "review_markdown": "## Final Judgment: ACCEPT\n\n### Mission: Fresh ACPX Mission E2E Narrow Smoke\n**Mission ID:** `fresh-acpx-20260404145540-399122`  \n**Round:** 1 (Terminal) | **Wave:** 0\n\n---\n\n### Decision: ✅ ACCEPT\n- **Reason Code:** `all_gates_passed`\n- **Confidence:** 0.98\n- **Action:** `continue` (terminal wave, ready to finalize)\n\n---\n\n### Work Packet Results\n\n| Packet ID | File | Succeeded | Mergeable |\n|-----------|------|-----------|-----------|\n| `fresh-acpx-mission-types` | `src/contracts/mission_types.ts` | ✅ | ✅ |\n| `fresh-acpx-artifact-types` | `src/contracts/artifact_types.ts` | ✅ | ✅ |\n\n---\n\n### Verification Gates (All Passed)\n\n| Step | Result |\n|------|--------|\n| `scaffold_exists` | ✅ Passed |\n| `typescript_contract_tokens` | ✅ Passed |\n| `typescript_schema_surface` | ✅ Passed |\n| `typescript_typecheck` | ✅ Passed |\n| `typescript_lint_smoke` | ✅ Passed |\n| `typescript_import_smoke` | ✅ Passed |\n\n---\n\n### Scope Compliance\n\n| Constraint | Status |\n|------------|--------|\n| Only touch allowed files | ✅ Compliant |\n| Realized files match allowed files | ✅ Compliant |\n| No out-of-scope files touched | ✅ Clean |\n\n**Realized Files:**\n- `src/contracts/mission_types.ts`\n- `src/contracts/artifact_types.ts`\n\n---\n\n### Acceptance Criteria Assessment\n\n| Criterion | Status |\n|-----------|--------|\n| Fresh mission created | ✅ Met |\n| Plan within 1 wave / ≤2 packets | ✅ Met |\n| Fresh round artifacts produced | ✅ Met |\n| Scope constraints honored | ✅ Met |\n\n---\n\n### Summary\n\nBoth work packets completed successfully with zero failed conditions. All six automated verification gates passed. Both gates returned `mergeable=true`. Scope compliance was fully maintained—only the specified contract files were modified. This was the terminal wave with no remaining waves. **Mission is ready to finalize.**",
+  "created_at": "2026-04-04T15:00:34.253225+00:00"
+}

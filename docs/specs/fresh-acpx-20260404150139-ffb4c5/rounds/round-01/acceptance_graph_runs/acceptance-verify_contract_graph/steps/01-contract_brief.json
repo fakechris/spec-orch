@@ -1,0 +1,104 @@
+{
+  "step_key": "contract_brief",
+  "decision": "ready",
+  "outputs": {
+    "mission_id": "fresh-acpx-20260404150139-ffb4c5",
+    "title": "Fresh ACPX Mission E2E Narrow Smoke",
+    "proof_type": "fresh_execution",
+    "declared_feature": "ACPX fresh mission execution pipeline (mission_types.ts and artifact_types.ts scaffold)",
+    "directly_affected_routes": [
+      "/",
+      "/?mode=missions",
+      "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=overview",
+      "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=transcript&round=1",
+      "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=approvals&round=1",
+      "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=visual&round=1",
+      "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=costs&round=1",
+      "/?mission=fresh-acpx-20260404150139-ffb4c5&mode=missions&tab=judgment&round=1"
+    ],
+    "contract_summary": {
+      "intent": "Prove ACPX fresh execution by scaffolding exactly two TypeScript contract files (mission_types.ts, artifact_types.ts) under src/contracts within worker workspaces. Mission stays narrow: 1 wave, 2 packets max, local-only, no historical artifact reuse.",
+      "scope_files": [
+        "src/contracts/mission_types.ts",
+        "src/contracts/artifact_types.ts"
+      ],
+      "acceptance_criteria": [
+        "A fresh mission can be created for this run.",
+        "The plan stays within one wave and at most two work packets.",
+        "The mission can be launched and produce fresh round artifacts.",
+        "Post-run workflow replay can validate the resulting dashboard surfaces."
+      ],
+      "constraints": [
+        "Keep the first fresh mission path narrow and local-only.",
+        "Do not reuse historical round artifacts as fresh proof.",
+        "Plan budget: at most 1 wave and at most 2 work packets.",
+        "Only touch src/contracts/mission_types.ts and src/contracts/artifact_types.ts inside worker workspaces.",
+        "Do not implement dashboard runtime changes, test harnesses, or replay engines during the fresh proof run."
+      ]
+    },
+    "success_conditions": {
+      "fresh_execution_proof": {
+        "wave_0_complete": true,
+        "total_waves": 1,
+        "total_packets": 2,
+        "packet_results": [
+          {
+            "packet_id": "scaffold-mission-types",
+            "status": "succeeded",
+            "verification_gates_passed": 6,
+            "gates": [
+              "scaffold_exists",
+              "typescript_contract_tokens",
+              "typescript_schema_surface",
+              "typescript_typecheck",
+              "typescript_lint_smoke",
+              "typescript_import_smoke"
+            ],
+            "mergeable": true,
+            "scope_in_bounds": true
+          },
+          {
+            "packet_id": "scaffold-artifact-types",
+            "status": "succeeded",
+            "verification_gates_passed": 6,
+            "gates": [
+              "scaffold_exists",
+              "typescript_contract_tokens",
+              "typescript_schema_surface",
+              "typescript_typecheck",
+              "typescript_lint_smoke",
+              "typescript_import_smoke"
+            ],
+            "mergeable": true,
+            "scope_in_bounds": true
+          }
+        ],
+        "plan_budget_exhausted": true,
+        "round_decision": "continue",
+        "reason_code": "wave_complete_no_remaining_packets"
+      },
+      "workflow_replay_requirements": {
+        "goal": "Validate post-run dashboard workflow for fresh ACPX mission",
+        "primary_routes_count": 3,
+        "related_routes_count": 3,
+        "required_interactions": 4,
+        "coverage_expectations": [
+          "launcher entry",
+          "mission inventory",
+          "fresh mission detail",
+          "post-run transcript",
+          "judgment review"
+        ]
+      }
+    },
+    "round_1_timing": {
+      "started_at": "2026-04-04T15:01:56.601057+00:00",
+      "completed_at": "2026-04-04T15:04:40.453962+00:00",
+      "duration_seconds": 163.85
+    }
+  },
+  "next_transition": "workflow_replay",
+  "warnings": [],
+  "review_markdown": "## Contract Brief: Fresh ACPX Mission E2E Narrow Smoke\n\n### Declared Feature\nACPX fresh mission execution pipeline, scoped to scaffolding two TypeScript contract files (`mission_types.ts` and `artifact_types.ts`) under `src/contracts`.\n\n### Contract Summary\n| Aspect | Value |\n|--------|-------|\n| Mission ID | `fresh-acpx-20260404150139-ffb4c5` |\n| Proof Type | `fresh_execution` |\n| Waves | 1 (Wave 0) |\n| Packets | 2 (`scaffold-mission-types`, `scaffold-artifact-types`) |\n| Scope Files | `src/contracts/mission_types.ts`, `src/contracts/artifact_types.ts` |\n\n### Acceptance Criteria Status\n\n| Criterion | Status |\n|-----------|--------|\n| Fresh mission can be created | ✅ Verified (Round 1 launched) |\n| Plan within 1 wave, ≤2 packets | ✅ Verified (Wave 0, 2 packets) |\n| Mission launches and produces fresh artifacts | ✅ Verified (both packets succeeded) |\n| Post-run workflow replay validates dashboard | ⏳ Pending (workflow_replay step next) |\n\n### Verification Gates (All Passed)\n\n**scaffold-mission-types:**\n- ✅ scaffold_exists — `src/contracts/mission_types.ts` present\n- ✅ typescript_contract_tokens — exports interface/type/enum\n- ✅ typescript_schema_surface — Schema/schema surface present\n- ✅ typescript_typecheck — tsc --noEmit passed\n- ✅ typescript_lint_smoke — no trailing whitespace/tabs\n- ✅ typescript_import_smoke — import smoke test passed\n\n**scaffold-artifact-types:**\n- ✅ scaffold_exists — `src/contracts/artifact_types.ts` present\n- ✅ typescript_contract_tokens — exports interface/type/enum\n- ✅ typescript_schema_surface — Schema/schema surface present\n- ✅ typescript_typecheck — tsc --noEmit passed\n- ✅ typescript_lint_smoke — no trailing whitespace/tabs\n- ✅ typescript_import_smoke — import smoke test passed\n\n### Scope Compliance\n- Both packets: `mergeable: true`, `failed_conditions: []`, `all_in_scope: true`\n- Realized files exactly match allowed files\n- No out-of-scope modifications\n\n### Decision\n| Field | Value |\n|-------|-------|\n| Action | `continue` |\n| Reason | `wave_complete_no_remaining_packets` |\n| Confidence | 0.95 |\n| Plan Budget | Exhausted (1 wave, 2 packets) |\n\n### Next Step\n**workflow_replay** — Validate post-run dashboard surfaces per the `post_run_campaign` specification (launcher entry, mission inventory, fresh mission detail, transcript, judgment tabs).",
+  "created_at": "2026-04-04T15:05:11.731868+00:00"
+}
