@@ -22,6 +22,8 @@ from spec_orch.services.linear_intake import (
     derive_linear_intake_state,
     has_blocking_open_questions,
 )
+from spec_orch.services.linear_mirror import merge_linear_mirror_section
+from spec_orch.services.linear_plan_sync import build_linear_mirror_for_mission
 from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 from spec_orch.services.mission_service import MissionService
 from spec_orch.services.promotion_service import load_plan
@@ -568,6 +570,10 @@ def _approve_and_plan_mission(repo_root: Path, mission_id: str) -> dict[str, Any
                 json.dumps(plan, indent=2) + "\n",
                 encoding="utf-8",
             )
+    try:
+        _sync_linked_linear_issue_mirror(repo_root, mission_id)
+    except Exception as exc:
+        print(f"[launcher] {mission_id}: mirror sync skipped: {exc}")
     return {
         "mission_id": mission.mission_id,
         "approved_at": mission.approved_at,
@@ -584,6 +590,45 @@ def _mission_binding_description(mission_id: str, description: str) -> str:
     if description:
         return f"{mission_line}\n\n{description}"
     return mission_line
+
+
+def _description_with_linear_mirror(repo_root: Path, mission_id: str, description: str) -> str:
+    bound = _mission_binding_description(mission_id, description)
+    mirror = build_linear_mirror_for_mission(repo_root, mission_id)
+    if not isinstance(mirror, dict):
+        return bound
+    return merge_linear_mirror_section(bound, mirror)
+
+
+def _sync_linked_linear_issue_mirror(repo_root: Path, mission_id: str) -> None:
+    launch_meta = _read_launch_metadata(repo_root, mission_id)
+    linear_issue = launch_meta.get("linear_issue", {})
+    if not isinstance(linear_issue, dict):
+        return
+    linear_issue_id = str(linear_issue.get("id", "")).strip()
+    if not linear_issue_id:
+        return
+    token_env, _team_key = _get_linear_settings(repo_root)
+    client = LinearClient(token_env=token_env)
+    try:
+        issue = client.query(
+            """
+            query($id: String!) {
+              issue(id: $id) { id description }
+            }
+            """,
+            {"id": linear_issue_id},
+        ).get("issue")
+        if not isinstance(issue, dict):
+            return
+        next_description = _description_with_linear_mirror(
+            repo_root,
+            mission_id,
+            str(issue.get("description") or ""),
+        )
+        client.update_issue_description(linear_issue_id, description=next_description)
+    finally:
+        client.close()
 
 
 def _create_linear_issue_for_mission(
@@ -627,7 +672,7 @@ def _create_linear_issue_for_mission(
             {
                 "teamId": team["id"],
                 "title": title,
-                "description": _mission_binding_description(mission_id, description),
+                "description": _description_with_linear_mirror(repo_root, mission_id, description),
             },
         )
         issue_create = response.get("issueCreate") if isinstance(response, dict) else None
@@ -671,7 +716,11 @@ def _bind_linear_issue_to_mission(
         if not issue:
             raise ValueError(f"Linear issue not found: {linear_issue_id}")
 
-        next_description = _mission_binding_description(mission_id, issue.get("description") or "")
+        next_description = _description_with_linear_mirror(
+            repo_root,
+            mission_id,
+            issue.get("description") or "",
+        )
         update_response = client.query(
             """
             mutation($id: String!, $description: String!) {

@@ -39,6 +39,7 @@ class LinearConversationAdapter:
         self._bot_user_id = bot_user_id
         self._running = False
         self._seen_comment_ids: set[str] = set()
+        self._thread_issue_ids: dict[str, str] = {}
 
     def listen(
         self,
@@ -68,6 +69,8 @@ class LinearConversationAdapter:
             identifier: str = issue.get("identifier", "")
             if not linear_id:
                 continue
+            if identifier:
+                self._thread_issue_ids[identifier] = linear_id
 
             comments = self._client.list_comments(linear_id)
             for comment in comments:
@@ -112,6 +115,9 @@ class LinearConversationAdapter:
 
     def _resolve_linear_id(self, identifier: str) -> str | None:
         """Resolve a human-readable identifier (e.g. SON-15) to a Linear UUID."""
+        cached = self._thread_issue_ids.get(identifier)
+        if cached:
+            return cached
         try:
             issue = self._client.get_issue(identifier)
             return issue.get("id")

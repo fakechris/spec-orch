@@ -9,6 +9,11 @@ from spec_orch.services.linear_intake import (
     LinearIntakeState,
     render_linear_intake_description,
 )
+from spec_orch.services.linear_mirror import (
+    merge_linear_mirror_section,
+    render_linear_mirror_section,
+)
+from spec_orch.services.linear_plan_sync import build_linear_mirror_for_mission
 
 
 class LinearWriteBackService:
@@ -25,19 +30,41 @@ class LinearWriteBackService:
         linear_id: str,
         state: LinearIntakeState,
         intake: LinearIntakeDocument,
+        mirror: dict[str, object] | None = None,
     ) -> None:
-        self._client.add_comment(linear_id, self._build_intake_summary_comment(state, intake))
+        self._client.add_comment(
+            linear_id, self._build_intake_summary_comment(state, intake, mirror)
+        )
 
     def rewrite_issue_for_intake(
         self,
         *,
         linear_id: str,
         intake: LinearIntakeDocument,
+        mirror: dict[str, object] | None = None,
     ) -> None:
+        description = render_linear_intake_description(intake)
+        if mirror:
+            description = merge_linear_mirror_section(description, mirror)
         self._client.update_issue_description(
             linear_id,
-            description=render_linear_intake_description(intake),
+            description=description,
         )
+
+    def sync_issue_mirror_from_mission(
+        self,
+        *,
+        repo_root: Path,
+        mission_id: str,
+        linear_id: str,
+        current_description: str,
+    ) -> dict[str, object] | None:
+        mirror = build_linear_mirror_for_mission(repo_root, mission_id)
+        if mirror is None:
+            return None
+        description = merge_linear_mirror_section(current_description, mirror)
+        self._client.update_issue_description(linear_id, description=description)
+        return mirror
 
     def update_state_on_merge(self, *, linear_id: str, target_state: str = "Done") -> None:
         self._client.update_issue_state(linear_id, target_state)
@@ -95,6 +122,7 @@ class LinearWriteBackService:
         self,
         state: LinearIntakeState,
         intake: LinearIntakeDocument,
+        mirror: dict[str, object] | None = None,
     ) -> str:
         lines = [
             "## SpecOrch Intake Summary",
@@ -143,4 +171,11 @@ class LinearWriteBackService:
                 intake.current_system_understanding or "_pending_",
             ]
         )
+        if mirror:
+            lines.extend(
+                [
+                    "",
+                    render_linear_mirror_section(mirror),
+                ]
+            )
         return "\n".join(lines)

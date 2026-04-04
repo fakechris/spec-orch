@@ -437,6 +437,127 @@ def test_approve_and_plan_mission_writes_plan_json(
     assert (repo / "docs" / "specs" / "plan-me" / "plan.json").exists()
 
 
+def test_approve_and_plan_mission_syncs_bound_linear_issue_description(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import (
+        _approve_and_plan_mission,
+        _create_mission_draft,
+        _write_launch_metadata,
+    )
+
+    _create_mission_draft(
+        repo,
+        {
+            "title": "Plan Me",
+            "mission_id": "plan-me",
+            "problem": "Linear drifts from the real execution plan.",
+            "goal": "Sync the plan snapshot into the bound issue.",
+            "intent": "Generate a simple plan.",
+            "acceptance_criteria": ["The Linear issue shows a compact plan snapshot."],
+            "constraints": [],
+            "evidence_expectations": ["plan snapshot"],
+        },
+    )
+    _write_launch_metadata(
+        repo,
+        "plan-me",
+        {"linear_issue": {"id": "issue-1", "identifier": "SON-101", "title": "Plan Me"}},
+    )
+
+    def fake_plan(root: Path, mission_id: str) -> dict:
+        plan_path = root / "docs" / "specs" / mission_id / "plan.json"
+        payload = {
+            "plan_id": "plan-1",
+            "mission_id": mission_id,
+            "status": "draft",
+            "waves": [{"wave_number": 0, "description": "Wave 0", "work_packets": []}],
+        }
+        plan_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        return payload
+
+    captured_updates: list[str] = []
+
+    class FakeLinearClient:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        def query(self, graphql: str, variables: dict | None = None) -> dict:
+            if "query($id: String!)" in graphql:
+                return {"issue": {"id": "issue-1", "description": "mission: plan-me"}}
+            if "issueUpdate" in graphql:
+                captured_updates.append(str(variables["description"]))
+                return {
+                    "issueUpdate": {
+                        "success": True,
+                        "issue": {"id": "issue-1", "description": str(variables["description"])},
+                    }
+                }
+            raise AssertionError(graphql)
+
+        def update_issue_description(self, issue_id: str, *, description: str) -> dict:
+            assert issue_id == "issue-1"
+            captured_updates.append(description)
+            return {"success": True, "issue": {"id": issue_id, "description": description}}
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("spec_orch.dashboard.launcher._generate_plan_for_mission", fake_plan)
+    monkeypatch.setattr("spec_orch.dashboard.launcher.LinearClient", FakeLinearClient)
+
+    _approve_and_plan_mission(repo, "plan-me")
+
+    assert captured_updates
+    assert '"plan_state": "draft"' in captured_updates[0]
+    assert '"next_action": "review_plan"' in captured_updates[0]
+
+
+def test_approve_and_plan_mission_tolerates_linear_mirror_sync_failure(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from spec_orch.dashboard.launcher import _approve_and_plan_mission, _create_mission_draft
+
+    _create_mission_draft(
+        repo,
+        {
+            "title": "Plan Me",
+            "mission_id": "plan-me",
+            "intent": "Generate a simple plan.",
+            "acceptance_criteria": [],
+            "constraints": [],
+        },
+    )
+
+    def fake_plan(root: Path, mission_id: str) -> dict:
+        plan_path = root / "docs" / "specs" / mission_id / "plan.json"
+        payload = {
+            "plan_id": "plan-1",
+            "mission_id": mission_id,
+            "status": "draft",
+            "waves": [],
+        }
+        plan_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        return payload
+
+    def fail_sync(root: Path, mission_id: str) -> None:
+        assert root == repo
+        assert mission_id == "plan-me"
+        raise RuntimeError("linear unavailable")
+
+    monkeypatch.setattr("spec_orch.dashboard.launcher._generate_plan_for_mission", fake_plan)
+    monkeypatch.setattr("spec_orch.dashboard.launcher._sync_linked_linear_issue_mirror", fail_sync)
+
+    result = _approve_and_plan_mission(repo, "plan-me")
+
+    assert result["mission_id"] == "plan-me"
+    assert result["plan"]["plan_id"] == "plan-1"
+    assert "mirror sync skipped" in capsys.readouterr().out
+
+
 def test_approve_and_plan_mission_injects_fresh_verification_commands(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -682,11 +803,17 @@ def test_create_linear_issue_for_mission_records_launch_metadata(
         {
             "title": "Linear Launch",
             "mission_id": "linear-launch",
+            "problem": "Linear issue state drifts from runtime truth.",
+            "goal": "Create a new issue with the latest structured mirror.",
             "intent": "Bind mission to Linear.",
-            "acceptance_criteria": [],
+            "acceptance_criteria": ["The issue gets a structured mirror block."],
             "constraints": [],
+            "evidence_expectations": ["structured mirror block"],
+            "current_system_understanding": "Launcher owns mission drafting before execution.",
         },
     )
+
+    captured_descriptions: list[str] = []
 
     class FakeLinearClient:
         def __init__(self, **_: object) -> None:
@@ -696,6 +823,7 @@ def test_create_linear_issue_for_mission_records_launch_metadata(
             if "teams(" in graphql:
                 return {"teams": {"nodes": [{"id": "team-1", "key": "SON", "name": "Songwork"}]}}
             if "issueCreate" in graphql:
+                captured_descriptions.append(str(variables["description"]))
                 return {
                     "issueCreate": {
                         "success": True,
@@ -726,6 +854,9 @@ def test_create_linear_issue_for_mission_records_launch_metadata(
     assert launch_path.exists()
     launch_meta = json.loads(launch_path.read_text(encoding="utf-8"))
     assert launch_meta["linear_issue"]["identifier"] == "SON-999"
+    assert captured_descriptions
+    assert "## SpecOrch Mirror" in captured_descriptions[0]
+    assert "create_workspace" in captured_descriptions[0]
 
 
 def test_create_linear_issue_for_mission_requires_resolved_team(
@@ -817,6 +948,76 @@ def test_bind_linear_issue_to_mission_validates_update_success(
 
     with pytest.raises(ValueError, match="Linear issue description update failed"):
         _bind_linear_issue_to_mission(repo, "linear-bind", "issue-1")
+
+
+def test_bind_linear_issue_to_mission_appends_structured_linear_mirror(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spec_orch.dashboard.launcher import (
+        _bind_linear_issue_to_mission,
+        _create_mission_draft,
+    )
+
+    _create_mission_draft(
+        repo,
+        {
+            "title": "Linear Bind Success",
+            "mission_id": "linear-bind-success",
+            "problem": "Existing Linear issues drift from runtime truth.",
+            "goal": "Rewrite the issue with a structured mirror.",
+            "intent": "Bind mission to existing issue.",
+            "acceptance_criteria": ["The issue gets the latest mirror block."],
+            "constraints": [],
+            "evidence_expectations": ["structured mirror block"],
+            "current_system_understanding": "Launcher owns mission drafting before execution.",
+        },
+    )
+
+    captured_updates: list[str] = []
+
+    class FakeLinearClient:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        def query(self, graphql: str, variables: dict | None = None) -> dict:
+            if "query($id: String!)" in graphql:
+                return {
+                    "issue": {
+                        "id": "issue-1",
+                        "identifier": "SON-123",
+                        "title": "Existing issue",
+                        "description": "hello",
+                        "url": "https://linear.app/songwork/issue/SON-123/example",
+                    }
+                }
+            if "issueUpdate" in graphql:
+                captured_updates.append(str(variables["description"]))
+                return {
+                    "issueUpdate": {
+                        "success": True,
+                        "issue": {
+                            "id": "issue-1",
+                            "identifier": "SON-123",
+                            "title": "Existing issue",
+                            "url": "https://linear.app/songwork/issue/SON-123/example",
+                            "description": str(variables["description"]),
+                        },
+                    }
+                }
+            raise AssertionError(graphql)
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("spec_orch.dashboard.launcher.LinearClient", FakeLinearClient)
+
+    result = _bind_linear_issue_to_mission(repo, "linear-bind-success", "issue-1")
+
+    assert result["linear_issue"]["identifier"] == "SON-123"
+    assert captured_updates
+    assert "## SpecOrch Mirror" in captured_updates[0]
+    assert "create_workspace" in captured_updates[0]
 
 
 def test_create_linear_issue_for_mission_validates_mutation_success(
