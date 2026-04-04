@@ -1,0 +1,58 @@
+{
+  "step_key": "route_replay",
+  "decision": "await_contract_evidence",
+  "outputs": {
+    "route_replay_check": "declared_routes_identified",
+    "review_routes_declared": [
+      "/?mission=fresh-acpx-20260404132336-929e89&mode=missions&tab=overview",
+      "/?mission=fresh-acpx-20260404132336-929e89&mode=missions&tab=transcript&round=1",
+      "/?mission=fresh-acpx-20260404132336-929e89&mode=missions&tab=approvals&round=1",
+      "/?mission=fresh-acpx-20260404132336-929e89&mode=missions&tab=visual&round=1",
+      "/?mission=fresh-acpx-20260404132336-929e89&mode=missions&tab=costs&round=1",
+      "/?mission=fresh-acpx-20260404132336-929e89&mode=missions&tab=judgment&round=1"
+    ],
+    "workflow_assertions_declared": [
+      "launcher panel can be opened from the header",
+      "needs attention mode can be selected from mission control",
+      "missions mode can be selected from mission control",
+      "decision queue mode can be selected from mission control",
+      "deep evidence mode can be selected from mission control",
+      "the target mission can be selected from the mission list",
+      "the transcript tab can be opened from mission detail",
+      "the approvals surface exposes actionable operator controls when present",
+      "the visual QA tab can be opened from mission detail",
+      "the judgment tab can be opened from mission detail",
+      "the costs tab can be opened from mission detail"
+    ],
+    "contract_basis": "workflow_replay.proof_type in proof_split",
+    "fresh_execution_prerequisite": "passed",
+    "fresh_round_artifacts_available": true,
+    "gate_verdicts": [
+      {
+        "packet_id": "acpx-contract-mission-types",
+        "mergeable": true,
+        "all_in_scope": true
+      },
+      {
+        "packet_id": "acpx-contract-artifact-types",
+        "mergeable": true,
+        "all_in_scope": true
+      }
+    ],
+    "pending_evidence": [
+      "route_replay_execution_log",
+      "screenshot_evidence",
+      "workflow_assertion_results",
+      "post_run_dashboard_validation"
+    ]
+  },
+  "next_transition": "route_replay_execution",
+  "warnings": [
+    "No route_replay execution artifacts found in current step evidence",
+    "workflow_replay phase defined but not yet executed in this step",
+    "Dashboard surface validation pending route replay capture",
+    "Required: replay evidence from workflow_replay section to complete contract verification"
+  ],
+  "review_markdown": "## Route Replay Contract Verification\n\n### Status: Awaiting Evidence Capture\n\nThe `route_replay` step has been identified for mission `fresh-acpx-20260404132336-929e89`. The contract declares **6 review routes** and **11 workflow assertions** that must be validated through replay.\n\n### Contract Basis\n\nFrom `workflow_replay` in proof_split:\n- **Review Routes**: overview, transcript, approvals, visual_qa, costs, judgment tabs\n- **Workflow Assertions**: Navigation flows, tab access, operator controls\n\n### Prerequisite Check: PASSED\n\n- Fresh execution completed successfully (Round 1, Wave 0)\n- Both packets (mission_types, artifact_types) passed all verification checks\n- Gate verdicts: both mergeable with `all_in_scope=true`\n- TypeScript compilation clean\n\n### Pending Actions\n\n1. Execute route replay to capture dashboard surface evidence\n2. Validate each declared route is navigable\n3. Verify workflow assertions against actual UI behavior\n4. Capture screenshots/evidence for contract verification\n\n### Next Transition\n\nProceed to `route_replay_execution` to capture the declared route evidence and complete the contract graph verification.",
+  "created_at": "2026-04-04T13:27:28.910829+00:00"
+}

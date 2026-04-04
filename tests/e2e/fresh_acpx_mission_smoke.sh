@@ -385,6 +385,7 @@ from spec_orch.services.fresh_acpx_e2e import (
     write_fresh_acpx_mission_report,
 )
 from spec_orch.services.mission_service import MissionService
+from spec_orch.services.path_sanitizer import sanitize_text_artifact_tree
 from spec_orch.services.round_orchestrator import build_fresh_acpx_post_run_campaign
 
 repo_root = Path(".").resolve()
@@ -463,6 +464,7 @@ report = write_fresh_acpx_mission_report(
     workflow_replay=workflow_replay,
     acceptance_review=result,
 )
+sanitize_text_artifact_tree(repo_root / "docs" / "specs" / mission_id, repo_root=repo_root)
 print(json.dumps(report))
 PY
 

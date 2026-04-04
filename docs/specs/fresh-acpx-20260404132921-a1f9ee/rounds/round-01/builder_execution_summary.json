@@ -1,0 +1,26 @@
+{
+  "round_id": 1,
+  "status": "decided",
+  "worker_results": [
+    {
+      "packet_id": "fresh-acpx-mission-types-scaffold",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-mission-types-scaffold/builder_report.json",
+      "incoming_events_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-mission-types-scaffold/telemetry/incoming_events.jsonl",
+      "events_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-mission-types-scaffold/telemetry/events.jsonl",
+      "activity_log_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-mission-types-scaffold/telemetry/activity.log"
+    },
+    {
+      "packet_id": "fresh-acpx-artifact-types-scaffold",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-artifact-types-scaffold/builder_report.json",
+      "incoming_events_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-artifact-types-scaffold/telemetry/incoming_events.jsonl",
+      "events_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-artifact-types-scaffold/telemetry/events.jsonl",
+      "activity_log_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-artifact-types-scaffold/telemetry/activity.log"
+    }
+  ]
+}

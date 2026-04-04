@@ -892,6 +892,89 @@ def test_linear_sync_backfills_bound_linear_issue_descriptions(tmp_path: Path) -
     assert '"plan_state": "draft"' in captured_descriptions[0]
 
 
+def test_linear_sync_report_outputs_drift_without_mutating_linear(tmp_path: Path) -> None:
+    from spec_orch.dashboard.launcher import _create_mission_draft
+
+    _create_mission_draft(
+        tmp_path,
+        {
+            "title": "Linear Sync Report",
+            "mission_id": "linear-sync-report",
+            "problem": "Linear has drifted from the mission state.",
+            "goal": "Report drift before writing mirror state.",
+            "intent": "Audit bound missions safely.",
+            "acceptance_criteria": ["The CLI emits a drift report without mutation."],
+            "constraints": [],
+            "evidence_expectations": ["drift report"],
+        },
+    )
+    (tmp_path / "docs" / "specs" / "linear-sync-report" / "plan.json").write_text(
+        json.dumps(
+            {
+                "plan_id": "plan-1",
+                "mission_id": "linear-sync-report",
+                "status": "draft",
+                "waves": [{"wave_number": 0, "description": "Wave 0", "work_packets": []}],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "specs" / "linear-sync-report" / "operator" / "launch.json").write_text(
+        json.dumps(
+            {
+                "linear_issue": {
+                    "id": "issue-1",
+                    "identifier": "SON-322",
+                    "title": "Linear Sync Report",
+                }
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    class FakeLinearClient:
+        def __init__(self, **_: object) -> None:
+            self.updated = False
+
+        def query(self, graphql: str, variables: dict | None = None) -> dict:
+            if "query($id: String!)" in graphql:
+                return {
+                    "issue": {
+                        "id": "issue-1",
+                        "description": "mission: linear-sync-report",
+                    }
+                }
+            raise AssertionError(graphql)
+
+        def update_issue_description(self, issue_id: str, *, description: str) -> dict:
+            self.updated = True
+            raise AssertionError(f"report mode must not update {issue_id}: {description}")
+
+        def close(self) -> None:
+            return None
+
+    runner = CliRunner()
+    with patch("spec_orch.services.linear_client.LinearClient", FakeLinearClient):
+        result = runner.invoke(
+            app,
+            [
+                "linear-sync",
+                "--repo-root",
+                str(tmp_path),
+                "--report",
+                "--json",
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert '"mission_id": "linear-sync-report"' in result.stdout
+    assert '"status": "missing_mirror"' in result.stdout
+
+
 def test_create_pr_triggers_linear_writeback(tmp_path: Path) -> None:
     from spec_orch.cli._helpers import _linear_writeback_on_pr
     from spec_orch.domain.models import GateVerdict

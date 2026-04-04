@@ -1,0 +1,16 @@
+{
+  "session_name": "mission-fresh-acpx-20260404132336-929e89-acpx-contract-artifact-types",
+  "terminal_reason": "process_exit_success",
+  "succeeded": true,
+  "retry_count": 0,
+  "event_count": 136,
+  "commands_completed": 10,
+  "files_changed": [
+    "docs/specs/fresh-acpx-20260404132336-929e89/workers/acpx-contract-artifact-types/src/contracts/artifact_types.ts"
+  ],
+  "session_reused": false,
+  "session_health": "healthy",
+  "chain_id": "chain_fresh-acpx-20260404132336-929e89_20260404T132353Z_b0dec89b",
+  "span_id": "chain_fresh-acpx-20260404132336-929e89_20260404T132353Z_b0dec89b:round:01:packet:acpx-contract-artifact-types:worker",
+  "parent_span_id": "chain_fresh-acpx-20260404132336-929e89_20260404T132353Z_b0dec89b:round:01:packet:acpx-contract-artifact-types"
+}

@@ -227,6 +227,7 @@ import sys
 from pathlib import Path
 
 from spec_orch.services.fresh_acpx_e2e import run_fresh_exploratory_acceptance_review
+from spec_orch.services.path_sanitizer import sanitize_text_artifact_tree
 from spec_orch.services.stability_acceptance import write_exploratory_acceptance_report
 
 repo_root = Path(".").resolve()
@@ -256,6 +257,7 @@ report = write_exploratory_acceptance_report(
     round_dir=round_dir,
     source="fresh-acpx-mission-smoke",
 )
+sanitize_text_artifact_tree(repo_root / "docs" / "specs" / mission_id, repo_root=repo_root)
 print(json.dumps(report))
 PY
 ok "exploratory acceptance smoke report written"

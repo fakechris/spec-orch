@@ -238,6 +238,39 @@ def test_sync_issue_mirror_from_mission_updates_description_with_plan_sync(tmp_p
 """,
         encoding="utf-8",
     )
+    (tmp_path / ".spec_orch" / "acceptance").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".spec_orch" / "acceptance" / "stability_acceptance_status.json").write_text(
+        """{
+  "summary": {
+    "overall_status": "pass"
+  }
+}
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "acceptance-history").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "docs" / "acceptance-history" / "index.json").write_text(
+        """{
+  "releases": [
+    {
+      "release_id": "bundle-1",
+      "bundle_path": "docs/acceptance-history/releases/bundle-1",
+      "overall_status": "pass"
+    }
+  ]
+}
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "specs" / "plan-sync" / "operator" / "launch.json").write_text(
+        """{
+  "metadata": {
+    "next_bottleneck": "Lifecycle"
+  }
+}
+""",
+        encoding="utf-8",
+    )
 
     mirror = svc.sync_issue_mirror_from_mission(
         repo_root=tmp_path,
@@ -252,3 +285,58 @@ def test_sync_issue_mirror_from_mission_updates_description_with_plan_sync(tmp_p
     description = client.update_issue_description.call_args.kwargs["description"]
     assert '"plan_state": "draft"' in description
     assert '"next_action": "review_plan"' in description
+    assert '"latest_acceptance_status": "pass"' in description
+    assert '"next_bottleneck": "Lifecycle"' in description
+
+
+def test_preview_issue_mirror_drift_from_mission_does_not_mutate_linear(tmp_path: Path) -> None:
+    from spec_orch.dashboard.launcher import _create_mission_draft
+
+    client = MagicMock()
+    client.query.return_value = {"issue": {"id": "issue-1", "description": "mission: preview"}}
+    svc = LinearWriteBackService(client=client)
+
+    _create_mission_draft(
+        tmp_path,
+        {
+            "title": "Preview",
+            "mission_id": "preview",
+            "problem": "Linear has drifted.",
+            "goal": "Report drift before writing.",
+            "intent": "Preview mirror drift.",
+            "acceptance_criteria": ["Drift is visible before mutation."],
+            "constraints": [],
+            "evidence_expectations": ["drift report"],
+        },
+    )
+    (tmp_path / "docs" / "specs" / "preview" / "plan.json").write_text(
+        """{
+  "plan_id": "plan-1",
+  "mission_id": "preview",
+  "status": "draft",
+  "waves": []
+}
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "specs" / "preview" / "operator" / "launch.json").write_text(
+        """{
+  "linear_issue": {
+    "id": "issue-1",
+    "identifier": "SON-1",
+    "title": "Preview"
+  }
+}
+""",
+        encoding="utf-8",
+    )
+
+    report = svc.preview_issue_mirror_drift_from_mission(
+        repo_root=tmp_path,
+        mission_id="preview",
+        linear_id="issue-1",
+    )
+
+    assert report is not None
+    assert report["status"] == "missing_mirror"
+    client.update_issue_description.assert_not_called()

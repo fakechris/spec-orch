@@ -1,0 +1,43 @@
+{
+  "round_id": 1,
+  "wave_id": 0,
+  "status": "decided",
+  "started_at": "2026-04-04T13:29:40.413327+00:00",
+  "completed_at": "2026-04-04T13:32:34.745312+00:00",
+  "worker_results": [
+    {
+      "packet_id": "fresh-acpx-mission-types-scaffold",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-mission-types-scaffold/builder_report.json",
+      "incoming_events_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-mission-types-scaffold/telemetry/incoming_events.jsonl",
+      "events_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-mission-types-scaffold/telemetry/events.jsonl",
+      "activity_log_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-mission-types-scaffold/telemetry/activity.log"
+    },
+    {
+      "packet_id": "fresh-acpx-artifact-types-scaffold",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-artifact-types-scaffold/builder_report.json",
+      "incoming_events_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-artifact-types-scaffold/telemetry/incoming_events.jsonl",
+      "events_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-artifact-types-scaffold/telemetry/events.jsonl",
+      "activity_log_path": "docs/specs/fresh-acpx-20260404132921-a1f9ee/workers/fresh-acpx-artifact-types-scaffold/telemetry/activity.log"
+    }
+  ],
+  "decision": {
+    "action": "continue",
+    "reason_code": "wave_complete_green_gates",
+    "summary": "Wave 0 (Contract Freeze / Scaffold) completed successfully. Both packets (mission_types.ts and artifact_types.ts) passed all 6 verification steps with exit 0, gate verdicts are mergeable with no failed conditions, scope stayed strictly within allowed files, plan budget respected, and all 9 acceptance criteria satisfied. No blocking issues. Mission has no remaining waves.",
+    "confidence": 0.97,
+    "affected_workers": [],
+    "artifacts": {},
+    "session_ops": {
+      "reuse": [],
+      "spawn": [],
+      "cancel": []
+    },
+    "blocking_questions": []
+  }
+}

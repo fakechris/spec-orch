@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from spec_orch.runtime_core.observability.models import (
     RuntimeBatchSummary,
     RuntimeBudgetVisibility,
@@ -148,3 +150,62 @@ def test_observability_helpers_build_summaries_and_stall_signals() -> None:
     assert stall.diminishing_returns is True
     assert step_summary.artifact_refs["review"] == "decision_review.json"
     assert batch_summary.steps == ["candidate_review", "summarize_judgment"]
+
+
+def test_observability_store_sanitizes_absolute_paths(tmp_path) -> None:
+    repo_root = tmp_path / "repo"
+    observability_root = repo_root / "docs/specs/mission-1/operator/observability/round-01"
+    repo_root.joinpath(".git").mkdir(parents=True)
+
+    append_step_summary(
+        observability_root,
+        RuntimeStepSummary(
+            subject_key="mission-1:round-1:acceptance-graph",
+            step_key="guided_probe",
+            summary=(
+                "See "
+                f"{repo_root / 'rounds/round-01/steps/02-guided_probe.json'} "
+                "and /Users/chris/workspace/spec-orch/.venv-py313/bin/python"
+            ),
+            artifact_refs={
+                "step_artifact": str(repo_root / "rounds/round-01/steps/02-guided_probe.json"),
+                "external": "/Users/chris/tmp/raw-proof.json",
+            },
+            updated_at="2026-03-31T12:01:00+00:00",
+        ),
+    )
+    write_live_summary(
+        observability_root,
+        RuntimeLiveSummary(
+            subject_key="mission-1:round-1:acceptance-graph",
+            phase="running",
+            status_reason="step_completed",
+            current_step_key="guided_probe",
+            budget=RuntimeBudgetVisibility(
+                budget_key="acceptance-graph",
+                planned_steps=4,
+                completed_steps=1,
+                remaining_steps=3,
+            ),
+            artifact_refs={
+                "graph_run": str(repo_root / "rounds/round-01/graph_run.json"),
+            },
+            updated_at="2026-03-31T12:00:00+00:00",
+        ),
+    )
+
+    step_summary_path = observability_root / "step_summaries.jsonl"
+    live_summary_path = observability_root / "live_summary.json"
+
+    step_payload = json.loads(step_summary_path.read_text(encoding="utf-8").splitlines()[0])
+    live_payload = json.loads(live_summary_path.read_text(encoding="utf-8"))
+
+    assert "/Users/chris/" not in json.dumps(step_payload)
+    assert (
+        step_payload["artifact_refs"]["step_artifact"]
+        == "rounds/round-01/steps/02-guided_probe.json"
+    )
+    assert step_payload["artifact_refs"]["external"] == "<external-path>/tmp/raw-proof.json"
+    assert step_payload["summary"].startswith("See rounds/round-01/steps/02-guided_probe.json")
+    assert "<external-path>/.venv-py313/bin/python" in step_payload["summary"]
+    assert live_payload["artifact_refs"]["graph_run"] == "rounds/round-01/graph_run.json"

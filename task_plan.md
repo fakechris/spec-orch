@@ -1,35 +1,46 @@
-# Acceptance Hardening Protocol Start
+# Task Plan
 
 ## Goal
 
-Absorb the latest harness review and UI-test research into the existing acceptance/hardening stack without changing the main architecture.
+Use the latest hardened `spec-orch` mainline as its own internal development system:
+
+1. detect and repair Linear/runtime drift safely
+2. mirror plan/tranche/bottleneck truth into Linear in a structured way
+3. run the `chat -> canonical issue -> workspace -> Linear mirror` path as a first-class dogfood workflow
+4. close the wave with canonical acceptance and a release bundle
 
 ## Phases
 
 | Phase | Status | Notes |
-|---|---|---|
-| Baseline verification | completed | New worktree is clean; focused baseline pytest passed. |
-| Execution plan + planning files | in_progress | Create implementation plan and capture research-derived requirements. |
-| 5-subsystem review checklist + context taxonomy | completed | Agent guides now carry the fixed review language, bottleneck-first ritual, and context taxonomy. |
-| Exploratory acceptance planning contract | completed | `AcceptanceCampaign`, prompt composition, and exploratory review payloads now carry the three planning rounds plus merged plan. |
-| Browser acceptance step markers + failure artifact contract | completed | Browser evidence now normalizes STEP_PASS/FAIL/SKIP and fixed failure evidence fields. |
-| Internal workflow/skill doc hardening | completed | Agent guides now include workflow structure, anti-rationalization, and verification sections. |
-| Acceptance/archive closeout | completed | Canonical full smoke passed, consolidated status is green, and the tranche bundle has been written to `docs/acceptance-history/`. |
+| --- | --- | --- |
+| 1. Fresh worktree + baseline | complete | New worktree created from `main@4e7c0ab`; focused self-hosting baseline suite green |
+| 2. Plan + planning files | complete | Implementation plan and persistent working-memory files are written and updated through closeout |
+| 3. Linear drift inventory + safe backfill | complete | `linear-sync --report/--json` and preview drift seam landed with drift classification |
+| 4. Structured plan mirror enrichment | complete | `governance_sync` now projects acceptance status, latest bundle, and mission-local bottleneck |
+| 5. Chat-to-issue dogfood hardening | complete | Freeze is now idempotent and handoff persists conversation provenance into launch metadata |
+| 6. Acceptance + archive closeout | complete | Canonical suite pass, bundle written, index updated, next bottleneck recorded as Lifecycle |
+| 7. Artifact hygiene hardening | complete | Fresh mission source-run trees now pass post-run path sanitization before bundle/archive handoff |
 
 ## Constraints
 
-- Start from the latest `main` in a clean worktree.
-- Follow TDD: write failing tests first, watch them fail, then implement minimally.
-- Keep this wave internal-facing: hardening, acceptance protocol, workflow docs.
-- Preserve the current architecture; do not redesign surfaces or runtime seams.
+- Start from the latest `main` only.
+- Do not redesign intake/workbench/archive architecture.
+- Use TDD for each touched seam.
+- Keep `Linear` writes best-effort where external failure should not corrupt local state.
+- Keep `Active Context`, `Working State`, `Review Evidence`, `Archive`, and `Promoted Learning` distinct.
+- After each tranche, answer the `Instructions / State / Verification / Scope / Lifecycle` review questions.
+
+## Verification Targets
+
+- Focused unit suite for self-hosting seams
+- `ruff check src/ tests/`
+- `ruff format --check src/ tests/`
+- `mypy src/spec_orch/`
+- Canonical acceptance full smoke before closeout
+- Absolute-path scan over tracked source-run artifacts before commit/PR
 
 ## Open Questions
 
-- Which existing acceptance models are best to extend for exploratory planning rounds?
-- Whether browser evidence step markers should live at the interaction level only, or also be summarized in stability reports.
-
-## Errors Encountered
-
-| Error | Attempt | Resolution |
-|---|---|---|
-| None yet | - | - |
+- Which existing Linear-bound missions currently show the highest drift once report mode exists?
+- How much plan detail can we mirror into issue description without making the `SpecOrch Mirror` unreadable?
+- Which step in the `chat-to-issue` path currently has the weakest lifecycle evidence?

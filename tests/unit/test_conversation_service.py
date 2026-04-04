@@ -154,6 +154,26 @@ class TestConversationServiceCommands:
         assert reply is not None
         assert "spec" in reply.lower() or "frozen" in reply.lower()
 
+    def test_freeze_command_is_idempotent_for_frozen_thread(self, tmp_path: Path) -> None:
+        planner = MagicMock()
+        planner.brainstorm.return_value = "Let's do X"
+        planner.summarise_to_spec.return_value = "# X\n\n## Goal\nDo X\n"
+        svc = ConversationService(repo_root=tmp_path, planner=planner)
+
+        svc.handle_message(_make_msg(thread_id="frz-idem", content="build feature X"))
+        first_reply = svc.handle_message(
+            _make_msg(thread_id="frz-idem", content="@spec-orch freeze"),
+        )
+        second_reply = svc.handle_message(
+            _make_msg(thread_id="frz-idem", content="@spec-orch freeze"),
+        )
+
+        assert first_reply is not None
+        assert second_reply is not None
+        assert "already frozen" in second_reply.lower()
+        assert "mission:" in second_reply.lower()
+        planner.summarise_to_spec.assert_called_once()
+
     def test_freeze_command_persists_intake_workspace_and_syncs_linear_issue(
         self,
         tmp_path: Path,
@@ -234,6 +254,13 @@ class TestConversationServiceCommands:
         assert launch_path.exists()
         launch_meta = json.loads(launch_path.read_text(encoding="utf-8"))
         assert launch_meta["linear_issue"]["identifier"] == "SON-321"
+        assert launch_meta["conversation_thread"] == {
+            "thread_id": "frz-1",
+            "channel": "linear",
+            "status": "frozen",
+            "linear_issue_id": "issue-1",
+            "linear_identifier": "SON-321",
+        }
         assert captured_descriptions
         assert "## SpecOrch Mirror" in captured_descriptions[0]
         assert '"next_action": "create_workspace"' in captured_descriptions[0]
