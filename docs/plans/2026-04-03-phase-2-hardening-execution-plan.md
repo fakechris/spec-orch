@@ -65,7 +65,7 @@ Add tests that require:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_context_layering.py tests/unit/test_memory_service.py tests/unit/test_operator_semantics.py -q
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 pytest tests/unit/test_context_layering.py tests/unit/test_memory_service.py tests/unit/test_operator_semantics.py -q
 ```
 
 Expected: `FAIL` because the current context/memory seams still blur execution, evidence, archive, and promoted learning.
@@ -93,9 +93,9 @@ Do not:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_context_layering.py tests/unit/test_memory_service.py tests/unit/test_operator_semantics.py -q
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff check src/spec_orch/domain/context.py src/spec_orch/services/context_assembler.py src/spec_orch/services/context/context_assembler.py src/spec_orch/services/memory/service.py src/spec_orch/services/operator_semantics.py src/spec_orch/services/showcase_workbench.py tests/unit/test_context_layering.py tests/unit/test_memory_service.py tests/unit/test_operator_semantics.py
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 mypy src/spec_orch/domain/context.py src/spec_orch/services/context_assembler.py src/spec_orch/services/memory/service.py src/spec_orch/services/operator_semantics.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 pytest tests/unit/test_context_layering.py tests/unit/test_memory_service.py tests/unit/test_operator_semantics.py -q
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 ruff check src/spec_orch/domain/context.py src/spec_orch/services/context_assembler.py src/spec_orch/services/context/context_assembler.py src/spec_orch/services/memory/service.py src/spec_orch/services/operator_semantics.py src/spec_orch/services/showcase_workbench.py tests/unit/test_context_layering.py tests/unit/test_memory_service.py tests/unit/test_operator_semantics.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 mypy src/spec_orch/domain/context.py src/spec_orch/services/context_assembler.py src/spec_orch/services/memory/service.py src/spec_orch/services/operator_semantics.py
 ```
 
 Expected: `PASS`
@@ -135,7 +135,7 @@ Add tests that require:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_verification_independence.py tests/unit/test_round_orchestrator.py tests/unit/test_judgment_substrate.py -q
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 pytest tests/unit/test_verification_independence.py tests/unit/test_round_orchestrator.py tests/unit/test_judgment_substrate.py -q
 ```
 
 Expected: `FAIL` because verification and implementation are not yet governed as an explicit independence contract.
@@ -159,9 +159,9 @@ Do not:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_verification_independence.py tests/unit/test_round_orchestrator.py tests/unit/test_judgment_substrate.py -q
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff check src/spec_orch/domain/protocols.py src/spec_orch/services/round_orchestrator.py src/spec_orch/services/mission_execution_service.py src/spec_orch/services/judgment_substrate.py src/spec_orch/services/acceptance/litellm_acceptance_evaluator.py src/spec_orch/services/acceptance/browser_evidence.py tests/unit/test_verification_independence.py tests/unit/test_round_orchestrator.py tests/unit/test_judgment_substrate.py
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 mypy src/spec_orch/domain/protocols.py src/spec_orch/services/round_orchestrator.py src/spec_orch/services/judgment_substrate.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 pytest tests/unit/test_verification_independence.py tests/unit/test_round_orchestrator.py tests/unit/test_judgment_substrate.py -q
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 ruff check src/spec_orch/domain/protocols.py src/spec_orch/services/round_orchestrator.py src/spec_orch/services/mission_execution_service.py src/spec_orch/services/judgment_substrate.py src/spec_orch/services/acceptance/litellm_acceptance_evaluator.py src/spec_orch/services/acceptance/browser_evidence.py tests/unit/test_verification_independence.py tests/unit/test_round_orchestrator.py tests/unit/test_judgment_substrate.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 mypy src/spec_orch/domain/protocols.py src/spec_orch/services/round_orchestrator.py src/spec_orch/services/judgment_substrate.py
 ```
 
 Expected: `PASS`
@@ -204,7 +204,7 @@ Require:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_admission_governor.py tests/unit/test_daemon.py tests/unit/test_execution_substrate.py tests/unit/test_execution_workbench.py tests/unit/test_dashboard_api.py -q
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 pytest tests/unit/test_admission_governor.py tests/unit/test_daemon.py tests/unit/test_execution_substrate.py tests/unit/test_execution_workbench.py tests/unit/test_dashboard_api.py -q
 ```
 
 Expected: `FAIL`
@@ -222,8 +222,8 @@ Extend tranche 1 to:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_admission_governor.py tests/unit/test_daemon.py tests/unit/test_execution_substrate.py tests/unit/test_execution_workbench.py tests/unit/test_dashboard_api.py -q
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff check src/spec_orch/services/admission_governor.py src/spec_orch/services/daemon.py src/spec_orch/services/execution_substrate.py src/spec_orch/services/execution_workbench.py src/spec_orch/dashboard/control.py src/spec_orch/dashboard/app.py tests/unit/test_admission_governor.py tests/unit/test_daemon.py tests/unit/test_execution_substrate.py tests/unit/test_execution_workbench.py tests/unit/test_dashboard_api.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 pytest tests/unit/test_admission_governor.py tests/unit/test_daemon.py tests/unit/test_execution_substrate.py tests/unit/test_execution_workbench.py tests/unit/test_dashboard_api.py -q
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 ruff check src/spec_orch/services/admission_governor.py src/spec_orch/services/daemon.py src/spec_orch/services/execution_substrate.py src/spec_orch/services/execution_workbench.py src/spec_orch/dashboard/control.py src/spec_orch/dashboard/app.py tests/unit/test_admission_governor.py tests/unit/test_daemon.py tests/unit/test_execution_substrate.py tests/unit/test_execution_workbench.py tests/unit/test_dashboard_api.py
 ```
 
 Expected: `PASS`
@@ -263,7 +263,7 @@ Require:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_structural_judgment.py tests/unit/test_judgment_substrate.py tests/unit/test_dashboard_api.py -q
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 pytest tests/unit/test_structural_judgment.py tests/unit/test_judgment_substrate.py tests/unit/test_dashboard_api.py -q
 ```
 
 Expected: `FAIL`
@@ -281,8 +281,8 @@ Extend tranche 1 to:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_structural_judgment.py tests/unit/test_judgment_substrate.py tests/unit/test_dashboard_api.py -q
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff check src/spec_orch/services/structural_judgment.py src/spec_orch/services/judgment_substrate.py src/spec_orch/services/judgment_workbench.py src/spec_orch/dashboard/app.py src/spec_orch/dashboard/missions.py tests/unit/test_structural_judgment.py tests/unit/test_judgment_substrate.py tests/unit/test_dashboard_api.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 pytest tests/unit/test_structural_judgment.py tests/unit/test_judgment_substrate.py tests/unit/test_dashboard_api.py -q
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 ruff check src/spec_orch/services/structural_judgment.py src/spec_orch/services/judgment_substrate.py src/spec_orch/services/judgment_workbench.py src/spec_orch/dashboard/app.py src/spec_orch/dashboard/missions.py tests/unit/test_structural_judgment.py tests/unit/test_judgment_substrate.py tests/unit/test_dashboard_api.py
 ```
 
 Expected: `PASS`
@@ -322,7 +322,7 @@ Require:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_learning_promotion_policy.py tests/unit/test_learning_workbench.py tests/unit/test_evolution_promotion_registry.py tests/unit/test_memory_service.py tests/unit/test_dashboard_api.py -q
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 pytest tests/unit/test_learning_promotion_policy.py tests/unit/test_learning_workbench.py tests/unit/test_evolution_promotion_registry.py tests/unit/test_memory_service.py tests/unit/test_dashboard_api.py -q
 ```
 
 Expected: `FAIL`
@@ -340,9 +340,9 @@ Extend tranche 1 to:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_learning_promotion_policy.py tests/unit/test_learning_workbench.py tests/unit/test_evolution_promotion_registry.py tests/unit/test_memory_service.py tests/unit/test_dashboard_api.py -q
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff check src/spec_orch/services/learning_promotion_policy.py src/spec_orch/services/learning_workbench.py src/spec_orch/services/evolution/promotion_registry.py src/spec_orch/services/memory/service.py tests/unit/test_learning_promotion_policy.py tests/unit/test_learning_workbench.py tests/unit/test_evolution_promotion_registry.py tests/unit/test_memory_service.py tests/unit/test_dashboard_api.py
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 mypy src/spec_orch/services/learning_promotion_policy.py src/spec_orch/services/learning_workbench.py src/spec_orch/services/evolution/promotion_registry.py src/spec_orch/services/memory/service.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 pytest tests/unit/test_learning_promotion_policy.py tests/unit/test_learning_workbench.py tests/unit/test_evolution_promotion_registry.py tests/unit/test_memory_service.py tests/unit/test_dashboard_api.py -q
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 ruff check src/spec_orch/services/learning_promotion_policy.py src/spec_orch/services/learning_workbench.py src/spec_orch/services/evolution/promotion_registry.py src/spec_orch/services/memory/service.py tests/unit/test_learning_promotion_policy.py tests/unit/test_learning_workbench.py tests/unit/test_evolution_promotion_registry.py tests/unit/test_memory_service.py tests/unit/test_dashboard_api.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-<path-to-shared-py313-venv>}" uv run --python 3.13 mypy src/spec_orch/services/learning_promotion_policy.py src/spec_orch/services/learning_workbench.py src/spec_orch/services/evolution/promotion_registry.py src/spec_orch/services/memory/service.py
 ```
 
 Expected: `PASS`
