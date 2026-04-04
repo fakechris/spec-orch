@@ -8,6 +8,7 @@ from spec_orch.services.linear_intake import (
     parse_linear_intake_description,
     render_linear_intake_description,
 )
+from spec_orch.services.linear_mirror import render_linear_mirror_section
 
 FULL_DESCRIPTION = """\
 ## Problem
@@ -136,3 +137,37 @@ def test_derive_linear_intake_state_acceptance_drafting_when_acceptance_is_parti
     )
 
     assert derive_linear_intake_state(document) is LinearIntakeState.ACCEPTANCE_DRAFTING
+
+
+def test_parse_linear_intake_description_ignores_spec_orch_mirror_section() -> None:
+    rendered = render_linear_intake_description(
+        LinearIntakeDocument(
+            problem="Problem text",
+            goal="Goal text",
+            acceptance=LinearAcceptanceDraft(
+                success_conditions=["Visible success state."],
+                verification_expectations=["Run readiness checker."],
+            ),
+        )
+    )
+    rendered += (
+        "\n"
+        + render_linear_mirror_section(
+            {
+                "intake_state": "ready_for_workspace",
+                "handoff_state": "ready_for_workspace",
+                "workspace_id": "workspace:SON-999",
+                "next_action": "create_workspace",
+                "blockers": [],
+                "plan_summary": ["Mirror the plan into Linear."],
+                "source_refs": [{"kind": "linear_issue", "ref": "SON-999"}],
+            }
+        )
+        + "\n"
+    )
+
+    document = parse_linear_intake_description(rendered)
+
+    assert document.problem == "Problem text"
+    assert document.goal == "Goal text"
+    assert document.acceptance.success_conditions == ["Visible success state."]

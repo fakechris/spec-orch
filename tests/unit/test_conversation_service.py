@@ -154,6 +154,90 @@ class TestConversationServiceCommands:
         assert reply is not None
         assert "spec" in reply.lower() or "frozen" in reply.lower()
 
+    def test_freeze_command_persists_intake_workspace_and_syncs_linear_issue(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        planner = MagicMock()
+        planner.brainstorm.return_value = "Let's do X"
+        planner.summarise_to_spec.return_value = (
+            "# X\n\n"
+            "## Problem\n\n"
+            "Linear thread convergence still requires manual issue shaping.\n\n"
+            "## Goal\n\n"
+            "Turn the thread into canonical issue state automatically.\n\n"
+            "## Acceptance Criteria\n\n"
+            "- Freeze writes an intake workspace.\n"
+            "- The linked Linear issue gets a structured mirror.\n"
+        )
+        svc = ConversationService(repo_root=tmp_path, planner=planner)
+
+        captured_descriptions: list[str] = []
+
+        class FakeLinearClient:
+            def __init__(self, **_: object) -> None:
+                pass
+
+            def query(self, graphql: str, variables: dict | None = None) -> dict:
+                if "query($id: String!)" in graphql:
+                    return {"issue": {"id": "issue-1", "description": "mission: frz-1"}}
+                raise AssertionError(graphql)
+
+            def update_issue_description(self, issue_id: str, *, description: str) -> dict:
+                assert issue_id == "issue-1"
+                captured_descriptions.append(description)
+                return {"success": True, "issue": {"id": issue_id, "description": description}}
+
+            def add_comment(self, issue_id: str, body: str) -> dict:
+                return {"success": True, "comment": {"id": "c-1", "body": body}}
+
+            def close(self) -> None:
+                return None
+
+        monkeypatch.setattr(
+            "spec_orch.services.conversation_service.LinearClient", FakeLinearClient
+        )
+
+        svc.handle_message(
+            _make_msg(
+                thread_id="frz-1",
+                content="Please make chat-to-issue work.",
+                channel="linear",
+                sender="user",
+            ).__class__(
+                message_id="m-linear",
+                thread_id="frz-1",
+                sender="user",
+                content="Please make chat-to-issue work.",
+                timestamp=datetime.now(UTC).isoformat(),
+                channel="linear",
+                metadata={"linear_issue_id": "issue-1", "linear_identifier": "SON-321"},
+            )
+        )
+        reply = svc.handle_message(
+            _make_msg(thread_id="frz-1", content="@spec-orch freeze", channel="linear"),
+        )
+
+        assert reply is not None
+        spec_files = list((tmp_path / "docs" / "specs").rglob("operator/intake_workspace.json"))
+        assert len(spec_files) == 1
+        workspace = json.loads(spec_files[0].read_text(encoding="utf-8"))
+        assert workspace["canonical_issue"]["problem"] == (
+            "Linear thread convergence still requires manual issue shaping."
+        )
+        assert workspace["canonical_issue"]["goal"] == (
+            "Turn the thread into canonical issue state automatically."
+        )
+        assert workspace["readiness"]["is_ready"] is True
+        launch_path = spec_files[0].parent / "launch.json"
+        assert launch_path.exists()
+        launch_meta = json.loads(launch_path.read_text(encoding="utf-8"))
+        assert launch_meta["linear_issue"]["identifier"] == "SON-321"
+        assert captured_descriptions
+        assert "## SpecOrch Mirror" in captured_descriptions[0]
+        assert '"next_action": "create_workspace"' in captured_descriptions[0]
+
 
 class TestConversationThreadModel:
     def test_defaults(self) -> None:

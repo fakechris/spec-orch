@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import tomllib
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,6 +21,8 @@ from spec_orch.domain.models import (
     ThreadStatus,
 )
 from spec_orch.services.io import atomic_write_json
+from spec_orch.services.linear_client import LinearClient
+from spec_orch.services.linear_write_back import LinearWriteBackService
 
 _THREADS_DIR = ".spec_orch_threads"
 _COMMAND_RE = re.compile(
@@ -208,6 +211,12 @@ class ConversationService:
 
         spec_path = self.repo_root / mission.spec_path
         spec_path.write_text(spec_md)
+        self._persist_thread_intake_artifacts(
+            thread=thread,
+            mission_id=mission.mission_id,
+            title=title,
+            spec_md=spec_md,
+        )
 
         thread.status = ThreadStatus.FROZEN
         thread.spec_snapshot = mission.spec_path
@@ -218,6 +227,164 @@ class ConversationService:
             f"Mission: {mission.mission_id}\n"
             f"Run `spec-orch mission approve {mission.mission_id}` when ready."
         )
+
+    def _persist_thread_intake_artifacts(
+        self,
+        *,
+        thread: ConversationThread,
+        mission_id: str,
+        title: str,
+        spec_md: str,
+    ) -> None:
+        from spec_orch.dashboard.launcher import (
+            _build_dashboard_intake_workspace,
+            _operator_dir,
+            _persist_dashboard_intake_workspace,
+            _write_launch_metadata,
+        )
+
+        payload = self._conversation_payload_from_spec(thread, title=title, spec_md=spec_md)
+        workspace = _build_dashboard_intake_workspace(
+            self.repo_root,
+            mission_id=mission_id,
+            payload={
+                **payload,
+                "mission_id": mission_id,
+                "title": title,
+            },
+        )
+        _persist_dashboard_intake_workspace(
+            self.repo_root,
+            mission_id=mission_id,
+            workspace=workspace,
+        )
+        operator_dir = _operator_dir(self.repo_root, mission_id)
+        (operator_dir / "conversation_intake.json").write_text(
+            json.dumps(payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        linear_ref = self._latest_linear_ref(thread)
+        if linear_ref:
+            launch_meta = {
+                "linear_issue": {
+                    "id": linear_ref["linear_issue_id"],
+                    "identifier": linear_ref["linear_identifier"],
+                    "title": title,
+                }
+            }
+            _write_launch_metadata(self.repo_root, mission_id, launch_meta)
+            self._sync_linear_issue_from_thread(
+                mission_id=mission_id,
+                linear_issue_id=linear_ref["linear_issue_id"],
+            )
+
+    def _conversation_payload_from_spec(
+        self,
+        thread: ConversationThread,
+        *,
+        title: str,
+        spec_md: str,
+    ) -> dict[str, Any]:
+        problem = self._extract_markdown_section(spec_md, "Problem") or self._first_user_message(
+            thread
+        )
+        goal = self._extract_markdown_section(spec_md, "Goal")
+        acceptance = self._extract_markdown_bullets(spec_md, "Acceptance Criteria")
+        constraints = self._extract_markdown_bullets(spec_md, "Constraints")
+        evidence_expectations = self._extract_markdown_bullets(spec_md, "Verification Expectations")
+        if not evidence_expectations:
+            evidence_expectations = ["conversation thread review"]
+        return {
+            "title": title,
+            "problem": problem,
+            "goal": goal,
+            "intent": f"Converged from {thread.channel} thread {thread.thread_id}.",
+            "acceptance_criteria": acceptance,
+            "constraints": constraints,
+            "evidence_expectations": evidence_expectations,
+            "current_system_understanding": (
+                f"Conversation converged from {thread.channel} thread {thread.thread_id}."
+            ),
+        }
+
+    def _sync_linear_issue_from_thread(self, *, mission_id: str, linear_issue_id: str) -> None:
+        client = LinearClient(token_env=self._linear_token_env())
+        try:
+            issue = client.query(
+                """
+                query($id: String!) {
+                  issue(id: $id) { id description }
+                }
+                """,
+                {"id": linear_issue_id},
+            ).get("issue")
+            if not isinstance(issue, dict):
+                return
+            LinearWriteBackService(client=client).sync_issue_mirror_from_mission(
+                repo_root=self.repo_root,
+                mission_id=mission_id,
+                linear_id=linear_issue_id,
+                current_description=str(issue.get("description") or ""),
+            )
+        finally:
+            client.close()
+
+    def _linear_token_env(self) -> str:
+        config_path = self.repo_root / "spec-orch.toml"
+        if not config_path.exists():
+            return "SPEC_ORCH_LINEAR_TOKEN"
+        try:
+            with config_path.open("rb") as handle:
+                raw = tomllib.load(handle)
+        except (OSError, tomllib.TOMLDecodeError):
+            return "SPEC_ORCH_LINEAR_TOKEN"
+        linear = raw.get("linear", {})
+        if not isinstance(linear, dict):
+            return "SPEC_ORCH_LINEAR_TOKEN"
+        return str(linear.get("token_env", "SPEC_ORCH_LINEAR_TOKEN"))
+
+    @staticmethod
+    def _extract_markdown_section(spec_md: str, heading: str) -> str:
+        pattern = re.compile(
+            rf"^##\s+{re.escape(heading)}\s*$\n(.*?)(?=^##\s|\Z)",
+            re.MULTILINE | re.DOTALL,
+        )
+        match = pattern.search(spec_md)
+        if not match:
+            return ""
+        return match.group(1).strip()
+
+    def _extract_markdown_bullets(self, spec_md: str, heading: str) -> list[str]:
+        section = self._extract_markdown_section(spec_md, heading)
+        items: list[str] = []
+        for line in section.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("- "):
+                items.append(stripped[2:].strip())
+        return items
+
+    @staticmethod
+    def _first_user_message(thread: ConversationThread) -> str:
+        for message in thread.messages:
+            if message.sender == "user":
+                content = _COMMAND_RE.sub("", message.content).strip()
+                if content:
+                    return content
+        return ""
+
+    @staticmethod
+    def _latest_linear_ref(thread: ConversationThread) -> dict[str, str] | None:
+        for message in reversed(thread.messages):
+            metadata = message.metadata
+            linear_issue_id = str(metadata.get("linear_issue_id", "")).strip()
+            linear_identifier = str(metadata.get("linear_identifier", "")).strip()
+            if linear_issue_id and linear_identifier:
+                return {
+                    "linear_issue_id": linear_issue_id,
+                    "linear_identifier": linear_identifier,
+                }
+        return None
 
     def _create_mission_from_thread(
         self,

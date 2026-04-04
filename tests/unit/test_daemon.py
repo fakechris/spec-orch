@@ -219,6 +219,27 @@ def test_build_round_orchestrator_wires_acceptance_evaluator_and_filer(
     assert captured_acceptance["api_type"] == "anthropic"
 
 
+def test_sync_linear_mirror_for_mission_uses_write_back_service(tmp_path: Path) -> None:
+    cfg = DaemonConfig({})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon._write_back = MagicMock()
+
+    raw_issue = {"id": "issue-1", "description": "mission: plan-sync"}
+
+    daemon._sync_linear_mirror_for_mission(
+        client=MagicMock(),
+        raw_issue=raw_issue,
+        mission_id="plan-sync",
+    )
+
+    daemon._write_back.sync_issue_mirror_from_mission.assert_called_once_with(
+        repo_root=tmp_path,
+        mission_id="plan-sync",
+        linear_id="issue-1",
+        current_description="mission: plan-sync",
+    )
+
+
 def test_build_round_orchestrator_passes_acpx_worker_robustness_knobs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

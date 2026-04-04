@@ -819,6 +819,79 @@ def test_discuss_help_shows_subcommands() -> None:
     assert "freeze" in result.stdout
 
 
+def test_linear_sync_backfills_bound_linear_issue_descriptions(tmp_path: Path) -> None:
+    from spec_orch.dashboard.launcher import _create_mission_draft
+
+    _create_mission_draft(
+        tmp_path,
+        {
+            "title": "Linear Sync",
+            "mission_id": "linear-sync",
+            "problem": "Linear has drifted from the mission state.",
+            "goal": "Backfill the current mirror into the bound issue.",
+            "intent": "Sweep prior linked missions.",
+            "acceptance_criteria": ["The linked issue gets a structured mirror."],
+            "constraints": [],
+            "evidence_expectations": ["plan snapshot"],
+        },
+    )
+    (tmp_path / "docs" / "specs" / "linear-sync" / "plan.json").write_text(
+        json.dumps(
+            {
+                "plan_id": "plan-1",
+                "mission_id": "linear-sync",
+                "status": "draft",
+                "waves": [{"wave_number": 0, "description": "Wave 0", "work_packets": []}],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "specs" / "linear-sync" / "operator" / "launch.json").write_text(
+        json.dumps(
+            {
+                "linear_issue": {
+                    "id": "issue-1",
+                    "identifier": "SON-321",
+                    "title": "Linear Sync",
+                }
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    captured_descriptions: list[str] = []
+
+    class FakeLinearClient:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        def query(self, graphql: str, variables: dict | None = None) -> dict:
+            if "query($id: String!)" in graphql:
+                return {"issue": {"id": "issue-1", "description": "mission: linear-sync"}}
+            raise AssertionError(graphql)
+
+        def update_issue_description(self, issue_id: str, *, description: str) -> dict:
+            assert issue_id == "issue-1"
+            captured_descriptions.append(description)
+            return {"success": True, "issue": {"id": issue_id, "description": description}}
+
+        def close(self) -> None:
+            return None
+
+    runner = CliRunner()
+    with patch("spec_orch.services.linear_client.LinearClient", FakeLinearClient):
+        result = runner.invoke(app, ["linear-sync", "--repo-root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "linear-sync" in result.stdout
+    assert captured_descriptions
+    assert '"plan_state": "draft"' in captured_descriptions[0]
+
+
 def test_create_pr_triggers_linear_writeback(tmp_path: Path) -> None:
     from spec_orch.cli._helpers import _linear_writeback_on_pr
     from spec_orch.domain.models import GateVerdict

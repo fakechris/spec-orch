@@ -168,6 +168,37 @@ def promote_plan(
     _show_next_step(mission_id, Path(repo_root))
 
 
+@app.command("linear-sync")
+def linear_sync(
+    mission_id: str | None = typer.Argument(None, help="Optional mission ID to sync."),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
+) -> None:
+    """Backfill structured Linear mirror state for bound missions."""
+    from spec_orch.dashboard.launcher import _get_linear_settings
+    from spec_orch.services.linear_client import LinearClient
+    from spec_orch.services.linear_plan_sync import sync_linear_mission_mirrors
+
+    token_env, _team_key = _get_linear_settings(Path(repo_root))
+    client = LinearClient(token_env=token_env)
+    try:
+        results = sync_linear_mission_mirrors(
+            Path(repo_root),
+            client=client,
+            mission_id=mission_id,
+        )
+    finally:
+        client.close()
+
+    if not results:
+        typer.echo("no bound Linear issues found to sync")
+        return
+
+    typer.echo(f"synced {len(results)} Linear issue mirrors")
+    for item in results:
+        linear_label = item["linear_identifier"] or item["linear_issue_id"]
+        typer.echo(f"  {item['mission_id']} -> {linear_label}")
+
+
 @app.command("pipeline")
 def pipeline_status(
     mission_id: str = typer.Argument(..., help="Mission ID to check."),

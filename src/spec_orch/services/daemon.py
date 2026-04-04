@@ -692,6 +692,11 @@ class SpecOrchDaemon:
         self._event_bus.emit_issue_state(issue_id, "building")
 
         try:
+            self._sync_linear_mirror_for_mission(
+                client=client,
+                raw_issue=raw_issue,
+                mission_id=mission_id,
+            )
             try:
                 plan = ParallelRunController.load_plan(mission_id, self.repo_root)
             except Exception as exc:
@@ -764,6 +769,27 @@ class SpecOrchDaemon:
         except Exception as exc:
             print(f"[daemon] {issue_id}: mission execution failed: {exc}")
             self._release(issue_id)
+
+    def _sync_linear_mirror_for_mission(
+        self,
+        *,
+        client: LinearClient,
+        raw_issue: dict[str, Any],
+        mission_id: str,
+    ) -> None:
+        linear_uid = str(raw_issue.get("id", "")).strip()
+        if not linear_uid:
+            return
+        current_description = str(raw_issue.get("description") or "")
+        try:
+            self._write_back.sync_issue_mirror_from_mission(
+                repo_root=self.repo_root,
+                mission_id=mission_id,
+                linear_id=linear_uid,
+                current_description=current_description,
+            )
+        except Exception as exc:
+            print(f"[daemon] {mission_id}: mirror sync failed: {exc}")
 
     def _auto_create_pr(
         self,

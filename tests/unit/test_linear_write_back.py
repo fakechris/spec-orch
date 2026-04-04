@@ -15,6 +15,7 @@ from spec_orch.services.linear_intake import (
     LinearIntakeDocument,
     LinearIntakeState,
 )
+from spec_orch.services.linear_mirror import build_linear_mirror_document
 from spec_orch.services.linear_write_back import LinearWriteBackService
 
 
@@ -135,16 +136,119 @@ def test_post_intake_summary_formats_linear_native_sections() -> None:
 
 
 def test_rewrite_issue_for_intake_updates_linear_description() -> None:
+    from spec_orch.services.canonical_issue import canonical_issue_from_linear_intake
+    from spec_orch.services.intake_handoff import build_workspace_handoff
+
     client = MagicMock()
     client.update_issue_description.return_value = {"success": True}
     svc = LinearWriteBackService(client=client)
+    intake = _make_linear_intake_document()
+    canonical = canonical_issue_from_linear_intake(
+        issue_id="SON-789",
+        title="Structured mirror",
+        intake=intake,
+    )
+    handoff = build_workspace_handoff(canonical)
 
     svc.rewrite_issue_for_intake(
         linear_id="abc-789",
-        intake=_make_linear_intake_document(),
+        intake=intake,
+        mirror=build_linear_mirror_document(
+            intake_state=LinearIntakeState.READY_FOR_WORKSPACE.value,
+            canonical=canonical,
+            handoff=handoff,
+            plan_summary=["Mirror current plan state into Linear."],
+        ),
     )
 
     client.update_issue_description.assert_called_once()
     description = client.update_issue_description.call_args.kwargs["description"]
     assert "## Problem" in description
     assert "## Acceptance" in description
+    assert "## SpecOrch Mirror" in description
+    assert '"next_action": "create_workspace"' in description
+
+
+def test_post_intake_summary_includes_mirror_summary() -> None:
+    from spec_orch.services.canonical_issue import canonical_issue_from_linear_intake
+    from spec_orch.services.intake_handoff import build_workspace_handoff
+
+    client = MagicMock()
+    client.add_comment.return_value = {"success": True}
+    svc = LinearWriteBackService(client=client)
+    intake = _make_linear_intake_document()
+    canonical = canonical_issue_from_linear_intake(
+        issue_id="SON-790",
+        title="Mirror summary",
+        intake=intake,
+    )
+    handoff = build_workspace_handoff(canonical)
+
+    svc.post_intake_summary(
+        linear_id="abc-790",
+        state=LinearIntakeState.READY_FOR_WORKSPACE,
+        intake=intake,
+        mirror=build_linear_mirror_document(
+            intake_state=LinearIntakeState.READY_FOR_WORKSPACE.value,
+            canonical=canonical,
+            handoff=handoff,
+            plan_summary=["Sync prior Linear status drift."],
+        ),
+    )
+
+    body = client.add_comment.call_args[0][1]
+    assert "SpecOrch Mirror" in body
+    assert "create_workspace" in body
+    assert "Sync prior Linear status drift." in body
+
+
+def test_sync_issue_mirror_from_mission_updates_description_with_plan_sync(tmp_path: Path) -> None:
+    from spec_orch.dashboard.launcher import _create_mission_draft
+
+    client = MagicMock()
+    client.update_issue_description.return_value = {"success": True}
+    svc = LinearWriteBackService(client=client)
+
+    _create_mission_draft(
+        tmp_path,
+        {
+            "title": "Plan Sync",
+            "mission_id": "plan-sync",
+            "problem": "Linear drifts from local execution state.",
+            "goal": "Mirror compact plan state into Linear.",
+            "intent": "Sync plan state.",
+            "acceptance_criteria": ["Linear shows a compact plan snapshot."],
+            "constraints": [],
+            "evidence_expectations": ["plan snapshot"],
+        },
+    )
+    (tmp_path / "docs" / "specs" / "plan-sync" / "plan.json").write_text(
+        """{
+  "plan_id": "plan-1",
+  "mission_id": "plan-sync",
+  "status": "draft",
+  "waves": [
+    {
+      "wave_number": 0,
+      "description": "Scaffold contracts",
+      "work_packets": []
+    }
+  ]
+}
+""",
+        encoding="utf-8",
+    )
+
+    mirror = svc.sync_issue_mirror_from_mission(
+        repo_root=tmp_path,
+        mission_id="plan-sync",
+        linear_id="issue-1",
+        current_description="mission: plan-sync",
+    )
+
+    assert mirror is not None
+    assert mirror["plan_sync"]["plan_state"] == "draft"
+    assert mirror["next_action"] == "review_plan"
+    description = client.update_issue_description.call_args.kwargs["description"]
+    assert '"plan_state": "draft"' in description
+    assert '"next_action": "review_plan"' in description
