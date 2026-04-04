@@ -285,9 +285,65 @@ def test_build_execution_substrate_snapshot_includes_governor_backed_admission_s
         "reject": 0,
         "degrade": 0,
     }
+    assert snapshot["summary"]["budget_scope_counts"]["daemon"]["saturated"] == 1
+    assert snapshot["summary"]["pressure_by_role"]["daemon"] == 1
     assert snapshot["queue"][0]["queue_name"] == "daemon_admission"
     assert snapshot["queue"][0]["queue_state"] == "defer"
     assert snapshot["resource_budgets"][0]["budget_key"] == "daemon:max_concurrent"
     assert snapshot["resource_budgets"][0]["budget_state"] == "saturated"
+    assert snapshot["resource_budgets"][0]["subject_kind"] == "daemon"
     assert snapshot["pressure_signals"][0]["pressure_kind"] == "concurrency"
+    assert snapshot["pressure_signals"][0]["subject_kind"] == "daemon"
     assert snapshot["admission_decisions"][0]["decision"] == "defer"
+
+
+def test_build_execution_substrate_snapshot_tracks_worker_and_verifier_budget_scopes(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.admission_governor import AdmissionGovernor
+    from spec_orch.services.execution_substrate import build_execution_substrate_snapshot
+
+    governor = AdmissionGovernor(
+        tmp_path,
+        max_concurrent=3,
+        worker_max_concurrent=1,
+        verifier_max_concurrent=1,
+    )
+    governor.record_decision(
+        governor.evaluate_issue(
+            "mission-412",
+            workspace_id="mission-412",
+            in_progress_count=0,
+            mission_in_progress_count=0,
+            worker_in_progress_count=0,
+            verifier_in_progress_count=1,
+            is_hotfix=False,
+            recorded_at="2026-04-03T10:10:00+00:00",
+        )
+    )
+    governor.record_decision(
+        governor.evaluate_issue(
+            "mission-413",
+            workspace_id="mission-413",
+            in_progress_count=0,
+            mission_in_progress_count=0,
+            worker_in_progress_count=1,
+            verifier_in_progress_count=0,
+            is_hotfix=False,
+            recorded_at="2026-04-03T10:11:00+00:00",
+        )
+    )
+
+    snapshot = build_execution_substrate_snapshot(tmp_path)
+
+    assert snapshot["summary"]["admission_decision_counts"]["degrade"] == 1
+    assert snapshot["summary"]["admission_decision_counts"]["reject"] == 1
+    assert snapshot["summary"]["budget_scope_counts"]["verifier"]["saturated"] == 1
+    assert snapshot["summary"]["budget_scope_counts"]["worker"]["saturated"] == 1
+    assert snapshot["summary"]["pressure_by_role"]["verifier"] == 1
+    assert snapshot["summary"]["pressure_by_role"]["worker"] == 1
+    assert {
+        item["subject_kind"]
+        for item in snapshot["resource_budgets"]
+        if item["budget_state"] == "saturated"
+    } >= {"worker", "verifier"}

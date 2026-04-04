@@ -1,0 +1,13 @@
+{
+  "chain_id": "chain_fresh-acpx-20260404045002-8dc499_20260404T045023Z_95328789",
+  "active_span_id": "chain_fresh-acpx-20260404045002-8dc499_20260404T045023Z_95328789:round:01:acceptance-review",
+  "subject_kind": "acceptance",
+  "subject_id": "fresh-acpx-20260404045002-8dc499:round-1:acceptance",
+  "phase": "completed",
+  "status_reason": "acceptance_evaluation_completed",
+  "session_refs": {},
+  "artifact_refs": {
+    "round_dir": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404045002-8dc499/rounds/round-01"
+  },
+  "updated_at": "2026-04-04T04:55:54.068478+00:00"
+}

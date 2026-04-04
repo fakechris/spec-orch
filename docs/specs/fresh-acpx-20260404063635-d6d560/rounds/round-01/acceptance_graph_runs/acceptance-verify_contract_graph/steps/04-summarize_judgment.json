@@ -1,0 +1,59 @@
+{
+  "step_key": "summarize_judgment",
+  "decision": "continue",
+  "outputs": {
+    "judgment_summary": "Wave 0 scaffold complete. Both packets (mission_types.ts, artifact_types.ts) passed all six verification steps with zero failed conditions. All acceptance criteria for this wave are met. Proceed to post-run workflow replay.",
+    "confidence": 0.98,
+    "mission_status": "Wave 0 completed successfully",
+    "verified_artifacts": [
+      {
+        "packet_id": "acpx-contracts-mission-types",
+        "file": "src/contracts/mission_types.ts",
+        "verification_status": "passed_all_checks",
+        "checks": [
+          "scaffold_exists",
+          "typescript_contract_tokens",
+          "typescript_schema_surface",
+          "typescript_typecheck",
+          "typescript_lint_smoke",
+          "typescript_import_smoke"
+        ]
+      },
+      {
+        "packet_id": "acpx-contracts-artifact-types",
+        "file": "src/contracts/artifact_types.ts",
+        "verification_status": "passed_all_checks",
+        "checks": [
+          "scaffold_exists",
+          "typescript_contract_tokens",
+          "typescript_schema_surface",
+          "typescript_typecheck",
+          "typescript_lint_smoke",
+          "typescript_import_smoke"
+        ]
+      }
+    ],
+    "gate_verdicts": {
+      "acpx-contracts-mission-types": {
+        "mergeable": true,
+        "failed_conditions": 0,
+        "scope_compliant": true
+      },
+      "acpx-contracts-artifact-types": {
+        "mergeable": true,
+        "failed_conditions": 0,
+        "scope_compliant": true
+      }
+    },
+    "round_timing": {
+      "round_id": 1,
+      "wave_id": 0,
+      "started_at": "2026-04-04T06:36:56.308452+00:00",
+      "completed_at": "2026-04-04T06:40:23.170926+00:00"
+    }
+  },
+  "next_transition": "workflow_replay",
+  "warnings": [],
+  "review_markdown": "## Final Judgment Summary\n\n### Mission: Fresh ACPX Mission E2E Narrow Smoke\n**Mission ID**: fresh-acpx-20260404063635-d6d560\n\n### Verdict: ✅ PASSED - Continue to Post-Run Workflow Replay\n\n### Summary\nWave 0 has been completed successfully with high confidence (0.98). Both work packets produced the required TypeScript contract artifacts that passed all six verification steps:\n\n| Packet | File | Status |\n|--------|------|--------|\n| acpx-contracts-mission-types | src/contracts/mission_types.ts | ✅ All checks passed |\n| acpx-contracts-artifact-types | src/contracts/artifact_types.ts | ✅ All checks passed |\n\n### Verification Results\n- **scaffold_exists**: ✅ Both files exist\n- **typescript_contract_tokens**: ✅ Export statements present\n- **typescript_schema_surface**: ✅ Schema interfaces/types defined\n- **typescript_typecheck**: ✅ TypeScript compilation successful\n- **typescript_lint_smoke**: ✅ No trailing whitespace or tabs\n- **typescript_import_smoke**: ✅ Import statements valid\n\n### Gate Verdicts\nBoth packets are mergeable with no failed conditions and maintained full scope compliance (only touched allowed files).\n\n### Next Steps\nThe mission will proceed to post-run workflow replay to validate the resulting dashboard surfaces per the defined review routes (overview, transcript, approvals, visual QA, costs, judgment).\n\n### Execution Timeline\n- **Start**: 2026-04-04T06:36:56.308452+00:00\n- **Completion**: 2026-04-04T06:40:23.170926+00:00\n- **Duration**: ~3.5 minutes",
+  "created_at": "2026-04-04T06:41:54.506583+00:00"
+}

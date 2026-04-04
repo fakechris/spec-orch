@@ -1,0 +1,40 @@
+{
+  "release_id": "structural-judgment-tranche-2-2026-04-04",
+  "release_label": "Structural Judgment Tranche 2 2026-04-04",
+  "created_at": "2026-04-04T06:45:32Z",
+  "git_commit": "8a699bf79464a1b7556c7ac254606a41880c6e21",
+  "git_branch": "phase-2-hardening-start",
+  "acceptance_suite_version": "formal-acceptance-v1",
+  "overall_status": "pass",
+  "reported_checks": 4,
+  "total_checks": 4,
+  "checks": {
+    "issue_start": "pass",
+    "dashboard_ui": "pass",
+    "mission_start": "pass",
+    "exploratory": "pass"
+  },
+  "source_runs": {
+    "issue_start": "SPC-1",
+    "mission_start": "fresh-acpx-20260404063023-6b3085",
+    "dashboard_ui": "dashboard-ui-local",
+    "exploratory": "fresh-acpx-20260404063635-d6d560"
+  },
+  "artifacts": {
+    "status_json": ".spec_orch/acceptance/stability_acceptance_status.json",
+    "status_markdown": "docs/plans/2026-03-30-stability-acceptance-status.md",
+    "summary_markdown": "docs/acceptance-history/releases/structural-judgment-tranche-2-2026-04-04/summary.md",
+    "findings_json": "docs/acceptance-history/releases/structural-judgment-tranche-2-2026-04-04/findings.json",
+    "source_runs_json": "docs/acceptance-history/releases/structural-judgment-tranche-2-2026-04-04/source_runs.json",
+    "artifacts_json": "docs/acceptance-history/releases/structural-judgment-tranche-2-2026-04-04/artifacts.json",
+    "status_bundle_json": "docs/acceptance-history/releases/structural-judgment-tranche-2-2026-04-04/status.json"
+  },
+  "lineage": {
+    "program": "structural-judgment",
+    "notes": [
+      "This bundle captures structural judgment tranche 2 by deepening the deterministic judgment channel with rule-family counts, bottleneck breakdowns, and baseline-drift hotspots.",
+      "Judgment workbench read models now project structural signal summaries and primary rule families without collapsing them into the semantic acceptance verdict.",
+      "Source-run compare versus structural-judgment-tranche-1-2026-04-03: issue_start stayed on SPC-1; dashboard_ui stayed on dashboard-ui-local; mission_start advanced to fresh-acpx-20260404063023-6b3085; exploratory advanced to fresh-acpx-20260404063635-d6d560."
+    ]
+  }
+}

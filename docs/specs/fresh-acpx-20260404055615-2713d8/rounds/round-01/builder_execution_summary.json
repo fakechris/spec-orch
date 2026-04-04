@@ -1,0 +1,16 @@
+{
+  "round_id": 1,
+  "status": "decided",
+  "worker_results": [
+    {
+      "packet_id": "acpx-contract-scaffold",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404055615-2713d8/workers/acpx-contract-scaffold/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404055615-2713d8/workers/acpx-contract-scaffold/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404055615-2713d8/workers/acpx-contract-scaffold/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404055615-2713d8/workers/acpx-contract-scaffold/telemetry/activity.log"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "last_launch": {
+    "state": {
+      "mission_id": "fresh-acpx-20260404063635-d6d560",
+      "phase": "executing",
+      "issue_ids": [
+        "LOCAL-FRESH-ACPX-20260404063635-D6D560-1",
+        "LOCAL-FRESH-ACPX-20260404063635-D6D560-2"
+      ],
+      "completed_issues": [],
+      "error": null,
+      "updated_at": "2026-04-04T06:36:55.320662+00:00",
+      "current_round": 0,
+      "round_orchestrator_state": {}
+    }
+  },
+  "runner": {
+    "status": "foreground_required"
+  }
+}

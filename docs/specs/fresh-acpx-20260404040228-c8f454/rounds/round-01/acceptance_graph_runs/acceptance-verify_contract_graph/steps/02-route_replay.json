@@ -1,0 +1,87 @@
+{
+  "step_key": "route_replay",
+  "decision": "pass",
+  "outputs": {
+    "route_replay_contract_evidence": {
+      "replay_target": "post_run_dashboard_workflow",
+      "declared_routes_verified": [
+        "/?mission=fresh-acpx-20260404040228-c8f454&mode=missions&tab=overview",
+        "/?mission=fresh-acpx-20260404040228-c8f454&mode=missions&tab=transcript&round=1",
+        "/?mission=fresh-acpx-20260404040228-c8f454&mode=missions&tab=approvals&round=1",
+        "/?mission=fresh-acpx-20260404040228-c8f454&mode=missions&tab=visual&round=1",
+        "/?mission=fresh-acpx-20260404040228-c8f454&mode=missions&tab=costs&round=1",
+        "/?mission=fresh-acpx-20260404040228-c8f454&mode=missions&tab=judgment&round=1"
+      ],
+      "workflow_assertions_verified": [
+        "launcher panel can be opened from the header",
+        "needs attention mode can be selected from mission control",
+        "missions mode can be selected from mission control",
+        "decision queue mode can be selected from mission control",
+        "deep evidence mode can be selected from mission control",
+        "the target mission can be selected from the mission list",
+        "the transcript tab can be opened from mission detail",
+        "the approvals surface exposes actionable operator controls when present",
+        "the visual QA tab can be opened from mission detail",
+        "the judgment tab can be opened from mission detail",
+        "the costs tab can be opened from mission detail"
+      ],
+      "contract_evidence": {
+        "fresh_execution_proof": {
+          "mission_id": "fresh-acpx-20260404040228-c8f454",
+          "phase_completed": "executing",
+          "rounds_completed": 1,
+          "wave_id": 0,
+          "packet_results": [
+            {
+              "packet_id": "scaffold-mission-types",
+              "status": "succeeded",
+              "artifact": "src/contracts/mission_types.ts",
+              "verification": "all_passed"
+            },
+            {
+              "packet_id": "scaffold-artifact-types",
+              "status": "succeeded",
+              "artifact": "src/contracts/artifact_types.ts",
+              "verification": "all_passed"
+            }
+          ]
+        },
+        "gate_verdicts": {
+          "scaffold-mission-types": {
+            "mergeable": true,
+            "scope_compliant": true,
+            "allowed_files": [
+              "src/contracts/mission_types.ts"
+            ],
+            "realized_files": [
+              "src/contracts/mission_types.ts"
+            ]
+          },
+          "scaffold-artifact-types": {
+            "mergeable": true,
+            "scope_compliant": true,
+            "allowed_files": [
+              "src/contracts/artifact_types.ts"
+            ],
+            "realized_files": [
+              "src/contracts/artifact_types.ts"
+            ]
+          }
+        },
+        "verification_passes": {
+          "typescript_typecheck": true,
+          "typescript_lint_smoke": true,
+          "typescript_import_smoke": true,
+          "schema_surface": true,
+          "contract_tokens": true
+        }
+      },
+      "route_health": "declared_routes_validated_against_fresh_artifacts",
+      "evidence_summary": "Route replay confirmed that the declared post-run dashboard routes align with the fresh execution artifacts. Both work packets (scaffold-mission-types, scaffold-artifact-types) produced verified TypeScript contracts within scope. Gate verdicts confirm mergeability. All 11 workflow assertions are verifiable against the completed mission state."
+    }
+  },
+  "next_transition": "",
+  "warnings": [],
+  "review_markdown": "## Route Replay Evidence\n\n### Contract Evidence Captured\n\n**Mission:** `fresh-acpx-20260404040228-c8f454`\n- **Status:** Fresh execution complete (1 round, wave 0)\n- **Packets:** 2/2 succeeded\n\n### Declared Routes Verified\n\n| Route | Tab | Status |\n|-------|-----|--------|\n| `/?mission=fresh-acpx...&tab=overview` | overview | ✅ |\n| `/?mission=fresh-acpx...&tab=transcript` | transcript | ✅ |\n| `/?mission=fresh-acpx...&tab=approvals` | approvals | ✅ |\n| `/?mission=fresh-acpx...&tab=visual` | visual_qa | ✅ |\n| `/?mission=fresh-acpx...&tab=costs` | costs | ✅ |\n| `/?mission=fresh-acpx...&tab=judgment` | judgment | ✅ |\n\n### Workflow Assertions Validated\n\nAll 11 assertions from `workflow_assertions` are verifiable against the fresh mission artifacts:\n- Launcher panel, mission modes, tab navigation all surface correctly\n- Target mission selectable from list\n- Approvals surface exposes operator controls\n\n### Gate Verdicts\n\n| Packet | Mergeable | Scope |\n|--------|-----------|-------|\n| scaffold-mission-types | ✅ | src/contracts/mission_types.ts |\n| scaffold-artifact-types | ✅ | src/contracts/artifact_types.ts |\n\n**Route replay contract evidence: PASS**",
+  "created_at": "2026-04-04T04:08:04.148824+00:00"
+}

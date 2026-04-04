@@ -27,6 +27,7 @@ def test_issue_start_smoke_script_reads_redirected_preflight_report() -> None:
     assert (
         'uv run --python 3.13 spec-orch run "$ISSUE_ID" --source "$SOURCE" --auto-approve' in script
     )
+    assert 'git worktree remove --force ".worktrees/${ISSUE_ID}"' in script
 
 
 def test_issue_start_smoke_fixture_uses_bounded_builder_prompt() -> None:
@@ -45,6 +46,7 @@ def test_issue_start_smoke_fixture_uses_bounded_builder_prompt() -> None:
     assert isinstance(verification_commands, dict)
     assert set(verification_commands) == {"smoke_check", "build"}
     assert ".spec_orch_smoke/issue_start_builder.txt" in verification_commands["smoke_check"][-1]
+    assert "workspace_ok=yes\\n'" not in verification_commands["smoke_check"][-1]
 
 
 def test_mission_harness_polls_runtime_chain_status_while_fresh_run_executes() -> None:

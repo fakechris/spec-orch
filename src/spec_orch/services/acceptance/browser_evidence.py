@@ -111,6 +111,8 @@ def collect_browser_evidence(
     return {
         "mission_id": mission_id,
         "round_id": round_id,
+        "producer_role": "verifier",
+        "verification_origin": "browser_verifier",
         "tested_routes": [snapshot.path for snapshot in snapshots],
         "interactions": {snapshot.path: snapshot.interaction_log for snapshot in snapshots},
         "screenshots": screenshots,

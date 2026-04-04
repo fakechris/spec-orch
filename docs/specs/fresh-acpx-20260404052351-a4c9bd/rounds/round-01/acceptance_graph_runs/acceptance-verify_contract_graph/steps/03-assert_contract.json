@@ -1,0 +1,51 @@
+{
+  "step_key": "assert_contract",
+  "decision": "contract_holds",
+  "outputs": {
+    "assertion_result": "pass",
+    "contract_type": "fresh_acpx_mission_acceptance",
+    "mission_id": "fresh-acpx-20260404052351-a4c9bd",
+    "verification_summary": {
+      "criteria_checked": 4,
+      "criteria_passed": 4,
+      "constraints_checked": 5,
+      "constraints_satisfied": 5,
+      "gate_verdicts": [
+        {
+          "packet_id": "acpx-contract-mission-types",
+          "mergeable": true,
+          "failed_conditions": []
+        },
+        {
+          "packet_id": "acpx-contract-artifact-types",
+          "mergeable": true,
+          "failed_conditions": []
+        }
+      ],
+      "wave_count": 1,
+      "packet_count": 2,
+      "all_workers_succeeded": true,
+      "scope_clean": true,
+      "all_gates_passed": true
+    },
+    "acceptance_criteria_status": {
+      "fresh_mission_created": true,
+      "within_wave_budget": true,
+      "within_packet_budget": true,
+      "fresh_artifacts_produced": true,
+      "workflow_replay_available": true
+    },
+    "constraints_satisfaction": {
+      "narrow_local_only": true,
+      "no_historical_reuse": true,
+      "budget_respected": true,
+      "only_contract_files_touched": true,
+      "no_dashboard_runtime_changes": true
+    },
+    "confidence": 0.98
+  },
+  "next_transition": "",
+  "warnings": [],
+  "review_markdown": "## Contract Assertion: PASS\n\nThe contract for mission `fresh-acpx-20260404052351-a4c9bd` **holds**.\n\n### Evidence Summary\n\n**Wave 0 completed successfully** with 2 work packets, both succeeding:\n- `acpx-contract-mission-types` ✓\n- `acpx-contract-artifact-types` ✓\n\n### Acceptance Criteria Verification\n\n| Criterion | Status |\n|-----------|--------|\n| Fresh mission created for this run | ✓ |\n| Plan within 1 wave and ≤2 work packets | ✓ |\n| Mission launched and produced fresh artifacts | ✓ |\n| Post-run workflow replay available | ✓ |\n\n### Constraints Verification\n\n| Constraint | Status |\n|------------|--------|\n| Narrow local-only path | ✓ |\n| No historical artifact reuse | ✓ |\n| Budget: 1 wave, 2 packets | ✓ |\n| Only contract files in scope | ✓ |\n| No dashboard runtime changes | ✓ |\n\n### Gate Verdicts\n\nBoth packets passed **all 6 verification gates** with exit_code=0:\n1. `scaffold_exists`\n2. `typescript_contract_tokens`\n3. `typescript_schema_surface`\n4. `typescript_typecheck`\n5. `typescript_lint_smoke`\n6. `typescript_import_smoke`\n\n### Scope\n\n- `acpx-contract-mission-types`: Allowed = Realized = `src/contracts/mission_types.ts` ✓\n- `acpx-contract-artifact-types`: Allowed = Realized = `src/contracts/artifact_types.ts` ✓\n\n### Conclusion\n\n**Decision: `contract_holds`** — All acceptance criteria are satisfied, all constraints are honored, scope is clean, and mergeability is confirmed. No blocking risk detected.",
+  "created_at": "2026-04-04T05:29:03.838218+00:00"
+}

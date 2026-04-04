@@ -1,0 +1,49 @@
+{
+  "step_key": "contract_brief",
+  "decision": "continue",
+  "outputs": {
+    "mission_summary": "Fresh ACPX Mission E2E Narrow Smoke (fresh-acpx-20260404060035-12e7fc) - A minimal local-only mission that proves ACPX execution by scaffolding two TypeScript contract files under src/contracts: mission_types.ts and artifact_types.ts.",
+    "declared_feature": "Fresh ACPX mission execution and post-run dashboard workflow validation",
+    "scope": {
+      "allowed_files": [
+        "src/contracts/mission_types.ts",
+        "src/contracts/artifact_types.ts"
+      ],
+      "realized_files": [
+        "src/contracts/mission_types.ts",
+        "src/contracts/artifact_types.ts"
+      ]
+    },
+    "fresh_execution_status": {
+      "round": 1,
+      "wave": 0,
+      "decision": "continue",
+      "reason_code": "round_complete_clean",
+      "confidence": 0.99,
+      "work_packets_completed": 2,
+      "all_packets_succeeded": true,
+      "all_gate_verdicts_mergeable": true,
+      "verification_steps_passed_per_packet": 6
+    },
+    "directly_affected_routes": {
+      "primary_routes": [
+        "/",
+        "/?mode=missions",
+        "/?mission=fresh-acpx-20260404060035-12e7fc&mode=missions&tab=overview"
+      ],
+      "related_routes": [
+        "/?mission=fresh-acpx-20260404060035-12e7fc&mode=missions&tab=transcript",
+        "/?mission=fresh-acpx-20260404060035-12e7fc&mode=missions&tab=approvals",
+        "/?mission=fresh-acpx-20260404060035-12e7fc&mode=missions&tab=judgment"
+      ],
+      "additional_review_routes": [
+        "/?mission=fresh-acpx-20260404060035-12e7fc&mode=missions&tab=visual&round=1",
+        "/?mission=fresh-acpx-20260404060035-12e7fc&mode=missions&tab=costs&round=1"
+      ]
+    }
+  },
+  "next_transition": "{'to': 'workflow_replay', 'rationale': 'Fresh execution round complete with all verifications passed. Mission has produced fresh round artifacts. Next phase is to validate the post-run dashboard surfaces via workflow replay.'}",
+  "warnings": [],
+  "review_markdown": "## Contract Brief: Fresh ACPX Mission E2E Narrow Smoke\n\n### Mission Contract\n| Attribute | Value |\n|-----------|-------|\n| Mission ID | fresh-acpx-20260404060035-12e7fc |\n| Title | Fresh ACPX Mission E2E Narrow Smoke |\n| Execution Mode | fresh_acpx_mission |\n| Scope | Local-only, narrow proof |\n\n### Acceptance Criteria\n1. ✅ A fresh mission can be created for this run\n2. ✅ The plan stays within one wave and at most two work packets\n3. ✅ The mission can be launched and produce fresh round artifacts\n4. ⏳ Post-run workflow replay can validate the resulting dashboard surfaces *(pending)*\n\n### Constraints Compliance\n| Constraint | Status |\n|------------|--------|\n| Keep first fresh mission path narrow and local-only | ✅ Satisfied |\n| Do not reuse historical round artifacts as fresh proof | ✅ Satisfied |\n| Plan budget: at most 1 wave and at most 2 work packets | ✅ Satisfied |\n| Only touch src/contracts/mission_types.ts and src/contracts/artifact_types.ts | ✅ Satisfied |\n| Do not implement dashboard runtime changes, test harnesses, or replay engines | ✅ Satisfied |\n\n### Fresh Execution Results (Round 1)\n- **Decision**: Continue with confidence 0.99\n- **Work Packets**: 2/2 succeeded\n  - `acpx-fresh-scaffold-mission-types` ✅\n  - `acpx-fresh-scaffold-artifact-types` ✅\n- **Verification**: All 6 steps passed per packet (scaffold_exists, contract_tokens, schema_surface, typecheck, lint_smoke, import_smoke)\n- **Gate Verdicts**: Both mergeable with correct scope\n\n### Success Conditions\n- **This Step**: Contract summary confirms declared feature (fresh ACPX E2E) and affected routes identified\n- **Next Phase**: Workflow replay must validate 11 dashboard assertions across primary and related routes",
+  "created_at": "2026-04-04T06:04:14.424052+00:00"
+}

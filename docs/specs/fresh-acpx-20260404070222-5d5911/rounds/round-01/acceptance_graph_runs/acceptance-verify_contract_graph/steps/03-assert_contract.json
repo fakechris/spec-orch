@@ -1,0 +1,41 @@
+{
+  "step_key": "assert_contract",
+  "decision": "pass",
+  "outputs": {
+    "contract_verdict": "holds",
+    "round_id": 1,
+    "wave_id": 0,
+    "worker_results": [
+      {
+        "packet_id": "acpx-contract-mission-types",
+        "succeeded": true,
+        "verification_passed": true,
+        "gate_mergeable": true
+      },
+      {
+        "packet_id": "acpx-contract-artifact-types",
+        "succeeded": true,
+        "verification_passed": true,
+        "gate_mergeable": true
+      }
+    ],
+    "criteria_satisfied": {
+      "fresh_mission_created": true,
+      "within_budget": true,
+      "fresh_round_artifacts_produced": true,
+      "post_run_replay_ready": true
+    },
+    "constraints_respected": {
+      "narrow_local_only": true,
+      "no_historical_artifacts": true,
+      "budget_respected": true,
+      "scope_clean": true,
+      "no_dashboard_changes": true
+    },
+    "verification_summary": "6/6 verification steps passed for each packet. Both gate verdicts are mergeable with clean scope. All acceptance criteria satisfied without constraint violations."
+  },
+  "next_transition": "mission_complete",
+  "warnings": [],
+  "review_markdown": "## Contract Assertion: PASS\n\nThe contract **holds** for mission `fresh-acpx-20260404070222-5d5911`.\n\n### Evidence\n\n**Round 1 (Wave 0) completed successfully:**\n- Both packets (`acpx-contract-mission-types`, `acpx-contract-artifact-types`) succeeded\n- All 6 verification steps passed for each packet:\n  - `scaffold_exists` ✓\n  - `typescript_contract_tokens` ✓\n  - `typescript_schema_surface` ✓\n  - `typescript_typecheck` ✓\n  - `typescript_lint_smoke` ✓\n  - `typescript_import_smoke` ✓\n\n**Acceptance Criteria:**\n1. ✓ Fresh mission created for this run\n2. ✓ Plan within 1 wave / 2 work packets budget\n3. ✓ Mission launched and produced fresh round artifacts\n4. ✓ Post-run workflow replay infrastructure ready\n\n**Constraints Compliance:**\n1. ✓ Narrow local-only path maintained\n2. ✓ No historical round artifacts reused\n3. ✓ Budget respected (1 wave, 2 packets)\n4. ✓ Only `src/contracts/mission_types.ts` and `src/contracts/artifact_types.ts` touched\n5. ✓ No dashboard runtime changes, test harnesses, or replay engines implemented\n\n**Gate Verdicts:**\n- `acpx-contract-mission-types`: mergeable, scope clean\n- `acpx-contract-artifact-types`: mergeable, scope clean\n\n### Conclusion\nThe declared feature (fresh ACPX TypeScript contract scaffolding) and all directly affected routes have been verified. The contract holds. No deviations detected.",
+  "created_at": "2026-04-04T07:06:24.608953+00:00"
+}

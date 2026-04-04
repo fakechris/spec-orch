@@ -480,6 +480,28 @@ def _required_budget_keys_for_workspace(
     )
 
 
+def _budget_scope_counts(resource_budgets: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    counts: dict[str, dict[str, int]] = {}
+    for item in resource_budgets:
+        runtime_role = str(item.get("subject_kind", "")).strip() or "unknown"
+        budget_state = str(item.get("budget_state", "")).strip() or "unknown"
+        role_counts = counts.setdefault(
+            runtime_role,
+            {"healthy": 0, "constrained": 0, "saturated": 0},
+        )
+        role_counts.setdefault(budget_state, 0)
+        role_counts[budget_state] += 1
+    return counts
+
+
+def _pressure_by_role(pressure_signals: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in pressure_signals:
+        runtime_role = str(item.get("subject_kind", "")).strip() or "unknown"
+        counts[runtime_role] = counts.get(runtime_role, 0) + 1
+    return counts
+
+
 def _build_admission_decisions(
     *,
     active_work: list[ActiveWork],
@@ -697,6 +719,8 @@ def build_execution_substrate_snapshot(repo_root: Path) -> dict[str, Any]:
         "degrade": sum(1 for item in admission_decisions if item.get("decision") == "degrade"),
     }
     pressure_signal_count = len(pressure_signals)
+    budget_scope_counts = _budget_scope_counts(resource_budgets)
+    pressure_by_role = _pressure_by_role(pressure_signals)
     intervention_needed_count = len(
         {item.workspace_id for item in active_work_models if item.health in {"degraded", "failed"}}
         | {item.workspace_id for item in intervention_models if item.outcome == "open"}
@@ -712,6 +736,8 @@ def build_execution_substrate_snapshot(repo_root: Path) -> dict[str, Any]:
         usage_summary["queued_sessions"] = len(queue)
         usage_summary["pressure_signal_count"] = len(pressure_signals)
         usage_summary["admission_decision_counts"] = admission_decision_counts
+        usage_summary["budget_scope_counts"] = budget_scope_counts
+        usage_summary["pressure_by_role"] = pressure_by_role
         activity_summary = runtime.setdefault("activity_summary", {})
         existing_budget_keys = {
             str(item).strip()
@@ -748,6 +774,8 @@ def build_execution_substrate_snapshot(repo_root: Path) -> dict[str, Any]:
         "open_intervention_count": sum(1 for item in intervention_models if item.outcome == "open"),
         "pressure_signal_count": pressure_signal_count,
         "admission_decision_counts": admission_decision_counts,
+        "budget_scope_counts": budget_scope_counts,
+        "pressure_by_role": pressure_by_role,
     }
     return {
         "summary": summary,

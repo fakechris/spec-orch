@@ -1,0 +1,43 @@
+{
+  "round_id": 1,
+  "wave_id": 0,
+  "status": "decided",
+  "started_at": "2026-04-04T04:02:56.347035+00:00",
+  "completed_at": "2026-04-04T04:07:12.816552+00:00",
+  "worker_results": [
+    {
+      "packet_id": "scaffold-mission-types",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404040228-c8f454/workers/scaffold-mission-types/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404040228-c8f454/workers/scaffold-mission-types/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404040228-c8f454/workers/scaffold-mission-types/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404040228-c8f454/workers/scaffold-mission-types/telemetry/activity.log"
+    },
+    {
+      "packet_id": "scaffold-artifact-types",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404040228-c8f454/workers/scaffold-artifact-types/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404040228-c8f454/workers/scaffold-artifact-types/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404040228-c8f454/workers/scaffold-artifact-types/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404040228-c8f454/workers/scaffold-artifact-types/telemetry/activity.log"
+    }
+  ],
+  "decision": {
+    "action": "continue",
+    "reason_code": "all_packets_verified_and_mergeable",
+    "summary": "Round 1 complete. Both scaffold packets (mission_types.ts, artifact_types.ts) produced clean TypeScript contracts with full verification pass. Gate verdicts are mergeable with all-in-scope files. No blocking issues. Wave 0 objective met.",
+    "confidence": 0.97,
+    "affected_workers": [],
+    "artifacts": {},
+    "session_ops": {
+      "reuse": [],
+      "spawn": [],
+      "cancel": []
+    },
+    "blocking_questions": []
+  }
+}

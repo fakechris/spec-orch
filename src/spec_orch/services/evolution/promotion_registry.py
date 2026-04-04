@@ -44,6 +44,7 @@ class PromotionRecord:
     origin_review_ref: str = ""
     promotion_target: str = ""
     promotion_reason: str = ""
+    discipline_verdict: str = "promote"
     status: str = "active"
     created_at: str = ""
     superseded_by: str | None = None
@@ -138,6 +139,7 @@ class PromotionRegistry:
         for record in records:
             if record.asset_key == asset_key and record.status == "active":
                 record.status = "superseded"
+                record.discipline_verdict = "retire"
                 record.superseded_by = promotion_id
         new_record = PromotionRecord(
             promotion_id=promotion_id,
@@ -153,6 +155,7 @@ class PromotionRegistry:
             origin_review_ref=origin_review_ref,
             promotion_target=promotion_target,
             promotion_reason=promotion_reason,
+            discipline_verdict="promote",
             created_at=datetime.now(UTC).isoformat(),
         )
         records.append(new_record)
@@ -165,6 +168,7 @@ class PromotionRegistry:
         for record in records:
             if record.promotion_id == promotion_id:
                 record.status = "rolled_back"
+                record.discipline_verdict = "rollback"
                 record.rollback_reason = reason
                 updated = True
                 break
@@ -178,6 +182,7 @@ class PromotionRegistry:
         for record in records:
             if record.promotion_id == promotion_id:
                 record.status = "retired"
+                record.discipline_verdict = "retire"
                 record.retirement_reason = reason
                 updated = True
                 break

@@ -1,0 +1,16 @@
+{
+  "step_key": "summarize_judgment",
+  "decision": "pass",
+  "outputs": {
+    "judgment_summary": "Mission fresh-acpx-20260404035207-87c533 completed successfully. Both work packets in Wave 0 passed all six verification gates (scaffold_exists, typescript_contract_tokens, typescript_schema_surface, typescript_typecheck, typescript_lint_smoke, typescript_import_smoke). Gate verdicts confirm mergeable=true with no failed conditions and clean scope (only target files touched: src/contracts/mission_types.ts and src/contracts/artifact_types.ts). The mission adhered to all constraints: 1 wave/2 packets budget, local-only execution, fresh artifacts only, and no dashboard/runtime changes. Post-run workflow replay routes were defined for dashboard validation.",
+    "confidence": 0.95,
+    "accept": true,
+    "decline": false,
+    "blocker_count": 0,
+    "warnings": []
+  },
+  "next_transition": "",
+  "warnings": [],
+  "review_markdown": "## Final Judgment: PASS\n\n### Mission\n**ID:** fresh-acpx-20260404035207-87c533  \n**Title:** Fresh ACPX Mission E2E Narrow Smoke\n\n### Verdict\n✅ **APPROVED** — All acceptance criteria met.\n\n### Execution Summary\n| Packet | File Created | Status |\n|--------|-------------|--------|\n| acpx-fresh-0-001 | src/contracts/mission_types.ts | ✅ All 6 gates passed |\n| acpx-fresh-0-002 | src/contracts/artifact_types.ts | ✅ All 6 gates passed |\n\n### Verification Gates (both packets)\n- ✅ scaffold_exists\n- ✅ typescript_contract_tokens\n- ✅ typescript_schema_surface\n- ✅ typescript_typecheck (tsc --noEmit)\n- ✅ typescript_lint_smoke\n- ✅ typescript_import_smoke\n\n### Gate Verdicts\n- **Mergeable:** true\n- **Failed Conditions:** none\n- **Scope Clean:** only allowed files touched\n\n### Constraints Compliance\n| Constraint | Status |\n|------------|--------|\n| Narrow local-only path | ✅ |\n| No historical artifact reuse | ✅ |\n| ≤1 wave, ≤2 packets | ✅ (exactly 1 wave, 2 packets) |\n| Only target contract files | ✅ |\n| No dashboard/runtime changes | ✅ |\n\n### Decision\n**Action:** continue  \n**Reason:** wave_complete  \n**Confidence:** 95%\n\n### Post-Run Workflow\nWorkflow replay routes defined for dashboard validation:\n- Overview, Transcript, Approvals, Visual QA, Costs, Judgment tabs accessible",
+  "created_at": "2026-04-04T04:01:03.687420+00:00"
+}

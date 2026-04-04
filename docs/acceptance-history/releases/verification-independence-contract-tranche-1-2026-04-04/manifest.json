@@ -1,0 +1,41 @@
+{
+  "release_id": "verification-independence-contract-tranche-1-2026-04-04",
+  "release_label": "Verification Independence Contract Tranche 1 2026-04-04",
+  "created_at": "2026-04-04T05:33:30Z",
+  "git_commit": "ece4a57cb5b5274edb6d1bc70120a8a3218cb903",
+  "git_branch": "phase-2-hardening-start",
+  "acceptance_suite_version": "formal-acceptance-v1",
+  "overall_status": "pass",
+  "reported_checks": 4,
+  "total_checks": 4,
+  "checks": {
+    "issue_start": "pass",
+    "dashboard_ui": "pass",
+    "mission_start": "pass",
+    "exploratory": "pass"
+  },
+  "source_runs": {
+    "issue_start": "SPC-1",
+    "mission_start": "fresh-acpx-20260404045002-8dc499",
+    "dashboard_ui": "dashboard-ui-local",
+    "exploratory": "fresh-acpx-20260404052351-a4c9bd"
+  },
+  "artifacts": {
+    "status_json": ".spec_orch/acceptance/stability_acceptance_status.json",
+    "status_markdown": "docs/plans/2026-03-30-stability-acceptance-status.md",
+    "summary_markdown": "docs/acceptance-history/releases/verification-independence-contract-tranche-1-2026-04-04/summary.md",
+    "findings_json": "docs/acceptance-history/releases/verification-independence-contract-tranche-1-2026-04-04/findings.json",
+    "source_runs_json": "docs/acceptance-history/releases/verification-independence-contract-tranche-1-2026-04-04/source_runs.json",
+    "artifacts_json": "docs/acceptance-history/releases/verification-independence-contract-tranche-1-2026-04-04/artifacts.json",
+    "status_bundle_json": "docs/acceptance-history/releases/verification-independence-contract-tranche-1-2026-04-04/status.json"
+  },
+  "lineage": {
+    "program": "phase-2-hardening",
+    "notes": [
+      "This bundle captures Task 2 of phase-2 hardening by making verifier-versus-implementer provenance explicit in evidence bundles, judgment carriers, and orchestration artifacts.",
+      "Acceptance/browser evidence, acceptance evaluator normalization, and round orchestration now preserve independent verification semantics instead of letting implementation-originated artifacts silently self-certify the same run.",
+      "Source-run compare versus memory-context-layering-contract-tranche-1-2026-04-04: issue_start stayed on SPC-1; dashboard_ui stayed on dashboard-ui-local; mission_start advanced to fresh-acpx-20260404045002-8dc499; exploratory advanced to fresh-acpx-20260404052351-a4c9bd.",
+      "Closeout also fixed the acceptance closeout discipline itself by rerunning mission_start and exploratory serially after rejecting a polluted parallel attempt that bound both harnesses to the same fresh mission id."
+    ]
+  }
+}

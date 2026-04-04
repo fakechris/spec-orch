@@ -1,0 +1,43 @@
+{
+  "round_id": 1,
+  "wave_id": 0,
+  "status": "decided",
+  "started_at": "2026-04-04T03:52:30.916056+00:00",
+  "completed_at": "2026-04-04T03:56:21.998009+00:00",
+  "worker_results": [
+    {
+      "packet_id": "acpx-fresh-0-001",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-001/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-001/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-001/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-001/telemetry/activity.log"
+    },
+    {
+      "packet_id": "acpx-fresh-0-002",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-002/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-002/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-002/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-002/telemetry/activity.log"
+    }
+  ],
+  "decision": {
+    "action": "retry",
+    "reason_code": "scope_contamination_retryable",
+    "summary": "acpx-fresh-0-001 passed gate (mergeable=true, scope=clean). acpx-fresh-0-002 passed all verification but gate blocked due to out-of-scope file: telemetry/events.jsonl. The contract artifact artifact_types.ts is correct; only the scope guard failed. Retry with tighter scope enforcement or suppressed agent telemetry logging.",
+    "confidence": 0.85,
+    "affected_workers": [],
+    "artifacts": {},
+    "session_ops": {
+      "reuse": [],
+      "spawn": [],
+      "cancel": []
+    },
+    "blocking_questions": []
+  }
+}

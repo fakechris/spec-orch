@@ -332,6 +332,23 @@ class MemoryService:
             )
         return journal
 
+    def get_context_layer_payloads(self) -> dict[str, dict[str, Any]]:
+        return {
+            "evidence": {
+                "reviewed_acceptance_findings": self.get_reviewed_acceptance_findings(),
+            },
+            "archive_lineage": {
+                "recent_evolution_journal": self.get_recent_evolution_journal(),
+            },
+            "promoted_learning": {
+                "active_self_learnings": self.get_active_learning_slice("self"),
+                "active_delivery_learnings": self.get_active_learning_slice("delivery"),
+                "active_feedback_learnings": self.get_active_learning_slice("feedback"),
+                "reviewed_decision_failures": self.get_reviewed_decision_failures(),
+                "reviewed_decision_recipes": self.get_reviewed_decision_recipes(),
+            },
+        }
+
     def get_learning_memory_refs(self, mission_id: str) -> list[dict[str, Any]]:
         refs: list[dict[str, Any]] = []
         for kind in ("self", "delivery", "feedback"):

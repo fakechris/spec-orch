@@ -1,0 +1,101 @@
+{
+  "step_key": "route_replay",
+  "decision": "continue",
+  "outputs": {
+    "route_replay_results": {
+      "replay_type": "workflow_replay",
+      "round_id": 2,
+      "wave_id": 0,
+      "status": "replay_complete",
+      "review_routes_validated": [
+        "/?mission=fresh-acpx-20260404035207-87c533&mode=missions&tab=overview",
+        "/?mission=fresh-acpx-20260404035207-87c533&mode=missions&tab=transcript&round=2",
+        "/?mission=fresh-acpx-20260404035207-87c533&mode=missions&tab=approvals&round=2",
+        "/?mission=fresh-acpx-20260404035207-87c533&mode=missions&tab=visual&round=2",
+        "/?mission=fresh-acpx-20260404035207-87c533&mode=missions&tab=costs&round=2",
+        "/?mission=fresh-acpx-20260404035207-87c533&mode=missions&tab=judgment&round=2"
+      ],
+      "workflow_assertions_validated": [
+        "launcher panel can be opened from the header",
+        "needs attention mode can be selected from mission control",
+        "missions mode can be selected from mission control",
+        "decision queue mode can be selected from mission control",
+        "deep evidence mode can be selected from mission control",
+        "the target mission can be selected from the mission list",
+        "the transcript tab can be opened from mission detail",
+        "the approvals surface exposes actionable operator controls when present",
+        "the visual QA tab can be opened from mission detail",
+        "the judgment tab can be opened from mission detail",
+        "the costs tab can be opened from mission detail"
+      ],
+      "contract_evidence_captured": {
+        "fresh_execution_proof": {
+          "proof_type": "fresh_execution",
+          "mission_id": "fresh-acpx-20260404035207-87c533",
+          "builder_execution_summary": {
+            "packet_001": {
+              "packet_id": "acpx-fresh-0-001",
+              "adapter": "acpx_worker",
+              "agent": "opencode",
+              "succeeded": true,
+              "verification_outputs": {
+                "scaffold_exists": true,
+                "typescript_contract_tokens": true,
+                "typescript_schema_surface": true,
+                "typescript_typecheck": true,
+                "typescript_lint_smoke": true,
+                "typescript_import_smoke": true
+              },
+              "gate_verdict": {
+                "mergeable": true,
+                "failed_conditions": [],
+                "scope": {
+                  "allowed_files": [
+                    "src/contracts/mission_types.ts"
+                  ],
+                  "all_in_scope": true
+                }
+              }
+            },
+            "packet_002": {
+              "packet_id": "acpx-fresh-0-002",
+              "adapter": "acpx_worker",
+              "agent": "opencode",
+              "succeeded": true,
+              "verification_outputs": {
+                "scaffold_exists": true,
+                "typescript_contract_tokens": true,
+                "typescript_schema_surface": true,
+                "typescript_typecheck": true,
+                "typescript_lint_smoke": true,
+                "typescript_import_smoke": true
+              },
+              "gate_verdict": {
+                "mergeable": true,
+                "failed_conditions": [],
+                "scope": {
+                  "allowed_files": [
+                    "src/contracts/artifact_types.ts"
+                  ],
+                  "all_in_scope": true
+                }
+              }
+            }
+          }
+        },
+        "artifact_manifest": [
+          "workers/acpx-fresh-0-001/builder_report.json",
+          "workers/acpx-fresh-0-001/src/contracts/mission_types.ts",
+          "workers/acpx-fresh-0-002/builder_report.json",
+          "workers/acpx-fresh-0-002/src/contracts/artifact_types.ts"
+        ]
+      },
+      "wave_complete": true,
+      "mission_complete": true
+    }
+  },
+  "next_transition": "advance_to_mission_completion",
+  "warnings": [],
+  "review_markdown": "## Route Replay Step Complete\n\n### Summary\nThe declared post-run workflow routes have been validated and contract evidence captured.\n\n### Fresh Execution Contract Evidence\n- **Mission**: fresh-acpx-20260404035207-87c533\n- **Wave**: 0 (complete)\n- **Round**: 2 (final)\n- **Result**: All packets passed\n\n### Contract Verification Results\n\n| Packet | Scaffold | Tokens | Schema | Typecheck | Lint | Import | Mergeable |\n|--------|----------|--------|--------|-----------|------|--------|----------|\n| acpx-fresh-0-001 (mission_types.ts) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |\n| acpx-fresh-0-002 (artifact_types.ts) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |\n\n### Scope Compliance\n- **Packet 001**: Only touched `src/contracts/mission_types.ts` ✓\n- **Packet 002**: Only touched `src/contracts/artifact_types.ts` ✓\n\n### Workflow Replay Validation\nAll declared review routes confirmed accessible:\n- overview, transcript, approvals, visual_qa, costs, judgment tabs\n- All 11 workflow assertions validated\n\n### Decision\n**continue** → advancing to mission completion workflow\n\n### Evidence Captured\n- Round artifacts manifest (4 items)\n- Builder execution reports for both packets\n- Gate verdicts confirming mergeable state\n- Full verification step results for TypeScript contract validation",
+  "created_at": "2026-04-04T04:00:31.061789+00:00"
+}

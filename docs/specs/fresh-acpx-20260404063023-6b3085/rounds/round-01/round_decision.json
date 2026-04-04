@@ -1,0 +1,14 @@
+{
+  "action": "continue",
+  "reason_code": "all_packets_verified_and_merged",
+  "summary": "Wave 0 complete. Both scaffold-mission-types and scaffold-artifact-types passed all verification checks including TypeScript compilation, import validation, and scope compliance. Gates merged cleanly. Mission is ready to advance to post-run replay validation.",
+  "confidence": 0.98,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

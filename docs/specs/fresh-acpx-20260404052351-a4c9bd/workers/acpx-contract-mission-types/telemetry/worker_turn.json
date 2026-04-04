@@ -1,0 +1,16 @@
+{
+  "session_name": "mission-fresh-acpx-20260404052351-a4c9bd-acpx-contract-mission-types",
+  "terminal_reason": "process_exit_success",
+  "succeeded": true,
+  "retry_count": 0,
+  "event_count": 124,
+  "commands_completed": 9,
+  "files_changed": [
+    "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404052351-a4c9bd/workers/acpx-contract-mission-types/src/contracts/mission_types.ts"
+  ],
+  "session_reused": false,
+  "session_health": "healthy",
+  "chain_id": "chain_fresh-acpx-20260404052351-a4c9bd_20260404T052408Z_5ab18a15",
+  "span_id": "chain_fresh-acpx-20260404052351-a4c9bd_20260404T052408Z_5ab18a15:round:01:packet:acpx-contract-mission-types:worker",
+  "parent_span_id": "chain_fresh-acpx-20260404052351-a4c9bd_20260404T052408Z_5ab18a15:round:01:packet:acpx-contract-mission-types"
+}

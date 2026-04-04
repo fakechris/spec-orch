@@ -1,0 +1,14 @@
+{
+  "action": "continue",
+  "reason_code": "round_complete_clean",
+  "summary": "Wave 0 scaffold complete. Both contract files (mission_types.ts, artifact_types.ts) created, type-checked, linted, and import-tested successfully. All 6 verification steps passed per packet. Gate verdicts are mergeable with correct scope. Constraints satisfied. Ready to advance to next wave or conclude.",
+  "confidence": 0.99,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

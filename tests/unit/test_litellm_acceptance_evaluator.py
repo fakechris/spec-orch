@@ -226,7 +226,10 @@ Transcript flow is usable, but transcript entry remains weak for operators.
     assert result.findings[0].summary == "Transcript entry is weak"
     assert result.issue_proposals
     assert result.issue_proposals[0].title == "Clarify transcript entry point"
-    assert result.artifacts == {}
+    assert result.artifacts == {
+        "review_producer_role": "verifier",
+        "verification_origin": "independent_verifier",
+    }
 
 
 def test_acceptance_evaluator_skips_unusable_primary_profile(tmp_path: Path) -> None:

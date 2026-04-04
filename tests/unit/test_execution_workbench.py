@@ -193,18 +193,19 @@ def test_build_mission_execution_workbench_surfaces_workspace_local_execution_st
 
     payload = build_mission_execution_workbench(tmp_path, mission_id, ["resume", "stop", "rerun"])
 
-    assert payload["overview"] == {
-        "active_work_count": 1,
-        "queued_count": 1,
-        "open_intervention_count": 1,
-        "runtime_count": 1,
-        "agent_count": 1,
-        "pressure_signal_count": 1,
-        "admission_decision_count": 2,
-        "current_phase": "heartbeat",
-        "current_health": "active",
-        "last_event_summary": "acceptance_waiting_on_model",
-    }
+    assert payload["overview"]["active_work_count"] == 1
+    assert payload["overview"]["queued_count"] == 1
+    assert payload["overview"]["open_intervention_count"] == 1
+    assert payload["overview"]["runtime_count"] == 1
+    assert payload["overview"]["agent_count"] == 1
+    assert payload["overview"]["pressure_signal_count"] == 1
+    assert payload["overview"]["admission_decision_count"] == 2
+    assert payload["overview"]["budget_scope_counts"]["runtime_step"]["saturated"] == 1
+    assert payload["overview"]["pressure_by_role"]["runtime_step"] == 1
+    assert payload["overview"]["posture_reasons"] == ["waiting_for_operator_review"]
+    assert payload["overview"]["current_phase"] == "heartbeat"
+    assert payload["overview"]["current_health"] == "active"
+    assert payload["overview"]["last_event_summary"] == "acceptance_waiting_on_model"
     assert payload["active_work"][0]["workspace_id"] == mission_id
     assert payload["active_work"][0]["phase"] == "heartbeat"
     assert payload["event_trail"][0]["event_type"] == "started"
@@ -401,13 +402,13 @@ def test_build_execution_workbench_surfaces_global_active_work_agents_and_runtim
 
     payload = build_execution_workbench(tmp_path)
 
-    assert payload["summary"] == {
-        "running_count": 1,
-        "queued_count": 1,
-        "stalled_count": 1,
-        "degraded_runtime_count": 1,
-        "intervention_needed_count": 2,
-    }
+    assert payload["summary"]["running_count"] == 1
+    assert payload["summary"]["queued_count"] == 1
+    assert payload["summary"]["stalled_count"] == 1
+    assert payload["summary"]["degraded_runtime_count"] == 1
+    assert payload["summary"]["intervention_needed_count"] == 2
+    assert payload["summary"]["budget_scope_counts"]["runtime_step"]["saturated"] == 1
+    assert payload["summary"]["pressure_by_role"]["runtime_step"] == 1
     assert len(payload["active_work"]) == 2
     assert any(item["workspace_id"] == mission_id for item in payload["active_work"])
     assert any(item["workspace_id"] == "SPC-384" for item in payload["active_work"])
@@ -451,7 +452,42 @@ def test_build_mission_execution_workbench_includes_governor_admission_state(
     assert payload["overview"]["queued_count"] == 1
     assert payload["overview"]["pressure_signal_count"] == 1
     assert payload["overview"]["admission_decision_count"] == 1
+    assert payload["overview"]["budget_scope_counts"]["daemon"]["saturated"] == 1
+    assert payload["overview"]["pressure_by_role"]["daemon"] == 1
     assert payload["queue"][0]["queue_name"] == "daemon_admission"
     assert payload["resource_budgets"][0]["budget_key"] == "daemon:max_concurrent"
     assert payload["pressure_signals"][0]["pressure_kind"] == "concurrency"
     assert payload["admission_decisions"][0]["decision"] == "defer"
+
+
+def test_build_mission_execution_workbench_surfaces_verifier_degrade_posture(
+    tmp_path: Path,
+) -> None:
+    from spec_orch.services.admission_governor import AdmissionGovernor
+    from spec_orch.services.execution_workbench import build_mission_execution_workbench
+
+    mission_id = "mission-verifier-pressure"
+    mission_root = tmp_path / "docs" / "specs" / mission_id
+    mission_root.mkdir(parents=True)
+
+    governor = AdmissionGovernor(tmp_path, max_concurrent=2, verifier_max_concurrent=1)
+    governor.record_decision(
+        governor.evaluate_issue(
+            mission_id,
+            workspace_id=mission_id,
+            in_progress_count=0,
+            mission_in_progress_count=0,
+            worker_in_progress_count=0,
+            verifier_in_progress_count=1,
+            is_hotfix=False,
+            recorded_at="2026-04-03T10:30:00+00:00",
+        )
+    )
+
+    payload = build_mission_execution_workbench(tmp_path, mission_id, ["resume"])
+
+    assert payload["overview"]["admission_decision_count"] == 1
+    assert payload["overview"]["budget_scope_counts"]["verifier"]["saturated"] == 1
+    assert payload["overview"]["pressure_by_role"]["verifier"] == 1
+    assert payload["overview"]["posture_reasons"] == ["verifier_capacity_limit"]
+    assert payload["admission_decisions"][0]["decision"] == "degrade"

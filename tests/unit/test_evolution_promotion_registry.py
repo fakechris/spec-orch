@@ -65,7 +65,9 @@ def test_register_promotion_supersedes_prior_active_asset(tmp_path: Path) -> Non
     new = next(r for r in records if r.promotion_id == second.promotion_id)
     assert old.status == "superseded"
     assert old.superseded_by == new.promotion_id
+    assert old.discipline_verdict == "retire"
     assert new.status == "active"
+    assert new.discipline_verdict == "promote"
 
 
 def test_rollback_marks_record_and_preserves_reason(tmp_path: Path) -> None:
@@ -84,6 +86,7 @@ def test_rollback_marks_record_and_preserves_reason(tmp_path: Path) -> None:
     rolled_back = registry.get(promotion.promotion_id)
     assert rolled_back is not None
     assert rolled_back.status == "rolled_back"
+    assert rolled_back.discipline_verdict == "rollback"
     assert rolled_back.rollback_reason == "false positive calibration drift"
 
 
@@ -106,6 +109,7 @@ def test_record_promotion_preserves_review_lineage_fields(tmp_path: Path) -> Non
     assert promotion.origin_review_ref == "proposal:learning-1"
     assert promotion.promotion_target == "EvolutionProposalRef"
     assert promotion.promotion_reason == "Repeated reviewed transcript replay evidence."
+    assert promotion.discipline_verdict == "promote"
 
 
 def test_retire_marks_record_and_preserves_reason(tmp_path: Path) -> None:
@@ -125,4 +129,5 @@ def test_retire_marks_record_and_preserves_reason(tmp_path: Path) -> None:
     retired = registry.get(promotion.promotion_id)
     assert retired is not None
     assert retired.status == "retired"
+    assert retired.discipline_verdict == "retire"
     assert retired.retirement_reason == "Superseded by fixture replay bundle"

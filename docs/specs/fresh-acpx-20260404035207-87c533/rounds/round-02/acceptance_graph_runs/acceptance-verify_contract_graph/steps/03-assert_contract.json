@@ -1,0 +1,68 @@
+{
+  "step_key": "assert_contract",
+  "decision": "assertion_passed",
+  "outputs": {
+    "contract_verdict": "holds",
+    "assertion_details": {
+      "acceptance_criteria_status": {
+        "fresh_mission_creatable": true,
+        "plan_within_budget": true,
+        "mission_launched": true,
+        "fresh_round_artifacts_produced": true
+      },
+      "constraint_compliance": {
+        "local_only_path": true,
+        "no_historical_artifact_reuse": true,
+        "budget_respected": true,
+        "scope_confined_to_contracts": true,
+        "no_dashboard_runtime_changes": true
+      },
+      "wave_packet_structure": {
+        "waves": 1,
+        "packets": 2,
+        "wave_0_complete": true
+      },
+      "gate_verdicts": {
+        "acpx-fresh-0-001": {
+          "mergeable": true,
+          "failed_conditions": [],
+          "scope_clean": true
+        },
+        "acpx-fresh-0-002": {
+          "mergeable": true,
+          "failed_conditions": [],
+          "scope_clean": true
+        }
+      },
+      "verification_step_results": {
+        "acpx-fresh-0-001": {
+          "scaffold_exists": true,
+          "typescript_contract_tokens": true,
+          "typescript_schema_surface": true,
+          "typescript_typecheck": true,
+          "typescript_lint_smoke": true,
+          "typescript_import_smoke": true,
+          "all_passed": true
+        },
+        "acpx-fresh-0-002": {
+          "scaffold_exists": true,
+          "typescript_contract_tokens": true,
+          "typescript_schema_surface": true,
+          "typescript_typecheck": true,
+          "typescript_lint_smoke": true,
+          "typescript_import_smoke": true,
+          "all_passed": true
+        }
+      }
+    },
+    "round_2_decision": {
+      "action": "continue",
+      "reason_code": "wave_complete",
+      "summary": "Wave 0 complete. Both packets passed all six verification steps and gate checks."
+    }
+  },
+  "next_transition": "proceed_to_workflow_replay",
+  "warnings": [],
+  "review_markdown": "## Contract Assertion: PASSED\n\nThe Fresh ACPX Mission E2E Narrow Smoke contract **holds** after Round 2 execution.\n\n### Verification Summary\n\n| Criterion | Status |\n|-----------|--------|\n| Fresh mission can be created | ✅ |\n| Plan within 1 wave, 2 packets | ✅ |\n| Mission launched | ✅ |\n| Fresh round artifacts produced | ✅ |\n\n### Worker Results\n\n| Packet | Verification | Gate | Scope |\n|--------|--------------|------|-------|\n| acpx-fresh-0-001 | 6/6 passed | mergeable | clean |\n| acpx-fresh-0-002 | 6/6 passed | mergeable | clean |\n\n### Constraints Compliance\n\n- ✅ Local-only path maintained\n- ✅ No historical artifact reuse\n- ✅ Budget respected (1 wave, 2 packets)\n- ✅ Only touched contract files in worker workspaces\n- ✅ No dashboard/runtime changes implemented\n\n### Next Action\n\nProceed to workflow_replay phase to validate the post-run dashboard surfaces per the mission's post_run_campaign specification.",
+  "created_at": "2026-04-04T04:00:47.851568+00:00"
+}

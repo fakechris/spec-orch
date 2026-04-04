@@ -287,6 +287,9 @@ class TestDashboardAPI:
             "compare_active_count": 1,
             "structural_regression_count": 0,
             "bottlenecked_workspace_count": 1,
+            "structural_rule_family_counts": {
+                "candidate_repro": 1,
+            },
         }
         assert global_payload["review_route"] == "/?mode=judgment"
         assert global_payload["workspaces"][0]["workspace_id"] == mission_id
@@ -295,6 +298,8 @@ class TestDashboardAPI:
                 "workspace_id": mission_id,
                 "quality_signal": "watch",
                 "bottleneck": "candidate_repro_pending",
+                "primary_rule_family": "candidate_repro",
+                "signal_summary": "3 rule(s) active across coverage, candidate_repro, baseline_diff.",
                 "rule_violation_count": 3,
                 "baseline_ref": "fixture:dashboard-transcript-baseline",
                 "review_route": f"/?mission={mission_id}&mode=missions&tab=judgment",
@@ -352,6 +357,13 @@ class TestDashboardAPI:
             "active_promotion_count": 1,
             "archive_release_count": 1,
             "linked_release_count": 1,
+            "verdict_counts": {
+                "promote": 1,
+                "keep": 0,
+                "discard": 0,
+                "rollback": 0,
+                "retire": 0,
+            },
         }
         assert global_payload["review_route"] == "/?mode=learning"
         assert global_payload["workspaces"][0]["workspace_id"] == mission_id
@@ -363,7 +375,10 @@ class TestDashboardAPI:
         assert mission_payload["mission_id"] == mission_id
         assert mission_payload["overview"]["promoted_finding_count"] == 1
         assert mission_payload["promotion_policy"]["summary"]["promote_count"] == 1
+        assert mission_payload["promotion_policy"]["summary"]["verdict_counts"]["promote"] == 1
+        assert mission_payload["promotion_policy"]["decisions"][0]["verdict"] == "promote"
         assert mission_payload["promotion_timeline"][0]["proposal_id"] == "proposal-1"
+        assert mission_payload["promotion_timeline"][0]["discipline_verdict"] == "promote"
         assert (
             mission_payload["promotion_timeline"][0]["origin_finding_ref"] == "candidate:learning-1"
         )
@@ -383,6 +398,9 @@ class TestDashboardAPI:
             ]
             == 1
         )
+        assert detail_payload["learning_workbench"]["archive_lineage"]["raw_release_ids"] == [
+            "judgment-workbench-tranche-son-390-2026-04-03"
+        ]
         assert detail_payload["learning_workbench"]["patterns"][0]["dedupe_key"] == (
             "dashboard:transcript-continuity"
         )
@@ -824,6 +842,10 @@ class TestDashboardAPI:
         }
         assert data["latest_review"]["evidence_panel"] == {
             "bundle_kind": "acceptance_review",
+            "verification_origin": "independent_verifier",
+            "independence_status": "independent",
+            "verifier_artifact_count": 4,
+            "implementer_artifact_count": 0,
             "route_count": 2,
             "step_count": 2,
             "artifact_count": 4,
@@ -869,6 +891,28 @@ class TestDashboardAPI:
                 "baseline_ref": "",
                 "artifact_drift_count": 0,
                 "drift_status": "not_compared",
+                "drift_summary": "No comparison baseline was active.",
+                "drift_hotspots": [],
+            },
+            "rule_family_counts": {
+                "semantic_review": 1,
+                "coverage": 1,
+                "candidate_repro": 0,
+                "baseline_diff": 0,
+                "evidence": 0,
+            },
+            "bottleneck_breakdown": {
+                "primary": "confirmed_issue",
+                "primary_rule": "review_failed",
+                "primary_rule_family": "semantic_review",
+                "blocking_rules": ["review_failed"],
+                "supporting_rules": ["coverage_incomplete"],
+            },
+            "structural_signal_summary": {
+                "active_rule_count": 2,
+                "active_family_count": 2,
+                "primary_rule_family": "semantic_review",
+                "signal_summary": "2 rule(s) active across semantic_review, coverage.",
             },
             "current_state": {
                 "review_status": "fail",
@@ -4537,13 +4581,13 @@ class TestDashboardAPI:
 
         assert response.status_code == 200
         payload = response.json()
-        assert payload["summary"] == {
-            "running_count": 1,
-            "queued_count": 1,
-            "stalled_count": 1,
-            "degraded_runtime_count": 1,
-            "intervention_needed_count": 2,
-        }
+        assert payload["summary"]["running_count"] == 1
+        assert payload["summary"]["queued_count"] == 1
+        assert payload["summary"]["stalled_count"] == 1
+        assert payload["summary"]["degraded_runtime_count"] == 1
+        assert payload["summary"]["intervention_needed_count"] == 2
+        assert payload["summary"]["budget_scope_counts"]["runtime_step"]["saturated"] == 1
+        assert payload["summary"]["pressure_by_role"]["runtime_step"] == 1
         assert len(payload["active_work"]) == 2
         assert {item["agent_id"] for item in payload["agents"]} == {
             "acceptance_evaluator",
@@ -4868,6 +4912,8 @@ class TestDashboardAPI:
         assert substrate["resource_budgets"][0]["budget_state"] == "saturated"
         assert substrate["pressure_signals"][0]["pressure_kind"] == "concurrency"
         assert substrate["admission_decisions"][0]["decision"] == "defer"
+        assert substrate["summary"]["budget_scope_counts"]["daemon"]["saturated"] == 1
+        assert substrate["summary"]["pressure_by_role"]["daemon"] == 1
 
     def test_mission_execution_workbench_endpoint_includes_admission_posture(
         self,
@@ -4917,6 +4963,8 @@ class TestDashboardAPI:
         assert execution_payload["overview"]["queued_count"] == 1
         assert execution_payload["overview"]["pressure_signal_count"] == 1
         assert execution_payload["overview"]["admission_decision_count"] == 1
+        assert execution_payload["overview"]["budget_scope_counts"]["daemon"]["saturated"] == 1
+        assert execution_payload["overview"]["pressure_by_role"]["daemon"] == 1
         assert execution_payload["queue"][0]["queue_name"] == "daemon_admission"
         assert execution_payload["resource_budgets"][0]["budget_key"] == "daemon:max_concurrent"
         assert execution_payload["pressure_signals"][0]["pressure_kind"] == "concurrency"

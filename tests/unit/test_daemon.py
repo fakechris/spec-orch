@@ -488,7 +488,19 @@ def test_daemon_poll_and_run_defers_issue_when_admission_budget_is_saturated(
     snapshot = load_admission_governor_snapshot(tmp_path)
     assert snapshot["admission_decisions"][0]["subject_id"] == "SPC-412"
     assert snapshot["admission_decisions"][0]["decision"] == "defer"
+    assert snapshot["admission_decisions"][0]["required_budgets"] == [
+        "daemon:max_concurrent",
+        "mission:max_concurrent",
+        "worker:max_concurrent",
+        "verifier:max_concurrent",
+    ]
     assert snapshot["queue"][0]["queue_name"] == "daemon_admission"
+    assert {item["subject_kind"] for item in snapshot["resource_budgets"]} == {
+        "daemon",
+        "mission",
+        "worker",
+        "verifier",
+    }
 
 
 def test_daemon_auto_create_pr(tmp_path: Path) -> None:

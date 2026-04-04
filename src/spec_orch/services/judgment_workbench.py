@@ -127,6 +127,18 @@ def build_judgment_workbench(repo_root: Path) -> dict[str, Any]:
                 "evidence_summary": overview.get("evidence_summary", ""),
                 "quality_signal": str(structural_judgment.get("quality_signal", "")),
                 "bottleneck": str(structural_judgment.get("bottleneck", "")),
+                "primary_rule_family": str(
+                    structural_judgment.get("structural_signal_summary", {}).get(
+                        "primary_rule_family",
+                        "",
+                    )
+                ),
+                "signal_summary": str(
+                    structural_judgment.get("structural_signal_summary", {}).get(
+                        "signal_summary",
+                        "",
+                    )
+                ),
                 "candidate_finding_ids": [
                     str(item.get("candidate_finding", {}).get("candidate_finding_id", ""))
                     for item in candidate_findings
@@ -163,6 +175,18 @@ def build_judgment_workbench(repo_root: Path) -> dict[str, Any]:
                         "workspace_id": mission_id,
                         "quality_signal": str(structural_judgment.get("quality_signal", "")),
                         "bottleneck": str(structural_judgment.get("bottleneck", "")),
+                        "primary_rule_family": str(
+                            structural_judgment.get("structural_signal_summary", {}).get(
+                                "primary_rule_family",
+                                "",
+                            )
+                        ),
+                        "signal_summary": str(
+                            structural_judgment.get("structural_signal_summary", {}).get(
+                                "signal_summary",
+                                "",
+                            )
+                        ),
                         "rule_violation_count": len(
                             structural_judgment.get("rule_violations", [])
                             if isinstance(structural_judgment.get("rule_violations", []), list)
@@ -175,6 +199,11 @@ def build_judgment_workbench(repo_root: Path) -> dict[str, Any]:
                     }
                 )
 
+    structural_rule_family_counts: dict[str, int] = {}
+    for item in structural_watch:
+        family = str(item.get("primary_rule_family", "")).strip()
+        if family:
+            structural_rule_family_counts[family] = structural_rule_family_counts.get(family, 0) + 1
     summary = {
         "workspace_count": len(workspaces),
         "reviewed_count": len(workspaces),
@@ -193,6 +222,7 @@ def build_judgment_workbench(repo_root: Path) -> dict[str, Any]:
         "bottlenecked_workspace_count": sum(
             1 for item in workspaces if str(item.get("bottleneck", "")) not in {"", "none"}
         ),
+        "structural_rule_family_counts": structural_rule_family_counts,
     }
     return {
         "summary": summary,

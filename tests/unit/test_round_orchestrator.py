@@ -2718,6 +2718,8 @@ def test_collect_artifacts_records_verification_gate_and_manifest_paths(tmp_path
     assert artifacts.verification_outputs
     assert artifacts.verification_outputs[0]["packet_id"] == "pkt-1"
     assert artifacts.verification_outputs[0]["all_passed"] is True
+    assert artifacts.verification_outputs[0]["producer_role"] == "verifier"
+    assert artifacts.builder_reports[0]["producer_role"] == "implementer"
     assert artifacts.gate_verdicts
     assert artifacts.gate_verdicts[0]["packet_id"] == "pkt-1"
     assert artifacts.gate_verdicts[0]["mergeable"] is True

@@ -1,0 +1,14 @@
+{
+  "run_id": "acceptance-verify_contract_graph",
+  "mission_id": "fresh-acpx-20260404035207-87c533",
+  "round_id": 2,
+  "graph_profile": "verify_contract_graph",
+  "step_keys": [
+    "contract_brief",
+    "route_replay",
+    "assert_contract",
+    "summarize_judgment"
+  ],
+  "compare_overlay": false,
+  "created_at": "2026-04-04T03:59:47.366047+00:00"
+}

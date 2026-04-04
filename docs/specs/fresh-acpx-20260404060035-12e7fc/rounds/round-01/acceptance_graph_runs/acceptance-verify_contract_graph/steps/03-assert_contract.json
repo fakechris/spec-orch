@@ -1,0 +1,39 @@
+{
+  "step_key": "assert_contract",
+  "decision": "contract_holds",
+  "outputs": {
+    "assertion_result": "pass",
+    "acceptance_criteria_status": {
+      "fresh_mission_created": true,
+      "plan_within_budget": true,
+      "mission_launched_with_artifacts": true,
+      "post_run_replay_validated": "pending"
+    },
+    "constraints_status": {
+      "local_only": true,
+      "no_historical_artifacts": true,
+      "max_1_wave_2_packets": true,
+      "scope_respected": true,
+      "no_dashboard_runtime_changes": true
+    },
+    "gate_verdicts": [
+      {
+        "packet_id": "acpx-fresh-scaffold-mission-types",
+        "mergeable": true,
+        "all_in_scope": true
+      },
+      {
+        "packet_id": "acpx-fresh-scaffold-artifact-types",
+        "mergeable": true,
+        "all_in_scope": true
+      }
+    ],
+    "verification_summary": "Both workers succeeded with all 6 verification steps passing (scaffold_exists, typescript_contract_tokens, typescript_schema_surface, typescript_typecheck, typescript_lint_smoke, typescript_import_smoke). Gate verdicts confirm mergeable scope. Contract obligations for this round are fully satisfied. Post-run workflow replay is a subsequent phase and is not yet evaluated."
+  },
+  "next_transition": "advance_to_workflow_replay",
+  "warnings": [
+    "Post-run workflow replay phase has not yet been executed; the acceptance criterion 'Post-run workflow replay can validate the resulting dashboard surfaces' remains pending and will be asserted in the next graph step."
+  ],
+  "review_markdown": "## Contract Assertion: ✅ Holds\n\n### Acceptance Criteria Review\n| Criterion | Status |\n|-----------|--------|\n| A fresh mission can be created for this run. | ✅ Mission `fresh-acpx-20260404060035-12e7fc` was created and launched |\n| The plan stays within one wave and at most two work packets. | ✅ Wave 0 with exactly 2 packets |\n| The mission can be launched and produce fresh round artifacts. | ✅ Both builder reports succeeded; round artifacts present |\n| Post-run workflow replay can validate the resulting dashboard surfaces. | ⏳ Pending (workflow replay step not yet executed) |\n\n### Constraints Review\n| Constraint | Status |\n|------------|--------|\n| Keep first fresh mission path narrow and local-only. | ✅ |\n| Do not reuse historical round artifacts as fresh proof. | ✅ |\n| Plan budget: at most 1 wave and at most 2 work packets. | ✅ |\n| Only touch `src/contracts/mission_types.ts` and `src/contracts/artifact_types.ts` inside worker workspaces. | ✅ Both gate verdicts confirm realized_files matches allowed_files exactly |\n| No dashboard runtime changes, test harnesses, or replay engines. | ✅ |\n\n### Gate Verdicts\n- `acpx-fresh-scaffold-mission-types`: **mergeable** — `src/contracts/mission_types.ts` only, all_in_scope=true\n- `acpx-fresh-scaffold-artifact-types`: **mergeable** — `src/contracts/artifact_types.ts` only, all_in_scope=true\n\n**Conclusion**: The contract for the fresh execution phase holds. The mission created two contract files in isolated worker workspaces, both passing type-check, lint, and import smoke tests. No scope violations were detected. The final acceptance criterion regarding post-run workflow replay will be asserted in the workflow replay step.",
+  "created_at": "2026-04-04T06:05:07.606650+00:00"
+}

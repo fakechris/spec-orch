@@ -15,10 +15,13 @@ from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.context import (
+    ArchiveLineageContext,
     ContextBundle,
+    EvidenceContext,
     ExecutionContext,
     LearningContext,
     NodeContextSpec,
+    PromotedLearningContext,
     TaskContext,
 )
 from spec_orch.domain.models import (
@@ -102,6 +105,9 @@ class ContextAssembler:
             issue_title=issue.title,
             issue_summary=issue.summary,
         )
+        evidence_ctx = self._build_evidence_context(learn_ctx, memory)
+        archive_ctx = self._build_archive_lineage_context(learn_ctx, memory)
+        promoted_ctx = self._build_promoted_learning_context(learn_ctx, memory)
 
         contexts: dict[str, Any] = {
             "task": task_ctx,
@@ -113,7 +119,14 @@ class ContextAssembler:
             ranked = ContextRanker.allocate(sections, budget)
             self._apply_ranked_budget(contexts, ranked)
 
-        return ContextBundle(task=task_ctx, execution=exec_ctx, learning=learn_ctx)
+        return ContextBundle(
+            task=task_ctx,
+            execution=exec_ctx,
+            learning=learn_ctx,
+            evidence=evidence_ctx,
+            archive_lineage=archive_ctx,
+            promoted_learning=promoted_ctx,
+        )
 
     _SECTION_DEFS: list[tuple[str, str, int]] = []
 
@@ -669,6 +682,79 @@ class ContextAssembler:
                 logger.debug("Failed to build recent evolution journal", exc_info=True)
 
         return ctx
+
+    @staticmethod
+    def _memory_layer_payloads(memory: Any | None) -> dict[str, dict[str, Any]]:
+        if memory is None or not hasattr(memory, "get_context_layer_payloads"):
+            return {}
+        try:
+            payloads = memory.get_context_layer_payloads()
+        except Exception:
+            logger.debug("Failed to read context layer payloads from memory", exc_info=True)
+            return {}
+        if not isinstance(payloads, dict):
+            return {}
+        normalized: dict[str, dict[str, Any]] = {}
+        for key, value in payloads.items():
+            if isinstance(key, str) and isinstance(value, dict):
+                normalized[key] = value
+        return normalized
+
+    def _build_evidence_context(
+        self,
+        learning: LearningContext,
+        memory: Any | None,
+    ) -> EvidenceContext:
+        payloads = self._memory_layer_payloads(memory).get("evidence", {})
+        findings = payloads.get(
+            "reviewed_acceptance_findings",
+            learning.reviewed_acceptance_findings,
+        )
+        return EvidenceContext(
+            reviewed_acceptance_findings=findings if isinstance(findings, list) else []
+        )
+
+    def _build_archive_lineage_context(
+        self,
+        learning: LearningContext,
+        memory: Any | None,
+    ) -> ArchiveLineageContext:
+        payloads = self._memory_layer_payloads(memory).get("archive_lineage", {})
+        journal = payloads.get("recent_evolution_journal", learning.recent_evolution_journal)
+        return ArchiveLineageContext(
+            recent_evolution_journal=journal if isinstance(journal, list) else []
+        )
+
+    def _build_promoted_learning_context(
+        self,
+        learning: LearningContext,
+        memory: Any | None,
+    ) -> PromotedLearningContext:
+        payloads = self._memory_layer_payloads(memory).get("promoted_learning", {})
+
+        def _list(name: str, fallback: list[dict[str, Any]]) -> list[dict[str, Any]]:
+            value = payloads.get(name, fallback)
+            return value if isinstance(value, list) else []
+
+        return PromotedLearningContext(
+            active_self_learnings=_list("active_self_learnings", learning.active_self_learnings),
+            active_delivery_learnings=_list(
+                "active_delivery_learnings",
+                learning.active_delivery_learnings,
+            ),
+            active_feedback_learnings=_list(
+                "active_feedback_learnings",
+                learning.active_feedback_learnings,
+            ),
+            reviewed_decision_failures=_list(
+                "reviewed_decision_failures",
+                learning.reviewed_decision_failures,
+            ),
+            reviewed_decision_recipes=_list(
+                "reviewed_decision_recipes",
+                learning.reviewed_decision_recipes,
+            ),
+        )
 
     @staticmethod
     def _build_skill_context(

@@ -1,0 +1,14 @@
+{
+  "action": "continue",
+  "reason_code": "wave_complete_all_packets_verified",
+  "summary": "Wave 0 scaffold complete. Both packets (mission_types.ts, artifact_types.ts) passed all six verification steps with zero failed conditions. All acceptance criteria for this wave are met. Proceed to post-run workflow replay.",
+  "confidence": 0.98,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

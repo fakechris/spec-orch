@@ -1,0 +1,14 @@
+{
+  "action": "continue",
+  "reason_code": "wave_complete_all_packets_merged",
+  "summary": "Wave 0 complete. Both contract scaffold packets (mission_types.ts, artifact_types.ts) passed all verification checks and gate verdicts. Plan budget exhausted (1 wave, 2 packets). Mission round resolved.",
+  "confidence": 0.98,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

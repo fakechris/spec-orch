@@ -28,6 +28,7 @@ def evaluate_learning_promotion(
     if provenance != "reviewed":
         return {
             "action": "reject",
+            "verdict": "discard",
             "reason": "reviewed findings required for promotion",
             "promotion_state": "rejected",
             "eligible_targets": [],
@@ -46,6 +47,12 @@ def evaluate_learning_promotion(
                 "memory_ref_ids": [],
                 "evolution_ref_ids": [],
                 "archive_release_ids": [],
+                "promoted_target_refs": {
+                    "fixture_candidates": [],
+                    "memory_refs": [],
+                    "evolution_refs": [],
+                },
+                "raw_archive_release_ids": [],
             },
         }
 
@@ -79,22 +86,27 @@ def evaluate_learning_promotion(
     }
     if "rolled_back" in active_evolution_states:
         action = "rollback"
+        verdict = "rollback"
         promotion_state = "rolled_back"
         reason = "linked promotion was rolled back"
     elif "retired" in active_evolution_states:
         action = "retire"
+        verdict = "retire"
         promotion_state = "retired"
         reason = "linked promotion was retired"
     elif eligible_targets:
         action = "promote"
+        verdict = "promote"
         promotion_state = "promoted"
         reason = "reviewed finding linked to durable learning targets"
     elif workflow_state in {"promoted", "confirmed", "reviewed"}:
         action = "hold"
+        verdict = "keep"
         promotion_state = "reviewed"
         reason = "reviewed finding is waiting for durable learning targets"
     else:
         action = "hold"
+        verdict = "keep"
         promotion_state = workflow_state or "reviewed"
         reason = "reviewed finding is awaiting promotion review"
 
@@ -111,6 +123,7 @@ def evaluate_learning_promotion(
 
     return {
         "action": action,
+        "verdict": verdict,
         "reason": reason,
         "promotion_state": promotion_state,
         "eligible_targets": eligible_targets,
@@ -120,6 +133,12 @@ def evaluate_learning_promotion(
             "memory_ref_ids": memory_ref_ids,
             "evolution_ref_ids": evolution_ref_ids,
             "archive_release_ids": archive_release_ids,
+            "promoted_target_refs": {
+                "fixture_candidates": fixture_candidate_ids,
+                "memory_refs": memory_ref_ids,
+                "evolution_refs": evolution_ref_ids,
+            },
+            "raw_archive_release_ids": archive_release_ids,
         },
     }
 

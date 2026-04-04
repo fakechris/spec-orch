@@ -574,6 +574,7 @@ class AcpxWorkerHandle:
         tool_call_id = str(update.get("toolCallId", "")).strip()
         status = str(update.get("status", "")).strip().lower()
         title = str(update.get("title", "")).strip().lower()
+        kind = str(update.get("kind", "")).strip().lower()
 
         if session_update == "tool_call" and tool_call_id:
             state["pending_tool_calls"].add(tool_call_id)
@@ -584,7 +585,15 @@ class AcpxWorkerHandle:
                 state["pending_tool_calls"].discard(tool_call_id)
             if status == "completed":
                 raw_input = update.get("rawInput", {})
-                if title in {"bash"} or title.startswith("verify"):
+                command = ""
+                if isinstance(raw_input, dict):
+                    command = str(raw_input.get("command") or "").strip()
+                if (
+                    kind == "execute"
+                    or title in {"bash"}
+                    or title.startswith("verify")
+                    or bool(command)
+                ):
                     state["commands_completed"] += 1
                     state["saw_progress"] = True
                     state["last_progress_at"] = now

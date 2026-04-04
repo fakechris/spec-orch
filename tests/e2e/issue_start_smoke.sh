@@ -67,6 +67,17 @@ fi
 [ -f spec-orch.toml ] || fail "spec-orch.toml missing"
 [ -f "fixtures/issues/${ISSUE_ID}.json" ] || fail "fixture issue fixtures/issues/${ISSUE_ID}.json missing"
 
+FIXTURE_WORKTREE=".worktrees/${ISSUE_ID}"
+if [ -e "$FIXTURE_WORKTREE" ]; then
+  step "Reset fixture issue workspace"
+  if git worktree remove --force ".worktrees/${ISSUE_ID}" >/dev/null 2>&1; then
+    ok "removed stale fixture worktree ${FIXTURE_WORKTREE}"
+  else
+    rm -rf "$FIXTURE_WORKTREE"
+    ok "removed stale fixture directory ${FIXTURE_WORKTREE}"
+  fi
+fi
+
 step "Run preflight"
 PREFLIGHT_EXIT=0
 if uv run --python 3.13 spec-orch preflight --json >/tmp/spec_orch_issue_start_preflight.json; then

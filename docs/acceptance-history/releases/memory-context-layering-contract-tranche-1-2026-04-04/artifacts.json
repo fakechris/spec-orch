@@ -1,0 +1,12 @@
+{
+  "status_markdown": "docs/plans/2026-03-30-stability-acceptance-status.md",
+  "status_json": ".spec_orch/acceptance/stability_acceptance_status.json",
+  "issue_start_report": ".spec_orch/acceptance/issue_start_smoke.json",
+  "dashboard_ui_report": ".spec_orch/acceptance/dashboard_ui_acceptance.json",
+  "mission_start_report": "docs/specs/fresh-acpx-20260404035207-87c533/operator/mission_start_acceptance.json",
+  "mission_start_round_dir": "docs/specs/fresh-acpx-20260404035207-87c533/rounds/round-02",
+  "exploratory_report": "docs/specs/fresh-acpx-20260404040228-c8f454/operator/exploratory_acceptance_smoke.json",
+  "exploratory_browser_evidence": "docs/specs/fresh-acpx-20260404040228-c8f454/rounds/round-01/exploratory_browser_evidence.json",
+  "exploratory_round_dir": "docs/specs/fresh-acpx-20260404040228-c8f454/rounds/round-01",
+  "plan_doc": "docs/plans/2026-04-03-phase-2-hardening-execution-plan.md"
+}

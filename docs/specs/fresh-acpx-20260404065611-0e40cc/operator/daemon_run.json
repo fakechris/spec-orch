@@ -1,0 +1,19 @@
+{
+  "mission_id": "fresh-acpx-20260404065611-0e40cc",
+  "proof_type": "fresh_execution",
+  "runner_status": "finished",
+  "state": {
+    "mission_id": "fresh-acpx-20260404065611-0e40cc",
+    "phase": "all_done",
+    "issue_ids": [
+      "LOCAL-FRESH-ACPX-20260404065611-0E40CC-1",
+      "LOCAL-FRESH-ACPX-20260404065611-0E40CC-2"
+    ],
+    "completed_issues": [],
+    "error": null,
+    "updated_at": "2026-04-04T07:01:22.775013+00:00",
+    "current_round": 1,
+    "round_orchestrator_state": {}
+  },
+  "fresh_round_path": "docs/specs/fresh-acpx-20260404065611-0e40cc/rounds/round-01"
+}

@@ -1,0 +1,16 @@
+{
+  "session_name": "mission-fresh-acpx-20260404045002-8dc499-fresh-mission-types-scaffold-retry-1",
+  "terminal_reason": "process_exit_success",
+  "succeeded": true,
+  "retry_count": 1,
+  "event_count": 77,
+  "commands_completed": 7,
+  "files_changed": [
+    "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404045002-8dc499/workers/fresh-mission-types-scaffold/src/contracts/mission_types.ts"
+  ],
+  "session_reused": false,
+  "session_health": "healthy",
+  "chain_id": "chain_fresh-acpx-20260404045002-8dc499_20260404T045023Z_95328789",
+  "span_id": "chain_fresh-acpx-20260404045002-8dc499_20260404T045023Z_95328789:round:01:packet:fresh-mission-types-scaffold:worker",
+  "parent_span_id": "chain_fresh-acpx-20260404045002-8dc499_20260404T045023Z_95328789:round:01:packet:fresh-mission-types-scaffold"
+}

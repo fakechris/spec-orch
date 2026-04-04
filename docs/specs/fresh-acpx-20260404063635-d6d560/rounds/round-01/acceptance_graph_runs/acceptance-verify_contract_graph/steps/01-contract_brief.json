@@ -1,0 +1,69 @@
+{
+  "step_key": "contract_brief",
+  "decision": "proceed",
+  "outputs": {
+    "contract_summary": "The Fresh ACPX Mission E2E Narrow Smoke mission validates an end-to-end fresh execution path where two TypeScript contract files (src/contracts/mission_types.ts and src/contracts/artifact_types.ts) are scaffolded by workers in a single wave with at most two work packets, producing fresh round artifacts without reuse of historical data.",
+    "acceptance_criteria": [
+      "A fresh mission can be created for this run.",
+      "The plan stays within one wave and at most two work packets.",
+      "The mission can be launched and produce fresh round artifacts.",
+      "Post-run workflow replay can validate the resulting dashboard surfaces."
+    ],
+    "constraints": [
+      "Keep the first fresh mission path narrow and local-only.",
+      "Do not reuse historical round artifacts as fresh proof.",
+      "Plan budget: at most 1 wave and at most 2 work packets.",
+      "Only touch src/contracts/mission_types.ts and src/contracts/artifact_types.ts inside worker workspaces.",
+      "Do not implement dashboard runtime changes, test harnesses, or replay engines during the fresh proof run."
+    ],
+    "success_conditions": {
+      "round_1_status": "COMPLETE",
+      "wave_0_verdict": "continue",
+      "packet_results": {
+        "acpx-contracts-mission-types": {
+          "succeeded": true,
+          "verification_passed": true,
+          "gate_mergeable": true,
+          "scope_compliant": true
+        },
+        "acpx-contracts-artifact-types": {
+          "succeeded": true,
+          "verification_passed": true,
+          "gate_mergeable": true,
+          "scope_compliant": true
+        }
+      },
+      "all_packets_verified": true,
+      "all_in_scope": true,
+      "confidence": 0.98
+    },
+    "declared_feature": "Fresh ACPX execution proving ability to scaffold TypeScript contract files in a minimal local-only mission with fresh round artifacts.",
+    "directly_affected_routes": [
+      "/",
+      "/?mode=missions",
+      "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=overview",
+      "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=transcript&round=1",
+      "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=approvals&round=1",
+      "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=visual&round=1",
+      "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=costs&round=1",
+      "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=judgment&round=1"
+    ],
+    "workflow_assertions_pending": [
+      "launcher panel can be opened from the header",
+      "needs attention mode can be selected from mission control",
+      "missions mode can be selected from mission control",
+      "decision queue mode can be selected from mission control",
+      "deep evidence mode can be selected from mission control",
+      "the target mission can be selected from the mission list",
+      "the transcript tab can be opened from mission detail",
+      "the approvals surface exposes actionable operator controls when present",
+      "the visual QA tab can be opened from mission detail",
+      "the judgment tab can be opened from mission detail",
+      "the costs tab can be opened from mission detail"
+    ]
+  },
+  "next_transition": "post-run workflow_replay step to validate dashboard surfaces via mission detail tabs and mode selections",
+  "warnings": [],
+  "review_markdown": "## Contract Brief: Fresh ACPX Mission E2E Narrow Smoke\n\n### Summary\nA minimal fresh-execution proof-of-concept mission that validates ACPX workflow by scaffolding two TypeScript contract files (`mission_types.ts`, `artifact_types.ts`) under `src/contracts/` within strict budget constraints.\n\n### Success Criteria (Round 1 — COMPLETE)\n| Criterion | Status |\n|-----------|--------|\n| Fresh mission created | ✅ |\n| Plan within 1 wave / ≤2 packets | ✅ |\n| Mission launched, fresh artifacts produced | ✅ |\n| Wave 0 all packets verified | ✅ |\n| Both gate verdicts mergeable | ✅ |\n| All scope constraints honored | ✅ |\n\n### Scope Compliance\n- **Allowed**: `src/contracts/mission_types.ts`, `src/contracts/artifact_types.ts`\n- **Realized**: Exactly the two allowed files\n- **Out-of-scope**: None\n\n### Verification Steps (All Passed)\n1. `scaffold_exists` — files present\n2. `typescript_contract_tokens` — export/interface/type/enum tokens found\n3. `typescript_schema_surface` — Schema surface tokens present\n4. `typescript_typecheck` — `tsc --noEmit` clean\n5. `typescript_lint_smoke` — no trailing whitespace, tabs, or missing terminal newlines\n6. `typescript_import_smoke` — import smoke test passes TypeScript compilation\n\n### Remaining Work\nPost-run **workflow replay** must validate dashboard surfaces:\n- Launcher panel open/close\n- Mode switching (missions, decision queue, deep evidence, needs attention)\n- Mission list selection → detail view\n- Tab navigation (overview → transcript → judgment → approvals → visual → costs)\n\n### Decision\n**Proceed** to workflow_replay step. Fresh execution contract is satisfied with confidence 0.98.",
+  "created_at": "2026-04-04T06:40:47.144106+00:00"
+}

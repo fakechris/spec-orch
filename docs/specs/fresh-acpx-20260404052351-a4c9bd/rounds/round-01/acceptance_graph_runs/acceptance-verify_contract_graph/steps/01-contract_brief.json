@@ -1,0 +1,70 @@
+{
+  "step_key": "contract_brief",
+  "decision": "pass",
+  "outputs": {
+    "contract_summary": {
+      "mission_id": "fresh-acpx-20260404052351-a4c9bd",
+      "title": "Fresh ACPX Mission E2E Narrow Smoke",
+      "execution_mode": "fresh_acpx_mission",
+      "artifact_namespace": "fresh-acpx-mission-e2e",
+      "scope": {
+        "allowed_files": [
+          "src/contracts/mission_types.ts",
+          "src/contracts/artifact_types.ts"
+        ],
+        "realized_files": [
+          "src/contracts/mission_types.ts",
+          "src/contracts/artifact_types.ts"
+        ],
+        "all_in_scope": true
+      },
+      "fresh_execution_result": {
+        "wave_0_completed": true,
+        "packets_executed": 2,
+        "packets_succeeded": 2,
+        "gate_verdicts": [
+          {
+            "packet_id": "acpx-contract-mission-types",
+            "mergeable": true,
+            "failed_conditions": []
+          },
+          {
+            "packet_id": "acpx-contract-artifact-types",
+            "mergeable": true,
+            "failed_conditions": []
+          }
+        ]
+      }
+    },
+    "success_conditions": {
+      "declared_feature": "Fresh ACPX execution proving end-to-end mission creation and round artifact generation with TypeScript contract scaffolding",
+      "acceptance_criteria_status": {
+        "fresh_mission_creation": "VERIFIED - mission created and launched",
+        "wave_packet_budget": "VERIFIED - 1 wave, 2 packets (within budget)",
+        "fresh_round_artifacts": "VERIFIED - both workers succeeded producing fresh artifacts",
+        "dashboard_workflow_replay": "PENDING - workflow_assertions defined for post-run validation"
+      },
+      "workflow_replay_requirements": {
+        "goal": "Validate post-run dashboard workflow for fresh ACPX mission",
+        "primary_routes": [
+          "/",
+          "/?mode=missions",
+          "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=overview"
+        ],
+        "related_routes": [
+          "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=transcript",
+          "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=approvals",
+          "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=judgment"
+        ],
+        "assertions_defined": 11
+      }
+    },
+    "confidence": 0.98,
+    "decision_reason": "wave_0_all_gates_passed_scope_clean",
+    "blocking_risk": "none"
+  },
+  "next_transition": "{'step_key': 'contract_brief', 'action': 'await_workflow_replay', 'target': 'workflow_replay_phase', 'trigger': 'fresh_execution_complete_with_green_gates'}",
+  "warnings": [],
+  "review_markdown": "## Contract Brief: Fresh ACPX Mission E2E Narrow Smoke\n\n### Mission Summary\nThe mission **fresh-acpx-20260404052351-a4c9bd** is a fresh execution proof designed to validate ACPX end-to-end capabilities with minimal scope:\n\n- **Scope**: 2 TypeScript contract files (`mission_types.ts`, `artifact_types.ts`)\n- **Wave budget**: 1 wave, 2 work packets (fully consumed)\n- **Execution mode**: Fresh local-only, no historical artifact reuse\n\n### Contract Verification Status\n\n| Gate | acpx-contract-mission-types | acpx-contract-artifact-types |\n|------|---------------------------|-----------------------------|\n| scaffold_exists | ✅ pass | ✅ pass |\n| typescript_contract_tokens | ✅ pass | ✅ pass |\n| typescript_schema_surface | ✅ pass | ✅ pass |\n| typescript_typecheck | ✅ pass | ✅ pass |\n| typescript_lint_smoke | ✅ pass | ✅ pass |\n| typescript_import_smoke | ✅ pass | ✅ pass |\n\n**Both packets are mergeable with zero failed conditions.**\n\n### Success Conditions\n\n1. ✅ **Fresh mission creation** - Verified via successful worker execution\n2. ✅ **Wave/packet budget** - 1 wave, 2 packets within limits\n3. ✅ **Fresh round artifacts** - Both workers succeeded, gate verdicts mergeable\n4. ⏳ **Dashboard workflow replay** - 11 assertions defined; pending execution\n\n### Next Phase\nThe contract verification phase is complete. The mission should proceed to **workflow_replay** to validate the resulting dashboard surfaces across the defined primary and related routes.",
+  "created_at": "2026-04-04T05:28:11.740833+00:00"
+}

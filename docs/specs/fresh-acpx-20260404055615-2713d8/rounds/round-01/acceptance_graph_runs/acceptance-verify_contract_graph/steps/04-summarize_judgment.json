@@ -1,0 +1,36 @@
+{
+  "step_key": "summarize_judgment",
+  "decision": "pass",
+  "outputs": {
+    "round_status": "decided",
+    "confidence": 0.99,
+    "verdict": "mergeable",
+    "scope_compliance": true,
+    "artifacts_produced": [
+      "src/contracts/mission_types.ts",
+      "src/contracts/artifact_types.ts"
+    ],
+    "verification_results": {
+      "scaffold_exists": "passed",
+      "typescript_contract_tokens": "passed",
+      "typescript_schema_surface": "passed",
+      "typescript_typecheck": "passed",
+      "typescript_lint_smoke": "passed",
+      "typescript_import_smoke": "passed"
+    },
+    "worker_outcome": {
+      "packet_id": "acpx-contract-scaffold",
+      "succeeded": true,
+      "adapter": "acpx_worker"
+    },
+    "unfinished_business": [
+      "Post-run workflow replay dashboard validation"
+    ]
+  },
+  "next_transition": "no_further_waves_planned",
+  "warnings": [
+    "Post-run workflow replay validation is deferred to future-wave concern; not a round-blocking gap per judgment"
+  ],
+  "review_markdown": "## Final Judgment Summary\n\n### Mission: Fresh ACPX Mission E2E Narrow Smoke\n- **Mission ID**: fresh-acpx-20260404055615-2713d8\n- **Round**: 1 | **Wave**: 0\n\n### Verdict\n| Criterion | Result |\n|-----------|--------|\n| Decision | **continue** |\n| Reason Code | all_verifications_passed |\n| Confidence | 0.99 |\n| Gate Mergeable | ✅ true |\n| Scope Compliant | ✅ all_in_scope |\n\n### Verification Breakdown (6/6 passed)\n1. ✅ `scaffold_exists` — Both target files present\n2. ✅ `typescript_contract_tokens` — Required export keywords found\n3. ✅ `typescript_schema_surface` — Schema/interface/type declarations confirmed\n4. ✅ `typescript_typecheck` — `tsc --noEmit` clean\n5. ✅ `typescript_lint_smoke` — No trailing whitespace, no tabs, terminal newline present\n6. ✅ `typescript_import_smoke` — Cross-file imports resolve correctly\n\n### Artifact Realization\n| File | Status |\n|------|--------|\n| `src/contracts/mission_types.ts` | ✅ produced |\n| `src/contracts/artifact_types.ts` | ✅ produced |\n\n### Scope Audit\n- **Allowed**: `mission_types.ts`, `artifact_types.ts` only\n- **Realized**: Exactly the two allowed files\n- **Out-of-scope files touched**: none\n\n### Deferred Concern\nPost-run workflow replay (dashboard surface validation) is acknowledged as a **future-wave concern**, not a blocking gap for this round.\n\n### Conclusion\nRound 1 of the fresh ACPX mission executed cleanly. The single worker packet (`acpx-contract-scaffold`) succeeded end-to-end. All gate conditions were satisfied with high confidence. The mission's narrow-scope contract scaffolding objective has been met.",
+  "created_at": "2026-04-04T05:59:18.135613+00:00"
+}

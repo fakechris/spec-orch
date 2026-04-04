@@ -90,6 +90,31 @@ class LearningContext:
 
 
 @dataclass(slots=True)
+class EvidenceContext:
+    """Evidence context: verifier-facing transcript and acceptance artifacts."""
+
+    reviewed_acceptance_findings: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class ArchiveLineageContext:
+    """Archive lineage context: persisted release/archive history."""
+
+    recent_evolution_journal: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class PromotedLearningContext:
+    """Promoted learning context: distilled guidance promoted from prior work."""
+
+    active_self_learnings: list[dict[str, Any]] = field(default_factory=list)
+    active_delivery_learnings: list[dict[str, Any]] = field(default_factory=list)
+    active_feedback_learnings: list[dict[str, Any]] = field(default_factory=list)
+    reviewed_decision_failures: list[dict[str, Any]] = field(default_factory=list)
+    reviewed_decision_recipes: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class ContextBundle:
     """Unified context package assembled by ContextAssembler.
 
@@ -99,6 +124,39 @@ class ContextBundle:
     task: TaskContext
     execution: ExecutionContext = field(default_factory=ExecutionContext)
     learning: LearningContext = field(default_factory=LearningContext)
+    evidence: EvidenceContext = field(default_factory=EvidenceContext)
+    archive_lineage: ArchiveLineageContext = field(default_factory=ArchiveLineageContext)
+    promoted_learning: PromotedLearningContext = field(default_factory=PromotedLearningContext)
+
+    def context_layer_contracts(self) -> dict[str, dict[str, Any]]:
+        return {
+            "execution": {
+                "payload_fields": [
+                    "file_tree",
+                    "git_diff",
+                    "verification_results",
+                    "gate_report",
+                    "builder_events_summary",
+                    "review_summary",
+                    "deviation_slices",
+                ],
+            },
+            "evidence": {
+                "payload_fields": ["reviewed_acceptance_findings"],
+            },
+            "archive_lineage": {
+                "payload_fields": ["recent_evolution_journal"],
+            },
+            "promoted_learning": {
+                "payload_fields": [
+                    "active_self_learnings",
+                    "active_delivery_learnings",
+                    "active_feedback_learnings",
+                    "reviewed_decision_failures",
+                    "reviewed_decision_recipes",
+                ],
+            },
+        }
 
 
 class CompactRetentionPriority:
