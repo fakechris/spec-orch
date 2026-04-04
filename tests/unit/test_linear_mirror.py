@@ -82,6 +82,26 @@ def test_merge_linear_mirror_section_replaces_existing_payload() -> None:
     assert reparsed["plan_summary"] == ["New summary"]
 
 
+def test_merge_linear_mirror_section_preserves_backslashes_in_json_payload() -> None:
+    description = render_linear_mirror_section(
+        {
+            "launcher_path": r"C:\repo\spec-orch",
+            "pattern": r"\d+\w+",
+        }
+    )
+
+    merged = merge_linear_mirror_section(
+        description,
+        {
+            "launcher_path": r"C:\repo\spec-orch",
+            "pattern": r"\d+\w+",
+        },
+    )
+
+    assert r"C:\\repo\\spec-orch" in merged
+    assert r"\\d+\\w+" in merged
+
+
 def test_build_linear_mirror_document_from_workspace_derives_compact_plan_summary() -> None:
     workspace = {
         "state": "ready_for_workspace",
@@ -110,3 +130,19 @@ def test_build_linear_mirror_document_from_workspace_derives_compact_plan_summar
         "Current recommendation: create_workspace.",
         "Handoff state: ready_for_workspace.",
     ]
+
+
+def test_build_linear_mirror_document_from_workspace_tolerates_malformed_sections() -> None:
+    mirror = build_linear_mirror_document_from_workspace(
+        {
+            "state": "clarifying",
+            "readiness": [],
+            "handoff": {"state": "blocked", "blockers": ["missing details"]},
+            "canonical_issue": [],
+        }
+    )
+
+    assert mirror["intake_state"] == "clarifying"
+    assert mirror["next_action"] == "resolve_blockers"
+    assert mirror["source_refs"] == []
+    assert mirror["blockers"] == ["missing details"]

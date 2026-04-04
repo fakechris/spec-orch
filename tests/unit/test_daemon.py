@@ -223,20 +223,23 @@ def test_sync_linear_mirror_for_mission_uses_write_back_service(tmp_path: Path) 
     cfg = DaemonConfig({})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
     daemon._write_back = MagicMock()
+    client = MagicMock()
+    client.query.return_value = {"issue": {"description": "fresh description"}}
 
     raw_issue = {"id": "issue-1", "description": "mission: plan-sync"}
 
     daemon._sync_linear_mirror_for_mission(
-        client=MagicMock(),
+        client=client,
         raw_issue=raw_issue,
         mission_id="plan-sync",
     )
 
+    client.query.assert_called_once()
     daemon._write_back.sync_issue_mirror_from_mission.assert_called_once_with(
         repo_root=tmp_path,
         mission_id="plan-sync",
         linear_id="issue-1",
-        current_description="mission: plan-sync",
+        current_description="fresh description",
     )
 
 

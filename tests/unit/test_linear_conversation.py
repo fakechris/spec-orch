@@ -24,10 +24,14 @@ def test_reply_uses_cached_linear_issue_id_from_polled_thread() -> None:
     ]
 
     adapter = LinearConversationAdapter(client=client)
-    callback = MagicMock(return_value="done")
+    callback = MagicMock(return_value=None)
 
     adapter._poll_once(callback)
+    client.add_comment.reset_mock()
     adapter.reply("SON-321", "structured sync complete")
 
     client.get_issue.assert_not_called()
-    client.add_comment.assert_called()
+    client.add_comment.assert_called_once_with(
+        "issue-1",
+        "**🤖 SpecOrch Bot**\n\nstructured sync complete",
+    )

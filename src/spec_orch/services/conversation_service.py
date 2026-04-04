@@ -274,10 +274,13 @@ class ConversationService:
                 }
             }
             _write_launch_metadata(self.repo_root, mission_id, launch_meta)
-            self._sync_linear_issue_from_thread(
-                mission_id=mission_id,
-                linear_issue_id=linear_ref["linear_issue_id"],
-            )
+            try:
+                self._sync_linear_issue_from_thread(
+                    mission_id=mission_id,
+                    linear_issue_id=linear_ref["linear_issue_id"],
+                )
+            except Exception as exc:
+                print(f"[conversation] {mission_id}: Linear mirror sync skipped: {exc}")
 
     def _conversation_payload_from_spec(
         self,

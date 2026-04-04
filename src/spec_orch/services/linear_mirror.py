@@ -41,7 +41,10 @@ def build_linear_mirror_document_from_workspace(
     handoff = workspace.get("handoff", {})
     readiness = workspace.get("readiness", {})
     canonical_issue = workspace.get("canonical_issue", {})
-    source_refs = canonical_issue.get("source_refs", [])
+    safe_readiness = readiness if isinstance(readiness, dict) else {}
+    safe_canonical_issue = canonical_issue if isinstance(canonical_issue, dict) else {}
+    source_refs = safe_canonical_issue.get("source_refs", [])
+    safe_source_refs = source_refs if isinstance(source_refs, list) else []
     if not plan_summary:
         plan_summary = _default_plan_summary_from_workspace(workspace)
     safe_handoff = handoff if isinstance(handoff, dict) else {}
@@ -50,7 +53,7 @@ def build_linear_mirror_document_from_workspace(
         "handoff_state": str(safe_handoff.get("state", "")).strip(),
         "workspace_id": str(safe_handoff.get("workspace_id", "")).strip(),
         "next_action": str(
-            safe_handoff.get("next_action", "") or readiness.get("recommendation", "")
+            safe_handoff.get("next_action", "") or safe_readiness.get("recommendation", "")
         ).strip()
         or _derive_next_action(safe_handoff),
         "blockers": [
@@ -59,7 +62,7 @@ def build_linear_mirror_document_from_workspace(
         "plan_summary": _normalize_plan_summary(plan_summary),
         "source_refs": [
             item
-            for item in source_refs
+            for item in safe_source_refs
             if isinstance(item, dict)
             and str(item.get("kind", "")).strip()
             and str(item.get("ref", "")).strip()
@@ -94,7 +97,7 @@ def merge_linear_mirror_section(description: str, document: dict[str, Any]) -> s
     rendered = render_linear_mirror_section(document).strip()
     base = description.rstrip()
     if _MIRROR_SECTION_RE.search(base):
-        updated = _MIRROR_SECTION_RE.sub(f"{rendered}\n\n", base, count=1)
+        updated = _MIRROR_SECTION_RE.sub(lambda _: f"{rendered}\n\n", base, count=1)
         return updated.rstrip() + "\n"
     if not base:
         return rendered + "\n"
@@ -122,13 +125,14 @@ def _normalize_plan_summary(plan_summary: list[str] | None) -> list[str]:
 def _default_plan_summary_from_workspace(workspace: dict[str, Any]) -> list[str]:
     readiness = workspace.get("readiness", {})
     handoff = workspace.get("handoff", {})
+    safe_readiness = readiness if isinstance(readiness, dict) else {}
     items: list[str] = []
-    if readiness.get("is_ready") is True:
+    if safe_readiness.get("is_ready") is True:
         items.append("Readiness is green for workspace creation.")
-    elif readiness.get("missing_fields"):
-        missing = ", ".join(str(item).strip() for item in readiness.get("missing_fields", []))
+    elif safe_readiness.get("missing_fields"):
+        missing = ", ".join(str(item).strip() for item in safe_readiness.get("missing_fields", []))
         items.append(f"Readiness is waiting on: {missing}.")
-    recommendation = str(readiness.get("recommendation", "")).strip()
+    recommendation = str(safe_readiness.get("recommendation", "")).strip()
     if recommendation:
         items.append(f"Current recommendation: {recommendation}.")
     handoff_state = str(handoff.get("state", "")).strip() if isinstance(handoff, dict) else ""

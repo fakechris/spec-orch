@@ -570,7 +570,10 @@ def _approve_and_plan_mission(repo_root: Path, mission_id: str) -> dict[str, Any
                 json.dumps(plan, indent=2) + "\n",
                 encoding="utf-8",
             )
-    _sync_linked_linear_issue_mirror(repo_root, mission_id)
+    try:
+        _sync_linked_linear_issue_mirror(repo_root, mission_id)
+    except Exception as exc:
+        print(f"[launcher] {mission_id}: mirror sync skipped: {exc}")
     return {
         "mission_id": mission.mission_id,
         "approved_at": mission.approved_at,

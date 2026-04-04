@@ -514,6 +514,50 @@ def test_approve_and_plan_mission_syncs_bound_linear_issue_description(
     assert '"next_action": "review_plan"' in captured_updates[0]
 
 
+def test_approve_and_plan_mission_tolerates_linear_mirror_sync_failure(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from spec_orch.dashboard.launcher import _approve_and_plan_mission, _create_mission_draft
+
+    _create_mission_draft(
+        repo,
+        {
+            "title": "Plan Me",
+            "mission_id": "plan-me",
+            "intent": "Generate a simple plan.",
+            "acceptance_criteria": [],
+            "constraints": [],
+        },
+    )
+
+    def fake_plan(root: Path, mission_id: str) -> dict:
+        plan_path = root / "docs" / "specs" / mission_id / "plan.json"
+        payload = {
+            "plan_id": "plan-1",
+            "mission_id": mission_id,
+            "status": "draft",
+            "waves": [],
+        }
+        plan_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        return payload
+
+    def fail_sync(root: Path, mission_id: str) -> None:
+        assert root == repo
+        assert mission_id == "plan-me"
+        raise RuntimeError("linear unavailable")
+
+    monkeypatch.setattr("spec_orch.dashboard.launcher._generate_plan_for_mission", fake_plan)
+    monkeypatch.setattr("spec_orch.dashboard.launcher._sync_linked_linear_issue_mirror", fail_sync)
+
+    result = _approve_and_plan_mission(repo, "plan-me")
+
+    assert result["mission_id"] == "plan-me"
+    assert result["plan"]["plan_id"] == "plan-1"
+    assert "mirror sync skipped" in capsys.readouterr().out
+
+
 def test_approve_and_plan_mission_injects_fresh_verification_commands(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,

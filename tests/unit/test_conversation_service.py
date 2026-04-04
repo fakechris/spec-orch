@@ -238,6 +238,44 @@ class TestConversationServiceCommands:
         assert "## SpecOrch Mirror" in captured_descriptions[0]
         assert '"next_action": "create_workspace"' in captured_descriptions[0]
 
+    def test_freeze_command_keeps_thread_frozen_when_linear_sync_fails(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        planner = MagicMock()
+        planner.brainstorm.return_value = "Let's do X"
+        planner.summarise_to_spec.return_value = "# X\n\n## Goal\nDo X\n"
+        svc = ConversationService(repo_root=tmp_path, planner=planner)
+
+        def fail_sync(*_: object, **__: object) -> None:
+            raise RuntimeError("linear unavailable")
+
+        monkeypatch.setattr(svc, "_sync_linear_issue_from_thread", fail_sync)
+
+        svc.handle_message(
+            ConversationMessage(
+                message_id="m-linear",
+                thread_id="frz-fail",
+                sender="user",
+                content="Please make chat-to-issue work.",
+                timestamp=datetime.now(UTC).isoformat(),
+                channel="linear",
+                metadata={"linear_issue_id": "issue-1", "linear_identifier": "SON-321"},
+            )
+        )
+        reply = svc.handle_message(
+            _make_msg(thread_id="frz-fail", content="@spec-orch freeze", channel="linear"),
+        )
+
+        assert reply is not None
+        thread = svc.get_thread("frz-fail")
+        assert thread is not None
+        assert thread.status == ThreadStatus.FROZEN
+        assert thread.mission_id is not None
+        launch_path = tmp_path / "docs" / "specs" / thread.mission_id / "operator" / "launch.json"
+        assert launch_path.exists()
+
 
 class TestConversationThreadModel:
     def test_defaults(self) -> None:

@@ -780,8 +780,18 @@ class SpecOrchDaemon:
         linear_uid = str(raw_issue.get("id", "")).strip()
         if not linear_uid:
             return
-        current_description = str(raw_issue.get("description") or "")
         try:
+            issue = client.query(
+                """
+                query($id: String!) {
+                  issue(id: $id) { description }
+                }
+                """,
+                {"id": linear_uid},
+            ).get("issue")
+            current_description = (
+                str(issue.get("description") or "") if isinstance(issue, dict) else ""
+            )
             self._write_back.sync_issue_mirror_from_mission(
                 repo_root=self.repo_root,
                 mission_id=mission_id,
