@@ -1,0 +1,80 @@
+{
+  "step_key": "route_replay",
+  "decision": "continue",
+  "outputs": {
+    "route_replay_captured": true,
+    "review_routes": {
+      "overview": "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=overview",
+      "transcript": "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=transcript&round=1",
+      "approvals": "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=approvals&round=1",
+      "visual_qa": "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=visual&round=1",
+      "costs": "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=costs&round=1",
+      "judgment": "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=judgment&round=1"
+    },
+    "workflow_assertions_count": 11,
+    "workflow_assertions": [
+      "launcher panel can be opened from the header",
+      "needs attention mode can be selected from mission control",
+      "missions mode can be selected from mission control",
+      "decision queue mode can be selected from mission control",
+      "deep evidence mode can be selected from mission control",
+      "the target mission can be selected from the mission list",
+      "the transcript tab can be opened from mission detail",
+      "the approvals surface exposes actionable operator controls when present",
+      "the visual QA tab can be opened from mission detail",
+      "the judgment tab can be opened from mission detail",
+      "the costs tab can be opened from mission detail"
+    ],
+    "fresh_round_artifacts_summary": {
+      "round_id": 1,
+      "wave_id": 0,
+      "packets_verified": 2,
+      "all_packets_passed": true,
+      "gate_verdicts": [
+        {
+          "packet_id": "acpx-contracts-mission-types",
+          "mergeable": true,
+          "failed_conditions": [],
+          "scope": {
+            "allowed_files": [
+              "src/contracts/mission_types.ts"
+            ],
+            "realized_files": [
+              "src/contracts/mission_types.ts"
+            ],
+            "all_in_scope": true
+          }
+        },
+        {
+          "packet_id": "acpx-contracts-artifact-types",
+          "mergeable": true,
+          "failed_conditions": [],
+          "scope": {
+            "allowed_files": [
+              "src/contracts/artifact_types.ts"
+            ],
+            "realized_files": [
+              "src/contracts/artifact_types.ts"
+            ],
+            "all_in_scope": true
+          }
+        }
+      ]
+    },
+    "verification_surface_captured": [
+      "scaffold_exists",
+      "typescript_contract_tokens",
+      "typescript_schema_surface",
+      "typescript_typecheck",
+      "typescript_lint_smoke",
+      "typescript_import_smoke"
+    ]
+  },
+  "next_transition": "workflow_replay",
+  "warnings": [
+    "Workflow assertions have been declared but not yet executed. The post-run dashboard validation is pending the workflow_replay step.",
+    "No visual QA evidence captured in this step; visual_qa route requires Playwright/browser automation."
+  ],
+  "review_markdown": "## route_replay Step Review\n\n### Evidence Captured\n- **Review Routes Defined**: 6 routes declared for post-run dashboard validation (overview, transcript, approvals, visual_qa, costs, judgment)\n- **Workflow Assertions Defined**: 11 assertions covering launcher, mission control modes, and tab navigation\n- **Fresh Round Summary**: Round 1 completed with wave 0 verified, both packets (mission_types.ts, artifact_types.ts) passed all 6 verification steps\n- **Gate Verdicts**: Both packets are mergeable with zero failed conditions and scope compliance confirmed\n\n### Contract Evidence\nThe declared contracts (`src/contracts/mission_types.ts`, `src/contracts/artifact_types.ts`) have been verified through:\n- Scaffold existence\n- TypeScript contract tokens (export, interface, type, enum)\n- Schema surface detection (Schema, schema, export interface/type/const)\n- TypeScript typecheck (tsc --noEmit)\n- Lint smoke (no trailing whitespace, no tabs, terminal newline)\n- Import smoke (cross-file import validation)\n\n### Route Replay Status\nThe declared routes are syntactically valid and correctly parameterized for the mission `fresh-acpx-20260404063635-d6d560`. However, the actual browser-based workflow assertions have not been executed in this step. Per the decision `wave_complete_all_packets_verified`, the workflow_replay step is queued next to validate the dashboard surfaces.\n\n### Conclusion\nRoute declaration is valid. Contract evidence for TypeScript artifacts is captured and all gate conditions passed. Proceeding to workflow_replay for dashboard surface validation.",
+  "created_at": "2026-04-04T06:41:13.216018+00:00"
+}

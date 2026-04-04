@@ -27,6 +27,7 @@ def test_evaluate_learning_promotion_requires_reviewed_finding() -> None:
     )
 
     assert decision["action"] == "reject"
+    assert decision["verdict"] == "discard"
     assert decision["reason"] == "reviewed findings required for promotion"
     assert decision["eligible_targets"] == []
 
@@ -62,6 +63,7 @@ def test_evaluate_learning_promotion_surfaces_targets_and_lineage() -> None:
     )
 
     assert decision["action"] == "promote"
+    assert decision["verdict"] == "promote"
     assert decision["promotion_state"] == "promoted"
     assert decision["eligible_targets"] == [
         "FixtureCandidate",
@@ -77,6 +79,14 @@ def test_evaluate_learning_promotion_surfaces_targets_and_lineage() -> None:
     assert decision["lineage"]["archive_release_ids"] == [
         "structural-judgment-tranche-1-2026-04-03"
     ]
+    assert decision["lineage"]["promoted_target_refs"] == {
+        "fixture_candidates": ["fixture-candidate-dashboard-transcript-continuity"],
+        "memory_refs": ["memory-ref:self:acceptance-judgment-proposal-learning-1"],
+        "evolution_refs": ["proposal-1"],
+    }
+    assert decision["lineage"]["raw_archive_release_ids"] == [
+        "structural-judgment-tranche-1-2026-04-03"
+    ]
 
 
 def test_evaluate_learning_promotion_ignores_placeholder_linkage_rows() -> None:
@@ -89,8 +99,31 @@ def test_evaluate_learning_promotion_ignores_placeholder_linkage_rows() -> None:
     )
 
     assert decision["action"] == "hold"
+    assert decision["verdict"] == "keep"
     assert decision["promotion_state"] == "reviewed"
     assert decision["eligible_targets"] == []
     assert decision["lineage"]["fixture_candidate_ids"] == []
     assert decision["lineage"]["memory_ref_ids"] == []
     assert decision["lineage"]["evolution_ref_ids"] == []
+
+
+def test_evaluate_learning_promotion_reports_rollback_and_retire_verdicts() -> None:
+    rollback = evaluate_learning_promotion(
+        _finding(),
+        fixture_candidates=[],
+        memory_refs=[],
+        evolution_refs=[{"promotion_state": "rolled_back", "promotion_id": "promo-1"}],
+        archive_releases=[],
+    )
+    retire = evaluate_learning_promotion(
+        _finding(),
+        fixture_candidates=[],
+        memory_refs=[],
+        evolution_refs=[{"promotion_state": "retired", "promotion_id": "promo-2"}],
+        archive_releases=[],
+    )
+
+    assert rollback["action"] == "rollback"
+    assert rollback["verdict"] == "rollback"
+    assert retire["action"] == "retire"
+    assert retire["verdict"] == "retire"

@@ -237,6 +237,8 @@ git commit -m "feat: extend admission governor posture"
 
 ## Task 4: Deterministic Structural Judgment Tranche 2
 
+**Status:** Closed on `2026-04-04` after focused verification passed, canonical acceptance returned to `overall_status=pass`, and a release bundle was written under `docs/acceptance-history/releases/`.
+
 **Files:**
 - Modify: `src/spec_orch/services/structural_judgment.py`
 - Modify: `src/spec_orch/services/judgment_substrate.py`
@@ -293,6 +295,8 @@ git commit -m "feat: deepen structural judgment signals"
 ```
 
 ## Task 5: Learning Promotion Discipline Tranche 2
+
+**Status:** Closed on `2026-04-04` after focused verification passed, canonical acceptance returned to `overall_status=pass`, and a release bundle was written under `docs/acceptance-history/releases/`.
 
 **Files:**
 - Modify: `src/spec_orch/services/learning_promotion_policy.py`

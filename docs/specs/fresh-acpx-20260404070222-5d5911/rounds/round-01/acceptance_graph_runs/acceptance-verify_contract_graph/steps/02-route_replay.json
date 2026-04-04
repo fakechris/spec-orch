@@ -1,0 +1,83 @@
+{
+  "step_key": "route_replay",
+  "decision": "continue",
+  "outputs": {
+    "route_replay_summary": {
+      "mission_id": "fresh-acpx-20260404070222-5d5911",
+      "round_id": 1,
+      "status": "complete",
+      "primary_routes_declared": [
+        "/",
+        "/?mode=missions",
+        "/?mission=fresh-acpx-20260404070222-5d5911&mode=missions&tab=overview"
+      ],
+      "related_routes_declared": [
+        "/?mission=fresh-acpx-20260404070222-5d5911&mode=missions&tab=transcript",
+        "/?mission=fresh-acpx-20260404070222-5d5911&mode=missions&tab=approvals",
+        "/?mission=fresh-acpx-20260404070222-5d5911&mode=missions&tab=judgment"
+      ],
+      "review_routes_captured": [
+        "overview",
+        "transcript",
+        "approvals",
+        "visual_qa",
+        "costs",
+        "judgment"
+      ],
+      "workflow_assertions_count": 11,
+      "contract_evidence_artifacts": [
+        {
+          "type": "route_declaration",
+          "source": "post_run_campaign",
+          "routes": [
+            "/",
+            "/?mode=missions",
+            "/?mission=fresh-acpx-20260404070222-5d5911&mode=missions&tab=overview"
+          ]
+        },
+        {
+          "type": "round_completion",
+          "source": "round_summary",
+          "round_id": 1,
+          "wave_id": 0,
+          "status": "decided",
+          "worker_count": 2,
+          "all_succeeded": true
+        },
+        {
+          "type": "gate_verdict",
+          "source": "verification_outputs",
+          "packet_id": "acpx-contract-mission-types",
+          "mergeable": true,
+          "scope_clean": true
+        },
+        {
+          "type": "gate_verdict",
+          "source": "verification_outputs",
+          "packet_id": "acpx-contract-artifact-types",
+          "mergeable": true,
+          "scope_clean": true
+        }
+      ],
+      "fresh_execution_proof": {
+        "succeeded": true,
+        "artifacts_produced": [
+          "src/contracts/mission_types.ts",
+          "src/contracts/artifact_types.ts"
+        ],
+        "verification_steps_passed": 6
+      }
+    },
+    "contract_verification": {
+      "fresh_execution_valid": true,
+      "scope_constraints_satisfied": true,
+      "budget_constraints_satisfied": true,
+      "route_declarations_valid": true,
+      "acceptance_criteria_met": true
+    }
+  },
+  "next_transition": "advance_to_mission_completion",
+  "warnings": [],
+  "review_markdown": "## Route Replay Step Review\n\n### Mission: fresh-acpx-20260404070222-5d5911\n\n**Round 1 Completed Successfully**\n\n#### Contract Evidence Captured\n\n| Category | Status | Details |\n|----------|--------|---------|\n| Fresh Execution | ✅ Pass | 2/2 packets succeeded |\n| Scope Constraints | ✅ Pass | Only touched target contract files |\n| Budget Constraints | ✅ Pass | 1 wave, 2 packets (within budget) |\n| Route Declarations | ✅ Pass | 3 primary + 3 related routes declared |\n| Workflow Assertions | ✅ Pass | 11 assertions covered |\n\n#### Affected Routes Verified\n- **Primary**: `/`, `/?mode=missions`, `/?mission=fresh-acpx-20260404070222-5d5911&mode=missions&tab=overview`\n- **Related**: transcript, approvals, judgment tabs\n\n#### Gate Verdicts\n- `acpx-contract-mission-types`: Mergeable, clean scope ✅\n- `acpx-contract-artifact-types`: Mergeable, clean scope ✅\n\n#### Conclusion\nThe route replay captured all declared routes and contract evidence. The mission's fresh execution proof is complete with both TypeScript contract files verified (scaffold_exists, typescript_contract_tokens, typescript_schema_surface, typescript_typecheck, typescript_lint_smoke, typescript_import_smoke all passing). All acceptance criteria satisfied.\n\n**Decision: Continue to mission completion.**",
+  "created_at": "2026-04-04T07:06:05.235797+00:00"
+}

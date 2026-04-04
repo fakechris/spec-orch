@@ -38,6 +38,16 @@ def _load_release_source_runs(repo_root: Path, bundle_path: str) -> dict[str, An
     return payload if isinstance(payload, dict) else None
 
 
+def _empty_verdict_counts() -> dict[str, int]:
+    return {
+        "promote": 0,
+        "keep": 0,
+        "discard": 0,
+        "rollback": 0,
+        "retire": 0,
+    }
+
+
 def _filter_by_mission(rows: list[dict[str, Any]], mission_id: str) -> list[dict[str, Any]]:
     filtered: list[dict[str, Any]] = []
     for row in rows:
@@ -157,6 +167,7 @@ def _promotion_rows(
                 ),
                 "promotion_target": record.promotion_target or "EvolutionProposalRef",
                 "promotion_reason": record.promotion_reason,
+                "discipline_verdict": record.discipline_verdict,
                 "promotion_state": (
                     "promoted"
                     if record.status == "active"
@@ -243,6 +254,7 @@ def _promotion_policy_rows(
                 **decision,
             }
         )
+    verdict_counts = _empty_verdict_counts()
     summary = {
         "promote_count": sum(1 for item in decisions if item.get("action") == "promote"),
         "hold_count": sum(1 for item in decisions if item.get("action") == "hold"),
@@ -250,7 +262,12 @@ def _promotion_policy_rows(
         "rollback_count": sum(1 for item in decisions if item.get("action") == "rollback"),
         "retire_count": sum(1 for item in decisions if item.get("action") == "retire"),
         "linked_release_count": len(linked_releases),
+        "verdict_counts": verdict_counts,
     }
+    for item in decisions:
+        verdict = str(item.get("verdict", "")).strip()
+        if verdict in verdict_counts:
+            verdict_counts[verdict] += 1
     return promoted_findings, decisions, summary
 
 
@@ -319,6 +336,12 @@ def build_mission_learning_workbench(repo_root: Path, mission_id: str) -> dict[s
         "archive_lineage": {
             "releases": releases,
             "linked_releases": linked_releases,
+            "raw_release_ids": [
+                str(item.get("release_id", ""))
+                for item in linked_releases
+                if str(item.get("release_id", ""))
+            ],
+            "promoted_release_ids": [],
         },
         "review_route": f"/?mission={mission_id}&mode=missions&tab=learning",
     }
@@ -335,6 +358,7 @@ def build_learning_workbench(repo_root: Path) -> dict[str, Any]:
     memory_refs: list[dict[str, Any]] = []
     learning_slices: dict[str, list[dict[str, Any]]]
     learning_slices = {"self": [], "delivery": [], "feedback": []}
+    verdict_counts = _empty_verdict_counts()
 
     for mission_root in sorted((repo_root / "docs" / "specs").glob("*")):
         if not mission_root.is_dir():
@@ -351,6 +375,7 @@ def build_learning_workbench(repo_root: Path) -> dict[str, Any]:
                 "fixture_candidate_count": int(overview.get("fixture_candidate_count", 0) or 0),
                 "active_promotion_count": int(overview.get("active_promotion_count", 0) or 0),
                 "promotion_decision": str(first_decision.get("action", "")),
+                "promotion_verdict": str(first_decision.get("verdict", "")),
                 "evolution_event_count": int(overview.get("evolution_event_count", 0) or 0),
                 "last_learning_summary": str(overview.get("last_learning_summary", "")),
                 "review_route": payload.get("review_route", ""),
@@ -365,6 +390,12 @@ def build_learning_workbench(repo_root: Path) -> dict[str, Any]:
         slices = memory_links.get("learning_slices", {})
         for kind in learning_slices:
             learning_slices[kind].extend(slices.get(kind, []))
+        policy_summary = payload.get("promotion_policy", {}).get("summary", {})
+        if isinstance(policy_summary, dict):
+            counts = policy_summary.get("verdict_counts", {})
+            if isinstance(counts, dict):
+                for key in verdict_counts:
+                    verdict_counts[key] += int(counts.get(key, 0) or 0)
 
     recent_journal = svc.get_recent_evolution_journal(limit=50)
     promotions = _promotion_rows(repo_root, journal=recent_journal)
@@ -385,6 +416,7 @@ def build_learning_workbench(repo_root: Path) -> dict[str, Any]:
             ),
             "archive_release_count": len(releases),
             "linked_release_count": len(unique_linked_releases),
+            "verdict_counts": verdict_counts,
         },
         "workspaces": workspaces,
         "promotion_timeline": promotions,

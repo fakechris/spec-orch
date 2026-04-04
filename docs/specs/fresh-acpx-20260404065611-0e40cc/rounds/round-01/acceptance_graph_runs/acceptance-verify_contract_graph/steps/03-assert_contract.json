@@ -1,0 +1,49 @@
+{
+  "step_key": "assert_contract",
+  "decision": "assertion_holds",
+  "outputs": {
+    "assertion_result": "contract_preserved",
+    "contract_scope": {
+      "mission_id": "fresh-acpx-20260404065611-0e40cc",
+      "wave_count": 1,
+      "packet_count": 2,
+      "allowed_files": [
+        "src/contracts/mission_types.ts",
+        "src/contracts/artifact_types.ts"
+      ]
+    },
+    "acceptance_criteria_status": {
+      "fresh_mission_creatable": true,
+      "plan_within_budget": true,
+      "mission_launched_with_artifacts": true,
+      "post_run_workflow_pending": "not_yet_executed"
+    },
+    "constraints_compliance": {
+      "narrow_local_only": true,
+      "no_historical_artifacts": true,
+      "budget_respected": true,
+      "only_targeted_files": true,
+      "no_dashboard_changes": true
+    },
+    "verification_summary": {
+      "total_packets": 2,
+      "packets_succeeded": 2,
+      "all_verification_passed": true,
+      "all_gates_mergeable": true,
+      "all_in_scope": true
+    },
+    "round_1_verdict": {
+      "status": "decided",
+      "action": "continue",
+      "reason_code": "wave_complete_all_packets_merged",
+      "confidence": 0.98,
+      "summary": "Wave 0 complete. Both contract scaffold packets passed all verification checks and gate verdicts. Plan budget exhausted (1 wave, 2 packets). Mission round resolved."
+    }
+  },
+  "next_transition": "",
+  "warnings": [
+    "Post-run workflow replay validation (acceptance criterion 4) has not yet been executed - this is a separate proof phase."
+  ],
+  "review_markdown": "## Contract Assertion: `fresh-acpx-20260404065611-0e40cc`\n\n### Verdict: ✅ HOLD\n\nAll contract obligations for the **fresh execution phase** are satisfied.\n\n---\n\n### Acceptance Criteria Check\n\n| Criterion | Status | Evidence |\n|-----------|--------|----------|\n| Fresh mission can be created | ✅ | Mission ID `fresh-acpx-20260404065611-0e40cc` created and launched |\n| Plan within 1 wave / ≤2 packets | ✅ | 1 wave, 2 packets (mission_types + artifact_types) |\n| Mission produces fresh round artifacts | ✅ | Both workers succeeded; round resolved with `decided` status |\n| Post-run workflow replay | ⏳ Pending | Separate proof phase not yet executed |\n\n### Constraints Compliance\n\n| Constraint | Status |\n|------------|--------|\n| Narrow local-only path | ✅ |\n| No historical artifact reuse | ✅ |\n| Budget: ≤1 wave, ≤2 packets | ✅ |\n| Only `src/contracts/{mission,artifact}_types.ts` touched | ✅ (gate `allowed_files` = `realized_files`) |\n| No dashboard/runtime changes | ✅ |\n\n### Verification Results (Round 1)\n\nBoth packets (`acpx-contract-mission-types-scaffold`, `acpx-contract-artifact-types-scaffold`) passed all verification steps:\n- ✅ `scaffold_exists`\n- ✅ `typescript_contract_tokens`\n- ✅ `typescript_schema_surface`\n- ✅ `typescript_typecheck` (tsc exit 0)\n- ✅ `typescript_lint_smoke`\n- ✅ `typescript_import_smoke`\n\n### Gate Verdicts\n\n| Packet | Mergeable | In Scope |\n|--------|-----------|----------|\n| mission_types | ✅ | ✅ |\n| artifact_types | ✅ | ✅ |\n\n---\n\n### Next Phase\n\nThe **post-run workflow replay** (dashboard surface validation) is the final acceptance criterion and is tracked as a separate proof phase. The contract holds for the execution portion just completed.",
+  "created_at": "2026-04-04T07:00:31.569878+00:00"
+}

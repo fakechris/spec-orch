@@ -1,0 +1,43 @@
+{
+  "step_key": "contract_brief",
+  "decision": "continue",
+  "outputs": {
+    "mission_title": "Fresh ACPX Mission E2E Narrow Smoke",
+    "mission_id": "fresh-acpx-20260404063023-6b3085",
+    "execution_mode": "fresh_acpx_mission",
+    "current_round": 1,
+    "wave_id": 0,
+    "status": "decided",
+    "packets_completed": [
+      {
+        "packet_id": "scaffold-mission-types",
+        "succeeded": true,
+        "realized_files": [
+          "src/contracts/mission_types.ts"
+        ],
+        "verification": "all_passed"
+      },
+      {
+        "packet_id": "scaffold-artifact-types",
+        "succeeded": true,
+        "realized_files": [
+          "src/contracts/artifact_types.ts"
+        ],
+        "verification": "all_passed"
+      }
+    ],
+    "verification_summary": {
+      "all_packets_verified": true,
+      "scope_compliant": true,
+      "typescript_compilation": "passed",
+      "import_validation": "passed",
+      "gate_mergeable": true
+    },
+    "decision_reason": "all_packets_verified_and_merged",
+    "confidence": 0.98
+  },
+  "next_transition": "{'action': 'advance_to_workflow_replay', 'target': 'workflow_replay', 'intent': 'Validate post-run dashboard surfaces for fresh ACPX mission', 'review_routes': ['/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=overview', '/?mission=fresh-acpx-20260404063023-6B3085&mode=missions&tab=transcript&round=1', '/?mission=fresh-acpx-20260404063023-6B3085&mode=missions&tab=approvals&round=1', '/?mission=fresh-acpx-20260404063023-6B3085&mode=missions&tab=visual&round=1', '/?mission=fresh-acpx-20260404063023-6B3085&mode=missions&tab=costs&round=1', '/?mission=fresh-acpx-20260404063023-6B3085&mode=missions&tab=judgment&round=1'], 'workflow_assertions_count': 11}",
+  "warnings": [],
+  "review_markdown": "## Contract Brief: Fresh ACPX Mission E2E Narrow Smoke\n\n### Purpose\nVerify the declared feature (fresh ACPX mission execution) and validate directly affected routes (dashboard surfaces).\n\n### Acceptance Criteria\n1. ✅ **Fresh mission creation** — A fresh mission can be created for this run.\n2. ✅ **Plan budget compliance** — Plan stays within 1 wave and at most 2 work packets.\n3. ✅ **Fresh round artifacts** — Mission launches and produces fresh round artifacts.\n4. ⏳ **Post-run dashboard validation** — Workflow replay validates resulting dashboard surfaces.\n\n### Constraints (All Satisfied)\n- ✅ Narrow, local-only execution path\n- ✅ No reuse of historical round artifacts\n- ✅ At most 1 wave, at most 2 work packets\n- ✅ Only touched `src/contracts/mission_types.ts` and `src/contracts/artifact_types.ts`\n- ✅ No dashboard runtime, test harnesses, or replay engine implementation\n\n### Round 1 Results\n| Packet | Status | Files | Verification |\n|--------|--------|-------|--------------|\n| scaffold-mission-types | ✅ Passed | src/contracts/mission_types.ts | All 6 checks passed |\n| scaffold-artifact-types | ✅ Passed | src/contracts/artifact_types.ts | All 6 checks passed |\n\n### Verified Properties\n- TypeScript compilation: passed (tsc --noEmit)\n- Import smoke: passed\n- Lint smoke: passed (no trailing whitespace, no tabs)\n- Schema surface: confirmed (Schema, export interface, export type)\n- Scope compliance: 100% (all realized files match allowed files)\n- Gate mergeable: true (no failed conditions)\n\n### Next Phase\n**Workflow Replay** — Validate post-run dashboard surfaces with 11 workflow assertions across 6 review routes (overview, transcript, approvals, visual QA, costs, judgment).",
+  "created_at": "2026-04-04T06:33:51.718903+00:00"
+}

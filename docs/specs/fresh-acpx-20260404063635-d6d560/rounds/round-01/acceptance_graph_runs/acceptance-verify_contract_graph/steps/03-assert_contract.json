@@ -1,0 +1,76 @@
+{
+  "step_key": "assert_contract",
+  "decision": "contract_holds",
+  "outputs": {
+    "assertion": "assert_contract",
+    "mission_id": "fresh-acpx-20260404063635-d6d560",
+    "target": "mission:fresh-acpx-20260404063635-d6d560",
+    "phase": "fresh_execution",
+    "verdict": "PASS",
+    "criteria_assessment": {
+      "acceptance_criteria": {
+        "fresh_mission_creation": {
+          "status": "MET",
+          "evidence": "Mission ID fresh-acpx-20260404063635-d6d560 successfully bootstrapped and launched"
+        },
+        "plan_budget_compliance": {
+          "status": "MET",
+          "evidence": "Executed 1 wave with 2 packets (mission_types.ts, artifact_types.ts) — within budget"
+        },
+        "fresh_round_artifacts": {
+          "status": "MET",
+          "evidence": "Both worker packets succeeded (exit 0), all 6 verification steps passed per packet, gate verdicts confirmed mergeable"
+        },
+        "post_run_workflow_replay": {
+          "status": "PENDING",
+          "evidence": "Workflow replay phase is next in the proof split — not yet executed"
+        }
+      },
+      "constraints_assessment": {
+        "narrow_local_only": {
+          "status": "COMPLIANT",
+          "evidence": "local_only=true, max_waves=1, max_packets=2"
+        },
+        "no_historical_reuse": {
+          "status": "COMPLIANT",
+          "evidence": "proof_type=fresh_execution, fresh=true, no prior round artifacts referenced"
+        },
+        "file_scope": {
+          "status": "COMPLIANT",
+          "evidence": "Gate verdicts show realized_files=[src/contracts/mission_types.ts] and [src/contracts/artifact_types.ts] respectively — all_in_scope=true for both packets"
+        },
+        "no_dashboard_changes": {
+          "status": "COMPLIANT",
+          "evidence": "No runtime, harness, or replay engine implementation in fresh proof scope"
+        }
+      },
+      "round_summary": {
+        "round_id": 1,
+        "wave_id": 0,
+        "status": "decided",
+        "decision": "continue",
+        "reason_code": "wave_complete_all_packets_verified",
+        "confidence": 0.98,
+        "worker_results": [
+          {
+            "packet_id": "acpx-contracts-mission-types",
+            "succeeded": true,
+            "all_verification_steps_passed": true
+          },
+          {
+            "packet_id": "acpx-contracts-artifact-types",
+            "succeeded": true,
+            "all_verification_steps_passed": true
+          }
+        ]
+      }
+    },
+    "summary": "The contract for the fresh execution phase holds. Both work packets (mission_types.ts and artifact_types.ts) succeeded and passed all six verification gates (scaffold_exists, typescript_contract_tokens, typescript_schema_surface, typescript_typecheck, typescript_lint_smoke, typescript_import_smoke). The plan stayed within budget (1 wave, 2 packets) and only touched the specified contract files. The first three acceptance criteria are satisfied. The fourth criterion (post-run workflow replay) is pending execution in the next phase."
+  },
+  "next_transition": "proceed_to_workflow_replay",
+  "warnings": [
+    "Post-run workflow replay phase has not yet been executed — assertion is partial until workflow_replay step completes"
+  ],
+  "review_markdown": "## Contract Assertion: fresh-acpx-20260404063635-d6d560\n\n### Verdict: ✅ CONTRACT HOLDS (fresh_execution phase)\n\n#### Acceptance Criteria Assessment\n\n| Criterion | Status | Evidence |\n|-----------|--------|----------|\n| Fresh mission created | ✅ MET | Mission `fresh-acpx-20260404063635-d6d560` bootstrapped and launched |\n| Plan within budget (1 wave, ≤2 packets) | ✅ MET | Exactly 1 wave, 2 packets executed |\n| Fresh round artifacts produced | ✅ MET | Both packets succeeded; all 6 verification steps passed per packet |\n| Post-run workflow replay | ⏳ PENDING | Next phase — not yet executed |\n\n#### Constraints Compliance\n\n| Constraint | Status |\n|------------|--------|\n| Narrow, local-only path | ✅ Compliant |\n| No historical artifact reuse | ✅ Compliant |\n| File scope (only .ts contracts) | ✅ Compliant |\n| No dashboard/harness changes | ✅ Compliant |\n\n#### Fresh Execution Gate Verdicts\n\n- **acpx-contracts-mission-types**: `mergeable=true`, `failed_conditions=[]`, `all_in_scope=true`\n- **acpx-contracts-artifact-types**: `mergeable=true`, `failed_conditions=[]`, `all_in_scope=true`\n\n#### Conclusion\n\nThe declared feature (fresh ACPX E2E narrow smoke) and directly affected routes have been verified. The contract holds for the fresh execution phase. Proceed to **workflow_replay** to validate the dashboard surfaces and complete the final acceptance criterion.\n\n⚠️ **Warning**: This assertion is scoped to `fresh_execution`. The `post_run_workflow_replay` phase must still be executed to fully satisfy all four acceptance criteria.",
+  "created_at": "2026-04-04T06:41:38.324440+00:00"
+}

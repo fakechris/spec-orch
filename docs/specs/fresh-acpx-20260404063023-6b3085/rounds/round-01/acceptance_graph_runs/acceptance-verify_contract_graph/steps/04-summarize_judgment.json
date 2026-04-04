@@ -1,0 +1,47 @@
+{
+  "step_key": "summarize_judgment",
+  "decision": "continue",
+  "outputs": {
+    "mission_id": "fresh-acpx-20260404063023-6b3085",
+    "mission_title": "Fresh ACPX Mission E2E Narrow Smoke",
+    "round_completed": 1,
+    "wave_id": 0,
+    "round_status": "decided",
+    "packets_executed": [
+      {
+        "packet_id": "scaffold-mission-types",
+        "succeeded": true,
+        "adapter": "acpx_worker",
+        "agent": "opencode"
+      },
+      {
+        "packet_id": "scaffold-artifact-types",
+        "succeeded": true,
+        "adapter": "acpx_worker",
+        "agent": "opencode"
+      }
+    ],
+    "verification_summary": {
+      "all_packets_verified": true,
+      "verification_checks_passed": {
+        "scaffold_exists": true,
+        "typescript_contract_tokens": true,
+        "typescript_schema_surface": true,
+        "typescript_typecheck": true,
+        "typescript_lint_smoke": true,
+        "typescript_import_smoke": true
+      },
+      "gate_merges": "clean",
+      "scope_compliance": "all_in_scope"
+    },
+    "artifacts_produced": [
+      "src/contracts/mission_types.ts",
+      "src/contracts/artifact_types.ts"
+    ],
+    "confidence": 0.98
+  },
+  "next_transition": "post_run_replay",
+  "warnings": [],
+  "review_markdown": "## Final Judgment Summary\n\n**Mission:** `fresh-acpx-20260404063023-6b3085` — Fresh ACPX Mission E2E Narrow Smoke\n\n### Execution Outcome\n- **Round 1 completed** with decision to **continue**\n- **Reason code:** `all_packets_verified_and_merged`\n- **Confidence:** 98%\n\n### Work Packet Results\n| Packet | Status | Adapter | Agent |\n|--------|--------|---------|-------|\n| scaffold-mission-types | ✅ Succeeded | acpx_worker | opencode |\n| scaffold-artifact-types | ✅ Succeeded | acpx_worker | opencode |\n\n### Verification Gates\nBoth packets passed all 6 verification checks:\n1. ✅ Scaffold file exists\n2. ✅ TypeScript contract tokens present\n3. ✅ TypeScript schema surface validated\n4. ✅ TypeScript compilation (`tsc --noEmit`) passed\n5. ✅ Lint smoke test passed (no trailing whitespace, no tabs)\n6. ✅ Import smoke test passed\n\n### Scope Compliance\n- **scaffold-mission-types:** Only touched `src/contracts/mission_types.ts` ✅\n- **scaffold-artifact-types:** Only touched `src/contracts/artifact_types.ts` ✅\n\n### Judgment\nWave 0 is complete. Both work packets executed successfully, passed all verification gates, and met scope constraints. The mission is **ready to advance to post-run replay validation** to verify the resulting dashboard surfaces.\n\n### Next Phase\nThe mission will proceed to **workflow replay** validation against these review routes:\n- Overview tab: `/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=overview`\n- Transcript tab: `/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=transcript&round=1`\n- Judgment tab: `/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=judgment&round=1`",
+  "created_at": "2026-04-04T06:34:50.962437+00:00"
+}

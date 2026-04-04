@@ -1,0 +1,62 @@
+{
+  "mission_id": "fresh-acpx-20260404063023-6b3085",
+  "round_id": 1,
+  "producer_role": "verifier",
+  "verification_origin": "browser_verifier",
+  "tested_routes": [
+    "/",
+    "/?mode=missions",
+    "/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=overview",
+    "/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=transcript",
+    "/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=approvals",
+    "/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=judgment"
+  ],
+  "interactions": {
+    "/": [
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"open-launcher\"]",
+        "description": "Open the launcher from the dashboard header.",
+        "status": "passed"
+      },
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"operator-mode\"][data-mode-key=\"missions\"]",
+        "description": "Switch into the mission inventory.",
+        "status": "passed"
+      }
+    ],
+    "/?mode=missions": [],
+    "/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=overview": [
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
+        "description": "Open the transcript tab.",
+        "status": "passed"
+      },
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"judgment\"]",
+        "description": "Open the judgment tab.",
+        "status": "passed"
+      }
+    ],
+    "/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=transcript": [],
+    "/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=approvals": [],
+    "/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=judgment": []
+  },
+  "screenshots": {
+    "/": "docs/specs/fresh-acpx-20260404063023-6b3085/rounds/round-01/visual/root.png",
+    "/?mode=missions": "docs/specs/fresh-acpx-20260404063023-6b3085/rounds/round-01/visual/_mode=missions.png",
+    "/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=overview": "docs/specs/fresh-acpx-20260404063023-6b3085/rounds/round-01/visual/_mission=fresh-acpx-20260404063023-6b3085_mode=missions_tab=overview.png",
+    "/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=transcript": "docs/specs/fresh-acpx-20260404063023-6b3085/rounds/round-01/visual/_mission=fresh-acpx-20260404063023-6b3085_mode=missions_tab=transcript.png",
+    "/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=approvals": "docs/specs/fresh-acpx-20260404063023-6b3085/rounds/round-01/visual/_mission=fresh-acpx-20260404063023-6b3085_mode=missions_tab=approvals.png",
+    "/?mission=fresh-acpx-20260404063023-6b3085&mode=missions&tab=judgment": "docs/specs/fresh-acpx-20260404063023-6b3085/rounds/round-01/visual/_mission=fresh-acpx-20260404063023-6b3085_mode=missions_tab=judgment.png"
+  },
+  "console_errors": [],
+  "page_errors": [],
+  "artifact_paths": {
+    "round_dir": "docs/specs/fresh-acpx-20260404063023-6b3085/rounds/round-01",
+    "visual_dir": "docs/specs/fresh-acpx-20260404063023-6b3085/rounds/round-01/visual"
+  }
+}

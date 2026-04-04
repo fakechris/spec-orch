@@ -228,6 +228,17 @@ def test_build_mission_learning_workbench_surfaces_promotions_patterns_and_archi
     assert payload["promoted_findings"][0]["promotion_target"] == "reviewed_learning"
     assert payload["promotion_policy"]["summary"]["promote_count"] == 1
     assert payload["promotion_policy"]["summary"]["linked_release_count"] == 1
+    assert payload["promotion_policy"]["summary"]["verdict_counts"] == {
+        "promote": 1,
+        "keep": 0,
+        "discard": 0,
+        "rollback": 0,
+        "retire": 0,
+    }
+    assert payload["promotion_policy"]["decisions"][0]["verdict"] == "promote"
+    assert payload["promotion_policy"]["decisions"][0]["lineage"]["raw_archive_release_ids"] == [
+        "judgment-workbench-tranche-son-390-2026-04-03"
+    ]
     assert payload["memory_links"]["memory_refs"][0]["origin_finding_ref"] == "candidate:learning-1"
     assert payload["fixture_registry"]["summary"] == {
         "candidate_count": 1,
@@ -249,6 +260,10 @@ def test_build_mission_learning_workbench_surfaces_promotions_patterns_and_archi
     assert payload["archive_lineage"]["linked_releases"][0]["release_id"] == (
         "judgment-workbench-tranche-son-390-2026-04-03"
     )
+    assert payload["archive_lineage"]["raw_release_ids"] == [
+        "judgment-workbench-tranche-son-390-2026-04-03"
+    ]
+    assert payload["archive_lineage"]["promoted_release_ids"] == []
     assert payload["review_route"] == f"/?mission={mission_id}&mode=missions&tab=learning"
 
 
@@ -266,10 +281,18 @@ def test_build_learning_workbench_aggregates_workspace_inventory(tmp_path: Path)
         "active_promotion_count": 1,
         "archive_release_count": 1,
         "linked_release_count": 1,
+        "verdict_counts": {
+            "promote": 1,
+            "keep": 0,
+            "discard": 0,
+            "rollback": 0,
+            "retire": 0,
+        },
     }
     assert payload["workspaces"][0]["workspace_id"] == "mission-learning"
     assert payload["workspaces"][0]["promoted_finding_count"] == 1
     assert payload["workspaces"][0]["promotion_decision"] == "promote"
+    assert payload["workspaces"][0]["promotion_verdict"] == "promote"
     assert payload["promotion_timeline"][0]["proposal_id"] == "proposal-1"
     assert payload["patterns"][0]["workspace_id"] == "mission-learning"
     assert payload["fixture_registry"]["candidates"][0]["mission_id"] == "mission-learning"
@@ -297,3 +320,4 @@ def test_build_learning_workbench_handles_workspace_without_promotion_decisions(
     assert payload["summary"]["workspace_count"] == 1
     assert payload["workspaces"][0]["workspace_id"] == "mission-empty"
     assert payload["workspaces"][0]["promotion_decision"] == ""
+    assert payload["workspaces"][0]["promotion_verdict"] == ""

@@ -1,0 +1,40 @@
+{
+  "release_id": "learning-promotion-discipline-tranche-2-2026-04-04",
+  "release_label": "Learning Promotion Discipline Tranche 2 2026-04-04",
+  "created_at": "2026-04-04T07:09:34Z",
+  "git_commit": "8a699bf79464a1b7556c7ac254606a41880c6e21",
+  "git_branch": "phase-2-hardening-start",
+  "acceptance_suite_version": "formal-acceptance-v1",
+  "overall_status": "pass",
+  "reported_checks": 4,
+  "total_checks": 4,
+  "checks": {
+    "issue_start": "pass",
+    "dashboard_ui": "pass",
+    "mission_start": "pass",
+    "exploratory": "pass"
+  },
+  "source_runs": {
+    "issue_start": "SPC-1",
+    "mission_start": "fresh-acpx-20260404065611-0e40cc",
+    "dashboard_ui": "dashboard-ui-local",
+    "exploratory": "fresh-acpx-20260404070222-5d5911"
+  },
+  "artifacts": {
+    "status_json": ".spec_orch/acceptance/stability_acceptance_status.json",
+    "status_markdown": "docs/plans/2026-03-30-stability-acceptance-status.md",
+    "summary_markdown": "docs/acceptance-history/releases/learning-promotion-discipline-tranche-2-2026-04-04/summary.md",
+    "findings_json": "docs/acceptance-history/releases/learning-promotion-discipline-tranche-2-2026-04-04/findings.json",
+    "source_runs_json": "docs/acceptance-history/releases/learning-promotion-discipline-tranche-2-2026-04-04/source_runs.json",
+    "artifacts_json": "docs/acceptance-history/releases/learning-promotion-discipline-tranche-2-2026-04-04/artifacts.json",
+    "status_bundle_json": "docs/acceptance-history/releases/learning-promotion-discipline-tranche-2-2026-04-04/status.json"
+  },
+  "lineage": {
+    "program": "learning-promotion-discipline",
+    "notes": [
+      "This bundle captures learning promotion discipline tranche 2 by adding explicit keep/discard/promote/rollback/retire verdict semantics beside the existing promotion actions.",
+      "Learning workbench read models now separate raw archive lineage from promoted target refs and summarize experiment outcomes through verdict counts rather than only lineage accumulation.",
+      "Source-run compare versus learning-promotion-discipline-tranche-1-2026-04-03: issue_start stayed on SPC-1; dashboard_ui stayed on dashboard-ui-local; mission_start advanced to fresh-acpx-20260404065611-0e40cc; exploratory advanced to fresh-acpx-20260404070222-5d5911."
+    ]
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "step_key": "contract_brief",
+  "decision": "continue",
+  "outputs": {
+    "contract_summary": {
+      "mission_id": "fresh-acpx-20260404065611-0e40cc",
+      "title": "Fresh ACPX Mission E2E Narrow Smoke",
+      "execution_mode": "fresh_acpx_mission",
+      "declared_feature": "First-time ACPX mission scaffold: produce two TypeScript contract files (mission_types.ts, artifact_types.ts) under src/contracts via a single local-only wave with exactly 2 work packets.",
+      "scope_contract": "Two target files: src/contracts/mission_types.ts and src/contracts/artifact_types.ts. No other files touched. No dashboard/runtime changes, test harnesses, or replay engines during this run.",
+      "direct_routes_affected": [
+        "/?mission=fresh-acpx-20260404065611-0e40cc&mode=missions&tab=overview",
+        "/?mission=fresh-acpx-20260404065611-0e40cc&mode=missions&tab=transcript&round=1",
+        "/?mission=fresh-acpx-20260404065611-0e40cc&mode=missions&tab=approvals&round=1",
+        "/?mission=fresh-acpx-20260404065611-0e40cc&mode=missions&tab=judgment&round=1"
+      ]
+    },
+    "success_conditions": {
+      "mission_creation": {
+        "criterion": "A fresh mission can be created for this run.",
+        "status": "met",
+        "evidence": "Mission bootstrapped with ID fresh-acpx-20260404065611-0e40cc, phase transitioned to 'executing' at 2026-04-04T06:56:28."
+      },
+      "plan_budget": {
+        "criterion": "The plan stays within one wave and at most two work packets.",
+        "status": "met",
+        "evidence": "Wave 0 completed with exactly 2 packets: acpx-contract-mission-types-scaffold, acpx-contract-artifact-types-scaffold. Plan budget exhausted."
+      },
+      "fresh_artifacts": {
+        "criterion": "The mission can be launched and produce fresh round artifacts.",
+        "status": "met",
+        "evidence": "Both packets succeeded. Both files scaffolded: src/contracts/mission_types.ts and src/contracts/artifact_types.ts. All 6 verification checks passed per packet."
+      },
+      "dashboard_replay": {
+        "criterion": "Post-run workflow replay can validate the resulting dashboard surfaces.",
+        "status": "ready",
+        "evidence": "Workflow replay proof configured with 6 review routes (overview, transcript, approvals, visual_qa, costs, judgment) and 11 workflow assertions."
+      }
+    },
+    "verification_chains": {
+      "packet_1": {
+        "packet_id": "acpx-contract-mission-types-scaffold",
+        "target": "src/contracts/mission_types.ts",
+        "all_passed": true,
+        "checks": [
+          "scaffold_exists",
+          "typescript_contract_tokens",
+          "typescript_schema_surface",
+          "typescript_typecheck",
+          "typescript_lint_smoke",
+          "typescript_import_smoke"
+        ],
+        "gate_verdict": "mergeable, all_in_scope=true, only allowed file realized"
+      },
+      "packet_2": {
+        "packet_id": "acpx-contract-artifact-types-scaffold",
+        "target": "src/contracts/artifact_types.ts",
+        "all_passed": true,
+        "checks": [
+          "scaffold_exists",
+          "typescript_contract_tokens",
+          "typescript_schema_surface",
+          "typescript_typecheck",
+          "typescript_lint_smoke",
+          "typescript_import_smoke"
+        ],
+        "gate_verdict": "mergeable, all_in_scope=true, only allowed file realized"
+      }
+    },
+    "round_resolution": {
+      "round_id": 1,
+      "decision": "continue",
+      "reason_code": "wave_complete_all_packets_merged",
+      "confidence": 0.98,
+      "summary": "Wave 0 complete. Both contract scaffold packets passed all verification checks and gate verdicts. Plan budget exhausted (1 wave, 2 packets). Mission round resolved."
+    }
+  },
+  "next_transition": "{'from': 'contract_brief', 'reason': 'All declared features verified. Both contract scaffolds succeeded and stayed in scope. Round resolved. Next logical step is workflow replay to validate dashboard surfaces per the post-run campaign.', 'target_step': 'workflow_replay'}",
+  "warnings": [
+    "{'severity': 'info', 'code': 'budget_exhausted', 'message': 'Plan budget fully consumed (1 wave, 2 packets). No additional waves are available for this mission unless a new mission is bootstrapped.'}",
+    "{'severity': 'info', 'code': 'fresh_execution_complete', 'message': 'Fresh execution phase complete. Workflow replay is the remaining proof component to validate dashboard surfaces.'}"
+  ],
+  "review_markdown": "## Contract Brief: Fresh ACPX Mission E2E Narrow Smoke\n\n### Mission\n- **ID**: `fresh-acpx-20260404065611-0e40cc`\n- **Mode**: `fresh_acpx_mission` (local-only, no artifact reuse)\n- **Intent**: Prove ACPX end-to-end by scaffolding exactly two TypeScript contract files via a minimal single-wave run.\n\n### Contract (Declared Feature)\nTwo files must be scaffolded inside worker workspaces:\n1. `src/contracts/mission_types.ts`\n2. `src/contracts/artifact_types.ts`\n\nBoth must contain valid TypeScript contract tokens, a schema surface, pass `tsc --noEmit`, pass lint smoke, and pass import smoke. Only these files may be touched; all other constraints (no dashboard changes, no test harnesses, no replay engines) apply.\n\n### Success Conditions (All Met ✅)\n\n| # | Criterion | Status | Evidence |\n|---|-----------|--------|----------|\n| 1 | Fresh mission created | ✅ | Mission bootstrapped, phase=executing |\n| 2 | Plan ≤1 wave, ≤2 packets | ✅ | Wave 0, exactly 2 packets completed |\n| 3 | Fresh artifacts produced | ✅ | Both files scaffolded, all 6 checks passed each |\n| 4 | Workflow replay ready | ✅ | 6 review routes, 11 assertions configured |\n\n### Verification Chain\n- **Packet 1** (`acpx-contract-mission-types-scaffold`): ✅ All 6 checks passed, mergeable, in-scope\n- **Packet 2** (`acpx-contract-artifact-types-scaffold`): ✅ All 6 checks passed, mergeable, in-scope\n- **Round decision**: `continue` — `wave_complete_all_packets_merged`, confidence 0.98\n\n### Directly Affected Routes\n`/?mission=fresh-acpx-20260404065611-0e40cc&mode=missions&tab=overview` (primary), plus `transcript`, `approvals`, `visual_qa`, `costs`, `judgment` tabs — all to be validated by the pending workflow replay.\n\n### Next Transition\n→ **workflow_replay**: Validate post-run dashboard surfaces per the 11 workflow assertions and the configured post-run campaign.",
+  "created_at": "2026-04-04T06:59:49.450704+00:00"
+}

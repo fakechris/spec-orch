@@ -1,0 +1,115 @@
+{
+  "mission_id": "fresh-acpx-20260404063635-d6d560",
+  "round_id": 1,
+  "producer_role": "verifier",
+  "verification_origin": "browser_verifier",
+  "tested_routes": [
+    "/",
+    "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=overview",
+    "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=transcript",
+    "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=judgment",
+    "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=approvals"
+  ],
+  "interactions": {
+    "/": [
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"open-launcher\"]",
+        "description": "Open the launcher to establish operator context.",
+        "status": "passed"
+      },
+      {
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"launcher-action\"][data-launcher-action=\"refresh-readiness\"]",
+        "description": "Confirm launcher actions are visible before exploring mission surfaces.",
+        "status": "passed"
+      }
+    ],
+    "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=overview": [
+      {
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260404063635-d6d560\"]",
+        "description": "Confirm mission detail is ready before branching into adjacent surfaces.",
+        "status": "passed"
+      },
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
+        "description": "Probe the transcript surface from the overview entry point.",
+        "status": "passed"
+      },
+      {
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"][data-active=\"true\"]",
+        "description": "Confirm the transcript branch became active.",
+        "status": "passed"
+      }
+    ],
+    "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=transcript": [
+      {
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"mission-detail-ready\"][data-mission-id=\"fresh-acpx-20260404063635-d6d560\"]",
+        "description": "Confirm mission detail is ready before judging transcript discoverability.",
+        "status": "passed"
+      },
+      {
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"transcript-filter\"][data-filter-key=\"all\"]",
+        "description": "Confirm transcript controls are visible on the route.",
+        "status": "passed"
+      },
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"transcript-filter\"][data-filter-key=\"all\"]",
+        "description": "Reset transcript filters before judging discoverability.",
+        "status": "passed"
+      },
+      {
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"transcript-filter\"][data-filter-key=\"all\"][data-active=\"true\"]",
+        "description": "Confirm transcript evidence is shown in the broadest view.",
+        "status": "passed"
+      },
+      {
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"transcript-block\"]",
+        "description": "Wait for the transcript timeline to expose at least one evidence block.",
+        "status": "passed"
+      },
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"transcript-block\"][data-active=\"true\"]",
+        "description": "Inspect the currently active transcript block for context continuity.",
+        "status": "passed"
+      },
+      {
+        "action": "wait_for_selector",
+        "target": "[data-automation-target=\"transcript-inspector\"]",
+        "description": "Confirm transcript evidence details are visible after selecting a block.",
+        "status": "passed"
+      }
+    ],
+    "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=judgment": [
+      {
+        "action": "click_selector",
+        "target": "[data-automation-target=\"internal-route\"][data-route-label=\"Open raw acceptance artifact\"]",
+        "description": "Follow the raw acceptance artifact bridge exposed by Judgment Workbench.",
+        "status": "passed"
+      }
+    ],
+    "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=approvals": []
+  },
+  "screenshots": {
+    "/": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404063635-d6d560/rounds/round-01/visual/root.png",
+    "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=overview": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404063635-d6d560/rounds/round-01/visual/_mission=fresh-acpx-20260404063635-d6d560_mode=missions_tab=overview.png",
+    "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=transcript": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404063635-d6d560/rounds/round-01/visual/_mission=fresh-acpx-20260404063635-d6d560_mode=missions_tab=transcript.png",
+    "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=judgment": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404063635-d6d560/rounds/round-01/visual/_mission=fresh-acpx-20260404063635-d6d560_mode=missions_tab=judgment.png",
+    "/?mission=fresh-acpx-20260404063635-d6d560&mode=missions&tab=approvals": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404063635-d6d560/rounds/round-01/visual/_mission=fresh-acpx-20260404063635-d6d560_mode=missions_tab=approvals.png"
+  },
+  "console_errors": [],
+  "page_errors": [],
+  "artifact_paths": {
+    "round_dir": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404063635-d6d560/rounds/round-01",
+    "visual_dir": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404063635-d6d560/rounds/round-01/visual"
+  }
+}

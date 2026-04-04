@@ -357,6 +357,13 @@ class TestDashboardAPI:
             "active_promotion_count": 1,
             "archive_release_count": 1,
             "linked_release_count": 1,
+            "verdict_counts": {
+                "promote": 1,
+                "keep": 0,
+                "discard": 0,
+                "rollback": 0,
+                "retire": 0,
+            },
         }
         assert global_payload["review_route"] == "/?mode=learning"
         assert global_payload["workspaces"][0]["workspace_id"] == mission_id
@@ -368,7 +375,10 @@ class TestDashboardAPI:
         assert mission_payload["mission_id"] == mission_id
         assert mission_payload["overview"]["promoted_finding_count"] == 1
         assert mission_payload["promotion_policy"]["summary"]["promote_count"] == 1
+        assert mission_payload["promotion_policy"]["summary"]["verdict_counts"]["promote"] == 1
+        assert mission_payload["promotion_policy"]["decisions"][0]["verdict"] == "promote"
         assert mission_payload["promotion_timeline"][0]["proposal_id"] == "proposal-1"
+        assert mission_payload["promotion_timeline"][0]["discipline_verdict"] == "promote"
         assert (
             mission_payload["promotion_timeline"][0]["origin_finding_ref"] == "candidate:learning-1"
         )
@@ -387,6 +397,10 @@ class TestDashboardAPI:
                 "linked_release_count"
             ]
             == 1
+        )
+        assert (
+            detail_payload["learning_workbench"]["archive_lineage"]["raw_release_ids"]
+            == ["judgment-workbench-tranche-son-390-2026-04-03"]
         )
         assert detail_payload["learning_workbench"]["patterns"][0]["dedupe_key"] == (
             "dashboard:transcript-continuity"
