@@ -5,7 +5,7 @@
 ### Baseline
 
 - Local `main` and `origin/main` both resolve to `4e7c0abda1a1afc33d28a66f8f46f7617b5d9648`.
-- New worktree: `/Users/chris/workspace/spec-orch/.worktrees/self-hosting-dogfood-start`
+- New worktree: `.worktrees/self-hosting-dogfood-start`
 - Focused self-hosting baseline is green:
   - `tests/unit/test_linear_mirror.py`
   - `tests/unit/test_conversation_service.py`

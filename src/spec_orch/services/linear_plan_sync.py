@@ -247,6 +247,25 @@ def _classify_mirror_drift(
         if safe_desired_plan.get(key) != safe_current_plan.get(key):
             reasons.append(f"plan_sync.{key} differs")
 
+    desired_governance = desired_mirror.get("governance_sync", {})
+    current_governance = current_mirror.get("governance_sync", {})
+    safe_desired_governance = desired_governance if isinstance(desired_governance, dict) else {}
+    safe_current_governance = current_governance if isinstance(current_governance, dict) else {}
+    for key in (
+        "latest_acceptance_status",
+        "latest_release_id",
+        "latest_release_bundle_path",
+        "next_bottleneck",
+    ):
+        if safe_desired_governance.get(key) != safe_current_governance.get(key):
+            reasons.append(f"governance_sync.{key} differs")
+
+    if (
+        str(desired_mirror.get("next_action", "")).strip()
+        != str(current_mirror.get("next_action", "")).strip()
+    ):
+        reasons.append("next_action differs")
+
     if not reasons:
         return ("already_synced", [])
     if any(reason.startswith("workspace_id") for reason in reasons):

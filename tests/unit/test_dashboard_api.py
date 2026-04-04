@@ -4215,6 +4215,8 @@ class TestDashboardAPI:
         assert "renderArtifactLinks" in js.text
         assert "renderRoundContext" in js.text
         assert "buildMissionSubtitle" in js.text
+        assert "missionHealth.status === 'attention_required'" in js.text
+        assert "round?.diagnostic_artifacts" in js.text
         assert "renderApprovalWorkspace" in js.text
         assert "renderApprovalQueue" in js.text
         assert "renderTranscriptPreview" in js.text

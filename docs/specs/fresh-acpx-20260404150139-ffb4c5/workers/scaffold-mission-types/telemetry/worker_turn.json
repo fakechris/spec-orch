@@ -1,0 +1,16 @@
+{
+  "session_name": "mission-fresh-acpx-20260404150139-ffb4c5-scaffold-mission-types",
+  "terminal_reason": "process_exit_success",
+  "succeeded": true,
+  "retry_count": 0,
+  "event_count": 83,
+  "commands_completed": 7,
+  "files_changed": [
+    "docs/specs/fresh-acpx-20260404150139-ffb4c5/workers/scaffold-mission-types/src/contracts/mission_types.ts"
+  ],
+  "session_reused": false,
+  "session_health": "healthy",
+  "chain_id": "chain_fresh-acpx-20260404150139-ffb4c5_20260404T150156Z_2fda4a5c",
+  "span_id": "chain_fresh-acpx-20260404150139-ffb4c5_20260404T150156Z_2fda4a5c:round:01:packet:scaffold-mission-types:worker",
+  "parent_span_id": "chain_fresh-acpx-20260404150139-ffb4c5_20260404T150156Z_2fda4a5c:round:01:packet:scaffold-mission-types"
+}

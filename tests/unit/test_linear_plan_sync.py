@@ -254,6 +254,8 @@ def test_collect_linear_mission_mirror_drifts_classifies_missing_and_stale_state
     stale_mirror = build_linear_mirror_for_mission(tmp_path, "stale-plan")
     assert stale_mirror is not None
     stale_mirror["plan_sync"]["plan_state"] = "approved"
+    stale_mirror["governance_sync"]["latest_acceptance_status"] = "warn"
+    stale_mirror["governance_sync"]["next_bottleneck"] = "Verification"
     stale_mirror["next_action"] = "launch_mission"
 
     class FakeLinearClient:
@@ -279,3 +281,6 @@ def test_collect_linear_mission_mirror_drifts_classifies_missing_and_stale_state
     assert drifts[0]["reasons"] == ["mirror block missing from Linear description"]
     assert drifts[1]["mission_id"] == "stale-plan"
     assert "plan_sync.plan_state differs" in drifts[1]["reasons"]
+    assert "governance_sync.latest_acceptance_status differs" in drifts[1]["reasons"]
+    assert "governance_sync.next_bottleneck differs" in drifts[1]["reasons"]
+    assert "next_action differs" in drifts[1]["reasons"]

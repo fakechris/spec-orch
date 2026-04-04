@@ -176,8 +176,12 @@
     const mission = detail?.mission || {};
     const rounds = detail?.rounds || [];
     const lifecycle = detail?.lifecycle || {};
+    const missionHealth = detail?.mission_health || {};
     const paused = lifecycle.round_orchestrator_state?.paused;
-    const stateText = paused ? 'Paused for human input.' : 'Supervisor loop active.';
+    let stateText = paused ? 'Paused for human input.' : 'Supervisor loop active.';
+    if (missionHealth.status === 'attention_required') {
+      stateText = `${missionHealth.summary || 'Mission needs diagnostic review.'} Decision: ${missionHealth.decision_action || 'ask_human'}.`;
+    }
     const criterionCount = (mission.acceptance_criteria || []).length;
     return `${stateText} ${criterionCount} acceptance criteria, ${rounds.length} recorded rounds, and ${(detail?.packets || []).length} scoped packets.`;
   }
@@ -267,6 +271,8 @@
     const decision = round?.decision || {}
     const succeeded = (round?.worker_results || []).filter(result => result.succeeded).length
     const total = (round?.worker_results || []).length
+    const failureState = round?.failure_state || null
+    const diagnosticArtifacts = Array.isArray(round?.diagnostic_artifacts) ? round.diagnostic_artifacts : []
     return `
       <div class="context-card">
         <div class="context-title">${safeEsc(escHtml, decision.summary || 'No supervisor decision summary')}</div>
@@ -276,6 +282,19 @@
           <span>Workers ${succeeded}/${total}</span>
         </div>
       </div>
+      ${failureState ? `
+        <div class="context-card">
+          <div class="context-title">Mission attention required</div>
+          <div class="context-meta">
+            <span class="detail-chip">${safeEsc(escHtml, failureState.status || 'attention_required')}</span>
+            <span>${safeEsc(escHtml, failureState.summary || 'Diagnostic review required')}</span>
+          </div>
+          <div class="context-meta">
+            <span>Decision ${safeEsc(escHtml, failureState.decision_action || 'ask_human')}</span>
+            <span>Failed builders ${safeEsc(escHtml, `${failureState.failed_worker_count || 0}/${failureState.total_worker_count || 0}`)}</span>
+          </div>
+        </div>
+      ` : ''}
       <div class="context-list">
         ${(round?.worker_results || []).map(result => `
           <div class="context-card">
@@ -288,6 +307,19 @@
           </div>
         `).join('')}
       </div>
+      ${diagnosticArtifacts.length ? `
+        <div class="context-list">
+          ${diagnosticArtifacts.map(item => `
+            <div class="context-card">
+              <div class="context-title">${safeEsc(escHtml, item.label || 'diagnostic')}</div>
+              <div class="context-meta">
+                ${item.packet_id ? `<span>${safeEsc(escHtml, item.packet_id)}</span>` : ''}
+                <a class="artifact-link" href="/artifacts/${escAttr(item.path)}" target="_blank" rel="noreferrer">${safeEsc(escHtml, item.path)}</a>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
     `
   }
 

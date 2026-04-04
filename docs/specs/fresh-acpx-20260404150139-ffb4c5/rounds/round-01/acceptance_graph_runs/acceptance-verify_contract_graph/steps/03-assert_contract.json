@@ -1,0 +1,45 @@
+{
+  "step_key": "assert_contract",
+  "decision": "pass",
+  "outputs": {
+    "contract_assertion": "holds",
+    "assertion_summary": "All four acceptance criteria satisfied and all five constraints honored.",
+    "criteria_check": {
+      "fresh_mission_created": true,
+      "plan_within_budget": true,
+      "fresh_round_artifacts_produced": true,
+      "dashboard_workflow_replay_defined": true
+    },
+    "constraints_check": {
+      "narrow_local_only": true,
+      "no_historical_artifacts_reused": true,
+      "budget_respected": true,
+      "only_targeted_files_touched": true,
+      "no_dashboard_runtime_changes": true
+    },
+    "verification_gates": {
+      "scaffold-mission-types": {
+        "all_passed": true,
+        "gate_verdict_mergeable": true,
+        "scope_clean": true
+      },
+      "scaffold-artifact-types": {
+        "all_passed": true,
+        "gate_verdict_mergeable": true,
+        "scope_clean": true
+      }
+    },
+    "round_outcome": {
+      "wave_id": 0,
+      "packets_succeeded": 2,
+      "packets_failed": 0,
+      "decision": "continue",
+      "reason": "wave_complete_no_remaining_packets",
+      "confidence": 0.95
+    }
+  },
+  "next_transition": "",
+  "warnings": [],
+  "review_markdown": "## Contract Assertion: PASS\n\nThe contract for mission `fresh-acpx-20260404150139-ffb4c5` **holds**.\n\n### Acceptance Criteria Review\n\n| Criterion | Status | Evidence |\n|-----------|--------|----------|\n| A fresh mission can be created for this run. | ✅ | Mission bootstrapped and launched successfully |\n| The plan stays within one wave and at most two work packets. | ✅ | Exactly 1 wave (wave 0), 2 packets (scaffold-mission-types, scaffold-artifact-types) |\n| The mission can be launched and produce fresh round artifacts. | ✅ | Round 1 completed; two builder reports and two TypeScript contract files produced |\n| Post-run workflow replay can validate the resulting dashboard surfaces. | ✅ | `workflow_replay` section defines 6 review routes and 11 workflow assertions |\n\n### Constraints Review\n\n| Constraint | Status | Evidence |\n|------------|--------|----------|\n| Keep the first fresh mission path narrow and local-only. | ✅ | `local_only: true` in bootstrap; no external calls |\n| Do not reuse historical round artifacts as fresh proof. | ✅ | `proof_type: fresh_execution` with `fresh_round_path` set |\n| Plan budget: at most 1 wave and at most 2 work packets. | ✅ | `max_waves: 1`, `max_packets: 2`; exactly 1 wave, 2 packets executed |\n| Only touch `src/contracts/mission_types.ts` and `src/contracts/artifact_types.ts` inside worker workspaces. | ✅ | Gate verdicts confirm only `allowed_files` realized; no out-of-scope files |\n| Do not implement dashboard runtime changes, test harnesses, or replay engines during the fresh proof run. | ✅ | Scope restricted to contract scaffolding only |\n\n### Verification Gate Summary\n\nBoth work packets passed all 6 verification steps (scaffold_exists, typescript_contract_tokens, typescript_schema_surface, typescript_typecheck, typescript_lint_smoke, typescript_import_smoke) with `all_passed: true` and `mergeable: true` gate verdicts.\n\n### Conclusion\n\nThe declared feature (fresh ACPX mission E2E narrow smoke) is fully realized. The contract is satisfied and the mission may be considered complete pending post-run workflow replay validation.",
+  "created_at": "2026-04-04T15:06:07.815117+00:00"
+}

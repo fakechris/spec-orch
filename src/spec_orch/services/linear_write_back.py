@@ -81,8 +81,9 @@ class LinearWriteBackService:
             client=self._client,
             mission_id=mission_id,
         )
+        normalized_linear_id = str(linear_id).strip()
         for item in drifts:
-            if str(item.get("linear_issue_id", "")).strip() == linear_id:
+            if str(item.get("linear_issue_id", "")).strip() == normalized_linear_id:
                 return item
         return None
 

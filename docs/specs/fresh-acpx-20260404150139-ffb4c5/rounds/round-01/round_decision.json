@@ -1,0 +1,14 @@
+{
+  "action": "continue",
+  "reason_code": "wave_complete_no_remaining_packets",
+  "summary": "Wave 0 complete. Both scaffold packets succeeded and passed all verification gates. Plan budget exhausted — mission is done.",
+  "confidence": 0.95,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

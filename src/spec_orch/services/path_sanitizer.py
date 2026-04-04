@@ -6,7 +6,10 @@ from typing import Any
 
 from spec_orch.services.env_files import resolve_shared_repo_root
 
-_ABSOLUTE_PATH_FRAGMENT_RE = re.compile(r"(?:(?<=`)|(?<!\S))/[^\s`]+")
+# Only Unix-style absolute filesystem paths are normalized from free-form text.
+# Windows drive-letter paths are left unchanged unless they are parsed from
+# structured payload values elsewhere.
+_ABSOLUTE_PATH_FRAGMENT_RE = re.compile(r"(?<!://)/[^\s\"`]+")
 _TEXT_SUFFIXES = {
     "",
     ".json",
@@ -52,6 +55,13 @@ def _looks_like_filesystem_path(path: Path) -> bool:
         "home",
         "root",
         "private",
+        "workspace",
+        "workspaces",
+        "mnt",
+        "media",
+        "srv",
+        "data",
+        "Volumes",
         "tmp",
         "var",
         "opt",
@@ -100,14 +110,26 @@ def sanitize_value(
     shared_root: Path | None = None,
 ) -> Any:
     if isinstance(value, dict):
-        return {
-            str(key): sanitize_value(
+        sanitized: dict[str, Any] = {}
+        duplicate_counts: dict[str, int] = {}
+        for key, item in value.items():
+            sanitized_key = str(key)
+            if isinstance(key, str):
+                sanitized_key = sanitize_path_like_string(
+                    key,
+                    repo_root=repo_root,
+                    shared_root=shared_root,
+                )
+            count = duplicate_counts.get(sanitized_key, 0)
+            duplicate_counts[sanitized_key] = count + 1
+            if count:
+                sanitized_key = f"{sanitized_key}#{count + 1}"
+            sanitized[sanitized_key] = sanitize_value(
                 item,
                 repo_root=repo_root,
                 shared_root=shared_root,
             )
-            for key, item in value.items()
-        }
+        return sanitized
     if isinstance(value, list):
         return [
             sanitize_value(item, repo_root=repo_root, shared_root=shared_root) for item in value

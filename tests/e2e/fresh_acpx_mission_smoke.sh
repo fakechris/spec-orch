@@ -456,16 +456,18 @@ result = adapter.evaluate_acceptance(
     json.dumps(result.to_dict(), indent=2) + "\n",
     encoding="utf-8",
 )
-report = write_fresh_acpx_mission_report(
-    round_dir=round_dir,
-    mission_id=mission_id,
-    dashboard_url=f"http://127.0.0.1:{port}/?mission={mission_id}&mode=missions&tab=overview",
-    fresh_execution=fresh_execution,
-    workflow_replay=workflow_replay,
-    acceptance_review=result,
-)
-sanitize_text_artifact_tree(repo_root / "docs" / "specs" / mission_id, repo_root=repo_root)
-print(json.dumps(report))
+try:
+    report = write_fresh_acpx_mission_report(
+        round_dir=round_dir,
+        mission_id=mission_id,
+        dashboard_url=f"http://127.0.0.1:{port}/?mission={mission_id}&mode=missions&tab=overview",
+        fresh_execution=fresh_execution,
+        workflow_replay=workflow_replay,
+        acceptance_review=result,
+    )
+    print(json.dumps(report))
+finally:
+    sanitize_text_artifact_tree(repo_root / "docs" / "specs" / mission_id, repo_root=repo_root)
 PY
 
 ok "fresh mission workflow replay completed"

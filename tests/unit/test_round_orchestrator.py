@@ -910,6 +910,15 @@ def test_run_supervised_records_acceptance_graph_trace_artifacts(tmp_path: Path)
     assert payload["artifacts"]["graph_run"].endswith("graph_run.json")
     assert payload["artifacts"]["graph_profile"] == "verify_contract_graph"
     assert len(payload["artifacts"]["step_artifacts"]) == 4
+    chain_events = read_chain_events(tmp_path / "docs/specs/mission-1/operator/runtime_chain")
+    phases = [(event.span_id, event.phase.value, event.status_reason) for event in chain_events]
+    round_completed_index = phases.index(
+        next(item for item in phases if item[2] == "round_completed")
+    )
+    acceptance_graph_completed_index = phases.index(
+        next(item for item in phases if item[2] == "acceptance_graph_completed")
+    )
+    assert round_completed_index > acceptance_graph_completed_index
     observability_root = (
         tmp_path / "docs/specs/mission-1/operator/observability/round-01-acceptance-graph"
     )

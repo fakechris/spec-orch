@@ -1,0 +1,59 @@
+{
+  "mission_id": "fresh-acpx-20260404145540-399122",
+  "proof_type": "fresh_launch_pickup",
+  "launch_result": {
+    "mission_id": "fresh-acpx-20260404145540-399122",
+    "state": {
+      "mission_id": "fresh-acpx-20260404145540-399122",
+      "phase": "executing",
+      "issue_ids": [
+        "LOCAL-FRESH-ACPX-20260404145540-399122-1",
+        "LOCAL-FRESH-ACPX-20260404145540-399122-2"
+      ],
+      "completed_issues": [],
+      "error": null,
+      "updated_at": "2026-04-04T14:56:05.353305+00:00",
+      "current_round": 0,
+      "round_orchestrator_state": {}
+    },
+    "launch": {
+      "last_launch": {
+        "state": {
+          "mission_id": "fresh-acpx-20260404145540-399122",
+          "phase": "executing",
+          "issue_ids": [
+            "LOCAL-FRESH-ACPX-20260404145540-399122-1",
+            "LOCAL-FRESH-ACPX-20260404145540-399122-2"
+          ],
+          "completed_issues": [],
+          "error": null,
+          "updated_at": "2026-04-04T14:56:05.353305+00:00",
+          "current_round": 0,
+          "round_orchestrator_state": {}
+        }
+      },
+      "runner": {
+        "status": "foreground_required"
+      }
+    },
+    "background_runner_started": false
+  },
+  "daemon_run": {
+    "mission_id": "fresh-acpx-20260404145540-399122",
+    "proof_type": "fresh_execution",
+    "runner_status": "finished",
+    "state": {
+      "mission_id": "fresh-acpx-20260404145540-399122",
+      "phase": "all_done",
+      "issue_ids": [
+        "LOCAL-FRESH-ACPX-20260404145540-399122-1",
+        "LOCAL-FRESH-ACPX-20260404145540-399122-2"
+      ],
+      "completed_issues": [],
+      "error": null,
+      "updated_at": "2026-04-04T15:01:07.378340+00:00",
+      "current_round": 1,
+      "round_orchestrator_state": {}
+    }
+  }
+}

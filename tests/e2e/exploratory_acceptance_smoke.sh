@@ -132,6 +132,7 @@ from pathlib import Path
 from spec_orch.services.stability_acceptance import (
     write_exploratory_acceptance_failure_report,
 )
+from spec_orch.services.path_sanitizer import sanitize_text_artifact_tree
 
 repo_root = Path(".").resolve()
 variant = sys.argv[1]
@@ -149,6 +150,8 @@ report = write_exploratory_acceptance_failure_report(
     source="fresh-acpx-mission-smoke",
     failure_reason=failure_reason,
 )
+if mission_id:
+    sanitize_text_artifact_tree(repo_root / "docs" / "specs" / mission_id, repo_root=repo_root)
 print(json.dumps(report))
 PY
   cat "$HARNESS_LOG" >&2 || true

@@ -340,3 +340,42 @@ def test_preview_issue_mirror_drift_from_mission_does_not_mutate_linear(tmp_path
     assert report is not None
     assert report["status"] == "missing_mirror"
     client.update_issue_description.assert_not_called()
+
+
+def test_preview_issue_mirror_drift_normalizes_linear_id_whitespace(tmp_path: Path) -> None:
+    from spec_orch.dashboard.launcher import _create_mission_draft
+
+    client = MagicMock()
+    client.query.return_value = {"issue": {"id": "issue-1", "description": "mission: preview"}}
+    svc = LinearWriteBackService(client=client)
+
+    _create_mission_draft(
+        tmp_path,
+        {
+            "title": "Preview",
+            "mission_id": "preview",
+            "problem": "Linear has drifted.",
+            "goal": "Report drift before writing.",
+            "intent": "Preview mirror drift.",
+            "acceptance_criteria": ["Drift is visible before mutation."],
+            "constraints": [],
+            "evidence_expectations": ["drift report"],
+        },
+    )
+    (tmp_path / "docs" / "specs" / "preview" / "plan.json").write_text(
+        '{"plan_id":"plan-1","mission_id":"preview","status":"draft","waves":[]}\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "specs" / "preview" / "operator" / "launch.json").write_text(
+        '{"linear_issue":{"id":"issue-1","identifier":"SON-1","title":"Preview"}}\n',
+        encoding="utf-8",
+    )
+
+    report = svc.preview_issue_mirror_drift_from_mission(
+        repo_root=tmp_path,
+        mission_id="preview",
+        linear_id=" issue-1 ",
+    )
+
+    assert report is not None
+    assert report["status"] == "missing_mirror"

@@ -314,6 +314,18 @@ class RoundOrchestrator:
             summary.status = RoundStatus.DECIDED
             summary.completed_at = datetime.now(UTC).isoformat()
             self._persist_round(round_dir, summary)
+            round_history.append(summary)
+            self._run_acceptance_evaluation(
+                mission_id=mission_id,
+                round_id=round_id,
+                round_dir=round_dir,
+                worker_results=worker_results,
+                artifacts=artifacts,
+                summary=summary,
+                chain_root=chain_root,
+                chain_id=chain_id,
+                round_span_id=round_span_id,
+            )
             append_chain_event(
                 chain_root,
                 RuntimeChainEvent(
@@ -327,18 +339,6 @@ class RoundOrchestrator:
                     artifact_refs={"round_dir": str(round_dir)},
                     updated_at=datetime.now(UTC).isoformat(),
                 ),
-            )
-            round_history.append(summary)
-            self._run_acceptance_evaluation(
-                mission_id=mission_id,
-                round_id=round_id,
-                round_dir=round_dir,
-                worker_results=worker_results,
-                artifacts=artifacts,
-                summary=summary,
-                chain_root=chain_root,
-                chain_id=chain_id,
-                round_span_id=round_span_id,
             )
 
             self._apply_session_ops(mission_id, decision)

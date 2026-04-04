@@ -70,7 +70,7 @@ Add tests that expect:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_linear_plan_sync.py tests/unit/test_linear_write_back.py tests/unit/test_cli_smoke.py -q -k 'linear_sync or drift'
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 pytest tests/unit/test_linear_plan_sync.py tests/unit/test_linear_write_back.py tests/unit/test_cli_smoke.py -q -k 'linear_sync or drift'
 ```
 
 **Step 3: Implement the minimal drift inventory layer**
@@ -95,9 +95,9 @@ Run the same pytest command and make it pass.
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff check src/spec_orch/services/linear_plan_sync.py src/spec_orch/services/linear_write_back.py src/spec_orch/cli/mission_commands.py tests/unit/test_linear_plan_sync.py tests/unit/test_linear_write_back.py tests/unit/test_cli_smoke.py
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff format --check src/spec_orch/services/linear_plan_sync.py src/spec_orch/services/linear_write_back.py src/spec_orch/cli/mission_commands.py tests/unit/test_linear_plan_sync.py tests/unit/test_linear_write_back.py tests/unit/test_cli_smoke.py
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 mypy src/spec_orch/services/linear_plan_sync.py src/spec_orch/services/linear_write_back.py src/spec_orch/cli/mission_commands.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 ruff check src/spec_orch/services/linear_plan_sync.py src/spec_orch/services/linear_write_back.py src/spec_orch/cli/mission_commands.py tests/unit/test_linear_plan_sync.py tests/unit/test_linear_write_back.py tests/unit/test_cli_smoke.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 ruff format --check src/spec_orch/services/linear_plan_sync.py src/spec_orch/services/linear_write_back.py src/spec_orch/cli/mission_commands.py tests/unit/test_linear_plan_sync.py tests/unit/test_linear_write_back.py tests/unit/test_cli_smoke.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 mypy src/spec_orch/services/linear_plan_sync.py src/spec_orch/services/linear_write_back.py src/spec_orch/cli/mission_commands.py
 ```
 
 **Step 6: Commit**
@@ -136,7 +136,7 @@ Add tests that expect the mirror to carry a stable compact block for:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_linear_plan_sync.py tests/unit/test_linear_mirror.py tests/unit/test_linear_write_back.py -q -k 'plan_sync or governance'
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 pytest tests/unit/test_linear_plan_sync.py tests/unit/test_linear_mirror.py tests/unit/test_linear_write_back.py -q -k 'plan_sync or governance'
 ```
 
 **Step 3: Implement the enriched mirror contract**
@@ -160,9 +160,9 @@ Run the same pytest command and make it pass.
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff check src/spec_orch/services/linear_plan_sync.py src/spec_orch/services/linear_mirror.py src/spec_orch/services/linear_write_back.py tests/unit/test_linear_plan_sync.py tests/unit/test_linear_mirror.py tests/unit/test_linear_write_back.py
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff format --check src/spec_orch/services/linear_plan_sync.py src/spec_orch/services/linear_mirror.py src/spec_orch/services/linear_write_back.py tests/unit/test_linear_plan_sync.py tests/unit/test_linear_mirror.py tests/unit/test_linear_write_back.py
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 mypy src/spec_orch/services/linear_plan_sync.py src/spec_orch/services/linear_mirror.py src/spec_orch/services/linear_write_back.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 ruff check src/spec_orch/services/linear_plan_sync.py src/spec_orch/services/linear_mirror.py src/spec_orch/services/linear_write_back.py tests/unit/test_linear_plan_sync.py tests/unit/test_linear_mirror.py tests/unit/test_linear_write_back.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 ruff format --check src/spec_orch/services/linear_plan_sync.py src/spec_orch/services/linear_mirror.py src/spec_orch/services/linear_write_back.py tests/unit/test_linear_plan_sync.py tests/unit/test_linear_mirror.py tests/unit/test_linear_write_back.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 mypy src/spec_orch/services/linear_plan_sync.py src/spec_orch/services/linear_mirror.py src/spec_orch/services/linear_write_back.py
 ```
 
 **Step 6: Commit**
@@ -201,7 +201,7 @@ Add tests that expect:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_conversation_service.py tests/unit/test_linear_conversation.py tests/unit/test_dashboard_launcher.py tests/unit/test_daemon.py -q -k 'freeze or linear or handoff'
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 pytest tests/unit/test_conversation_service.py tests/unit/test_linear_conversation.py tests/unit/test_dashboard_launcher.py tests/unit/test_daemon.py -q -k 'freeze or linear or handoff'
 ```
 
 **Step 3: Implement minimal lifecycle hardening**
@@ -221,7 +221,7 @@ Run the same pytest command and make it pass.
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_linear_mirror.py tests/unit/test_linear_plan_sync.py tests/unit/test_conversation_service.py tests/unit/test_dashboard_launcher.py tests/unit/test_daemon.py tests/unit/test_linear_conversation.py tests/unit/test_cli_smoke.py -q
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 pytest tests/unit/test_linear_mirror.py tests/unit/test_linear_plan_sync.py tests/unit/test_conversation_service.py tests/unit/test_dashboard_launcher.py tests/unit/test_daemon.py tests/unit/test_linear_conversation.py tests/unit/test_cli_smoke.py -q
 ```
 
 **Step 6: Verify style and types**
@@ -229,9 +229,9 @@ UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --pyt
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff check src/spec_orch/services/conversation_service.py src/spec_orch/services/linear_conversation_adapter.py src/spec_orch/dashboard/launcher.py src/spec_orch/services/daemon.py tests/unit/test_conversation_service.py tests/unit/test_linear_conversation.py tests/unit/test_dashboard_launcher.py tests/unit/test_daemon.py
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff format --check src/spec_orch/services/conversation_service.py src/spec_orch/services/linear_conversation_adapter.py src/spec_orch/dashboard/launcher.py src/spec_orch/services/daemon.py tests/unit/test_conversation_service.py tests/unit/test_linear_conversation.py tests/unit/test_dashboard_launcher.py tests/unit/test_daemon.py
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 mypy src/spec_orch/services/conversation_service.py src/spec_orch/services/linear_conversation_adapter.py src/spec_orch/dashboard/launcher.py src/spec_orch/services/daemon.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 ruff check src/spec_orch/services/conversation_service.py src/spec_orch/services/linear_conversation_adapter.py src/spec_orch/dashboard/launcher.py src/spec_orch/services/daemon.py tests/unit/test_conversation_service.py tests/unit/test_linear_conversation.py tests/unit/test_dashboard_launcher.py tests/unit/test_daemon.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 ruff format --check src/spec_orch/services/conversation_service.py src/spec_orch/services/linear_conversation_adapter.py src/spec_orch/dashboard/launcher.py src/spec_orch/services/daemon.py tests/unit/test_conversation_service.py tests/unit/test_linear_conversation.py tests/unit/test_dashboard_launcher.py tests/unit/test_daemon.py
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 mypy src/spec_orch/services/conversation_service.py src/spec_orch/services/linear_conversation_adapter.py src/spec_orch/dashboard/launcher.py src/spec_orch/services/daemon.py
 ```
 
 **Step 7: Commit**
@@ -308,9 +308,9 @@ Record:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff check src/ tests/
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff format --check src/ tests/
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 mypy src/spec_orch/
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 ruff check src/ tests/
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 ruff format --check src/ tests/
+UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-.venv-py313}" uv run --python 3.13 mypy src/spec_orch/
 ```
 
 **Step 6: Commit**
