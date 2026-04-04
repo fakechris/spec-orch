@@ -1,0 +1,43 @@
+{
+  "step_key": "summarize_judgment",
+  "decision": "accept",
+  "outputs": {
+    "judgment_summary": "Mission fresh-acpx-20260404045002-8dc499 completed successfully. Both scaffold packets passed all six verification gates with 0.98 confidence. The TypeScript contract files (mission_types.ts and artifact_types.ts) met all quality criteria: proper scaffold existence, contract tokens, schema surface, typecheck, lint smoke, and import smoke tests. Scopes remained clean, touching only the designated files. All acceptance criteria for Wave 1 satisfied. Decision to continue to next wave.",
+    "gate_summary": {
+      "fresh-mission-types-scaffold": {
+        "all_passed": true,
+        "gates": [
+          "scaffold_exists",
+          "typescript_contract_tokens",
+          "typescript_schema_surface",
+          "typescript_typecheck",
+          "typescript_lint_smoke",
+          "typescript_import_smoke"
+        ],
+        "scope_clean": true
+      },
+      "fresh-artifact-types-scaffold": {
+        "all_passed": true,
+        "gates": [
+          "scaffold_exists",
+          "typescript_contract_tokens",
+          "typescript_schema_surface",
+          "typescript_typecheck",
+          "typescript_lint_smoke",
+          "typescript_import_smoke"
+        ],
+        "scope_clean": true
+      }
+    },
+    "affected_routes": [
+      "src/contracts/mission_types.ts",
+      "src/contracts/artifact_types.ts"
+    ],
+    "wave_status": "complete",
+    "next_action": "continue"
+  },
+  "next_transition": "proceed_to_next_wave",
+  "warnings": [],
+  "review_markdown": "## Final Judgment\n\n**Mission:** Fresh ACPX Mission E2E Narrow Smoke (`fresh-acpx-20260404045002-8dc499`)\n\n### Verdict: ACCEPT\n\n### Summary\nRound 1 (Wave 0) completed successfully with all gates passing. Both work packets produced valid TypeScript contract scaffolds that satisfy the mission's narrow acceptance criteria.\n\n### Gate Results\n\n| Packet | Status | Gates Passed | Scope |\n|--------|--------|--------------|-------|\n| `fresh-mission-types-scaffold` | ✅ | 6/6 | Clean |\n| `fresh-artifact-types-scaffold` | ✅ | 6/6 | Clean |\n\n### Acceptance Criteria Status\n- ✅ A fresh mission can be created for this run\n- ✅ The plan stays within one wave and at most two work packets\n- ✅ The mission can be launched and produce fresh round artifacts\n- ⏳ Post-run workflow replay can validate the resulting dashboard surfaces (planned)\n\n### Affected Routes\n- `src/contracts/mission_types.ts`\n- `src/contracts/artifact_types.ts`\n\n### Decision Rationale\nThe `all_gates_passed` reason code applies. All six verification gates passed with zero failures, scopes were clean (no out-of-scope file modifications), and the round decision correctly signals continuation to the next wave. Confidence is high at 0.98.",
+  "created_at": "2026-04-04T04:55:25.241116+00:00"
+}

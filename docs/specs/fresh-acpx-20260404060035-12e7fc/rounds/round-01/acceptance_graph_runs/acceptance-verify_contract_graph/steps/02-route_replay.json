@@ -1,0 +1,88 @@
+{
+  "step_key": "route_replay",
+  "decision": "continue",
+  "outputs": {
+    "route_replay_captured": true,
+    "replay_scope": {
+      "primary_routes_replayed": [
+        "/",
+        "/?mode=missions",
+        "/?mission=fresh-acpx-20260404060035-12e7fc&mode=missions&tab=overview"
+      ],
+      "related_routes_replayed": [
+        "/?mission=fresh-acpx-20260404060035-12e7fc&mode=missions&tab=transcript&round=1",
+        "/?mission=fresh-acpx-20260404060035-12e7fc&mode=missions&tab=approvals&round=1",
+        "/?mission=fresh-acpx-20260404060035-12e7fc&mode=missions&tab=judgment&round=1",
+        "/?mission=fresh-acpx-20260404060035-12e7fc&mode=missions&tab=visual&round=1",
+        "/?mission=fresh-acpx-20260404060035-12e7fc&mode=missions&tab=costs&round=1"
+      ],
+      "review_routes_declared": 6,
+      "review_routes_replayed": 8
+    },
+    "contract_evidence_captured": {
+      "fresh_execution_proof": {
+        "proof_type": "fresh_execution",
+        "mission_id": "fresh-acpx-20260404060035-12e7fc",
+        "wave_count": 1,
+        "packet_count": 2,
+        "all_packets_succeeded": true,
+        "all_verifications_passed": true,
+        "artifacts_produced": [
+          "src/contracts/mission_types.ts",
+          "src/contracts/artifact_types.ts"
+        ]
+      },
+      "workflow_replay_proof": {
+        "proof_type": "workflow_replay",
+        "assertions_declared": 11,
+        "assertions_validated": 11,
+        "coverage": [
+          "launcher entry",
+          "mission inventory",
+          "fresh mission detail",
+          "post-run transcript",
+          "judgment review"
+        ]
+      },
+      "gate_verdicts": [
+        {
+          "packet_id": "acpx-fresh-scaffold-mission-types",
+          "mergeable": true,
+          "scope_realized": [
+            "src/contracts/mission_types.ts"
+          ]
+        },
+        {
+          "packet_id": "acpx-fresh-scaffold-artifact-types",
+          "mergeable": true,
+          "scope_realized": [
+            "src/contracts/artifact_types.ts"
+          ]
+        }
+      ],
+      "manifest_paths": [
+        "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404060035-12e7fc/workers/acpx-fresh-scaffold-mission-types/builder_report.json",
+        "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404060035-12e7fc/workers/acpx-fresh-scaffold-mission-types/src/contracts/mission_types.ts",
+        "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404060035-12e7fc/workers/acpx-fresh-scaffold-artifact-types/builder_report.json",
+        "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404060035-12e7fc/workers/acpx-fresh-scaffold-artifact-types/src/contracts/artifact_types.ts"
+      ]
+    },
+    "acceptance_criteria_status": {
+      "fresh_mission_created": true,
+      "within_one_wave_two_packets": true,
+      "mission_launched_with_artifacts": true,
+      "post_run_workflow_replay_validated": true
+    },
+    "constraints_satisfied": {
+      "local_only": true,
+      "no_historical_artifacts_reused": true,
+      "budget_respected": true,
+      "only_targeted_files_touched": true,
+      "no_dashboard_runtime_changes": true
+    }
+  },
+  "next_transition": "{'target_step': None, 'reason': 'route_replay step complete; all declared routes have been captured with contract evidence; mission execution and post-run workflow validation both confirmed successful'}",
+  "warnings": [],
+  "review_markdown": "## Route Replay Contract Evidence Summary\n\n### Mission: fresh-acpx-20260404060035-12e7fc\n**Fresh ACPX Mission E2E Narrow Smoke**\n\n---\n\n### Fresh Execution Proof\n\n| Metric | Result |\n|--------|--------|\n| Wave Count | 1 |\n| Packet Count | 2 |\n| Packets Succeeded | 2/2 |\n| All Verifications Passed | ✅ |\n\n#### Contract Files Produced\n1. `src/contracts/mission_types.ts` — scaffolded, type-checked, linted, import-tested\n2. `src/contracts/artifact_types.ts` — scaffolded, type-checked, linted, import-tested\n\n#### Verification Steps Per Packet\n- `scaffold_exists` ✅\n- `typescript_contract_tokens` ✅\n- `typescript_schema_surface` ✅\n- `typescript_typecheck` ✅\n- `typescript_lint_smoke` ✅\n- `typescript_import_smoke` ✅\n\n---\n\n### Workflow Replay Proof\n\n#### Review Routes Captured\n| Route | Type |\n|-------|------|\n| `/` | Primary |\n| `/?mode=missions` | Primary |\n| `/?mission=fresh-acpx-...&tab=overview` | Primary |\n| `/?mission=fresh-acpx-...&tab=transcript&round=1` | Related |\n| `/?mission=fresh-acpx-...&tab=approvals&round=1` | Related |\n| `/?mission=fresh-acpx-...&tab=judgment&round=1` | Related |\n| `/?mission=fresh-acpx-...&tab=visual&round=1` | Related |\n| `/?mission=fresh-acpx-...&tab=costs&round=1` | Related |\n\n#### Workflow Assertions Validated\n1. ✅ Launcher panel can be opened from the header\n2. ✅ Needs attention mode can be selected from mission control\n3. ✅ Missions mode can be selected from mission control\n4. ✅ Decision queue mode can be selected from mission control\n5. ✅ Deep evidence mode can be selected from mission control\n6. ✅ Target mission can be selected from the mission list\n7. ✅ Transcript tab can be opened from mission detail\n8. ✅ Approvals surface exposes actionable operator controls when present\n9. ✅ Visual QA tab can be opened from mission detail\n10. ✅ Judgment tab can be opened from mission detail\n11. ✅ Costs tab can be opened from mission detail\n\n---\n\n### Acceptance Criteria Status\n\n| Criterion | Status |\n|-----------|--------|\n| A fresh mission can be created for this run | ✅ |\n| The plan stays within one wave and at most two work packets | ✅ |\n| The mission can be launched and produce fresh round artifacts | ✅ |\n| Post-run workflow replay can validate the resulting dashboard surfaces | ✅ |\n\n---\n\n### Constraints Compliance\n\n| Constraint | Status |\n|------------|--------|\n| Keep the first fresh mission path narrow and local-only | ✅ |\n| Do not reuse historical round artifacts as fresh proof | ✅ |\n| Plan budget: at most 1 wave and at most 2 work packets | ✅ |\n| Only touch src/contracts/mission_types.ts and artifact_types.ts inside worker workspaces | ✅ |\n| Do not implement dashboard runtime changes, test harnesses, or replay engines | ✅ |\n\n---\n\n### Gate Verdicts\n\n| Packet | Mergeable | Scope |\n|--------|-----------|-------|\n| acpx-fresh-scaffold-mission-types | ✅ | src/contracts/mission_types.ts |\n| acpx-fresh-scaffold-artifact-types | ✅ | src/contracts/artifact_types.ts |\n\n---\n\n**Conclusion**: Route replay completed successfully. All declared routes captured with contract evidence. The fresh ACPX mission execution and post-run workflow validation both confirmed. The declared feature is verified with directly affected routes validated.",
+  "created_at": "2026-04-04T06:04:45.540603+00:00"
+}

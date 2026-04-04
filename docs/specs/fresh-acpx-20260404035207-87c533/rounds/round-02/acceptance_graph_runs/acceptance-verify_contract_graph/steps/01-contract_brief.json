@@ -1,0 +1,18 @@
+{
+  "step_key": "contract_brief",
+  "decision": "continue",
+  "outputs": {
+    "contract_summary": "Fresh ACPX Mission E2E Narrow Smoke (fresh-acpx-20260404035207-87c533) - Validates the ACPX mission execution pipeline with a minimal fresh proof run producing two TypeScript contract files (mission_types.ts and artifact_types.ts) under src/contracts, followed by post-run workflow replay to validate dashboard surfaces.",
+    "feature_scope": "fresh_acpx_mission execution + post_run_dashboard_workflow validation",
+    "wave_budget_consumed": 1,
+    "packet_budget_consumed": 2,
+    "declared_files": [
+      "src/contracts/mission_types.ts",
+      "src/contracts/artifact_types.ts"
+    ]
+  },
+  "next_transition": "continue",
+  "warnings": [],
+  "review_markdown": "## Contract Brief - Fresh ACPX Mission E2E Narrow Smoke\n\n### Mission Summary\nA narrow end-to-end smoke test for the ACPX mission system that:\n1. Creates a fresh local-only mission\n2. Executes one wave with exactly two work packets\n3. Produces TypeScript contract artifacts via acpx_worker adapters\n4. Validates the post-run dashboard workflow surfaces\n\n### Success Conditions (Acceptance Criteria)\n| # | Criterion | Status |\n|---|-----------|--------|\n| 1 | A fresh mission can be created for this run | ✅ |\n| 2 | Plan stays within one wave and at most two work packets | ✅ |\n| 3 | Mission can be launched and produce fresh round artifacts | ✅ |\n| 4 | Post-run workflow replay can validate dashboard surfaces | ⏳ (next phase) |\n\n### Verification Gate Results (Round 2)\n| Packet | Scaffold | Tokens | Schema | Typecheck | Lint | Import | Mergeable | Scope |\n|--------|----------|--------|--------|-----------|------|--------|-----------|-------|\n| acpx-fresh-0-001 (mission_types.ts) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |\n| acpx-fresh-0-002 (artifact_types.ts) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |\n\n### Wave Status\n- **Wave 0**: COMPLETE\n- **Decision**: `continue` (reason: wave_complete)\n- **Confidence**: 0.95\n- **Failed Conditions**: None\n\n### Constraints Compliance\n- ✅ Local-only path maintained\n- ✅ No historical artifact reuse\n- ✅ Budget: 1 wave / 2 packets (exactly)\n- ✅ Only touched allowed contract files in worker workspaces\n- ✅ No dashboard runtime, test harness, or replay engine implementation\n\n### Proof Split\n1. **Fresh Execution**: Mission launched, two workers produced TypeScript contract artifacts, all verification steps passed\n2. **Workflow Replay**: Post-run dashboard validation campaign queued with 11 workflow assertions across 6 review routes\n\n### Next Step\nAdvancing to mission completion workflow - post-run dashboard replay validation.",
+  "created_at": "2026-04-04T04:00:08.688316+00:00"
+}

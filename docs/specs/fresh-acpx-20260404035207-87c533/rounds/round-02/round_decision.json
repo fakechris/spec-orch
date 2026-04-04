@@ -1,0 +1,14 @@
+{
+  "action": "continue",
+  "reason_code": "wave_complete",
+  "summary": "Wave 0 complete. Both packets (acpx-fresh-0-001, acpx-fresh-0-002) passed all six verification steps and gate checks (mergeable=true, scope clean, no failed conditions). The mission plan has no further waves queued. Advancing to mission completion workflow.",
+  "confidence": 0.95,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

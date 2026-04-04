@@ -1,0 +1,111 @@
+{
+  "step_key": "route_replay",
+  "decision": "pass",
+  "outputs": {
+    "step_key": "route_replay",
+    "executed_at": "2026-04-04T05:27:49.068898+00:00",
+    "mission_id": "fresh-acpx-20260404052351-a4c9bd",
+    "round_completed": 1,
+    "route_declaration": {
+      "primary_routes": [
+        "/",
+        "/?mode=missions",
+        "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=overview"
+      ],
+      "related_routes": [
+        "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=transcript",
+        "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=approvals",
+        "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=judgment"
+      ],
+      "review_routes": {
+        "overview": "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=overview",
+        "transcript": "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=transcript&round=1",
+        "approvals": "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=approvals&round=1",
+        "visual_qa": "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=visual&round=1",
+        "costs": "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=costs&round=1",
+        "judgment": "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=judgment&round=1"
+      }
+    },
+    "workflow_assertions_captured": [
+      "launcher panel can be opened from the header",
+      "needs attention mode can be selected from mission control",
+      "missions mode can be selected from mission control",
+      "decision queue mode can be selected from mission control",
+      "deep evidence mode can be selected from mission control",
+      "the target mission can be selected from the mission list",
+      "the transcript tab can be opened from mission detail",
+      "the approvals surface exposes actionable operator controls when present",
+      "the visual QA tab can be opened from mission detail",
+      "the judgment tab can be opened from mission detail",
+      "the costs tab can be opened from mission detail"
+    ],
+    "interaction_plans_declared": {
+      "/": [
+        {
+          "action": "click_selector",
+          "target": "[data-automation-target=\"open-launcher\"]",
+          "description": "Open the launcher from the dashboard header"
+        },
+        {
+          "action": "click_selector",
+          "target": "[data-automation-target=\"operator-mode\"][data-mode-key=\"missions\"]",
+          "description": "Switch into the mission inventory"
+        }
+      ],
+      "/?mission=fresh-acpx-20260404052351-a4c9bd&mode=missions&tab=overview": [
+        {
+          "action": "click_selector",
+          "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"transcript\"]",
+          "description": "Open the transcript tab"
+        },
+        {
+          "action": "click_selector",
+          "target": "[data-automation-target=\"mission-tab\"][data-tab-key=\"judgment\"]",
+          "description": "Open the judgment tab"
+        }
+      ]
+    },
+    "contract_evidence": {
+      "fresh_execution_proof": "complete",
+      "workflow_replay_proof": "declared",
+      "gate_verdicts": [
+        {
+          "packet_id": "acpx-contract-mission-types",
+          "mergeable": true,
+          "failed_conditions": []
+        },
+        {
+          "packet_id": "acpx-contract-artifact-types",
+          "mergeable": true,
+          "failed_conditions": []
+        }
+      ],
+      "round_artifacts_manifest": [
+        "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404052351-a4c9bd/workers/acpx-contract-mission-types/builder_report.json",
+        "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404052351-a4c9bd/workers/acpx-contract-mission-types/src/contracts/mission_types.ts",
+        "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404052351-a4c9bd/workers/acpx-contract-artifact-types/builder_report.json",
+        "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404052351-a4c9bd/workers/acpx-contract-artifact-types/src/contracts/artifact_types.ts"
+      ]
+    },
+    "coverage_expectations": [
+      "launcher entry",
+      "mission inventory",
+      "fresh mission detail",
+      "post-run transcript",
+      "judgment review"
+    ],
+    "required_interactions": [
+      "open launcher",
+      "switch into missions mode",
+      "inspect the fresh mission detail",
+      "open transcript and judgment tabs"
+    ]
+  },
+  "next_transition": "{'type': 'route_replay_complete', 'target': 'workflow_replay_validation', 'mission_phase': 'post_run_dashboard_validation', 'pending_steps': ['dashboard_route_execution'], 'auto_continue_eligible': True}",
+  "warnings": [
+    "{'code': 'REPLAY_AWAITS_DASHBOARD_HARNESS', 'message': 'Route replay declarations captured. Actual dashboard navigation execution requires the browser/UI automation harness to be running. Workflow replay proof will be completed when harness reports back.', 'severity': 'info'}",
+    "{'code': 'COMPARE_OVERLAY_DISABLED', 'message': 'compare_overlay is false - no historical artifact comparison will be performed during this replay pass.', 'severity': 'info'}"
+  ],
+  "review_markdown": "## Route Replay Step Review\n\n### Step Execution Summary\nThe `route_replay` step has been processed for mission `fresh-acpx-20260404052351-a4c9bd`. This step captures the declared dashboard routes and workflow assertions for post-run validation.\n\n### Contract Evidence Captured\n\n#### Fresh Execution Proof (Complete ✓)\n- **Packet: acpx-contract-mission-types**\n  - All 6 verification gates passed (scaffold_exists, typescript_contract_tokens, typescript_schema_surface, typescript_typecheck, typescript_lint_smoke, typescript_import_smoke)\n  - Gate verdict: mergeable=true, failed_conditions=[], scope: src/contracts/mission_types.ts\n\n- **Packet: acpx-contract-artifact-types**\n  - All 6 verification gates passed\n  - Gate verdict: mergeable=true, failed_conditions=[], scope: src/contracts/artifact_types.ts\n\n#### Workflow Replay Proof (Declared ✓)\n- **Primary routes declared:** 3 routes covering launcher, missions mode, and mission overview\n- **Related routes declared:** 3 routes for transcript, approvals, and judgment tabs\n- **Review routes mapped:** 6 routes covering overview, transcript, approvals, visual_qa, costs, judgment\n- **Workflow assertions:** 11 UI interaction assertions captured\n- **Interaction plans:** 2 primary page interaction sequences defined\n\n### Acceptance Criteria Alignment\n\n| Criterion | Status |\n|-----------|--------|\n| A fresh mission can be created for this run | ✓ Confirmed |\n| The plan stays within one wave and at most two work packets | ✓ Confirmed (1 wave, 2 packets) |\n| The mission can be launched and produce fresh round artifacts | ✓ Confirmed (Round 1 artifacts present) |\n| Post-run workflow replay can validate the resulting dashboard surfaces | ✓ Declared (routes captured) |\n\n### Constraint Compliance\n\n| Constraint | Status |\n|------------|--------|\n| Keep the first fresh mission path narrow and local-only | ✓ Compliant |\n| Do not reuse historical round artifacts as fresh proof | ✓ Compliant |\n| Plan budget: at most 1 wave and at most 2 work packets | ✓ Compliant |\n| Only touch src/contracts/mission_types.ts and src/contracts/artifact_types.ts | ✓ Compliant |\n| Do not implement dashboard runtime changes, test harnesses, or replay engines | ✓ Compliant |\n\n### Decision Rationale\n**PASS** - The route_replay step successfully captured all declared routes and workflow assertions from the post-run campaign specification. The fresh execution phase has completed with all gates passing. The workflow replay phase is now primed for dashboard harness execution to validate the declared routes and interactions.\n\n### Next Actions\n1. Dashboard/UI automation harness should execute the declared routes\n2. Capture screenshots/evidence for each review route\n3. Validate workflow assertions against actual UI behavior\n4. Complete the workflow_replay proof phase",
+  "created_at": "2026-04-04T05:28:45.268979+00:00"
+}

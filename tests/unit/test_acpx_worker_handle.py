@@ -531,3 +531,91 @@ def test_acpx_worker_handle_retries_after_session_ensure_failure(
     assert report["retry_count"] == 1
     assert report["session_recycled"] is True
     assert report["session_name"] == "mission-m1-pkt1-retry-1"
+
+
+@patch("spec_orch.services.workers.acpx_worker_handle.cancel_acpx_session")
+@patch("spec_orch.services.workers.acpx_worker_handle.ensure_acpx_session")
+@patch("spec_orch.services.workers.acpx_worker_handle.subprocess.Popen")
+def test_acpx_worker_handle_treats_descriptive_execute_titles_as_progress(
+    mock_popen: MagicMock,
+    mock_ensure_session: MagicMock,
+    mock_cancel_session: MagicMock,
+    tmp_path: Path,
+) -> None:
+    descriptive = FakeProcess(
+        stdout_lines=[
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "session/update",
+                    "params": {
+                        "update": {
+                            "sessionUpdate": "tool_call",
+                            "toolCallId": "call-1",
+                            "title": "bash",
+                            "kind": "execute",
+                            "status": "pending",
+                            "locations": [],
+                            "rawInput": {},
+                        }
+                    },
+                }
+            )
+            + "\n",
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "session/update",
+                    "params": {
+                        "update": {
+                            "sessionUpdate": "tool_call_update",
+                            "toolCallId": "call-1",
+                            "status": "completed",
+                            "kind": "execute",
+                            "title": "Create smoke directory",
+                            "locations": [],
+                            "rawInput": {
+                                "command": "mkdir -p .spec_orch_smoke",
+                                "description": "Create smoke directory",
+                            },
+                        }
+                    },
+                }
+            )
+            + "\n",
+        ],
+        stderr_lines=["[acpx] agent needs reconnect\n"],
+        poll_values=[None, -15],
+        final_returncode=-15,
+    )
+    recovered = FakeProcess(
+        stdout_lines=['{"type": "result", "params": {"text": "done"}}\n'],
+        stderr_lines=[],
+        poll_values=[0],
+        final_returncode=0,
+    )
+    mock_popen.side_effect = [descriptive, recovered]
+
+    handle = AcpxWorkerHandle(
+        session_id="mission-m1-pkt1",
+        agent="codex",
+        executable="npx",
+        acpx_package="acpx",
+        startup_timeout_seconds=0.01,
+        idle_progress_timeout_seconds=1.0,
+        completion_quiet_period_seconds=0.0,
+        absolute_timeout_seconds=5.0,
+        max_retries=1,
+    )
+
+    result = handle.send(prompt="Continue.", workspace=tmp_path)
+
+    assert result.succeeded is False
+    assert mock_popen.call_count == 1
+    assert mock_ensure_session.call_count == 1
+    mock_cancel_session.assert_called_once()
+    report = json.loads((tmp_path / "builder_report.json").read_text(encoding="utf-8"))
+    assert report["retry_count"] == 0
+    assert report["session_recycled"] is False
+    assert report["terminal_reason"] == "reconnect_required"
+    assert report["commands_completed"] == 1

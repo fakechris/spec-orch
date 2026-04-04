@@ -1,0 +1,133 @@
+{
+  "step_key": "contract_brief",
+  "decision": "summarize",
+  "outputs": {
+    "contract_summary": {
+      "mission_id": "fresh-acpx-20260404045002-8dc499",
+      "title": "Fresh ACPX Mission E2E Narrow Smoke",
+      "intent": "Create one fresh local-only mission that proves ACPX execution by scaffolding exactly two TypeScript contract files under src/contracts: mission_types.ts and artifact_types.ts. The first fresh path stays minimal and only produces enough round artifacts to prove fresh execution before post-run workflow replay.",
+      "execution_mode": "fresh_acpx_mission",
+      "local_only": true,
+      "artifact_namespace": "fresh-acpx-mission-e2e"
+    },
+    "plan_budget": {
+      "max_waves": 1,
+      "max_packets": 2,
+      "realized_waves": 1,
+      "realized_packets": 2
+    },
+    "scope_definition": {
+      "allowed_files": [
+        "src/contracts/mission_types.ts",
+        "src/contracts/artifact_types.ts"
+      ],
+      "in_scope": [
+        "src/contracts/mission_types.ts",
+        "src/contracts/artifact_types.ts"
+      ],
+      "out_of_scope": [],
+      "all_in_scope": true
+    },
+    "constraints_summary": [
+      "Keep first fresh mission path narrow and local-only",
+      "Do not reuse historical round artifacts as fresh proof",
+      "Plan budget: at most 1 wave and at most 2 work packets",
+      "Only touch mission_types.ts and artifact_types.ts inside worker workspaces",
+      "Do not implement dashboard runtime changes, test harnesses, or replay engines during fresh proof run"
+    ],
+    "acceptance_criteria": [
+      {
+        "criterion": "A fresh mission can be created for this run",
+        "status": "pass",
+        "evidence": "Mission created with ID fresh-acpx-20260404045002-8dc499"
+      },
+      {
+        "criterion": "The plan stays within one wave and at most two work packets",
+        "status": "pass",
+        "evidence": "1 wave, 2 packets executed (fresh-mission-types-scaffold, fresh-artifact-types-scaffold)"
+      },
+      {
+        "criterion": "The mission can be launched and produce fresh round artifacts",
+        "status": "pass",
+        "evidence": "Round 1 completed successfully; 2 builder reports generated with all verification gates passing"
+      },
+      {
+        "criterion": "Post-run workflow replay can validate the resulting dashboard surfaces",
+        "status": "pending",
+        "evidence": "Workflow replay step configured with 6 review routes and 11 workflow assertions"
+      }
+    ],
+    "round_1_results": {
+      "round_id": 1,
+      "wave_id": 0,
+      "status": "decided",
+      "duration_seconds": 195.4,
+      "workers": [
+        {
+          "packet_id": "fresh-mission-types-scaffold",
+          "succeeded": true,
+          "adapter": "acpx_worker",
+          "agent": "opencode",
+          "gate_verdict": {
+            "mergeable": true,
+            "failed_conditions": []
+          },
+          "verification_gates_passed": [
+            "scaffold_exists",
+            "typescript_contract_tokens",
+            "typescript_schema_surface",
+            "typescript_typecheck",
+            "typescript_lint_smoke",
+            "typescript_import_smoke"
+          ]
+        },
+        {
+          "packet_id": "fresh-artifact-types-scaffold",
+          "succeeded": true,
+          "adapter": "acpx_worker",
+          "agent": "opencode",
+          "gate_verdict": {
+            "mergeable": true,
+            "failed_conditions": []
+          },
+          "verification_gates_passed": [
+            "scaffold_exists",
+            "typescript_contract_tokens",
+            "typescript_schema_surface",
+            "typescript_typecheck",
+            "typescript_lint_smoke",
+            "typescript_import_smoke"
+          ]
+        }
+      ],
+      "decision": {
+        "action": "continue",
+        "reason_code": "all_gates_passed",
+        "summary": "Round 1 complete. Both scaffold packets passed all six verification gates, scopes are clean, and all acceptance criteria for this wave are satisfied. Proceeding to next wave.",
+        "confidence": 0.98
+      }
+    },
+    "workflow_replay_configuration": {
+      "proof_type": "workflow_replay",
+      "review_routes": [
+        "/?mission=fresh-acpx-20260404045002-8dc499&mode=missions&tab=overview",
+        "/?mission=fresh-acpx-20260404045002-8dc499&mode=missions&tab=transcript&round=1",
+        "/?mission=fresh-acpx-20260404045002-8dc499&mode=missions&tab=approvals&round=1",
+        "/?mission=fresh-acpx-20260404045002-8dc499&mode=missions&tab=visual&round=1",
+        "/?mission=fresh-acpx-20260404045002-8dc499&mode=missions&tab=costs&round=1",
+        "/?mission=fresh-acpx-20260404045002-8dc499&mode=missions&tab=judgment&round=1"
+      ],
+      "workflow_assertions_count": 11,
+      "required_interactions": [
+        "open launcher",
+        "switch into missions mode",
+        "inspect the fresh mission detail",
+        "open transcript and judgment tabs"
+      ]
+    }
+  },
+  "next_transition": "{'current_step': 'contract_brief', 'decision': 'summarize', 'reason': 'This is the initial step - providing contract summary and success conditions', 'implication': \"This step documents the contract scope. Since Round 1 has already passed all gates and the decision was 'continue', the graph should proceed to subsequent verification steps for workflow replay validation.\"}",
+  "warnings": [],
+  "review_markdown": "## Contract Brief: Fresh ACPX Mission E2E Narrow Smoke\n\n### Mission Overview\n**Mission ID:** `fresh-acpx-20260404045002-8dc499`  \n**Title:** Fresh ACPX Mission E2E Narrow Smoke  \n**Execution Mode:** fresh_acpx_mission (local-only)\n\n### Contract Intent\nCreate a minimal fresh local-only mission that proves ACPX execution by scaffolding exactly two TypeScript contract files under `src/contracts/`:\n- `mission_types.ts` - Type definitions for mission contracts\n- `artifact_types.ts` - Type definitions for artifact contracts\n\n### Plan Budget\n| Metric | Allowed | Realized |\n|--------|---------|----------|\n| Waves | ≤1 | 1 |\n| Work Packets | ≤2 | 2 |\n\n### Scope Definition\n**In Scope (Allowed Files):**\n- `src/contracts/mission_types.ts`\n- `src/contracts/artifact_types.ts`\n\n**Out of Scope:**\n- Dashboard runtime changes\n- Test harnesses\n- Replay engines\n\n### Success Conditions (Acceptance Criteria)\n\n| # | Criterion | Status | Evidence |\n|---|-----------|--------|----------|\n| 1 | Fresh mission can be created | ✅ Pass | Mission created |\n| 2 | Plan stays within 1 wave, ≤2 packets | ✅ Pass | 1 wave, 2 packets |\n| 3 | Mission launches and produces fresh artifacts | ✅ Pass | Round 1 complete, artifacts generated |\n| 4 | Post-run workflow replay validates dashboard | ⏳ Pending | Workflow replay step configured |\n\n### Round 1 Execution Summary\n- **Duration:** ~195 seconds\n- **Workers:** 2 (both succeeded)\n- **Verification Gates:** All 6 gates passed per worker\n- **Scope Compliance:** Clean (no out-of-scope files)\n- **Decision:** `continue` with confidence 0.98\n\n### Next Phase\nThe fresh execution proof is complete. The contract verification should proceed to **workflow replay** to validate the post-run dashboard surfaces using the 6 configured review routes and 11 workflow assertions.",
+  "created_at": "2026-04-04T04:54:10.199223+00:00"
+}

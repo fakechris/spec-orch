@@ -202,6 +202,7 @@ class ExecutionEvent:
 class ArtifactEnvelope:
     artifact_key: str
     producer_kind: str
+    producer_role: str
     carrier_kind: str
     subject_kind: str
     scope: str
@@ -217,6 +218,10 @@ class EvidenceBundle:
     workspace_id: str
     origin_run_id: str
     bundle_kind: str
+    verification_origin: str = ""
+    independence_status: str = ""
+    verifier_artifact_count: int = 0
+    implementer_artifact_count: int = 0
     artifact_refs: list[ArtifactEnvelope] = field(default_factory=list)
     route_refs: list[str] = field(default_factory=list)
     step_refs: list[str] = field(default_factory=list)

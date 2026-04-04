@@ -405,3 +405,50 @@ class TestCustomProvider:
         key = svc.store(MemoryEntry(key="x", content="y", layer=MemoryLayer.WORKING))
         assert key == "custom-key"
         mock.store.assert_called_once()
+
+
+class TestContextLayerPayloads:
+    def test_get_context_layer_payloads_returns_separate_buckets(
+        self, svc: MemoryService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            svc,
+            "get_reviewed_acceptance_findings",
+            lambda top_k=5: [{"finding_id": "finding-1"}],
+        )
+        monkeypatch.setattr(
+            svc,
+            "get_recent_evolution_journal",
+            lambda limit=5: [{"key": "journal-1"}],
+        )
+        monkeypatch.setattr(
+            svc,
+            "get_active_learning_slice",
+            lambda kind: [{"key": f"{kind}-1"}],
+        )
+        monkeypatch.setattr(
+            svc,
+            "get_reviewed_decision_failures",
+            lambda top_k=5: [{"record_id": "failure-1"}],
+        )
+        monkeypatch.setattr(
+            svc,
+            "get_reviewed_decision_recipes",
+            lambda top_k=5: [{"record_id": "recipe-1"}],
+        )
+
+        payloads = svc.get_context_layer_payloads()
+
+        assert payloads["evidence"] == {
+            "reviewed_acceptance_findings": [{"finding_id": "finding-1"}]
+        }
+        assert payloads["archive_lineage"] == {
+            "recent_evolution_journal": [{"key": "journal-1"}]
+        }
+        assert payloads["promoted_learning"] == {
+            "active_self_learnings": [{"key": "self-1"}],
+            "active_delivery_learnings": [{"key": "delivery-1"}],
+            "active_feedback_learnings": [{"key": "feedback-1"}],
+            "reviewed_decision_failures": [{"record_id": "failure-1"}],
+            "reviewed_decision_recipes": [{"record_id": "recipe-1"}],
+        }

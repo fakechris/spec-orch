@@ -199,6 +199,36 @@
       "findings_count": 0,
       "issue_proposal_count": 0,
       "bundle_path": "docs/acceptance-history/releases/showcase-narrative-layer-tranche-son-363-source-run-compare-2026-04-03"
+    },
+    {
+      "release_id": "memory-context-layering-contract-tranche-1-2026-04-04",
+      "release_label": "Memory Context Layering Contract Tranche 1 2026-04-04",
+      "created_at": "2026-04-04T04:29:06Z",
+      "git_commit": "ece4a57cb5b5274edb6d1bc70120a8a3218cb903",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/memory-context-layering-contract-tranche-1-2026-04-04"
+    },
+    {
+      "release_id": "verification-independence-contract-tranche-1-2026-04-04",
+      "release_label": "Verification Independence Contract Tranche 1 2026-04-04",
+      "created_at": "2026-04-04T05:33:30Z",
+      "git_commit": "ece4a57cb5b5274edb6d1bc70120a8a3218cb903",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/verification-independence-contract-tranche-1-2026-04-04"
+    },
+    {
+      "release_id": "concurrency-and-admission-control-tranche-son-412-role-budgets-2026-04-04",
+      "release_label": "Concurrency and Admission Control Tranche SON-412 Role Budgets 2026-04-04",
+      "created_at": "2026-04-04T06:08:25Z",
+      "git_commit": "ece4a57cb5b5274edb6d1bc70120a8a3218cb903",
+      "overall_status": "pass",
+      "findings_count": 0,
+      "issue_proposal_count": 0,
+      "bundle_path": "docs/acceptance-history/releases/concurrency-and-admission-control-tranche-son-412-role-budgets-2026-04-04"
     }
   ]
 }

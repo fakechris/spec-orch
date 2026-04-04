@@ -1,0 +1,14 @@
+{
+  "action": "retry",
+  "reason_code": "scope_contamination_retryable",
+  "summary": "acpx-fresh-0-001 passed gate (mergeable=true, scope=clean). acpx-fresh-0-002 passed all verification but gate blocked due to out-of-scope file: telemetry/events.jsonl. The contract artifact artifact_types.ts is correct; only the scope guard failed. Retry with tighter scope enforcement or suppressed agent telemetry logging.",
+  "confidence": 0.85,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

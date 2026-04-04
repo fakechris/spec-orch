@@ -1,0 +1,3 @@
+{"request_id": "toolreq-b11c0a10d829", "tool_name": "acpx.session.ensure", "status": "completed", "error": "", "metadata": {"duration_ms": 13951}}
+{"request_id": "toolreq-bd2deebbe7fe", "tool_name": "acpx.session.cancel", "status": "completed", "error": "", "metadata": {"duration_ms": 1575}}
+{"request_id": "toolreq-292022332a55", "tool_name": "acpx.session.ensure", "status": "completed", "error": "", "metadata": {"duration_ms": 9974}}

@@ -349,3 +349,18 @@ def test_judgment_side_models_serialize_compare_and_timeline_fields() -> None:
     assert compare.to_dict()["compare_state"] == "active"
     assert timeline.to_dict()["event_type"] == "judgment_assigned"
     assert surface_pack.to_dict()["pack_key"] == "dashboard_surface_pack_v1"
+
+
+def test_read_models_declare_allowed_context_layers() -> None:
+    from spec_orch.services.operator_semantics import allowed_context_layers_for_read_model
+
+    assert allowed_context_layers_for_read_model("workspace") == [
+        "execution",
+        "evidence",
+        "archive_lineage",
+        "promoted_learning",
+    ]
+    assert allowed_context_layers_for_read_model("showcase") == [
+        "archive_lineage",
+        "promoted_learning",
+    ]

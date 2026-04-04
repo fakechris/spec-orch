@@ -1,0 +1,51 @@
+{
+  "step_key": "assert_contract",
+  "decision": "PASS",
+  "outputs": {
+    "contract_assertion": "The contract holds for the fresh execution phase of mission 'fresh-acpx-20260404045002-8dc499'.",
+    "assertion_basis": {
+      "fresh_execution_verdict": "All gates passed",
+      "acceptance_criteria_status": {
+        "criterion_1_fresh_mission_creatable": true,
+        "criterion_2_one_wave_two_packets_max": true,
+        "criterion_3_launched_with_fresh_artifacts": true,
+        "criterion_4_post_run_replay_defined": true
+      },
+      "constraints_status": {
+        "local_only": true,
+        "no_historical_artifacts_reused": true,
+        "budget_1_wave_2_packets": true,
+        "only_targeted_files_touched": true,
+        "no_dashboard_runtime_changes": true
+      },
+      "gate_verdicts": [
+        {
+          "packet_id": "fresh-mission-types-scaffold",
+          "mergeable": true,
+          "verification_gates_passed": 6,
+          "scope_clean": true
+        },
+        {
+          "packet_id": "fresh-artifact-types-scaffold",
+          "mergeable": true,
+          "verification_gates_passed": 6,
+          "scope_clean": true
+        }
+      ],
+      "round_summary": {
+        "round_id": 1,
+        "status": "decided",
+        "workers_succeeded": 2,
+        "decision": "continue",
+        "reason_code": "all_gates_passed"
+      }
+    },
+    "next_phase_status": "Workflow replay phase is defined and pending execution per post_run_campaign configuration."
+  },
+  "next_transition": "",
+  "warnings": [
+    "Workflow replay phase assertions have been defined but not yet executed. The contract verification here covers only the fresh execution phase. Full end-to-end contract satisfaction awaits workflow replay completion."
+  ],
+  "review_markdown": "## Contract Assertion Review: fresh-acpx-20260404045002-8dc499\n\n### Verdict: **PASS** — Contract Holds for Fresh Execution Phase\n\n#### Evidence Summary\n\n| Criterion | Status | Evidence |\n|-----------|--------|----------|\n| Fresh mission created | ✅ | Mission bootstrapped with ID `fresh-acpx-20260404045002-8dc499` |\n| ≤1 wave, ≤2 packets | ✅ | 1 wave, 2 packets (fresh-mission-types-scaffold, fresh-artifact-types-scaffold) |\n| Fresh round artifacts produced | ✅ | round-01 artifacts present under `/rounds/round-01` |\n| Post-run replay defined | ✅ | 6 review routes + 11 workflow assertions defined |\n\n#### Constraint Compliance\n\n| Constraint | Status | Notes |\n|------------|--------|-------|\n| Local-only path | ✅ | `local_only: true` in bootstrap |\n| No historical artifact reuse | ✅ | `fresh: true`, no reuse indicated |\n| Budget: 1 wave / 2 packets | ✅ | Confirmed in round summary |\n| Only targeted contract files | ✅ | Gate verdicts confirm scope: `mission_types.ts` and `artifact_types.ts` only |\n| No dashboard runtime changes | ✅ | Not in scope per constraints |\n\n#### Verification Gate Results\n\nBoth packets passed all 6 verification gates:\n- `scaffold_exists`\n- `typescript_contract_tokens`\n- `typescript_schema_surface`\n- `typescript_typecheck`\n- `typescript_lint_smoke`\n- `typescript_import_smoke`\n\n#### Decision Logic\n\nThe contract is evaluated against the **fresh execution phase** only. The evidence demonstrates:\n1. The mission was created and launched successfully\n2. Both scaffold workers produced compliant TypeScript contract files\n3. All gates passed with zero failures\n4. Scope remained clean (only the two allowed files were modified)\n5. The round completed with decision `continue` (`reason_code: all_gates_passed`)\n\n#### Caveat\n\nThe workflow replay phase (post-run dashboard validation) is defined but has not yet executed. Full end-to-end satisfaction of acceptance criterion 4 awaits that phase.",
+  "created_at": "2026-04-04T04:55:08.776717+00:00"
+}

@@ -7,6 +7,7 @@ from typing import Any
 from spec_orch.services.execution_workbench import build_mission_execution_workbench
 from spec_orch.services.judgment_workbench import build_mission_judgment_workbench
 from spec_orch.services.learning_workbench import build_mission_learning_workbench
+from spec_orch.services.operator_semantics import allowed_context_layers_for_read_model
 
 _SOURCE_RUN_ORDER = {
     "issue_start": 0,
@@ -619,6 +620,7 @@ def build_showcase_workbench(repo_root: Path) -> dict[str, Any]:
         "workspace_storylines": storylines,
         "highlights": highlights,
         "watchlist": watchlist,
+        "allowed_context_layers": allowed_context_layers_for_read_model("showcase"),
         "review_route": "/?mode=showcase",
     }
 

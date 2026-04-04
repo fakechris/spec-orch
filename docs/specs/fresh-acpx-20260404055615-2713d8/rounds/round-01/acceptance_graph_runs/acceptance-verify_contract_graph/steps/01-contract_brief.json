@@ -1,0 +1,34 @@
+{
+  "step_key": "contract_brief",
+  "decision": "continue",
+  "outputs": {
+    "contract_summary": "Fresh ACPX Mission E2E Narrow Smoke is a minimal proof-of-concept mission that validates ACPX execution by scaffolding exactly two TypeScript contract files: src/contracts/mission_types.ts and src/contracts/artifact_types.ts. The mission is constrained to 1 wave, 2 work packets maximum, and local-only operation without reusing historical artifacts.",
+    "declared_feature": "Fresh ACPX contract scaffolding",
+    "directly_affected_routes": [
+      "/",
+      "/?mode=missions",
+      "/?mission=fresh-acpx-20260404055615-2713d8&mode=missions&tab=overview",
+      "/?mission=fresh-acpx-20260404055615-2713d8&mode=missions&tab=transcript",
+      "/?mission=fresh-acpx-20260404055615-2713d8&mode=missions&tab=approvals",
+      "/?mission=fresh-acpx-20260404055615-2713d8&mode=missions&tab=judgment"
+    ],
+    "success_conditions": [
+      "Fresh mission creation succeeds",
+      "Plan stays within 1 wave and ≤2 work packets",
+      "Mission launches and produces fresh round artifacts",
+      "All 6 verification steps pass (scaffold_exists, contract_tokens, schema_surface, typecheck, lint_smoke, import_smoke)",
+      "Gate verdict confirms mergeable with true scope",
+      "Only the two allowed contract files are realized"
+    ],
+    "constraints_enforced": [
+      "Local-only execution",
+      "No historical artifact reuse",
+      "Only src/contracts/mission_types.ts and src/contracts/artifact_types.ts touched",
+      "No dashboard runtime changes during fresh proof run"
+    ]
+  },
+  "next_transition": "proceed_to_round_orchestration",
+  "warnings": [],
+  "review_markdown": "## Contract Brief: Fresh ACPX Mission E2E Narrow Smoke\n\n### Mission Intent\nValidate ACPX execution through a minimal fresh mission that scaffolds two TypeScript contract files under src/contracts without reusing historical artifacts.\n\n### Acceptance Criteria\n1. A fresh mission can be created for this run.\n2. The plan stays within one wave and at most two work packets.\n3. The mission can be launched and produce fresh round artifacts.\n4. Post-run workflow replay can validate the resulting dashboard surfaces.\n\n### Success Indicators (Round 1)\n- **Worker**: acpx-contract-scaffold → SUCCEEDED\n- **Verification**: All 6 steps passed\n  - scaffold_exists ✓\n  - typescript_contract_tokens ✓\n  - typescript_schema_surface ✓\n  - typescript_typecheck ✓\n  - typescript_lint_smoke ✓\n  - typescript_import_smoke ✓\n- **Gate Verdict**: mergeable=true, scope fully realized\n- **Artifacts Produced**: mission_types.ts, artifact_types.ts\n\n### Constraints\n| Constraint | Status |\n|------------|--------|\n| 1 wave max | ✓ |\n| 2 packets max | ✓ |\n| Local-only | ✓ |\n| No historical reuse | ✓ |\n| Only allowed files touched | ✓ |\n\n### Affected Routes (Post-Run Dashboard)\n- Primary: /, /?mode=missions, overview tab\n- Related: transcript, approvals, judgment tabs\n\n### Status\nRound 1 completed cleanly. All verifications passed. Ready for workflow replay validation phase.",
+  "created_at": "2026-04-04T05:58:16.014759+00:00"
+}

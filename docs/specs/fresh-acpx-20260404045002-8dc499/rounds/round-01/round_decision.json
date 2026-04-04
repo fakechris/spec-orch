@@ -1,0 +1,14 @@
+{
+  "action": "continue",
+  "reason_code": "all_gates_passed",
+  "summary": "Round 1 complete. Both scaffold packets (mission_types.ts and artifact_types.ts) passed all six verification gates, scopes are clean, and all acceptance criteria for this wave are satisfied. Proceeding to next wave.",
+  "confidence": 0.98,
+  "affected_workers": [],
+  "artifacts": {},
+  "session_ops": {
+    "reuse": [],
+    "spawn": [],
+    "cancel": []
+  },
+  "blocking_questions": []
+}

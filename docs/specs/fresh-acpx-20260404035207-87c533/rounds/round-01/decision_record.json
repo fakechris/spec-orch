@@ -1,0 +1,16 @@
+{
+  "record_id": "fresh-acpx-20260404035207-87c533-round-1-review",
+  "point_key": "mission.round.review",
+  "authority": "llm_owned",
+  "owner": "litellm_supervisor_adapter",
+  "selected_action": "retry",
+  "summary": "acpx-fresh-0-001 passed gate (mergeable=true, scope=clean). acpx-fresh-0-002 passed all verification but gate blocked due to out-of-scope file: telemetry/events.jsonl. The contract artifact artifact_types.ts is correct; only the scope guard failed. Retry with tighter scope enforcement or suppressed agent telemetry logging.",
+  "rationale": "",
+  "confidence": 0.85,
+  "context_artifacts": [
+    "docs/specs/fresh-acpx-20260404035207-87c533/rounds/round-01/supervisor_review.md",
+    "docs/specs/fresh-acpx-20260404035207-87c533/rounds/round-01/round_decision.json"
+  ],
+  "blocking_questions": [],
+  "created_at": "2026-04-04T03:56:21.967722+00:00"
+}

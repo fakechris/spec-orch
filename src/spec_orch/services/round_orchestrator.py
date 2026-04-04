@@ -596,6 +596,7 @@ class RoundOrchestrator:
             verification_outputs.append(
                 {
                     "packet_id": packet.packet_id,
+                    "producer_role": "verifier",
                     "workspace": str(workspace),
                     "all_passed": verification.all_passed,
                     "step_results": dict(verification.step_results),
@@ -641,6 +642,7 @@ class RoundOrchestrator:
                 {
                     "packet_id": packet.packet_id,
                     "succeeded": result.succeeded,
+                    "producer_role": "implementer",
                     "adapter": result.adapter,
                     "agent": result.agent,
                     "report_path": str(result.report_path),

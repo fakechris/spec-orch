@@ -1,0 +1,14 @@
+{
+  "session_name": "mission-fresh-acpx-20260404035207-87c533-acpx-fresh-0-002",
+  "terminal_reason": "process_exit_success",
+  "succeeded": true,
+  "retry_count": 0,
+  "event_count": 62,
+  "commands_completed": 1,
+  "files_changed": [],
+  "session_reused": true,
+  "session_health": "healthy",
+  "chain_id": "chain_fresh-acpx-20260404035207-87c533_20260404T035230Z_9dbb9e25",
+  "span_id": "chain_fresh-acpx-20260404035207-87c533_20260404T035230Z_9dbb9e25:round:02:packet:acpx-fresh-0-002:worker",
+  "parent_span_id": "chain_fresh-acpx-20260404035207-87c533_20260404T035230Z_9dbb9e25:round:02:packet:acpx-fresh-0-002"
+}

@@ -71,6 +71,12 @@ def _evidence_panel(review: AcceptanceReviewResult, review_data: dict[str, Any])
     evidence_bundle = review_data.get("evidence_bundle", {})
     return {
         "bundle_kind": str(evidence_bundle.get("bundle_kind", "")),
+        "verification_origin": str(evidence_bundle.get("verification_origin", "")),
+        "independence_status": str(evidence_bundle.get("independence_status", "")),
+        "verifier_artifact_count": int(evidence_bundle.get("verifier_artifact_count", 0) or 0),
+        "implementer_artifact_count": int(
+            evidence_bundle.get("implementer_artifact_count", 0) or 0
+        ),
         "route_count": len(evidence_bundle.get("route_refs", [])),
         "step_count": len(step_artifacts),
         "artifact_count": artifact_count,

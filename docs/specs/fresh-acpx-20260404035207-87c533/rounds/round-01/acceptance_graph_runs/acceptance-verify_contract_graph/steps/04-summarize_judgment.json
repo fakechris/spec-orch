@@ -1,0 +1,90 @@
+{
+  "step_key": "summarize_judgment",
+  "decision": "retry",
+  "outputs": {
+    "judgment_summary": {
+      "mission_id": "fresh-acpx-20260404035207-87c533",
+      "mission_title": "Fresh ACPX Mission E2E Narrow Smoke",
+      "round_id": 1,
+      "wave_id": 0,
+      "status": "decided",
+      "started_at": "2026-04-04T03:52:30.916056+00:00",
+      "completed_at": "2026-04-04T03:56:21.998009+00:00",
+      "decision": {
+        "action": "retry",
+        "reason_code": "scope_contamination_retryable",
+        "confidence": 0.85
+      }
+    },
+    "worker_results": {
+      "acpx-fresh-0-001": {
+        "succeeded": true,
+        "target_file": "src/contracts/mission_types.ts",
+        "verification": {
+          "scaffold_exists": true,
+          "typescript_contract_tokens": true,
+          "typescript_schema_surface": true,
+          "typescript_typecheck": true,
+          "typescript_lint_smoke": true,
+          "typescript_import_smoke": true
+        },
+        "gate_verdict": {
+          "mergeable": true,
+          "all_in_scope": true,
+          "allowed_files": [
+            "src/contracts/mission_types.ts"
+          ],
+          "realized_files": [
+            "src/contracts/mission_types.ts"
+          ]
+        }
+      },
+      "acpx-fresh-0-002": {
+        "succeeded": true,
+        "target_file": "src/contracts/artifact_types.ts",
+        "verification": {
+          "scaffold_exists": true,
+          "typescript_contract_tokens": true,
+          "typescript_schema_surface": true,
+          "typescript_typecheck": true,
+          "typescript_lint_smoke": true,
+          "typescript_import_smoke": true
+        },
+        "gate_verdict": {
+          "mergeable": false,
+          "all_in_scope": false,
+          "failed_condition": "scope",
+          "allowed_files": [
+            "src/contracts/artifact_types.ts"
+          ],
+          "realized_files": [
+            "telemetry/events.jsonl",
+            "src/contracts/artifact_types.ts"
+          ],
+          "out_of_scope_files": [
+            "telemetry/events.jsonl"
+          ]
+        }
+      }
+    },
+    "artifacts_produced": [
+      "src/contracts/mission_types.ts",
+      "src/contracts/artifact_types.ts"
+    ],
+    "scope_analysis": {
+      "worker_001_clean": true,
+      "worker_002_contaminated": true,
+      "contamination_source": "telemetry/events.jsonl",
+      "contract_artifact_quality": "correct for both workers"
+    }
+  },
+  "next_transition": "{'action': 'retry_mission', 'target': 'fresh-acpx-20260404035207-87c533', 'recommended_adjustments': ['Tighter scope enforcement for agent telemetry logging', 'Suppress or redirect agent-side telemetry to excluded paths', 'Ensure workers only produce explicitly allowed contract files'], 'retry_strategy': 'Apply scope guard hardening - retry with agent telemetry disabled or scoped to exclude from workspace artifact collection'}",
+  "warnings": [
+    "Worker acpx-fresh-0-002 passed all functional verification but was blocked by scope guard",
+    "Agent telemetry logging produced out-of-scope artifact (telemetry/events.jsonl)",
+    "Both contract files are structurally correct and pass all TypeScript checks",
+    "Retry required to demonstrate clean scope compliance for artifact_types.ts"
+  ],
+  "review_markdown": "# Fresh ACPX Mission E2E Narrow Smoke - Judgment Summary\n\n## Mission Status\n- **Mission ID**: `fresh-acpx-20260404035207-87c533`\n- **Round**: 1 (Wave 0)\n- **Decision**: `retry` — scope contamination, retryable\n- **Confidence**: 0.85\n\n## Worker Execution Results\n\n### ✅ acpx-fresh-0-001 (PASSED ALL GATES)\n| Check | Result |\n|-------|--------|\n| scaffold_exists | ✅ |\n| typescript_contract_tokens | ✅ |\n| typescript_schema_surface | ✅ |\n| typescript_typecheck | ✅ |\n| typescript_lint_smoke | ✅ |\n| typescript_import_smoke | ✅ |\n| **Gate: mergeable** | ✅ `true` |\n| **Scope** | ✅ Clean — only `src/contracts/mission_types.ts` |\n\n### ⚠️ acpx-fresh-0-002 (FUNCTIONAL PASS — SCOPE FAIL)\n| Check | Result |\n|-------|--------|\n| scaffold_exists | ✅ |\n| typescript_contract_tokens | ✅ |\n| typescript_schema_surface | ✅ |\n| typescript_typecheck | ✅ |\n| typescript_lint_smoke | ✅ |\n| typescript_import_smoke | ✅ |\n| **Gate: mergeable** | ❌ `false` |\n| **Scope** | ❌ Contaminated — `telemetry/events.jsonl` out-of-scope |\n\n## Root Cause\nThe agent produced a telemetry log file (`telemetry/events.jsonl`) that was not in the allowed scope (`src/contracts/artifact_types.ts` only). The contract artifact itself is correct.\n\n## Artifacts Produced\n- `src/contracts/mission_types.ts` — valid TypeScript contract, all checks pass\n- `src/contracts/artifact_types.ts` — valid TypeScript contract, all checks pass\n\n## Recommendation\nRetry with tighter scope enforcement:\n1. Disable/suppress agent telemetry logging during execution\n2. Or redirect telemetry to paths excluded from scope verification\n3. Ensure only the explicitly allowed contract file appears in workspace artifacts\n\n---\n*Both workers demonstrated functional capability. The retry addresses only the scope-guard hygiene issue, not the contract quality.*",
+  "created_at": "2026-04-04T03:58:12.352072+00:00"
+}

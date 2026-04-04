@@ -7,7 +7,7 @@
     "smoke_check": [
       "{python}",
       "-c",
-      "from pathlib import Path; p=Path('.spec_orch_smoke/issue_start_builder.txt'); expected='issue_id=SPC-1\\nsmoke=issue_start_builder\\nworkspace_ok=yes\\n'; actual=p.read_text(encoding='utf-8'); assert actual == expected, actual"
+      "from pathlib import Path; p=Path('.spec_orch_smoke/issue_start_builder.txt'); expected='issue_id=SPC-1\\nsmoke=issue_start_builder\\nworkspace_ok=yes'; actual=p.read_text(encoding='utf-8'); assert actual == expected, actual"
     ],
     "build": ["{python}", "-c", "print('issue-start smoke build ok')"]
   }

@@ -1,0 +1,26 @@
+{
+  "round_id": 2,
+  "status": "decided",
+  "worker_results": [
+    {
+      "packet_id": "acpx-fresh-0-001",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-001/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-001/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-001/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-001/telemetry/activity.log"
+    },
+    {
+      "packet_id": "acpx-fresh-0-002",
+      "succeeded": true,
+      "adapter": "acpx_worker",
+      "agent": "opencode",
+      "report_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-002/builder_report.json",
+      "incoming_events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-002/telemetry/incoming_events.jsonl",
+      "events_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-002/telemetry/events.jsonl",
+      "activity_log_path": "/Users/chris/.superset/worktrees/spec-orch/harnessrefact/.worktrees/phase-2-hardening-start/docs/specs/fresh-acpx-20260404035207-87c533/workers/acpx-fresh-0-002/telemetry/activity.log"
+    }
+  ]
+}

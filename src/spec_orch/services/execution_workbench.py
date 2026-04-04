@@ -128,6 +128,28 @@ def _tail_activity(path: Path, *, limit: int = 3) -> list[str]:
     return lines[-limit:]
 
 
+def _budget_scope_counts(items: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    counts: dict[str, dict[str, int]] = {}
+    for item in items:
+        runtime_role = str(item.get("subject_kind", "")).strip() or "unknown"
+        budget_state = str(item.get("budget_state", "")).strip() or "unknown"
+        role_counts = counts.setdefault(
+            runtime_role,
+            {"healthy": 0, "constrained": 0, "saturated": 0},
+        )
+        role_counts.setdefault(budget_state, 0)
+        role_counts[budget_state] += 1
+    return counts
+
+
+def _pressure_by_role(items: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in items:
+        runtime_role = str(item.get("subject_kind", "")).strip() or "unknown"
+        counts[runtime_role] = counts.get(runtime_role, 0) + 1
+    return counts
+
+
 def _build_terminal_panel(mission_root: Path, mission_id: str) -> dict[str, Any]:
     sessions: list[dict[str, Any]] = []
     for worker_dir in sorted((mission_root / "workers").glob("*")):
@@ -251,6 +273,8 @@ def build_execution_workbench(repo_root: Path) -> dict[str, Any]:
                 if str(item.get("health", "")).strip() in {"degraded", "failed"}
             ),
             "intervention_needed_count": int(summary.get("intervention_needed_count", 0) or 0),
+            "budget_scope_counts": summary.get("budget_scope_counts", {}),
+            "pressure_by_role": summary.get("pressure_by_role", {}),
         },
         "active_work": list(snapshot.get("active_work", [])),
         "agents": list(snapshot.get("agents", [])),
@@ -290,6 +314,8 @@ def build_mission_execution_workbench(
     resource_budgets = _filter(snapshot.get("resource_budgets", []))
     pressure_signals = _filter(snapshot.get("pressure_signals", []))
     admission_decisions = _filter(snapshot.get("admission_decisions", []))
+    budget_scope_counts = _budget_scope_counts(resource_budgets)
+    pressure_by_role = _pressure_by_role(pressure_signals)
 
     agent_ids = {
         str(item.get("agent_id", ""))
@@ -314,6 +340,19 @@ def build_mission_execution_workbench(
 
     current_active = active_work[0] if active_work else {}
     last_event = execution_events[-1] if execution_events else {}
+    posture_reasons = sorted(
+        {
+            (
+                str(item.get("pressure_reason", "")).strip()
+                or str(item.get("degrade_reason", "")).strip()
+            )
+            for item in admission_decisions
+            if (
+                str(item.get("pressure_reason", "")).strip()
+                or str(item.get("degrade_reason", "")).strip()
+            )
+        }
+    )
 
     return {
         "mission_id": mission_id,
@@ -325,6 +364,9 @@ def build_mission_execution_workbench(
             "agent_count": len(agents),
             "pressure_signal_count": len(pressure_signals),
             "admission_decision_count": len(admission_decisions),
+            "budget_scope_counts": budget_scope_counts,
+            "pressure_by_role": pressure_by_role,
+            "posture_reasons": posture_reasons,
             "current_phase": str(current_active.get("phase", "")),
             "current_health": str(current_active.get("health", "")),
             "last_event_summary": str(last_event.get("event_summary", "")),

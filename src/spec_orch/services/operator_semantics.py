@@ -28,9 +28,33 @@ from spec_orch.domain.operator_semantics import (
 )
 from spec_orch.runtime_chain.models import ChainPhase, RuntimeChainStatus
 
+_READ_MODEL_CONTEXT_LAYERS = {
+    "workspace": [
+        "execution",
+        "evidence",
+        "archive_lineage",
+        "promoted_learning",
+    ],
+    "showcase": [
+        "archive_lineage",
+        "promoted_learning",
+    ],
+}
+
+_VERIFIER_ARTIFACT_KEYS = {
+    "acceptance_review",
+    "browser_evidence",
+    "exploratory_browser_evidence",
+    "graph_run",
+}
+
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def allowed_context_layers_for_read_model(read_model: str) -> list[str]:
+    return list(_READ_MODEL_CONTEXT_LAYERS.get(read_model, []))
 
 
 def handoff_blockers_for_canonical_issue(canonical: CanonicalIssue) -> list[str]:
@@ -235,6 +259,7 @@ def evidence_bundle_from_attempt(
         ArtifactEnvelope(
             artifact_key=artifact.key,
             producer_kind=artifact.producer_kind,
+            producer_role="implementer",
             carrier_kind=artifact.carrier_kind.value,
             subject_kind=artifact.subject_kind.value,
             scope=artifact.scope.value,
@@ -506,6 +531,25 @@ def evidence_bundle_from_acceptance_review(
 ) -> EvidenceBundle:
     artifacts = review.artifacts if isinstance(review.artifacts, dict) else {}
     artifact_refs: list[ArtifactEnvelope] = []
+    verifier_artifact_count = 0
+    implementer_artifact_count = 0
+
+    def _producer_role(key: str) -> str:
+        normalized = str(key).strip().lower()
+        if normalized in _VERIFIER_ARTIFACT_KEYS or "graph" in normalized:
+            return "verifier"
+        if any(
+            token in normalized
+            for token in ("builder", "execution", "transcript", "implementer")
+        ):
+            return "implementer"
+        return "verifier"
+
+    def _looks_like_artifact_ref(value: str) -> bool:
+        lowered = value.strip().lower()
+        return "/" in lowered or lowered.endswith(
+            (".json", ".jsonl", ".md", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg")
+        )
 
     def _carrier_kind(path: str) -> str:
         lowered = path.lower()
@@ -529,26 +573,39 @@ def evidence_bundle_from_acceptance_review(
             ArtifactEnvelope(
                 artifact_key="acceptance_review",
                 producer_kind="acceptance_evaluator",
+                producer_role="verifier",
                 carrier_kind=_carrier_kind(acceptance_review_path),
                 subject_kind="mission",
                 scope="leaf",
                 path=acceptance_review_path,
             )
         )
+        verifier_artifact_count += 1
     for key, value in artifacts.items():
-        if not isinstance(value, str) or not value.strip() or value.strip() in seen_paths:
+        if (
+            not isinstance(value, str)
+            or not value.strip()
+            or value.strip() in seen_paths
+            or not _looks_like_artifact_ref(value)
+        ):
             continue
         seen_paths.add(value.strip())
+        producer_role = _producer_role(str(key))
         artifact_refs.append(
             ArtifactEnvelope(
                 artifact_key=str(key),
                 producer_kind="acceptance_graph" if "graph" in str(key) else "acceptance_evaluator",
+                producer_role=producer_role,
                 carrier_kind=_carrier_kind(value.strip()),
                 subject_kind="mission",
                 scope="leaf",
                 path=value.strip(),
             )
         )
+        if producer_role == "implementer":
+            implementer_artifact_count += 1
+        else:
+            verifier_artifact_count += 1
     route_refs: list[str] = []
     if review.campaign is not None:
         route_refs.extend(str(item) for item in review.campaign.primary_routes if str(item).strip())
@@ -558,12 +615,24 @@ def evidence_bundle_from_acceptance_review(
         for item in artifacts.get("step_artifacts", [])
         if isinstance(item, str) and item.strip()
     ]
+    verifier_artifact_count += len(step_refs)
     route_refs = list(dict.fromkeys(route_refs))
+    independence_status = (
+        "independent"
+        if verifier_artifact_count > 0 and implementer_artifact_count == 0
+        else "mixed"
+        if verifier_artifact_count > 0
+        else "unverified"
+    )
     return EvidenceBundle(
         evidence_bundle_id=f"{workspace_id}:round-{round_id:02d}:evidence",
         workspace_id=workspace_id,
         origin_run_id=f"{workspace_id}:round-{round_id:02d}",
         bundle_kind="acceptance_review",
+        verification_origin="independent_verifier" if verifier_artifact_count > 0 else "missing",
+        independence_status=independence_status,
+        verifier_artifact_count=verifier_artifact_count,
+        implementer_artifact_count=implementer_artifact_count,
         artifact_refs=artifact_refs,
         route_refs=route_refs,
         step_refs=step_refs,

@@ -1,0 +1,49 @@
+{
+  "step_key": "assert_contract",
+  "decision": "contract_holds",
+  "outputs": {
+    "contract_assertion": "The mission contract still holds for mission fresh-acpx-20260404040228-c8f454. Round 1 completed successfully with both work packets (scaffold-mission-types, scaffold-artifact-types) producing verified TypeScript contract artifacts that satisfy all acceptance criteria and constraints.",
+    "assertion_details": {
+      "fresh_mission_creation": true,
+      "wave_packet_budget": {
+        "waves": 1,
+        "packets": 2,
+        "within_budget": true
+      },
+      "fresh_round_artifacts_produced": true,
+      "scope_compliance": {
+        "scaffold-mission-types": {
+          "allowed_files": [
+            "src/contracts/mission_types.ts"
+          ],
+          "realized_files": [
+            "src/contracts/mission_types.ts"
+          ],
+          "all_in_scope": true
+        },
+        "scaffold-artifact-types": {
+          "allowed_files": [
+            "src/contracts/artifact_types.ts"
+          ],
+          "realized_files": [
+            "src/contracts/artifact_types.ts"
+          ],
+          "all_in_scope": true
+        }
+      },
+      "verification_passed": {
+        "all_step_results_passed": true,
+        "gate_verdicts_mergeable": true,
+        "failed_conditions": []
+      },
+      "fresh_execution_confidence": 0.97
+    }
+  },
+  "next_transition": "proceed_to_workflow_replay",
+  "warnings": [
+    "Workflow replay validation of dashboard surfaces is still pending and will be verified in subsequent step.",
+    "Post-run workflow assertions (11 items covering launcher, mission control modes, and tab navigation) remain to be validated."
+  ],
+  "review_markdown": "## Contract Assertion: PASS\n\nThe declared feature and directly affected routes for mission `fresh-acpx-20260404040228-c8f454` have been verified:\n\n### Acceptance Criteria Status\n\n| Criterion | Status |\n|-----------|--------|\n| Fresh mission can be created for this run | ✅ Confirmed |\n| Plan stays within 1 wave and ≤2 work packets | ✅ Confirmed (1 wave, 2 packets) |\n| Mission can be launched and produce fresh round artifacts | ✅ Confirmed (Round 1 complete) |\n| Post-run workflow replay validates dashboard surfaces | ⏳ Pending (workflow replay step) |\n\n### Constraint Compliance\n\n| Constraint | Status |\n|------------|--------|\n| Keep first fresh mission path narrow and local-only | ✅ Confirmed |\n| Do not reuse historical round artifacts as fresh proof | ✅ Confirmed (fresh round path used) |\n| Plan budget: ≤1 wave and ≤2 work packets | ✅ Confirmed |\n| Only touch src/contracts/mission_types.ts and artifact_types.ts | ✅ Confirmed (gate verdicts show scope compliance) |\n| No dashboard runtime changes/test harnesses/replay engines | ✅ Confirmed |\n\n### Verification Evidence\n- **scaffold-mission-types**: All 6 verification steps passed (scaffold_exists, contract_tokens, schema_surface, typecheck, lint_smoke, import_smoke)\n- **scaffold-artifact-types**: All 6 verification steps passed\n- **Gate verdicts**: Both packets mergeable, no failed conditions\n- **Decision**: Continue with reason `all_packets_verified_and_mergeable`\n- **Confidence**: 0.97\n\n### Conclusion\nThe contract **holds**. Round 1 artifacts are verified and mergeable. The mission is ready to proceed to workflow replay validation of the dashboard surfaces.",
+  "created_at": "2026-04-04T04:08:25.062161+00:00"
+}

@@ -14,6 +14,17 @@ def _coerce_int(value: Any) -> int:
         return 0
 
 
+def _rule_family_for_rule(rule_id: str) -> str:
+    mapping = {
+        "review_failed": "semantic_review",
+        "coverage_incomplete": "coverage",
+        "candidate_repro_pending": "candidate_repro",
+        "baseline_drift_detected": "baseline_diff",
+        "evidence_missing": "evidence",
+    }
+    return mapping.get(rule_id, "other")
+
+
 def build_structural_judgment(
     *,
     workspace_id: str,
@@ -130,6 +141,42 @@ def build_structural_judgment(
         if any(item["rule_id"] == rule_id for item in rule_violations):
             bottleneck = value
             break
+    primary_rule_id = next((item["rule_id"] for item in rule_violations), "")
+    for rule_id, value in (
+        ("evidence_missing", "evidence_missing"),
+        ("review_failed", "review_failed"),
+        ("candidate_repro_pending", "candidate_repro_pending"),
+        ("coverage_incomplete", "coverage_incomplete"),
+        ("baseline_drift_detected", "baseline_drift_detected"),
+    ):
+        if any(item["rule_id"] == rule_id for item in rule_violations):
+            primary_rule_id = value
+            break
+    primary_rule_family = _rule_family_for_rule(primary_rule_id)
+    rule_family_counts = {
+        "semantic_review": 0,
+        "coverage": 0,
+        "candidate_repro": 0,
+        "baseline_diff": 0,
+        "evidence": 0,
+    }
+    for item in rule_violations:
+        rule_family = _rule_family_for_rule(str(item.get("rule_id", "")).strip())
+        if rule_family in rule_family_counts:
+            rule_family_counts[rule_family] += 1
+    active_families = [
+        family for family, count in rule_family_counts.items() if count > 0
+    ]
+    drift_summary = "No comparison baseline was active."
+    drift_hotspots: list[str] = []
+    if compare_state == "active" and artifact_drift_count > 0:
+        drift_summary = (
+            f"{artifact_drift_count} structural drift artifact(s) detected against "
+            f"{baseline_ref or 'the active baseline'}."
+        )
+        drift_hotspots = ["artifact_drift"]
+    elif compare_state == "active":
+        drift_summary = f"Baseline {baseline_ref or 'active baseline'} compared cleanly."
 
     drift_status = (
         "drift_detected"
@@ -147,6 +194,37 @@ def build_structural_judgment(
             "baseline_ref": baseline_ref,
             "artifact_drift_count": artifact_drift_count,
             "drift_status": drift_status,
+            "drift_summary": drift_summary,
+            "drift_hotspots": drift_hotspots,
+        },
+        "rule_family_counts": rule_family_counts,
+        "bottleneck_breakdown": {
+            "primary": bottleneck,
+            "primary_rule": primary_rule_id,
+            "primary_rule_family": primary_rule_family,
+            "blocking_rules": [primary_rule_id] if primary_rule_id else [],
+            "supporting_rules": [
+                str(item.get("rule_id", "")).strip()
+                for item in rule_violations
+                if (
+                    str(item.get("rule_id", "")).strip()
+                    and str(item.get("rule_id", "")).strip() != primary_rule_id
+                )
+            ],
+        },
+        "structural_signal_summary": {
+            "active_rule_count": len(rule_violations),
+            "active_family_count": len(active_families),
+            "primary_rule_family": primary_rule_family,
+            "signal_summary": (
+                "No deterministic structural signals are active."
+                if not active_families
+                else (
+                    f"{len(rule_violations)} rule(s) active across "
+                    + ", ".join(active_families)
+                    + "."
+                )
+            ),
         },
         "current_state": {
             "review_status": normalized_status,

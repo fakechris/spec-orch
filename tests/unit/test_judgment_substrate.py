@@ -91,6 +91,10 @@ def test_build_mission_judgment_substrate_surfaces_canonical_review_models(
     latest = payload["latest_review"]
     assert latest["shared_judgments"][0]["judgment_class"] == "candidate_finding"
     assert latest["evidence_bundle"]["bundle_kind"] == "acceptance_review"
+    assert latest["evidence_bundle"]["verification_origin"] == "independent_verifier"
+    assert latest["evidence_bundle"]["independence_status"] == "independent"
+    assert latest["evidence_bundle"]["verifier_artifact_count"] == 4
+    assert latest["evidence_bundle"]["implementer_artifact_count"] == 0
     assert latest["evidence_bundle"]["route_refs"] == [
         "/?mission=mission-judgment&mode=missions&tab=overview",
         "/?mission=mission-judgment&mode=missions&tab=transcript",
@@ -120,6 +124,10 @@ def test_build_mission_judgment_substrate_surfaces_canonical_review_models(
     assert latest["judgment_timeline"][-1]["event_summary"] == "queued candidate_finding"
     assert latest["evidence_panel"] == {
         "bundle_kind": "acceptance_review",
+        "verification_origin": "independent_verifier",
+        "independence_status": "independent",
+        "verifier_artifact_count": 4,
+        "implementer_artifact_count": 0,
         "route_count": 3,
         "step_count": 2,
         "artifact_count": 4,
@@ -189,6 +197,34 @@ def test_build_mission_judgment_substrate_surfaces_canonical_review_models(
             "baseline_ref": "fixture:dashboard-transcript-regression",
             "artifact_drift_count": 2,
             "drift_status": "drift_detected",
+            "drift_summary": (
+                "2 structural drift artifact(s) detected against "
+                "fixture:dashboard-transcript-regression."
+            ),
+            "drift_hotspots": ["artifact_drift"],
+        },
+        "rule_family_counts": {
+            "semantic_review": 0,
+            "coverage": 1,
+            "candidate_repro": 1,
+            "baseline_diff": 1,
+            "evidence": 0,
+        },
+        "bottleneck_breakdown": {
+            "primary": "candidate_repro_pending",
+            "primary_rule": "candidate_repro_pending",
+            "primary_rule_family": "candidate_repro",
+            "blocking_rules": ["candidate_repro_pending"],
+            "supporting_rules": [
+                "coverage_incomplete",
+                "baseline_drift_detected",
+            ],
+        },
+        "structural_signal_summary": {
+            "active_rule_count": 3,
+            "active_family_count": 3,
+            "primary_rule_family": "candidate_repro",
+            "signal_summary": "3 rule(s) active across coverage, candidate_repro, baseline_diff.",
         },
         "current_state": {
             "review_status": "warn",
@@ -343,6 +379,10 @@ def test_build_judgment_workbench_aggregates_workspace_inventory(
         "compare_active_count": 1,
         "structural_regression_count": 1,
         "bottlenecked_workspace_count": 2,
+        "structural_rule_family_counts": {
+            "candidate_repro": 1,
+            "semantic_review": 1,
+        },
     }
     assert payload["review_route"] == "/?mode=judgment"
     assert [item["workspace_id"] for item in payload["workspaces"]] == [
@@ -385,6 +425,8 @@ def test_build_judgment_workbench_aggregates_workspace_inventory(
             "workspace_id": candidate_mission_id,
             "quality_signal": "watch",
             "bottleneck": "candidate_repro_pending",
+            "primary_rule_family": "candidate_repro",
+            "signal_summary": "3 rule(s) active across coverage, candidate_repro, baseline_diff.",
             "rule_violation_count": 3,
             "baseline_ref": "fixture:dashboard-transcript-baseline",
             "review_route": f"/?mission={candidate_mission_id}&mode=missions&tab=judgment",
@@ -393,6 +435,8 @@ def test_build_judgment_workbench_aggregates_workspace_inventory(
             "workspace_id": confirmed_mission_id,
             "quality_signal": "regression",
             "bottleneck": "confirmed_issue",
+            "primary_rule_family": "semantic_review",
+            "signal_summary": "1 rule(s) active across semantic_review.",
             "rule_violation_count": 1,
             "baseline_ref": "",
             "review_route": f"/?mission={confirmed_mission_id}&mode=missions&tab=judgment",
@@ -414,5 +458,9 @@ def test_build_judgment_workbench_aggregates_workspace_inventory(
     )
     assert mission_payload["structural_judgment"]["quality_signal"] == "watch"
     assert mission_payload["structural_judgment"]["bottleneck"] == "candidate_repro_pending"
+    assert (
+        mission_payload["structural_judgment"]["structural_signal_summary"]["primary_rule_family"]
+        == "candidate_repro"
+    )
     assert mission_payload["surface_pack_panel"]["surface_name"] == "dashboard"
     assert mission_payload["judgment_timeline"][-1]["event_type"] == "review_state_changed"
