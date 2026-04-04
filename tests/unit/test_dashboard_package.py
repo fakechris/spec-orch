@@ -257,6 +257,8 @@ def test_dashboard_showcase_surface_renders_governance_and_lineage_fields() -> N
     assert "Governance watchlist" in source
     assert "showcase.watchlist" in source
     assert "structural regression" in source
+    assert "promotion actions" in source
+    assert "promotion hold signals" not in source
     assert "Turning points" in source
     assert "item.turning_points" in source
     assert "latest_turning_point" in source

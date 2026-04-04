@@ -595,6 +595,10 @@ def test_build_showcase_workbench_brief_follows_top_watch_and_excludes_idle_stor
         "mission-showcase",
         "mission-showcase-previous",
     ]
+    assert payload["highlights"][1]["title"] == "Mission Showcase Workspace"
+    assert payload["highlights"][1]["route"] == (
+        f"/?mission={mission_id}&mode=missions&tab=judgment"
+    )
     assert payload["summary"]["watchlist_count"] == 2
     assert payload["brief"]["top_watch_focus"] == "structural regression"
     assert payload["brief"]["next_route"] == (f"/?mission={mission_id}&mode=missions&tab=judgment")

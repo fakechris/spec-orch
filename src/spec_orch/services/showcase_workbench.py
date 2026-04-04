@@ -430,6 +430,7 @@ def _workspace_storylines(repo_root: Path) -> list[dict[str, Any]]:
 def _highlights(
     release_timeline: list[dict[str, Any]],
     storylines: list[dict[str, Any]],
+    watchlist: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     highlights: list[dict[str, Any]] = []
     if release_timeline:
@@ -446,8 +447,20 @@ def _highlights(
                 "route": f"/artifacts/{latest.get('summary_artifact_path', '')}",
             }
         )
-    if storylines:
-        workspace = storylines[0]
+    top_watch = watchlist[0] if watchlist else {}
+    workspace = (
+        next(
+            (
+                item
+                for item in storylines
+                if str(item.get("workspace_id", "")) == str(top_watch.get("workspace_id", ""))
+            ),
+            {},
+        )
+        if top_watch
+        else (storylines[0] if storylines else {})
+    )
+    if workspace:
         highlights.append(
             {
                 "kind": "workspace",
@@ -584,8 +597,8 @@ def build_showcase_workbench(repo_root: Path) -> dict[str, Any]:
     releases = _load_release_index(repo_root)
     release_timeline = _release_timeline(repo_root, releases)
     storylines = _workspace_storylines(repo_root)
-    highlights = _highlights(release_timeline, storylines)
     watchlist = _watchlist(storylines)
+    highlights = _highlights(release_timeline, storylines, watchlist)
     brief = _brief(release_timeline, watchlist, storylines)
     return {
         "summary": {

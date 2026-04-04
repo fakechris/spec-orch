@@ -1926,7 +1926,7 @@ function renderGlobalShowcaseWorkbench(showcase, detail) {
     </section>
     <section class="mission-section">
       <h3>Governance watchlist</h3>
-      <div class="context-meta">Tracks structural regression, compare drift, and promotion hold signals.</div>
+      <div class="context-meta">Tracks structural regression, compare drift, and promotion actions.</div>
       <div class="context-list">${watchlistHtml}</div>
     </section>
     <section class="mission-section">
