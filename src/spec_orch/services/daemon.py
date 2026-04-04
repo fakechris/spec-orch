@@ -16,6 +16,7 @@ from spec_orch.services.adapter_factory import create_builder, create_reviewer
 from spec_orch.services.admission_governor import AdmissionGovernor
 from spec_orch.services.conflict_resolver import ConflictResolver
 from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.daemon_state_store import DaemonStateStore
 from spec_orch.services.event_bus import Event, EventTopic
 from spec_orch.services.github_pr_service import GitHubPRService
 from spec_orch.services.io import atomic_write_json
@@ -119,6 +120,8 @@ class DaemonConfig:
 
 class SpecOrchDaemon:
     STATE_FILE = "daemon_state.json"
+    PROCESS_LOCK_LEASE_SECONDS = 120
+    ISSUE_CLAIM_LEASE_SECONDS = 300
 
     def __init__(
         self,
@@ -135,6 +138,7 @@ class SpecOrchDaemon:
         self._context_assembler = ContextAssembler()
         self._lockdir = repo_root / config.lockfile_dir
         self._lockdir.mkdir(parents=True, exist_ok=True)
+        self._state_store = DaemonStateStore(self._lockdir)
         self._state_path = self._lockdir / self.STATE_FILE
         saved = self._load_state()
         self._processed: set[str] = set(saved.get("processed", []))
@@ -142,9 +146,15 @@ class SpecOrchDaemon:
         self._last_poll: str = saved.get("last_poll", "")
         self._pr_commits: dict[str, str] = dict(saved.get("pr_commits", {}))
         self._retry_counts: dict[str, int] = dict(saved.get("retry_counts", {}))
+        self._retry_at: dict[str, float] = {
+            str(key): float(value)
+            for key, value in dict(saved.get("retry_at", {})).items()
+            if str(key).strip()
+        }
         self._dead_letter: set[str] = set(saved.get("dead_letter", []))
         self._in_progress: set[str] = set(saved.get("in_progress", []))
         self._reaction_marks: set[str] = set(saved.get("reaction_marks", []))
+        self._process_lock_owner = f"{os.getpid()}:{id(self)}"
         self._reaction_engine = ReactionEngine(repo_root)
         self._admission_governor = AdmissionGovernor(
             repo_root,
@@ -197,28 +207,55 @@ class SpecOrchDaemon:
         return self._mission_execution_service
 
     def _load_state(self) -> dict[str, Any]:
-        if self._state_path.exists():
-            try:
-                return cast(dict[str, Any], _json.loads(self._state_path.read_text()))
-            except (_json.JSONDecodeError, OSError) as exc:
-                print(f"[daemon] failed to load state: {exc}")
+        try:
+            return self._state_store.load_snapshot()
+        except Exception as exc:
+            print(f"[daemon] failed to load state: {exc}")
+            if self._state_path.exists():
+                try:
+                    return cast(dict[str, Any], _json.loads(self._state_path.read_text()))
+                except (_json.JSONDecodeError, OSError) as legacy_exc:
+                    print(f"[daemon] failed to load legacy state: {legacy_exc}")
         return {}
 
     def _save_state(self) -> None:
+        self._last_poll = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         data = {
             "processed": sorted(self._processed),
             "triaged": sorted(self._triaged),
             "pr_commits": self._pr_commits,
             "retry_counts": self._retry_counts,
+            "retry_at": self._retry_at,
             "dead_letter": sorted(self._dead_letter),
             "in_progress": sorted(self._in_progress),
             "reaction_marks": sorted(self._reaction_marks),
-            "last_poll": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "last_poll": self._last_poll,
         }
         try:
-            atomic_write_json(self._state_path, data)
+            self._state_store.save_snapshot(data)
         except OSError as exc:
             print(f"[daemon] failed to save state: {exc}")
+        except Exception as exc:
+            print(f"[daemon] failed to save sqlite state: {exc}")
+
+    def _acquire_process_lock(self) -> None:
+        acquired = self._state_store.acquire_daemon_lock(
+            owner=self._process_lock_owner,
+            pid=os.getpid(),
+            lease_seconds=self.PROCESS_LOCK_LEASE_SECONDS,
+        )
+        if not acquired:
+            raise RuntimeError("another spec-orch daemon instance already holds the process lock")
+
+    def _renew_process_lock(self) -> None:
+        self._state_store.renew_daemon_lock(
+            owner=self._process_lock_owner,
+            pid=os.getpid(),
+            lease_seconds=self.PROCESS_LOCK_LEASE_SECONDS,
+        )
+
+    def _release_process_lock(self) -> None:
+        self._state_store.release_daemon_lock(owner=self._process_lock_owner)
 
     def run(self) -> None:
         signal.signal(signal.SIGINT, self._handle_signal)
@@ -266,6 +303,7 @@ class SpecOrchDaemon:
             print(f"[daemon] dead letter queue: {sorted(self._dead_letter)}")
 
         self._consecutive_loop_errors = 0
+        self._acquire_process_lock()
         self._write_heartbeat(status="starting")
         self.resume_in_progress(controller)
 
@@ -277,6 +315,7 @@ class SpecOrchDaemon:
                     self._check_review_updates(client)
                     self._poll_and_run(client, controller)
                     self._save_state()
+                    self._renew_process_lock()
                     self._write_heartbeat(status="healthy")
                     self._consecutive_loop_errors = 0
                 except Exception as exc:
@@ -297,6 +336,7 @@ class SpecOrchDaemon:
                 self._sleep(self.config.poll_interval_seconds)
         finally:
             self._save_state()
+            self._release_process_lock()
             self._write_heartbeat(status="stopped")
             client.close()
             print("[daemon] stopped")
@@ -555,7 +595,10 @@ class SpecOrchDaemon:
             if admission_decision["decision"] != "admit":
                 continue
 
-            self._claim(issue_id)
+            try:
+                self._claim(issue_id)
+            except RuntimeError:
+                continue
 
             if not is_hotfix and not self._triage_issue(client, raw_issue, controller):
                 self._release(issue_id)
@@ -1295,15 +1338,19 @@ class SpecOrchDaemon:
         return False
 
     def _is_locked(self, issue_id: str) -> bool:
-        return (self._lockdir / f"{issue_id}.lock").exists()
+        return self._state_store.issue_is_claimed(issue_id)
 
     def _claim(self, issue_id: str) -> None:
-        lockfile = self._lockdir / f"{issue_id}.lock"
-        lockfile.write_text(str(time.time()))
+        claimed = self._state_store.try_claim_issue(
+            issue_id,
+            owner=self._process_lock_owner,
+            lease_seconds=self.ISSUE_CLAIM_LEASE_SECONDS,
+        )
+        if not claimed:
+            raise RuntimeError(f"issue already claimed: {issue_id}")
 
     def _release(self, issue_id: str) -> None:
-        lockfile = self._lockdir / f"{issue_id}.lock"
-        lockfile.unlink(missing_ok=True)
+        self._state_store.release_issue_claim(issue_id)
 
     def _sleep(self, seconds: int) -> None:
         for _ in range(seconds):
@@ -1384,8 +1431,7 @@ class SpecOrchDaemon:
         self._dead_letter.discard(issue_id)
         self._processed.discard(issue_id)
         self._retry_counts.pop(issue_id, None)
-        retry_file = self._lockdir / f"{issue_id}.retry_at"
-        retry_file.unlink(missing_ok=True)
+        self._retry_at.pop(issue_id, None)
         self._release(issue_id)
         self._save_state()
         print(f"[daemon] {issue_id} removed from dead letter queue for retry")
@@ -1396,8 +1442,7 @@ class SpecOrchDaemon:
         count = len(self._dead_letter)
         for issue_id in list(self._dead_letter):
             self._release(issue_id)
-            retry_file = self._lockdir / f"{issue_id}.retry_at"
-            retry_file.unlink(missing_ok=True)
+            self._retry_at.pop(issue_id, None)
         self._dead_letter.clear()
         self._save_state()
         return count
@@ -1425,13 +1470,10 @@ class SpecOrchDaemon:
     @classmethod
     def read_state(cls, repo_root: Path, lockfile_dir: str = ".spec_orch_locks/") -> dict[str, Any]:
         """Read the daemon state file (static — can be called without a running daemon)."""
-        state_path = repo_root / lockfile_dir / cls.STATE_FILE
-        if not state_path.exists():
-            return {}
         try:
-            data = _json.loads(state_path.read_text())
-            return data if isinstance(data, dict) else {}
-        except (_json.JSONDecodeError, OSError):
+            store = DaemonStateStore(repo_root / lockfile_dir)
+            return store.load_snapshot()
+        except Exception:
             return {}
 
     def _handle_signal(self, signum: int, _frame: Any) -> None:
@@ -1474,14 +1516,10 @@ class SpecOrchDaemon:
         count = self._retry_counts.get(issue_id, 0)
         if count == 0:
             return False
-        lockfile = self._lockdir / f"{issue_id}.retry_at"
-        if not lockfile.exists():
+        retry_at = self._retry_at.get(issue_id)
+        if retry_at is None:
             return False
-        try:
-            retry_at = float(lockfile.read_text().strip())
-            return time.time() < retry_at
-        except (ValueError, OSError):
-            return False
+        return time.time() < retry_at
 
     def _record_failure(
         self,
@@ -1507,6 +1545,7 @@ class SpecOrchDaemon:
             )
             self._dead_letter.add(issue_id)
             self._retry_counts.pop(issue_id, None)
+            self._retry_at.pop(issue_id, None)
             if linear_uid:
                 try:
                     client.add_comment(
@@ -1523,8 +1562,7 @@ class SpecOrchDaemon:
         else:
             delay = self.config.retry_base_delay * (2 ** (count - 1))
             retry_at = time.time() + delay
-            retry_file = self._lockdir / f"{issue_id}.retry_at"
-            retry_file.write_text(str(retry_at))
+            self._retry_at[issue_id] = retry_at
             print(
                 f"[daemon] {issue_id}: attempt {count}/{self.config.max_retries}, retry in {delay}s"
             )

@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
+from spec_orch.services.daemon_state_store import DaemonStateStore
 
 
 def _minimal_config() -> DaemonConfig:
@@ -30,15 +31,18 @@ def _make_daemon(tmp_path: Path) -> SpecOrchDaemon:
         d._running = True
         d._lockdir = tmp_path / ".locks"
         d._lockdir.mkdir(parents=True, exist_ok=True)
+        d._state_store = DaemonStateStore(d._lockdir)
         d._state_path = d._lockdir / SpecOrchDaemon.STATE_FILE
         d._processed = set()
         d._triaged = set()
         d._last_poll = ""
         d._pr_commits = {}
         d._retry_counts = {}
+        d._retry_at = {}
         d._dead_letter = set()
         d._in_progress = set()
         d._reaction_marks = set()
+        d._process_lock_owner = f"test:{id(d)}"
         d._consecutive_loop_errors = 0
 
         from spec_orch.services.event_bus import get_event_bus
