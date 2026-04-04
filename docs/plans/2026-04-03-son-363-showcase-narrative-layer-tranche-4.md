@@ -20,7 +20,7 @@ Add tests that require:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_showcase_workbench.py tests/unit/test_dashboard_package.py -q
+uv run --python 3.13 pytest tests/unit/test_showcase_workbench.py tests/unit/test_dashboard_package.py -q
 ```
 
 Expected: `FAIL` because the showcase read model and dashboard surface do not yet expose timeline narrative carriers.
@@ -49,10 +49,10 @@ Keep the tranche narrow:
 Run:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_showcase_workbench.py tests/unit/test_dashboard_package.py -q
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 pytest tests/unit/test_dashboard_api.py -q -k showcase
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 ruff check src/spec_orch/services/showcase_workbench.py src/spec_orch/dashboard/app.py tests/unit/test_showcase_workbench.py tests/unit/test_dashboard_package.py tests/unit/test_dashboard_api.py
-UV_PROJECT_ENVIRONMENT=/Users/chris/workspace/spec-orch/.venv-py313 uv run --python 3.13 mypy src/spec_orch/services/showcase_workbench.py
+uv run --python 3.13 pytest tests/unit/test_showcase_workbench.py tests/unit/test_dashboard_package.py -q
+uv run --python 3.13 pytest tests/unit/test_dashboard_api.py -q -k showcase
+uv run --python 3.13 ruff check src/spec_orch/services/showcase_workbench.py src/spec_orch/dashboard/app.py tests/unit/test_showcase_workbench.py tests/unit/test_dashboard_package.py tests/unit/test_dashboard_api.py
+uv run --python 3.13 mypy src/spec_orch/services/showcase_workbench.py
 ```
 
 Expected: `PASS`

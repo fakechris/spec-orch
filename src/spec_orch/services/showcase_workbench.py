@@ -473,6 +473,19 @@ def _watchlist(storylines: list[dict[str, Any]]) -> list[dict[str, Any]]:
         learning_decision = str(
             item.get("governance_story", {}).get("learning", {}).get("promotion_decision", "")
         ).strip()
+        has_structural_signal = structural_signal and structural_signal not in {
+            "stable",
+            "healthy",
+            "pass",
+        }
+        has_compare_focus = bool(compare_focus)
+        has_learning_signal = learning_decision and learning_decision not in {
+            "hold",
+            "pending",
+            "",
+        }
+        if not (has_structural_signal or has_compare_focus or has_learning_signal):
+            continue
         if structural_signal and structural_signal not in {"stable", "healthy", "pass"}:
             focus = (
                 "structural regression"
@@ -539,7 +552,18 @@ def _brief(
     )
     latest_release_id = str(release_timeline[0].get("release_id", "")) if release_timeline else ""
     top_watch = watchlist[0] if watchlist else {}
-    top_storyline = storylines[0] if storylines else {}
+    top_storyline = (
+        next(
+            (
+                item
+                for item in storylines
+                if str(item.get("workspace_id", "")) == str(top_watch.get("workspace_id", ""))
+            ),
+            {},
+        )
+        if top_watch
+        else (storylines[0] if storylines else {})
+    )
     next_pivot = top_storyline.get("next_pivot", {}) if isinstance(top_storyline, dict) else {}
     return {
         "headline": (
