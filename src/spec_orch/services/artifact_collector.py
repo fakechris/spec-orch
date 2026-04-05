@@ -7,6 +7,7 @@ from typing import Any
 from spec_orch.domain.models import (
     BuilderResult,
     GateInput,
+    GateVerdict,
     Issue,
     IssueContext,
     ReviewSummary,
@@ -15,6 +16,10 @@ from spec_orch.domain.models import (
     WorkPacket,
 )
 from spec_orch.services.gate_service import GatePolicy, GateService
+from spec_orch.services.runtime_contracts import (
+    build_gate_verdict_payload,
+    build_verification_output_payload,
+)
 from spec_orch.services.verification_service import VerificationService
 
 
@@ -72,22 +77,11 @@ class ArtifactCollector:
                 workspace=workspace,
             )
             verification_outputs.append(
-                {
-                    "packet_id": packet.packet_id,
-                    "producer_role": "verifier",
-                    "workspace": str(workspace),
-                    "all_passed": verification.all_passed,
-                    "step_results": dict(verification.step_results),
-                    "details": {
-                        step: {
-                            "command": detail.command,
-                            "exit_code": detail.exit_code,
-                            "stdout": detail.stdout,
-                            "stderr": detail.stderr,
-                        }
-                        for step, detail in verification.details.items()
-                    },
-                }
+                build_verification_output_payload(
+                    packet_id=packet.packet_id,
+                    workspace=workspace,
+                    verification=verification,
+                )
             )
             scope_proof = self.build_packet_scope_proof(
                 workspace=workspace,
@@ -105,12 +99,14 @@ class ArtifactCollector:
             if not scope_proof["all_in_scope"] and "scope" not in failed_conditions:
                 failed_conditions.append("scope")
             gate_verdicts.append(
-                {
-                    "packet_id": packet.packet_id,
-                    "mergeable": gate.mergeable and scope_proof["all_in_scope"],
-                    "failed_conditions": failed_conditions,
-                    "scope": scope_proof,
-                }
+                build_gate_verdict_payload(
+                    packet_id=packet.packet_id,
+                    gate=GateVerdict(
+                        mergeable=gate.mergeable,
+                        failed_conditions=failed_conditions,
+                    ),
+                    scope=scope_proof,
+                )
             )
 
         return RoundArtifacts(

@@ -13,6 +13,10 @@ from spec_orch.domain.models import (
     VerificationSummary,
 )
 from spec_orch.services.activity_logger import ActivityLogger
+from spec_orch.services.runtime_contracts import (
+    build_gate_event_payload,
+    build_verification_event_payload,
+)
 from spec_orch.services.telemetry_service import TelemetryService
 from spec_orch.services.trace_sampler import TraceSampler
 
@@ -117,6 +121,7 @@ class RunEventLogger:
         activity_logger: ActivityLogger | None = None,
     ) -> None:
         for step_name, detail in verification.details.items():
+            outcome = verification.get_step_outcome(step_name)
             self.log_and_emit(
                 activity_logger=activity_logger,
                 workspace=workspace,
@@ -124,13 +129,13 @@ class RunEventLogger:
                 issue_id=issue_id,
                 component="verification",
                 event_type="verification_step_completed",
-                severity="info" if detail.exit_code == 0 else "error",
+                severity="info" if outcome == "pass" else "warning",
                 message=f"Verification step completed: {step_name}",
-                data={
-                    "step": step_name,
-                    "exit_code": detail.exit_code,
-                    "command": detail.command,
-                },
+                data=build_verification_event_payload(
+                    step_name=step_name,
+                    detail=detail,
+                    outcome=outcome,
+                ),
             )
 
         self.log_and_emit(
@@ -163,10 +168,7 @@ class RunEventLogger:
             event_type="gate_evaluated",
             severity="info" if gate.mergeable else "warning",
             message="Evaluated gate verdict.",
-            data={
-                "mergeable": gate.mergeable,
-                "failed_conditions": gate.failed_conditions,
-            },
+            data=build_gate_event_payload(gate),
         )
 
     def maybe_sample_for_eval(
