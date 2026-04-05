@@ -45,6 +45,7 @@ class RoundReviewCoordinator:
             wave=wave,
         )
         summary.status = RoundStatus.REVIEWING
+        host._persist_round(round_dir, summary)
 
         assembled_context = host.context_assembler.assemble(
             get_node_context_spec("supervisor"),

@@ -97,7 +97,19 @@ class DaemonMissionExecutor:
 
         except FileNotFoundError as exc:
             print(f"[daemon] {issue_id}: plan not found: {exc}")
+            host._event_bus.emit_issue_state(issue_id, "completed", mergeable=False)
+            if linear_uid:
+                try:
+                    client.update_issue_state(linear_uid, "Ready")
+                except Exception as state_exc:
+                    print(f"[daemon] state reset failed: {state_exc}")
             host._release(issue_id)
         except Exception as exc:
             print(f"[daemon] {issue_id}: mission execution failed: {exc}")
+            host._event_bus.emit_issue_state(issue_id, "completed", mergeable=False)
+            if linear_uid:
+                try:
+                    client.update_issue_state(linear_uid, "Ready")
+                except Exception as state_exc:
+                    print(f"[daemon] state reset failed: {state_exc}")
             host._release(issue_id)

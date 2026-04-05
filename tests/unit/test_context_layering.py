@@ -166,3 +166,65 @@ def test_context_assembler_emits_lazy_handles_for_memory_layers(tmp_path: Path) 
     assert bundle.promoted_learning.lazy_handles["active_self_learnings"]["layer"] == (
         "promoted_learning"
     )
+
+
+def test_context_assembler_records_learning_list_truncation_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    class _Memory:
+        def get_active_learning_slice(self, kind: str) -> list[dict[str, object]]:
+            if kind == "self":
+                return [
+                    {"key": "self-1", "content": "Keep diffs small."},
+                    {"key": "self-2", "content": "Keep reviewer evidence separate."},
+                ]
+            return []
+
+        def get_context_layer_payloads(self) -> dict[str, dict[str, object]]:
+            return {
+                "promoted_learning": {
+                    "active_self_learnings": [
+                        {"key": "self-1", "content": "Keep diffs small."},
+                        {"key": "self-2", "content": "Keep reviewer evidence separate."},
+                    ],
+                    "active_delivery_learnings": [],
+                    "active_feedback_learnings": [],
+                    "reviewed_decision_failures": [],
+                    "reviewed_decision_recipes": [],
+                }
+            }
+
+    original_allocate = ContextAssembler.__dict__["assemble"].__globals__["ContextRanker"].allocate
+
+    def _truncate_active_self_learning(sections, budget):
+        ranked = original_allocate(sections, budget)
+        ranked["active_self_learnings"] = '[{"key":"self-1","content":"Keep diffs small."}]'
+        return ranked
+
+    monkeypatch.setattr(
+        ContextAssembler.__dict__["assemble"].__globals__["ContextRanker"],
+        "allocate",
+        staticmethod(_truncate_active_self_learning),
+    )
+
+    bundle = ContextAssembler().assemble(
+        NodeContextSpec(node_name="supervisor", max_tokens_budget=20),
+        _issue(),
+        workspace,
+        memory=_Memory(),
+        repo_root=tmp_path,
+    )
+
+    assert bundle.learning.active_self_learnings == [
+        {"key": "self-1", "content": "Keep diffs small."}
+    ]
+    assert any(
+        item["context"] == "learning"
+        and item["field"] == "active_self_learnings"
+        and item["original_items"] == 2
+        and item["retained_items"] == 1
+        for item in bundle.truncation_metadata
+    )

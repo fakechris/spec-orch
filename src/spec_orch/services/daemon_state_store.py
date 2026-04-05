@@ -274,16 +274,16 @@ class DaemonStateStore:
     ) -> bool:
         current = time.time() if now is None else float(now)
         expires_at = current + max(float(lease_seconds), 1.0)
-        row = self._db.execute(
-            "SELECT owner, expires_at FROM issue_claims WHERE issue_id = ?",
-            (issue_id,),
-        ).fetchone()
-        if row is not None:
-            existing_owner = str(row[0] or "")
-            existing_expires = float(row[1] or 0)
-            if existing_expires > current and existing_owner != owner:
-                return False
         with self._db:
+            row = self._db.execute(
+                "SELECT owner, expires_at FROM issue_claims WHERE issue_id = ?",
+                (issue_id,),
+            ).fetchone()
+            if row is not None:
+                existing_owner = str(row[0] or "")
+                existing_expires = float(row[1] or 0)
+                if existing_expires > current and existing_owner != owner:
+                    return False
             self._db.execute(
                 """INSERT OR REPLACE INTO issue_claims(issue_id, owner, expires_at, updated_at)
                    VALUES (?, ?, ?, ?)""",
@@ -306,16 +306,16 @@ class DaemonStateStore:
     ) -> bool:
         current = time.time() if now is None else float(now)
         expires_at = current + max(float(lease_seconds), 1.0)
-        row = self._db.execute(
-            "SELECT owner, expires_at FROM daemon_locks WHERE lock_name = ?",
-            (lock_name,),
-        ).fetchone()
-        if row is not None:
-            existing_owner = str(row[0] or "")
-            existing_expires = float(row[1] or 0)
-            if existing_expires > current and existing_owner != owner:
-                return False
         with self._db:
+            row = self._db.execute(
+                "SELECT owner, expires_at FROM daemon_locks WHERE lock_name = ?",
+                (lock_name,),
+            ).fetchone()
+            if row is not None:
+                existing_owner = str(row[0] or "")
+                existing_expires = float(row[1] or 0)
+                if existing_expires > current and existing_owner != owner:
+                    return False
             self._db.execute(
                 """INSERT OR REPLACE INTO daemon_locks(
                        lock_name, owner, pid, expires_at, updated_at
@@ -395,20 +395,24 @@ class DaemonStateStore:
         return intents
 
     def pop_next_execution_intent(self) -> dict[str, Any] | None:
-        row = self._db.execute(
-            """SELECT issue_id, raw_issue, is_hotfix, enqueued_at
-               FROM execution_intents
-               ORDER BY enqueued_at, issue_id
-               LIMIT 1"""
-        ).fetchone()
-        if row is None:
-            return None
-        issue_id, raw_issue, is_hotfix, enqueued_at = row
+        with self._db:
+            row = self._db.execute(
+                """SELECT issue_id, raw_issue, is_hotfix, enqueued_at
+                   FROM execution_intents
+                   ORDER BY enqueued_at, issue_id
+                   LIMIT 1"""
+            ).fetchone()
+            if row is None:
+                return None
+            issue_id, raw_issue, is_hotfix, enqueued_at = row
+            self._db.execute(
+                "DELETE FROM execution_intents WHERE issue_id = ?",
+                (str(issue_id),),
+            )
         try:
             payload = json.loads(str(raw_issue))
         except json.JSONDecodeError:
             payload = {}
-        self.delete_execution_intent(str(issue_id))
         return {
             "issue_id": str(issue_id),
             "raw_issue": payload if isinstance(payload, dict) else {},

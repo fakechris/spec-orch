@@ -26,7 +26,10 @@ from spec_orch.domain.protocols import (
     WorkerHandleFactory,
 )
 from spec_orch.services.adapter_factory import create_builder, create_reviewer
-from spec_orch.services.run_controller_adapters import resolve_run_controller_adapters
+from spec_orch.services.run_controller_adapters import (
+    RunControllerAdapters,
+    resolve_run_controller_adapters,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -677,6 +680,20 @@ class TestEndToEndConfig:
 
         assert resolved.builder_adapter.ADAPTER_NAME == "opencode"
         assert resolved.review_adapter.ADAPTER_NAME == "local"
+
+    def test_run_controller_adapter_resolution_preserves_explicit_planner_fallback(
+        self, tmp_path: Path
+    ):
+        sentinel_planner = object()
+
+        resolved = resolve_run_controller_adapters(
+            repo_root=tmp_path,
+            codex_executable="codex",
+            planner_adapter=sentinel_planner,  # type: ignore[arg-type]
+            adapters=RunControllerAdapters(),
+        )
+
+        assert resolved.planner_adapter is sentinel_planner
 
     def test_opencode_config_creates_correct_controller(self, tmp_path: Path):
         from spec_orch.services.run_controller import RunController

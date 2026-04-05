@@ -76,6 +76,85 @@ def test_execution_intent_queue_round_trip(tmp_path: Path) -> None:
     assert daemon._state_store.list_execution_intents() == []
 
 
+def test_issue_claim_rejects_other_owner_until_lease_expires(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    assert daemon._state_store.try_claim_issue(
+        "SPC-CLAIM",
+        owner="daemon-a",
+        lease_seconds=60,
+        now=100.0,
+    )
+    assert not daemon._state_store.try_claim_issue(
+        "SPC-CLAIM",
+        owner="daemon-b",
+        lease_seconds=60,
+        now=101.0,
+    )
+    assert daemon._state_store.try_claim_issue(
+        "SPC-CLAIM",
+        owner="daemon-b",
+        lease_seconds=60,
+        now=161.0,
+    )
+
+
+def test_daemon_lock_rejects_second_owner_until_lease_expires(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    assert daemon._state_store.acquire_daemon_lock(
+        owner="daemon-a",
+        pid=111,
+        lease_seconds=30,
+        now=10.0,
+    )
+    assert not daemon._state_store.acquire_daemon_lock(
+        owner="daemon-b",
+        pid=222,
+        lease_seconds=30,
+        now=20.0,
+    )
+    assert daemon._state_store.acquire_daemon_lock(
+        owner="daemon-b",
+        pid=222,
+        lease_seconds=30,
+        now=41.0,
+    )
+
+
+def test_pop_next_execution_intent_removes_only_popped_issue(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    daemon._state_store.enqueue_execution_intent(
+        issue_id="SPC-1",
+        raw_issue={"id": "uid-1"},
+        is_hotfix=False,
+        enqueued_at=10.0,
+    )
+    daemon._state_store.enqueue_execution_intent(
+        issue_id="SPC-2",
+        raw_issue={"id": "uid-2"},
+        is_hotfix=True,
+        enqueued_at=20.0,
+    )
+
+    popped = daemon._state_store.pop_next_execution_intent()
+
+    assert popped is not None
+    assert popped["issue_id"] == "SPC-1"
+    assert daemon._state_store.list_execution_intents() == [
+        {
+            "issue_id": "SPC-2",
+            "raw_issue": {"id": "uid-2"},
+            "is_hotfix": True,
+            "enqueued_at": 20.0,
+        }
+    ]
+
+
 # ── Phase 14 tests: Daemon resilience ────────────────────────────────
 
 

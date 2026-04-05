@@ -102,3 +102,37 @@ def test_run_event_logger_event_callback_logs_to_telemetry_and_activity(tmp_path
         }
     ]
     assert activity_logger.events == [{"artifact": "task.spec.md"}]
+
+
+def test_run_event_logger_event_callback_preserves_top_level_payload_fields(tmp_path: Path) -> None:
+    telemetry = _FakeTelemetryService()
+    activity_logger = _FakeActivityLogger()
+    logger = RunEventLogger(telemetry_service=telemetry)
+
+    callback = logger.make_event_logger(
+        workspace=tmp_path / "workspace",
+        run_id="run-2",
+        issue_id="SPC-2",
+        activity_logger=activity_logger,  # type: ignore[arg-type]
+    )
+
+    callback(
+        {
+            "component": "builder",
+            "method": "tool_call",
+            "params": {"tool": "write"},
+            "message": "Tool invoked",
+            "data": {"artifact": "task.spec.md"},
+        }
+    )
+
+    assert telemetry.calls[0]["data"] == {
+        "artifact": "task.spec.md",
+        "params": {"tool": "write"},
+    }
+    assert activity_logger.events == [
+        {
+            "artifact": "task.spec.md",
+            "params": {"tool": "write"},
+        }
+    ]

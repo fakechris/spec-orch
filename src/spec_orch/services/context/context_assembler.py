@@ -311,8 +311,8 @@ class ContextAssembler:
             try:
                 parsed = json.loads(text)
                 if isinstance(parsed, list):
-                    setattr(learn, name, parsed)
                     original = getattr(learn, name, [])
+                    setattr(learn, name, parsed)
                     if isinstance(original, list) and len(parsed) < len(original):
                         truncation_metadata.append(
                             {

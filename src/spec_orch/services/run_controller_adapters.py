@@ -35,6 +35,7 @@ def resolve_run_controller_adapters(
 ) -> ResolvedRunControllerAdapters:
     adapter_bundle = adapters or RunControllerAdapters()
     resolved_builder = adapter_bundle.builder_adapter or builder_adapter
+    resolved_planner = adapter_bundle.planner_adapter or planner_adapter
     if resolved_builder is None:
         resolved_builder = create_builder(repo_root)
         if (
@@ -46,7 +47,7 @@ def resolve_run_controller_adapters(
 
     return ResolvedRunControllerAdapters(
         builder_adapter=resolved_builder,
-        planner_adapter=adapter_bundle.planner_adapter if adapters is not None else planner_adapter,
+        planner_adapter=resolved_planner,
         review_adapter=(
             adapter_bundle.review_adapter or review_adapter or create_reviewer(repo_root)
         ),

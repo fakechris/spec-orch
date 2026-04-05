@@ -178,8 +178,11 @@ class ArtifactService:
             focus.append("Builder failed — check builder_report.json for details")
         if verification:
             for step in verification.details:
-                if not verification.get_step_passed(step):
+                outcome = verification.get_step_outcome(step)
+                if outcome == "fail":
                     focus.append(f"Verification step '{step}' failed")
+                elif outcome == "skipped":
+                    focus.append(f"Verification step '{step}' skipped")
         if not compliance.get("compliant", True):
             focus.append(f"Builder contract violations: {len(compliance.get('violations', []))}")
         return focus

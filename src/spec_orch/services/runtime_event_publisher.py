@@ -26,6 +26,30 @@ class RuntimeEventPublisher:
             if not msg:
                 params = event.get("params", {})
                 msg = params.get("text", "") if isinstance(params, dict) else ""
+            payload_data = event.get("data")
+            top_level_payload = {
+                key: value
+                for key, value in event.items()
+                if key
+                not in {
+                    "data",
+                    "event_type",
+                    "type",
+                    "method",
+                    "message",
+                    "text",
+                    "component",
+                    "severity",
+                    "adapter",
+                    "agent",
+                }
+            }
+            if isinstance(payload_data, dict):
+                merged_data = {**payload_data, **top_level_payload}
+            elif payload_data is None:
+                merged_data = top_level_payload
+            else:
+                merged_data = {"value": payload_data, **top_level_payload}
             self.publish(
                 activity_logger=None,
                 workspace=workspace,
@@ -37,10 +61,10 @@ class RuntimeEventPublisher:
                 message=str(msg) if msg else f"event:{ev_type}",
                 adapter=event.get("adapter"),
                 agent=event.get("agent"),
-                data=event.get("data"),
+                data=merged_data,
             )
             if activity_logger:
-                activity_logger.log(event.get("data", event))
+                activity_logger.log(merged_data or event)
 
         return _log
 

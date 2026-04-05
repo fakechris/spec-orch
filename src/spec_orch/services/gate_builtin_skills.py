@@ -77,11 +77,19 @@ class VerificationSkill(_BuiltinSkill):
         passed = gate_input.verification.all_passed
         reason = ""
         if not passed:
-            reason = (
-                "verification skipped"
-                if gate_input.verification.has_skipped
-                else "verification failed"
+            steps = (
+                gate_input.verification.details.keys()
+                or gate_input.verification.step_outcomes.keys()
             )
+            has_failed = any(
+                gate_input.verification.get_step_outcome(step) == "fail" for step in steps
+            )
+            if has_failed:
+                reason = "verification failed"
+            elif gate_input.verification.has_skipped:
+                reason = "verification skipped"
+            else:
+                reason = "verification failed"
         return CheckResult(
             passed=passed,
             reason=reason,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from spec_orch.services.memory._utils import list_summaries_compat
 from spec_orch.services.memory.analytics import MemoryAnalytics
@@ -23,7 +23,7 @@ class MemoryReader:
         self._service = service
 
     def recall(self, query: MemoryQuery) -> list[MemoryEntry]:
-        return self._provider.recall(query)
+        return cast(list[MemoryEntry], self._service.recall(query))
 
     def get(self, key: str) -> MemoryEntry | None:
         return self._provider.get(key)
@@ -60,4 +60,13 @@ class MemoryReader:
         return self._analytics.get_active_run_signals(days=days)
 
     def __getattr__(self, name: str) -> Any:
-        return getattr(self._service, name)
+        allowed = {
+            "get_project_profile",
+            "get_success_recipes",
+            "get_active_run_signals",
+            "get_trend_summary",
+            "synthesize_active_learning_slice",
+        }
+        if name in allowed:
+            return getattr(self._service, name)
+        raise AttributeError(f"{type(self).__name__!s} has no attribute {name!s}")

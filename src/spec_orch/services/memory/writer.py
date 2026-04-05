@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from spec_orch.services.memory.protocol import MemoryProvider
 from spec_orch.services.memory.types import MemoryEntry
@@ -14,10 +14,21 @@ class MemoryWriter:
         self._service = service
 
     def store(self, entry: MemoryEntry) -> str:
-        return self._provider.store(entry)
+        return cast(str, self._service.store(entry))
 
     def forget(self, key: str) -> bool:
-        return self._provider.forget(key)
+        return cast(bool, self._service.forget(key))
 
     def __getattr__(self, name: str) -> Any:
-        return getattr(self._service, name)
+        allowed = {
+            "compact",
+            "consolidate_run",
+            "record_issue_completion",
+            "record_mission_event",
+            "schedule_post_run_derivations",
+            "enqueue_derivation",
+            "process_derivations",
+        }
+        if name in allowed:
+            return getattr(self._service, name)
+        raise AttributeError(f"{type(self).__name__!s} has no attribute {name!s}")

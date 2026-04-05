@@ -105,6 +105,24 @@ class TestMemoryServiceCRUD:
         assert svc.reader.get("rw-1") is not None
         assert len(recalled) == 1
 
+    def test_memory_reader_and_writer_facades_preserve_service_side_effects(
+        self, svc: MemoryService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        emitted: list[tuple[str, dict[str, object]]] = []
+        monkeypatch.setattr(svc, "_emit", lambda topic, payload: emitted.append((topic, payload)))
+
+        entry = MemoryEntry(key="rw-emit", content="remember me", layer=MemoryLayer.WORKING)
+
+        svc.writer.store(entry)
+        svc.reader.recall(MemoryQuery(text="remember"))
+        svc.writer.forget("rw-emit")
+
+        assert [topic for topic, _ in emitted] == [
+            "memory.stored",
+            "memory.recalled",
+            "memory.forgotten",
+        ]
+
 
 class TestLifecycleCapture:
     def test_record_mission_event(self, svc: MemoryService):

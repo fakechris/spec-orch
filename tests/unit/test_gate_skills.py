@@ -56,6 +56,22 @@ class TestBuiltinSkills:
         assert not r.passed
         assert "skipped" in r.reason
 
+    def test_verification_failure_takes_precedence_over_skipped_steps(self) -> None:
+        summary = VerificationSummary()
+        summary.details["lint"] = VerificationDetail(
+            command=["ruff", "check"], exit_code=1, stdout="", stderr="error"
+        )
+        summary.details["build"] = VerificationDetail(
+            command=[], exit_code=0, stdout="", stderr="skipped"
+        )
+        summary.set_step_outcome("lint", "fail")
+        summary.set_step_outcome("build", "skipped")
+
+        r = VerificationSkill().run(GateInput(verification=summary))
+
+        assert not r.passed
+        assert r.reason == "verification failed"
+
     def test_review_pass(self) -> None:
         r = ReviewSkill().run(GateInput(review=ReviewSummary(verdict="pass")))
         assert r.passed
