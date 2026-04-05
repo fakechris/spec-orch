@@ -13,13 +13,8 @@ from pathlib import Path
 from typing import IO, Any, TypeVar
 from uuid import uuid4
 
-from spec_orch.acceptance_core.calibration import (
-    dashboard_surface_pack_v1,
-)
-from spec_orch.acceptance_core.models import (
-    AcceptanceRunMode,
-    run_mode_from_legacy_acceptance_mode,
-)
+from spec_orch.acceptance_core.calibration import dashboard_surface_pack_v1
+from spec_orch.acceptance_core.models import AcceptanceRunMode, run_mode_from_legacy_acceptance_mode
 from spec_orch.acceptance_core.routing import (
     AcceptanceRequest,
     AcceptanceRoutingDecision,
@@ -36,12 +31,10 @@ from spec_orch.domain.models import (
     AcceptanceReviewResult,
     BuilderResult,
     ExecutionPlan,
-    GateInput,
     Issue,
     IssueContext,
     Mission,
     PlanPatch,
-    ReviewSummary,
     RoundAction,
     RoundArtifacts,
     RoundDecision,
@@ -65,14 +58,13 @@ from spec_orch.runtime_chain.models import (
 from spec_orch.runtime_chain.store import append_chain_event, write_chain_status
 from spec_orch.runtime_core.writers import write_round_supervision_payloads
 from spec_orch.services.acceptance_pipeline import AcceptancePipeline
+from spec_orch.services.artifact_collector import ArtifactCollector
 from spec_orch.services.event_bus import Event, EventBus, EventTopic
-from spec_orch.services.gate_service import GatePolicy, GateService
 from spec_orch.services.io import atomic_write_json
 from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.resource_loader import load_json_resource
 from spec_orch.services.run_event_logger import RunEventLogger
 from spec_orch.services.telemetry_service import TelemetryService
-from spec_orch.services.verification_service import VerificationService
 from spec_orch.services.wave_dispatcher import WaveDispatcher
 
 logger = logging.getLogger(__name__)
@@ -161,6 +153,7 @@ class RoundOrchestrator:
             worker_factory=worker_factory,
             event_logger=self._event_logger,
         )
+        self._artifact_collector = ArtifactCollector(repo_root=self.repo_root)
 
     def run_supervised(
         self,
@@ -418,106 +411,13 @@ class RoundOrchestrator:
         worker_results: list[tuple[WorkPacket, BuilderResult]],
         round_dir: Path,
     ) -> RoundArtifacts:
-        visual_evaluation = self._run_visual_evaluation(
+        return self._artifact_collector.collect(
+            host=self,
             mission_id=mission_id,
             round_id=round_id,
             wave=wave,
             worker_results=worker_results,
             round_dir=round_dir,
-        )
-        verification_outputs: list[dict[str, Any]] = []
-        gate_verdicts: list[dict[str, Any]] = []
-        manifest_paths: list[str] = []
-        verification_service = VerificationService()
-        gate_service = GateService(
-            policy=GatePolicy(required_conditions={"builder", "verification"})
-        )
-
-        for packet, result in worker_results:
-            workspace = self._packet_workspace(mission_id, packet)
-            if result.report_path.exists():
-                manifest_paths.append(str(result.report_path))
-            for file_path in packet.files_in_scope:
-                scoped_path = workspace / file_path
-                if scoped_path.exists():
-                    manifest_paths.append(str(scoped_path))
-            if not packet.verification_commands:
-                continue
-
-            verification = verification_service.run(
-                issue=Issue(
-                    issue_id=packet.packet_id,
-                    title=packet.title,
-                    summary=packet.title,
-                    verification_commands=dict(packet.verification_commands),
-                    context=IssueContext(),
-                    acceptance_criteria=list(packet.acceptance_criteria),
-                ),
-                workspace=workspace,
-            )
-            verification_outputs.append(
-                {
-                    "packet_id": packet.packet_id,
-                    "producer_role": "verifier",
-                    "workspace": str(workspace),
-                    "all_passed": verification.all_passed,
-                    "step_results": dict(verification.step_results),
-                    "details": {
-                        step: {
-                            "command": detail.command,
-                            "exit_code": detail.exit_code,
-                            "stdout": detail.stdout,
-                            "stderr": detail.stderr,
-                        }
-                        for step, detail in verification.details.items()
-                    },
-                }
-            )
-            scope_proof = self._build_packet_scope_proof(
-                workspace=workspace,
-                packet=packet,
-                report_path=result.report_path,
-            )
-            gate = gate_service.evaluate(
-                GateInput(
-                    builder_succeeded=result.succeeded,
-                    verification=verification,
-                    review=ReviewSummary(verdict="not_applicable"),
-                )
-            )
-            failed_conditions = list(gate.failed_conditions)
-            if not scope_proof["all_in_scope"] and "scope" not in failed_conditions:
-                failed_conditions.append("scope")
-            gate_verdicts.append(
-                {
-                    "packet_id": packet.packet_id,
-                    "mergeable": gate.mergeable and scope_proof["all_in_scope"],
-                    "failed_conditions": failed_conditions,
-                    "scope": scope_proof,
-                }
-            )
-
-        return RoundArtifacts(
-            round_id=round_id,
-            mission_id=mission_id,
-            builder_reports=[
-                {
-                    "packet_id": packet.packet_id,
-                    "succeeded": result.succeeded,
-                    "producer_role": "implementer",
-                    "adapter": result.adapter,
-                    "agent": result.agent,
-                    "report_path": str(result.report_path),
-                }
-                for packet, result in worker_results
-            ],
-            verification_outputs=verification_outputs,
-            gate_verdicts=gate_verdicts,
-            manifest_paths=self._unique_preserve_order(manifest_paths),
-            worker_session_ids=[
-                f"mission-{mission_id}-{packet.packet_id}" for packet, _ in worker_results
-            ],
-            visual_evaluation=visual_evaluation,
         )
 
     def _build_packet_scope_proof(
@@ -527,48 +427,11 @@ class RoundOrchestrator:
         packet: WorkPacket,
         report_path: Path,
     ) -> dict[str, Any]:
-        allowed = [str(path).strip() for path in packet.files_in_scope if str(path).strip()]
-        allowed_set = set(allowed)
-        excluded_paths = {report_path.resolve()}
-        excluded_prefixes = ("telemetry/",)
-        excluded_filenames = {"btw_context.md", "task.spec.md"}
-        realized_files = self._load_realized_files_from_report(
+        return self._artifact_collector.build_packet_scope_proof(
             workspace=workspace,
             packet=packet,
             report_path=report_path,
         )
-        if realized_files is None:
-            realized_files = []
-            for path in workspace.rglob("*"):
-                if not path.is_file():
-                    continue
-                try:
-                    resolved = path.resolve()
-                except OSError:
-                    resolved = path
-                if resolved in excluded_paths:
-                    continue
-                relative_path = path.relative_to(workspace).as_posix()
-                if (
-                    relative_path.startswith(excluded_prefixes)
-                    or relative_path in excluded_filenames
-                    or self._is_transient_verification_support_file(packet, relative_path)
-                ):
-                    continue
-                realized_files.append(relative_path)
-            realized_files = self._unique_preserve_order(realized_files)
-        out_of_scope_files = [
-            path
-            for path in realized_files
-            if path not in allowed_set
-            and not self._is_transient_verification_support_file(packet, path)
-        ]
-        return {
-            "allowed_files": allowed,
-            "realized_files": realized_files,
-            "out_of_scope_files": out_of_scope_files,
-            "all_in_scope": not out_of_scope_files,
-        }
 
     def _load_realized_files_from_report(
         self,
@@ -577,63 +440,18 @@ class RoundOrchestrator:
         packet: WorkPacket,
         report_path: Path,
     ) -> list[str] | None:
-        try:
-            payload = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return None
-        if not isinstance(payload, dict):
-            return None
-        files_changed = payload.get("files_changed")
-        if files_changed is None:
-            return None
-        if not isinstance(files_changed, list):
-            return None
-        realized_files: list[str] = []
-        for raw_path in files_changed:
-            text = str(raw_path).strip()
-            if not text:
-                continue
-            path = Path(text)
-            try:
-                resolved = path.resolve() if path.is_absolute() else (workspace / path).resolve()
-            except OSError:
-                resolved = workspace / path if not path.is_absolute() else path
-            try:
-                relative_path = resolved.relative_to(workspace.resolve()).as_posix()
-            except ValueError:
-                continue
-            if resolved.exists() and resolved.is_dir():
-                continue
-            if self._is_transient_verification_support_file(packet, relative_path):
-                continue
-            realized_files.append(relative_path)
-        return self._unique_preserve_order(realized_files)
+        return self._artifact_collector.load_realized_files_from_report(
+            workspace=workspace,
+            packet=packet,
+            report_path=report_path,
+        )
 
     def _is_transient_verification_support_file(
         self, packet: WorkPacket, relative_path: str
     ) -> bool:
-        verification_language = " ".join(
-            " ".join(command) if isinstance(command, list) else str(command)
-            for command in packet.verification_commands.values()
-        ).lower()
-        if not any(
-            token in verification_language
-            for token in ("lint", "typecheck", "type check", "eslint", "compile", "tsc")
-        ):
-            return False
-        filename = Path(relative_path).name
-        return filename in {
-            "tsconfig.json",
-            "eslint.config.js",
-            "eslint.config.mjs",
-            "eslint.config.cjs",
-            ".eslintrc.js",
-            ".eslintrc.json",
-            "import_smoke.ts",
-            "package.json",
-            "package-lock.json",
-            "pnpm-lock.yaml",
-        }
+        return self._artifact_collector.is_transient_verification_support_file(
+            packet, relative_path
+        )
 
     def _load_history(self, mission_id: str, *, up_to_round: int) -> list[RoundSummary]:
         if up_to_round <= 0:

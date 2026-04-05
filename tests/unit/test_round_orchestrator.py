@@ -2745,6 +2745,33 @@ def test_dispatch_wave_delegates_to_wave_dispatcher(tmp_path: Path) -> None:
     mocked.assert_called_once()
 
 
+def test_collect_artifacts_delegates_to_artifact_collector(tmp_path: Path) -> None:
+    from spec_orch.domain.models import RoundArtifacts
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=MagicMock(),
+        context_assembler=None,
+    )
+    packet = WorkPacket(packet_id="pkt-1", title="Task 1", builder_prompt="Do task 1")
+    wave = Wave(wave_number=0, description="Wave 0", work_packets=[packet])
+    expected = RoundArtifacts(round_id=1, mission_id="mission-1")
+
+    with patch.object(orchestrator._artifact_collector, "collect", return_value=expected) as mocked:
+        result = orchestrator._collect_artifacts(
+            mission_id="mission-1",
+            round_id=1,
+            wave=wave,
+            worker_results=[],
+            round_dir=tmp_path / "round-01",
+        )
+
+    assert result is expected
+    mocked.assert_called_once()
+
+
 def test_build_fresh_acpx_post_run_campaign_substitutes_interaction_plan_keys(
     tmp_path: Path,
 ) -> None:
