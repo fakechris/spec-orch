@@ -26,6 +26,7 @@ from spec_orch.domain.protocols import (
     WorkerHandleFactory,
 )
 from spec_orch.services.adapter_factory import create_builder, create_reviewer
+from spec_orch.services.run_controller_adapters import resolve_run_controller_adapters
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -662,6 +663,21 @@ class TestRunControllerInjection:
 
 
 class TestEndToEndConfig:
+    def test_run_controller_adapter_resolution_uses_factory_defaults(self, tmp_path: Path):
+        (tmp_path / "spec-orch.toml").write_bytes(
+            b'[builder]\nadapter = "opencode"\nmodel = "minimax/MiniMax-M2.5"\n\n'
+            b'[reviewer]\nadapter = "local"\n\n'
+            b'[issue]\nsource = "fixture"\n'
+        )
+
+        resolved = resolve_run_controller_adapters(
+            repo_root=tmp_path,
+            codex_executable="codex",
+        )
+
+        assert resolved.builder_adapter.ADAPTER_NAME == "opencode"
+        assert resolved.review_adapter.ADAPTER_NAME == "local"
+
     def test_opencode_config_creates_correct_controller(self, tmp_path: Path):
         from spec_orch.services.run_controller import RunController
 
