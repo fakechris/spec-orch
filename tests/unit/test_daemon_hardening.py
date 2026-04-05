@@ -178,3 +178,26 @@ def test_read_state_static(tmp_path: Path) -> None:
     state = SpecOrchDaemon.read_state(tmp_path, str(tmp_path / ".locks") + "/")
     assert "X-1" in state.get("processed", [])
     assert "Y-1" in state.get("dead_letter", [])
+
+
+def test_read_state_static_does_not_create_lockdir_when_missing(tmp_path: Path) -> None:
+    lockdir = tmp_path / ".missing-locks"
+
+    state = SpecOrchDaemon.read_state(tmp_path, str(lockdir) + "/")
+
+    assert state == {}
+    assert not lockdir.exists()
+
+
+def test_read_state_static_does_not_migrate_legacy_json(tmp_path: Path) -> None:
+    lockdir = tmp_path / ".locks"
+    lockdir.mkdir()
+    legacy = lockdir / "daemon_state.json"
+    legacy.write_text(json.dumps({"processed": ["LEG-1"], "dead_letter": ["LEG-2"]}))
+
+    state = SpecOrchDaemon.read_state(tmp_path, str(lockdir) + "/")
+
+    assert state["processed"] == ["LEG-1"]
+    assert state["dead_letter"] == ["LEG-2"]
+    assert legacy.exists()
+    assert not (lockdir / "daemon_state.db").exists()

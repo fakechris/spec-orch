@@ -4,6 +4,7 @@ import json as _json
 import os
 import re
 import signal
+import sqlite3
 import subprocess as _subprocess
 import sys
 import time
@@ -582,6 +583,9 @@ class SpecOrchDaemon:
             issues,
             key=lambda i: 0 if self._is_hotfix(i) else 1,
         )
+        projected_in_progress = len(self._in_progress) + len(
+            self._state_store.list_execution_intents()
+        )
         for raw_issue in sorted_issues:
             issue_id = raw_issue.get("identifier", "")
             linear_uid = raw_issue.get("id", "")
@@ -597,7 +601,7 @@ class SpecOrchDaemon:
             is_hotfix = self._is_hotfix(raw_issue)
             admission_decision = self._admission_governor.evaluate_issue(
                 issue_id,
-                in_progress_count=len(self._in_progress),
+                in_progress_count=projected_in_progress,
                 is_hotfix=is_hotfix,
                 recorded_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             )
@@ -626,6 +630,7 @@ class SpecOrchDaemon:
                 raw_issue=raw_issue,
                 is_hotfix=is_hotfix,
             )
+            projected_in_progress += 1
 
     def _enqueue_execution_intent(
         self,
@@ -1394,8 +1399,24 @@ class SpecOrchDaemon:
     def read_state(cls, repo_root: Path, lockfile_dir: str = ".spec_orch_locks/") -> dict[str, Any]:
         """Read the daemon state file (static — can be called without a running daemon)."""
         try:
-            store = DaemonStateStore(repo_root / lockfile_dir)
-            return store.load_snapshot()
+            lockdir = repo_root / lockfile_dir
+            db_path = lockdir / DaemonStateStore.DB_NAME
+            if db_path.exists():
+                conn = sqlite3.connect(str(db_path), check_same_thread=False)
+                try:
+                    store = DaemonStateStore.__new__(DaemonStateStore)
+                    store._lockdir = lockdir
+                    store._db_path = db_path
+                    store._db = conn
+                    return store.load_snapshot()
+                finally:
+                    conn.close()
+            legacy_path = lockdir / DaemonStateStore.LEGACY_STATE_FILE
+            if legacy_path.exists():
+                data = _json.loads(legacy_path.read_text())
+                if isinstance(data, dict):
+                    return data
+            return {}
         except Exception:
             return {}
 

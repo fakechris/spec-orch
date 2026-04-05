@@ -445,6 +445,25 @@ def test_daemon_poll_and_enqueue_records_execution_intent(tmp_path: Path) -> Non
     assert intents[0]["raw_issue"]["id"] == "uuid-11"
 
 
+def test_daemon_poll_and_enqueue_reserves_capacity_within_same_tick(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks"), "max_concurrent": 1}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    mock_client = MagicMock()
+    mock_client.list_issues.return_value = [
+        {"id": "uuid-11", "identifier": "SPC-11", "description": _COMPLETE_DESC},
+        {"id": "uuid-12", "identifier": "SPC-12", "description": _COMPLETE_DESC},
+    ]
+    mock_controller = MagicMock()
+
+    _init_checker(daemon)
+    with patch.object(daemon, "_triage_issue", return_value=True):
+        daemon._poll_and_enqueue(mock_client, mock_controller)
+
+    intents = daemon._state_store.list_execution_intents()
+    assert [intent["issue_id"] for intent in intents] == ["SPC-11"]
+
+
 def test_daemon_drain_execution_queue_delegates_execution_to_daemon_executor(
     tmp_path: Path,
 ) -> None:
