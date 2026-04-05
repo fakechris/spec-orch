@@ -19,6 +19,24 @@ from spec_orch.services.linear_plan_sync import (
 )
 
 
+def _flow_control_lines(gate: GateVerdict) -> list[str]:
+    flow = gate.flow_control
+    lines: list[str] = []
+    if flow.retry_recommended:
+        lines.append("**Retry recommended**: yes")
+    if flow.escalation_required:
+        lines.append("**Escalation required**: yes")
+    if flow.promotion_required:
+        target = flow.promotion_target or "required"
+        lines.append(f"**Promotion signal**: {target}")
+    if flow.demotion_suggested:
+        target = flow.demotion_target or "suggested"
+        lines.append(f"**Demotion signal**: {target}")
+    if flow.backtrack_reason:
+        lines.append(f"**Backtrack reason**: {flow.backtrack_reason}")
+    return lines
+
+
 class LinearWriteBackService:
     def __init__(self, client: LinearClient) -> None:
         self._client = client
@@ -108,6 +126,7 @@ class LinearWriteBackService:
             lines.append(f"**Blocked by**: {', '.join(gate.failed_conditions)}")
         else:
             lines.append("All conditions passed.")
+        lines.extend(_flow_control_lines(gate))
 
         explain_path = result.explain
         if explain_path.exists():
@@ -130,6 +149,7 @@ class LinearWriteBackService:
             lines.append(f"**Blocked by**: {', '.join(gate.failed_conditions)}")
         else:
             lines.append("All conditions passed.")
+        lines.extend(_flow_control_lines(gate))
 
         if explain_path and explain_path.exists():
             explain_text = explain_path.read_text().strip()

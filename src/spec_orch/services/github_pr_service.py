@@ -9,6 +9,24 @@ from typing import Any, cast
 from spec_orch.domain.models import GateVerdict, RunResult
 
 
+def _flow_control_lines(gate: GateVerdict) -> list[str]:
+    flow = gate.flow_control
+    lines: list[str] = []
+    if flow.retry_recommended:
+        lines.append("- Retry recommended: yes")
+    if flow.escalation_required:
+        lines.append("- Escalation required: yes")
+    if flow.promotion_required:
+        target = flow.promotion_target or "required"
+        lines.append(f"- Promotion signal: {target}")
+    if flow.demotion_suggested:
+        target = flow.demotion_target or "suggested"
+        lines.append(f"- Demotion signal: {target}")
+    if flow.backtrack_reason:
+        lines.append(f"- Backtrack reason: {flow.backtrack_reason}")
+    return lines
+
+
 class GitHubPRService:
     def __init__(self, *, gh_executable: str = "gh") -> None:
         self.gh = gh_executable
@@ -120,6 +138,9 @@ class GitHubPRService:
         ]
         if gate.failed_conditions:
             lines.append(f"**Blocked by**: {', '.join(gate.failed_conditions)}")
+        flow_lines = _flow_control_lines(gate)
+        if flow_lines:
+            lines.extend(["", "### Flow Control", "", *flow_lines])
 
         if issue.acceptance_criteria:
             lines.extend(["", "### Acceptance Criteria", ""])

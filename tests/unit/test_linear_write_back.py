@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 from spec_orch.domain.models import (
     BuilderResult,
+    GateFlowControl,
     GateVerdict,
     Issue,
     ReviewSummary,
@@ -99,6 +100,53 @@ def test_post_gate_update(tmp_path: Path) -> None:
     assert "Gate Re-evaluation" in body
     assert "review" in body
     assert "# Updated" in body
+
+
+def test_post_run_summary_includes_gate_flow_control_signals(tmp_path: Path) -> None:
+    client = MagicMock()
+    client.add_comment.return_value = {"success": True}
+    svc = LinearWriteBackService(client=client)
+
+    result = _make_run_result(tmp_path)
+    result.gate = GateVerdict(
+        mergeable=False,
+        failed_conditions=["review"],
+        flow_control=GateFlowControl(
+            promotion_required=True,
+            promotion_target="standard",
+            backtrack_reason="recoverable",
+        ),
+    )
+
+    svc.post_run_summary(linear_id="abc-flow", result=result)
+
+    body = client.add_comment.call_args[0][1]
+    assert "Promotion signal" in body
+    assert "standard" in body
+    assert "Backtrack reason" in body
+
+
+def test_post_gate_update_includes_gate_flow_control_signals(tmp_path: Path) -> None:
+    client = MagicMock()
+    client.add_comment.return_value = {"success": True}
+    svc = LinearWriteBackService(client=client)
+
+    gate = GateVerdict(
+        mergeable=False,
+        failed_conditions=["review"],
+        flow_control=GateFlowControl(
+            retry_recommended=True,
+            escalation_required=True,
+            backtrack_reason="human_acceptance",
+        ),
+    )
+
+    svc.post_gate_update(linear_id="abc-456", gate=gate, explain_path=None)
+
+    body = client.add_comment.call_args[0][1]
+    assert "Retry recommended" in body
+    assert "Escalation required" in body
+    assert "human_acceptance" in body
 
 
 def _make_linear_intake_document() -> LinearIntakeDocument:
