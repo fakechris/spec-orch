@@ -75,6 +75,28 @@ def _skill_to_context(m: SkillManifest) -> dict[str, Any]:
 class ContextAssembler:
     """Assembles a ContextBundle from workspace artifacts + memory."""
 
+    @staticmethod
+    def _truncate_with_metadata(
+        text: str,
+        max_tokens: int,
+        *,
+        truncation_metadata: list[dict[str, Any]],
+        context: str,
+        field: str,
+    ) -> str:
+        truncated = _truncate(text, max_tokens)
+        if len(truncated) < len(text):
+            truncation_metadata.append(
+                {
+                    "context": context,
+                    "field": field,
+                    "kind": "text",
+                    "original_chars": len(text),
+                    "retained_chars": len(truncated),
+                }
+            )
+        return truncated
+
     def assemble(
         self,
         spec: NodeContextSpec,
@@ -86,15 +108,21 @@ class ContextAssembler:
         manifest = self._load_manifest(workspace)
         budget = spec.max_tokens_budget
         oversized_budget = budget * 2
+        truncation_metadata: list[dict[str, Any]] = []
 
         task_ctx = self._build_task_context(
-            issue, workspace, oversized_budget, spec.required_task_fields
+            issue,
+            workspace,
+            oversized_budget,
+            spec.required_task_fields,
+            truncation_metadata=truncation_metadata,
         )
         exec_ctx = self._build_execution_context(
             workspace,
             manifest,
             oversized_budget,
             spec.required_execution_fields,
+            truncation_metadata=truncation_metadata,
             exclude_framework_events=spec.exclude_framework_events,
         )
         learn_ctx = self._build_learning_context(
@@ -117,7 +145,7 @@ class ContextAssembler:
         sections = self._collect_ranked_sections(contexts)
         if sections:
             ranked = ContextRanker.allocate(sections, budget)
-            self._apply_ranked_budget(contexts, ranked)
+            self._apply_ranked_budget(contexts, ranked, truncation_metadata)
 
         return ContextBundle(
             task=task_ctx,
@@ -126,6 +154,7 @@ class ContextAssembler:
             evidence=evidence_ctx,
             archive_lineage=archive_ctx,
             promoted_learning=promoted_ctx,
+            truncation_metadata=truncation_metadata,
         )
 
     _SECTION_DEFS: list[tuple[str, str, int]] = []
@@ -250,10 +279,27 @@ class ContextAssembler:
         cls,
         contexts: dict[str, Any],
         ranked: dict[str, str],
+        truncation_metadata: list[dict[str, Any]],
     ) -> None:
         for name, ctx_key, _ in cls._section_definitions():
             if name in ranked:
+                original = getattr(contexts[ctx_key], name, "")
+                updated = ranked[name]
                 setattr(contexts[ctx_key], name, ranked[name])
+                if (
+                    isinstance(original, str)
+                    and isinstance(updated, str)
+                    and len(updated) < len(original)
+                ):
+                    truncation_metadata.append(
+                        {
+                            "context": ctx_key,
+                            "field": name,
+                            "kind": "text",
+                            "original_chars": len(original),
+                            "retained_chars": len(updated),
+                        }
+                    )
 
         learn = contexts.get("learning")
         if learn is None:
@@ -266,6 +312,17 @@ class ContextAssembler:
                 parsed = json.loads(text)
                 if isinstance(parsed, list):
                     setattr(learn, name, parsed)
+                    original = getattr(learn, name, [])
+                    if isinstance(original, list) and len(parsed) < len(original):
+                        truncation_metadata.append(
+                            {
+                                "context": "learning",
+                                "field": name,
+                                "kind": "list",
+                                "original_items": len(original),
+                                "retained_items": len(parsed),
+                            }
+                        )
             except (json.JSONDecodeError, TypeError):
                 original = getattr(learn, name, [])
                 if not isinstance(original, list) or not original:
@@ -274,6 +331,16 @@ class ContextAssembler:
                 budget_chars = len(text)
                 trimmed = cls._trim_list_to_budget(original, budget_chars)
                 setattr(learn, name, trimmed)
+                if len(trimmed) < len(original):
+                    truncation_metadata.append(
+                        {
+                            "context": "learning",
+                            "field": name,
+                            "kind": "list",
+                            "original_items": len(original),
+                            "retained_items": len(trimmed),
+                        }
+                    )
                 logger.debug(
                     "ContextRanker truncated %s: %d→%d items to fit budget",
                     name,
@@ -336,6 +403,8 @@ class ContextAssembler:
         workspace: Path,
         budget: int,
         required: list[str],
+        *,
+        truncation_metadata: list[dict[str, Any]],
     ) -> TaskContext:
         spec_text = ""
         if not required or "spec_snapshot_text" in required:
@@ -350,7 +419,13 @@ class ContextAssembler:
                 task_spec_path = workspace / "task.spec.md"
                 if task_spec_path.exists():
                     spec_text = task_spec_path.read_text()
-            spec_text = _truncate(spec_text, budget // 2)
+            spec_text = self._truncate_with_metadata(
+                spec_text,
+                budget // 2,
+                truncation_metadata=truncation_metadata,
+                context="task",
+                field="spec_snapshot_text",
+            )
 
         return TaskContext(
             issue=issue,
@@ -409,16 +484,29 @@ class ContextAssembler:
         budget: int,
         required: list[str],
         *,
+        truncation_metadata: list[dict[str, Any]],
         exclude_framework_events: bool = True,
     ) -> ExecutionContext:
         ctx = ExecutionContext()
         normalized = read_issue_execution_attempt(workspace)
 
         if "file_tree" in required:
-            ctx.file_tree = _truncate(self._read_file_tree(workspace), budget // 4)
+            ctx.file_tree = self._truncate_with_metadata(
+                self._read_file_tree(workspace),
+                budget // 4,
+                truncation_metadata=truncation_metadata,
+                context="execution",
+                field="file_tree",
+            )
 
         if "git_diff" in required:
-            ctx.git_diff = _truncate(self._read_git_diff(workspace), budget // 3)
+            ctx.git_diff = self._truncate_with_metadata(
+                self._read_git_diff(workspace),
+                budget // 3,
+                truncation_metadata=truncation_metadata,
+                context="execution",
+                field="git_diff",
+            )
 
         if normalized is not None:
             if normalized.outcome.verification is not None:
@@ -442,7 +530,13 @@ class ContextAssembler:
                     raw = events_path.read_text()
                     if exclude_framework_events:
                         raw = self._filter_framework_events(raw)
-                    ctx.builder_events_summary = _truncate(raw, budget // 6)
+                    ctx.builder_events_summary = self._truncate_with_metadata(
+                        raw,
+                        budget // 6,
+                        truncation_metadata=truncation_metadata,
+                        context="execution",
+                        field="builder_events_summary",
+                    )
 
         if ctx.gate_report is None and manifest and "report" in manifest.artifacts:
             report_path = Path(manifest.artifacts["report"])
@@ -475,14 +569,26 @@ class ContextAssembler:
                 raw = events_path.read_text()
                 if exclude_framework_events:
                     raw = self._filter_framework_events(raw)
-                ctx.builder_events_summary = _truncate(raw, budget // 6)
+                ctx.builder_events_summary = self._truncate_with_metadata(
+                    raw,
+                    budget // 6,
+                    truncation_metadata=truncation_metadata,
+                    context="execution",
+                    field="builder_events_summary",
+                )
         elif ctx.builder_events_summary is None and manifest and "events" in manifest.artifacts:
             events_path = Path(manifest.artifacts["events"])
             if events_path.exists():
                 raw = events_path.read_text()
                 if exclude_framework_events:
                     raw = self._filter_framework_events(raw)
-                ctx.builder_events_summary = _truncate(raw, budget // 6)
+                ctx.builder_events_summary = self._truncate_with_metadata(
+                    raw,
+                    budget // 6,
+                    truncation_metadata=truncation_metadata,
+                    context="execution",
+                    field="builder_events_summary",
+                )
 
         if ctx.review_summary is None and manifest and "review_report" in manifest.artifacts:
             rr_path = Path(manifest.artifacts["review_report"])
@@ -711,7 +817,8 @@ class ContextAssembler:
             learning.reviewed_acceptance_findings,
         )
         return EvidenceContext(
-            reviewed_acceptance_findings=findings if isinstance(findings, list) else []
+            reviewed_acceptance_findings=findings if isinstance(findings, list) else [],
+            lazy_handles=self._build_lazy_handles("evidence", payloads),
         )
 
     def _build_archive_lineage_context(
@@ -722,7 +829,8 @@ class ContextAssembler:
         payloads = self._memory_layer_payloads(memory).get("archive_lineage", {})
         journal = payloads.get("recent_evolution_journal", learning.recent_evolution_journal)
         return ArchiveLineageContext(
-            recent_evolution_journal=journal if isinstance(journal, list) else []
+            recent_evolution_journal=journal if isinstance(journal, list) else [],
+            lazy_handles=self._build_lazy_handles("archive_lineage", payloads),
         )
 
     def _build_promoted_learning_context(
@@ -754,7 +862,29 @@ class ContextAssembler:
                 "reviewed_decision_recipes",
                 learning.reviewed_decision_recipes,
             ),
+            lazy_handles=self._build_lazy_handles("promoted_learning", payloads),
         )
+
+    @staticmethod
+    def _build_lazy_handles(
+        layer_name: str,
+        payloads: dict[str, Any],
+    ) -> dict[str, dict[str, Any]]:
+        handles: dict[str, dict[str, Any]] = {}
+        for field_name, value in payloads.items():
+            if isinstance(value, list):
+                handles[field_name] = {
+                    "layer": layer_name,
+                    "field": field_name,
+                    "item_count": len(value),
+                }
+            elif isinstance(value, dict):
+                handles[field_name] = {
+                    "layer": layer_name,
+                    "field": field_name,
+                    "key_count": len(value),
+                }
+        return handles
 
     @staticmethod
     def _build_skill_context(

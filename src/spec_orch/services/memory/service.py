@@ -28,8 +28,10 @@ from spec_orch.services.memory.lifecycle import (
     SharedMemorySyncEvent,
 )
 from spec_orch.services.memory.protocol import MemoryProvider
+from spec_orch.services.memory.reader import MemoryReader
 from spec_orch.services.memory.recorder import MemoryRecorder
 from spec_orch.services.memory.types import MemoryEntry, MemoryLayer, MemoryQuery
+from spec_orch.services.memory.writer import MemoryWriter
 
 logger = logging.getLogger(__name__)
 
@@ -68,10 +70,24 @@ class MemoryService:
         self._distiller = MemoryDistiller(self._provider)
         self._recorder = MemoryRecorder(self._provider)
         self._lifecycle = MemoryLifecycleManager(self._memory_root / "_lifecycle", self._provider)
+        self._reader = MemoryReader(
+            provider=self._provider,
+            analytics=self._analytics,
+            service=self,
+        )
+        self._writer = MemoryWriter(provider=self._provider, service=self)
 
     @property
     def provider(self) -> MemoryProvider:
         return self._provider
+
+    @property
+    def reader(self) -> MemoryReader:
+        return self._reader
+
+    @property
+    def writer(self) -> MemoryWriter:
+        return self._writer
 
     @property
     def derivation_mode(self) -> str:

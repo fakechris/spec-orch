@@ -96,6 +96,15 @@ class TestMemoryServiceCRUD:
         assert entry.metadata["failed_conditions"] == ["ci", "review"]
         assert entry.metadata["succeeded"] is False
 
+    def test_memory_service_exposes_reader_and_writer_facades(self, svc: MemoryService):
+        entry = MemoryEntry(key="rw-1", content="hello", layer=MemoryLayer.WORKING)
+
+        svc.writer.store(entry)
+        recalled = svc.reader.recall(MemoryQuery(text="hello", layer=MemoryLayer.WORKING))
+
+        assert svc.reader.get("rw-1") is not None
+        assert len(recalled) == 1
+
 
 class TestLifecycleCapture:
     def test_record_mission_event(self, svc: MemoryService):
