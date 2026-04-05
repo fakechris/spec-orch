@@ -187,6 +187,7 @@ class EvidenceAnalyzer:
                 "failed_conditions": list(
                     (normalized.outcome.gate or {}).get("failed_conditions", [])
                 ),
+                "flow_control": dict((normalized.outcome.gate or {}).get("flow_control", {})),
                 "verification": normalized.outcome.verification or {},
                 "builder": normalized.outcome.build or {},
                 "review": normalized.outcome.review or {},

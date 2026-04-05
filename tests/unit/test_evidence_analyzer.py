@@ -157,7 +157,14 @@ def test_analyzer_prefers_normalized_execution_attempt_reader(
             status=ExecutionStatus.FAILED,
             build={"adapter": "codex"},
             verification={"pytest": {"exit_code": 1, "command": "pytest"}},
-            gate={"mergeable": False, "failed_conditions": ["verification"]},
+            gate={
+                "mergeable": False,
+                "failed_conditions": ["verification"],
+                "flow_control": {
+                    "promotion_required": True,
+                    "promotion_target": "standard",
+                },
+            },
             artifacts={},
         ),
     )
@@ -171,6 +178,51 @@ def test_analyzer_prefers_normalized_execution_attempt_reader(
     assert summary.total_runs == 1
     assert summary.failed_runs == 1
     assert summary.top_failure_reasons[0] == ("verification", 1)
+
+
+def test_analyzer_preserves_flow_control_from_normalized_reader(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dir = tmp_path / ".spec_orch_runs" / "normalized-flow-control"
+    run_dir.mkdir(parents=True)
+
+    normalized = ExecutionAttempt(
+        attempt_id="run-flow",
+        unit_kind=ExecutionUnitKind.ISSUE,
+        unit_id="ISSUE-FLOW",
+        owner_kind=ExecutionOwnerKind.RUN_CONTROLLER,
+        continuity_kind=ContinuityKind.FILE_BACKED_RUN,
+        workspace_root=str(run_dir),
+        attempt_state=ExecutionAttemptState.COMPLETED,
+        outcome=ExecutionOutcome(
+            unit_kind=ExecutionUnitKind.ISSUE,
+            owner_kind=ExecutionOwnerKind.RUN_CONTROLLER,
+            status=ExecutionStatus.SUCCEEDED,
+            build={},
+            gate={
+                "mergeable": True,
+                "failed_conditions": [],
+                "flow_control": {
+                    "promotion_required": True,
+                    "promotion_target": "standard",
+                },
+            },
+            artifacts={},
+        ),
+    )
+
+    monkeypatch.setattr(
+        "spec_orch.services.evidence_analyzer.read_issue_execution_attempt",
+        lambda _: normalized,
+    )
+
+    report = EvidenceAnalyzer(tmp_path).read_report(run_dir)
+
+    assert report is not None
+    assert report["flow_control"] == {
+        "promotion_required": True,
+        "promotion_target": "standard",
+    }
 
 
 def test_both_dirs_combined(tmp_path: Path) -> None:
