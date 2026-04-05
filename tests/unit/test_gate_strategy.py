@@ -228,7 +228,7 @@ def test_build_gate_input_from_empty_report() -> None:
 
     gate_input = _build_gate_input_from_report({})
     assert gate_input.builder_succeeded is False
-    assert gate_input.verification.all_passed is True
+    assert gate_input.verification.all_passed is False
     assert gate_input.review.verdict == "pending"
     assert gate_input.human_acceptance is False
 

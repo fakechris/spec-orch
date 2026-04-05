@@ -98,8 +98,7 @@ class ArtifactService:
 
         if verification:
             for step, detail in verification.details.items():
-                passed = verification.get_step_passed(step)
-                status = "pass" if passed else "fail"
+                status = verification.get_step_outcome(step)
                 exit_info = f"exit_code={detail.exit_code}" if detail else ""
                 sections.append(f"| verification.{step} | {status} | {exit_info} |")
         else:

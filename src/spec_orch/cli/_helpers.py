@@ -603,7 +603,10 @@ def _build_gate_input_from_report(data: dict[str, Any]) -> Any:
     }
     verification = VerificationSummary(details=details)
     for name, detail in details.items():
-        verification.set_step_passed(name, detail.exit_code == 0)
+        if not detail.command:
+            verification.set_step_outcome(name, "skipped")
+        else:
+            verification.set_step_passed(name, detail.exit_code == 0)
     review = ReviewSummary(
         verdict=review_data.get("verdict", "pending"),
         reviewed_by=review_data.get("reviewed_by"),

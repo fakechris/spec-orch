@@ -26,7 +26,7 @@ class VerificationService:
                     stdout="",
                     stderr="not configured — skipped",
                 )
-                summary.set_step_passed(step_name, True)
+                summary.set_step_outcome(step_name, "skipped")
                 continue
 
             resolved_command = [self._resolve_token(token) for token in command]

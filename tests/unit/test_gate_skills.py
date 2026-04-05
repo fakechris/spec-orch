@@ -46,6 +46,16 @@ class TestBuiltinSkills:
         r = VerificationSkill().run(GateInput(verification=summary))
         assert not r.passed
 
+    def test_verification_skip_does_not_pass(self) -> None:
+        summary = VerificationSummary()
+        summary.details["lint"] = VerificationDetail(
+            command=[], exit_code=0, stdout="", stderr="not configured — skipped"
+        )
+        summary.set_step_outcome("lint", "skipped")
+        r = VerificationSkill().run(GateInput(verification=summary))
+        assert not r.passed
+        assert "skipped" in r.reason
+
     def test_review_pass(self) -> None:
         r = ReviewSkill().run(GateInput(review=ReviewSummary(verdict="pass")))
         assert r.passed

@@ -667,11 +667,9 @@ class RunController:
             issue=ctx["issue"],
             workspace=ctx["workspace"],
         )
-        verification_succeeded = (
-            all(verification.step_results.values()) if verification.step_results else True
-        )
+        verification_succeeded = verification.all_passed
         v_passed = sum(1 for v in verification.step_results.values() if v)
-        v_total = len(verification.step_results)
+        v_total = len(verification.details)
         run_snap.mark_stage_complete(
             "verification",
             success=verification_succeeded,

@@ -46,3 +46,20 @@ def test_verification_service_handles_missing_command(tmp_path: Path) -> None:
     assert result.lint_passed is False
     assert result.details["lint"].exit_code == 127
     assert "command not found" in result.details["lint"].stderr
+
+
+def test_verification_service_marks_unconfigured_steps_as_skipped(tmp_path: Path) -> None:
+    service = VerificationService()
+    issue = Issue(
+        issue_id="SPC-11",
+        title="Skipped verification",
+        summary="No verification commands configured.",
+        verification_commands={},
+    )
+
+    result = service.run(issue=issue, workspace=tmp_path)
+
+    assert result.get_step_outcome("lint") == "skipped"
+    assert result.get_step_outcome("typecheck") == "skipped"
+    assert result.all_passed is False
+    assert result.has_skipped is True
