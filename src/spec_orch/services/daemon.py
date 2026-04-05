@@ -16,6 +16,7 @@ from spec_orch.services.adapter_factory import create_builder, create_reviewer
 from spec_orch.services.admission_governor import AdmissionGovernor
 from spec_orch.services.conflict_resolver import ConflictResolver
 from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.daemon_executor import DaemonExecutor
 from spec_orch.services.daemon_state_store import DaemonStateStore
 from spec_orch.services.event_bus import Event, EventTopic
 from spec_orch.services.github_pr_service import GitHubPRService
@@ -160,6 +161,7 @@ class SpecOrchDaemon:
             repo_root,
             max_concurrent=self.config.max_concurrent,
         )
+        self._daemon_executor = DaemonExecutor()
 
         from spec_orch.services.event_bus import get_event_bus
 
@@ -611,22 +613,14 @@ class SpecOrchDaemon:
                 except Exception as exc:
                     print(f"[daemon] state→InProgress failed: {exc}")
 
-            mission_id = self._detect_mission(issue_id, raw_issue)
-            if mission_id:
-                self._execute_mission(
-                    issue_id,
-                    mission_id,
-                    raw_issue,
-                    client,
-                )
-            else:
-                self._execute_single(
-                    issue_id,
-                    raw_issue,
-                    client,
-                    controller,
-                    is_hotfix=is_hotfix,
-                )
+            self._daemon_executor.dispatch(
+                host=self,
+                issue_id=issue_id,
+                raw_issue=raw_issue,
+                client=client,
+                controller=controller,
+                is_hotfix=is_hotfix,
+            )
 
     @staticmethod
     def _sanitize_id(raw_id: str) -> str:

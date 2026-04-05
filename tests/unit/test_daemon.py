@@ -425,6 +425,22 @@ def test_daemon_poll_and_run_processes_new_issue(tmp_path: Path) -> None:
     daemon._write_back.post_run_summary.assert_called_once()
 
 
+def test_daemon_poll_and_run_delegates_execution_to_daemon_executor(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    mock_client = MagicMock()
+    raw_issue = {"id": "uuid-11", "identifier": "SPC-11", "description": _COMPLETE_DESC}
+    mock_client.list_issues.return_value = [raw_issue]
+    mock_controller = MagicMock()
+
+    _init_checker(daemon)
+    with patch.object(daemon._daemon_executor, "dispatch", return_value=None) as mocked:
+        daemon._poll_and_run(mock_client, mock_controller)
+
+    mocked.assert_called_once()
+
+
 def test_daemon_poll_and_run_releases_non_terminal(tmp_path: Path) -> None:
     """Non-terminal states should release the lock so the next poll re-advances."""
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
