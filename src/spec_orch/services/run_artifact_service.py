@@ -128,6 +128,7 @@ class RunArtifactService:
             "issue_id": issue_id,
             "state": report.get("state", "unknown"),
             "mergeable": bool(report.get("mergeable", False)),
+            "flow_control": report.get("flow_control", {}),
             "events_count": events_count,
             "generated_at": datetime.now(UTC).isoformat(),
             "artifacts": artifacts,
@@ -147,6 +148,7 @@ class RunArtifactService:
             "state": report.get("state", "unknown"),
             "mergeable": bool(report.get("mergeable", False)),
             "failed_conditions": report.get("failed_conditions", []),
+            "flow_control": report.get("flow_control", {}),
             "builder": report.get("builder", {}),
             "review": report.get("review", {}),
             "verification": report.get("verification", {}),
@@ -169,6 +171,7 @@ class RunArtifactService:
             "verdict": verdict,
             "mergeable": bool(report.get("mergeable", False)),
             "failed_conditions": report.get("failed_conditions", []),
+            "flow_control": report.get("flow_control", {}),
             "state": report.get("state", "unknown"),
             "evidence": {
                 "report": report,
@@ -183,6 +186,7 @@ class RunArtifactService:
             "summary": "auto-generated retrospective placeholder",
             "mergeable": bool(report.get("mergeable", False)),
             "failed_conditions": report.get("failed_conditions", []),
+            "flow_control": report.get("flow_control", {}),
             "improvements": [],
             "generated_at": datetime.now(UTC).isoformat(),
         }
