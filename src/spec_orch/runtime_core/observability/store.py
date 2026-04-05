@@ -12,7 +12,7 @@ from spec_orch.runtime_core.observability.models import (
     RuntimeStepSummary,
 )
 from spec_orch.services.io import atomic_write_json
-from spec_orch.services.path_sanitizer import resolve_repo_root, sanitize_value
+from spec_orch.services.runtime_contracts import sanitize_runtime_payload
 
 PROGRESS_EVENTS_FILENAME = "progress_events.jsonl"
 LIVE_SUMMARY_FILENAME = "live_summary.json"
@@ -22,12 +22,7 @@ BATCH_SUMMARIES_FILENAME = "batch_summaries.jsonl"
 
 
 def _sanitized_payload(root: Path, payload: dict[str, Any]) -> dict[str, Any]:
-    repo_root = resolve_repo_root(root)
-    sanitized = sanitize_value(
-        payload,
-        repo_root=repo_root,
-    )
-    return sanitized if isinstance(sanitized, dict) else {}
+    return sanitize_runtime_payload(workspace=root, payload=payload)
 
 
 def append_progress_event(root: Path, event: RuntimeProgressEvent) -> Path:

@@ -6,8 +6,10 @@ from spec_orch.domain.models import GateVerdict, VerificationDetail, Verificatio
 from spec_orch.services.runtime_contracts import (
     build_gate_event_payload,
     build_gate_verdict_payload,
+    build_telemetry_event_payload,
     build_verification_event_payload,
     build_verification_output_payload,
+    sanitize_runtime_payload,
 )
 
 
@@ -78,3 +80,48 @@ def test_build_verification_event_payload_preserves_step_outcome() -> None:
     assert payload["schema"] == "verification_event.v1"
     assert payload["step"] == "build"
     assert payload["outcome"] == "skipped"
+
+
+def test_sanitize_runtime_payload_rewrites_nested_paths_and_keys(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    payload = sanitize_runtime_payload(
+        workspace=workspace,
+        payload={
+            str(workspace / "artifacts/report.json"): {
+                "proof": str(workspace / "artifacts/proof.json"),
+                "external": "/Users/chris/tmp/raw-proof.json",
+            }
+        },
+    )
+
+    assert payload == {
+        "artifacts/report.json": {
+            "proof": "artifacts/proof.json",
+            "external": "<external-path>/tmp/raw-proof.json",
+        }
+    }
+
+
+def test_build_telemetry_event_payload_uses_shared_sanitization(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+
+    payload = build_telemetry_event_payload(
+        workspace=workspace,
+        run_id="run-1",
+        issue_id="SPC-1",
+        component="verification",
+        event_type="verification_step_completed",
+        severity="warning",
+        message="Verification step completed",
+        adapter="test-adapter",
+        agent="test-agent",
+        data={
+            "artifact": str(workspace / "artifacts/report.json"),
+            "external": "/Users/chris/tmp/raw-proof.json",
+        },
+    )
+
+    assert payload["schema"] == "telemetry_event.v1"
+    assert payload["workspace"] == "."
+    assert payload["data"]["artifact"] == "artifacts/report.json"
+    assert payload["data"]["external"] == "<external-path>/tmp/raw-proof.json"

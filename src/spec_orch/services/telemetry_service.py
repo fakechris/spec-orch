@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+from spec_orch.services.runtime_contracts import build_telemetry_event_payload
+
 
 class TelemetryService:
     def telemetry_dir(self, workspace: Path) -> Path:
@@ -32,19 +34,19 @@ class TelemetryService:
         data: dict | None = None,
     ) -> Path:
         events_path = self.telemetry_dir(workspace) / "events.jsonl"
-        payload = {
-            "timestamp": datetime.now(UTC).isoformat(),
-            "run_id": run_id,
-            "issue_id": issue_id,
-            "workspace": str(workspace),
-            "component": component,
-            "event_type": event_type,
-            "severity": severity,
-            "message": message,
-            "adapter": adapter,
-            "agent": agent,
-            "data": data or {},
-        }
+        payload = build_telemetry_event_payload(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue_id,
+            component=component,
+            event_type=event_type,
+            severity=severity,
+            message=message,
+            adapter=adapter,
+            agent=agent,
+            data=data,
+            timestamp=datetime.now(UTC).isoformat(),
+        )
         with events_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload) + "\n")
+            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
         return events_path

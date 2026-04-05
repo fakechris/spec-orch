@@ -17,6 +17,7 @@ from spec_orch.services.runtime_contracts import (
     build_gate_event_payload,
     build_verification_event_payload,
 )
+from spec_orch.services.runtime_event_publisher import RuntimeEventPublisher
 from spec_orch.services.telemetry_service import TelemetryService
 from spec_orch.services.trace_sampler import TraceSampler
 
@@ -35,6 +36,7 @@ class RunEventLogger:
         self._telemetry = telemetry_service
         self._live_stream = live_stream
         self._trace_sampler = trace_sampler or TraceSampler()
+        self._event_publisher = RuntimeEventPublisher(telemetry_service)
 
     def open_activity_logger(self, workspace: Path) -> ActivityLogger:
         return ActivityLogger(
@@ -50,28 +52,12 @@ class RunEventLogger:
         issue_id: str,
         activity_logger: ActivityLogger | None = None,
     ) -> Callable[[dict[str, Any]], None]:
-        def _log(event: dict[str, Any]) -> None:
-            ev_type = event.get("event_type") or event.get("type") or event.get("method", "unknown")
-            msg = event.get("message") or event.get("text", "")
-            if not msg:
-                params = event.get("params", {})
-                msg = params.get("text", "") if isinstance(params, dict) else ""
-            self._telemetry.log_event(
-                workspace=workspace,
-                run_id=run_id,
-                issue_id=issue_id,
-                component=event.get("component", "builder"),
-                event_type=str(ev_type),
-                severity=event.get("severity", "info"),
-                message=str(msg) if msg else f"event:{ev_type}",
-                adapter=event.get("adapter"),
-                agent=event.get("agent"),
-                data=event.get("data"),
-            )
-            if activity_logger:
-                activity_logger.log(event.get("data", event))
-
-        return _log
+        return self._event_publisher.make_callback(
+            workspace=workspace,
+            run_id=run_id,
+            issue_id=issue_id,
+            activity_logger=activity_logger,
+        )
 
     def log_and_emit(
         self,
@@ -89,7 +75,8 @@ class RunEventLogger:
         data: dict | None = None,
     ) -> None:
         """Log to telemetry and forward to the activity logger."""
-        self._telemetry.log_event(
+        self._event_publisher.publish(
+            activity_logger=activity_logger,
             workspace=workspace,
             run_id=run_id,
             issue_id=issue_id,
@@ -101,15 +88,6 @@ class RunEventLogger:
             agent=agent,
             data=data,
         )
-        if activity_logger:
-            activity_logger.log(
-                {
-                    "event_type": event_type,
-                    "component": component,
-                    "message": message,
-                    "data": data or {},
-                }
-            )
 
     def log_verification_events(
         self,
