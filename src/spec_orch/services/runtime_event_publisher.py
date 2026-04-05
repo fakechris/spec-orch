@@ -64,7 +64,7 @@ class RuntimeEventPublisher:
                 data=merged_data,
             )
             if activity_logger:
-                activity_logger.log(merged_data or event)
+                activity_logger.log(merged_data)
 
         return _log
 

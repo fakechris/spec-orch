@@ -220,6 +220,10 @@ class EventFormatter:
                     blocked_details.append("retry")
                 if flow.get("escalation_required"):
                     blocked_details.append("escalate")
+                if flow.get("demotion_suggested"):
+                    blocked_details.append(
+                        f"demote={flow.get('demotion_target') or 'suggested'}"
+                    )
                 if flow.get("backtrack_reason"):
                     blocked_details.append(f"backtrack={flow.get('backtrack_reason')}")
             suffix = f"; {', '.join(blocked_details)}" if blocked_details else ""

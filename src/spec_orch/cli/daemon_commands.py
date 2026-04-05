@@ -116,13 +116,7 @@ def daemon_status(
         config_status = f"invalid ({exc})"
         lockfile_dir = ".spec_orch_locks/"
 
-    state_data: dict[str, object] | None = None
-    state_error: str | None = None
-    try:
-        state_data = SpecOrchDaemon.read_state(repo_root.resolve(), lockfile_dir=lockfile_dir)
-    except Exception as exc:
-        state_data = None
-        state_error = f"corrupt state file ({exc})"
+    state_data = SpecOrchDaemon.read_state(repo_root.resolve(), lockfile_dir=lockfile_dir)
 
     def _safe_len(val: object) -> int:
         return len(val) if isinstance(val, (list, tuple)) else 0
@@ -134,9 +128,7 @@ def daemon_status(
             "running": info["running"],
             "config": config_status,
         }
-        if state_error:
-            output["state_error"] = state_error
-        elif state_data is not None:
+        if state_data:
             output["last_poll"] = state_data.get("last_poll", "unknown")
             output["processed_count"] = _safe_len(state_data.get("processed"))
             output["triaged_count"] = _safe_len(state_data.get("triaged"))
@@ -148,9 +140,7 @@ def daemon_status(
     typer.echo(f"Running:   {info['running']}")
     if config_status != "ok":
         typer.echo(f"Config:    {config_status}")
-    if state_error:
-        typer.echo(f"State:     {state_error}")
-    elif state_data is not None:
+    if state_data:
         typer.echo(f"Last poll: {state_data.get('last_poll', 'unknown')}")
         typer.echo(f"Processed: {_safe_len(state_data.get('processed'))} issues")
         typer.echo(f"Triaged:   {_safe_len(state_data.get('triaged'))} issues")

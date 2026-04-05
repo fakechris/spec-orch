@@ -136,3 +136,30 @@ def test_run_event_logger_event_callback_preserves_top_level_payload_fields(tmp_
             "params": {"tool": "write"},
         }
     ]
+
+
+def test_run_event_logger_event_callback_logs_empty_payload_without_falling_back(
+    tmp_path: Path,
+) -> None:
+    telemetry = _FakeTelemetryService()
+    activity_logger = _FakeActivityLogger()
+    logger = RunEventLogger(telemetry_service=telemetry)
+
+    callback = logger.make_event_logger(
+        workspace=tmp_path / "workspace",
+        run_id="run-3",
+        issue_id="SPC-3",
+        activity_logger=activity_logger,  # type: ignore[arg-type]
+    )
+
+    callback(
+        {
+            "component": "builder",
+            "event_type": "step_completed",
+            "message": "Built packet",
+            "data": {},
+        }
+    )
+
+    assert telemetry.calls[0]["data"] == {}
+    assert activity_logger.events == [{}]

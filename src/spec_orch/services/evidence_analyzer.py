@@ -178,16 +178,17 @@ class EvidenceAnalyzer:
 
         normalized = read_issue_execution_attempt(run_dir)
         if normalized is not None:
+            gate = normalized.outcome.gate or {}
+            raw_flow_control = gate.get("flow_control", {})
+            flow_control = raw_flow_control if isinstance(raw_flow_control, dict) else {}
             merged = {
                 "run_id": normalized.attempt_id,
                 "issue_id": normalized.unit_id,
-                "mergeable": bool((normalized.outcome.gate or {}).get("mergeable", False)),
-                "verdict": (normalized.outcome.gate or {}).get("verdict"),
-                "state": (normalized.outcome.gate or {}).get("state"),
-                "failed_conditions": list(
-                    (normalized.outcome.gate or {}).get("failed_conditions", [])
-                ),
-                "flow_control": dict((normalized.outcome.gate or {}).get("flow_control", {})),
+                "mergeable": bool(gate.get("mergeable", False)),
+                "verdict": gate.get("verdict"),
+                "state": gate.get("state"),
+                "failed_conditions": list(gate.get("failed_conditions", [])),
+                "flow_control": flow_control,
                 "verification": normalized.outcome.verification or {},
                 "builder": normalized.outcome.build or {},
                 "review": normalized.outcome.review or {},

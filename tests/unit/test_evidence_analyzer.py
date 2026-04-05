@@ -225,6 +225,45 @@ def test_analyzer_preserves_flow_control_from_normalized_reader(
     }
 
 
+def test_analyzer_ignores_malformed_flow_control_from_normalized_reader(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dir = tmp_path / ".spec_orch_runs" / "normalized-bad-flow-control"
+    run_dir.mkdir(parents=True)
+
+    normalized = ExecutionAttempt(
+        attempt_id="run-bad-flow",
+        unit_kind=ExecutionUnitKind.ISSUE,
+        unit_id="ISSUE-BAD-FLOW",
+        owner_kind=ExecutionOwnerKind.RUN_CONTROLLER,
+        continuity_kind=ContinuityKind.FILE_BACKED_RUN,
+        workspace_root=str(run_dir),
+        attempt_state=ExecutionAttemptState.COMPLETED,
+        outcome=ExecutionOutcome(
+            unit_kind=ExecutionUnitKind.ISSUE,
+            owner_kind=ExecutionOwnerKind.RUN_CONTROLLER,
+            status=ExecutionStatus.SUCCEEDED,
+            build={},
+            gate={
+                "mergeable": True,
+                "failed_conditions": [],
+                "flow_control": "not-a-dict",
+            },
+            artifacts={},
+        ),
+    )
+
+    monkeypatch.setattr(
+        "spec_orch.services.evidence_analyzer.read_issue_execution_attempt",
+        lambda _: normalized,
+    )
+
+    report = EvidenceAnalyzer(tmp_path).read_report(run_dir)
+
+    assert report is not None
+    assert report["flow_control"] == {}
+
+
 def test_both_dirs_combined(tmp_path: Path) -> None:
     _write_report(
         tmp_path / ".spec_orch_runs" / "R1",

@@ -206,6 +206,27 @@ def test_format_orchestrator_gate_blocked() -> None:
     assert "backtrack=recoverable" in line
 
 
+def test_format_orchestrator_gate_blocked_includes_demotion_signal() -> None:
+    fmt = EventFormatter(color=False)
+    event: dict = {
+        "event_type": "gate_evaluated",
+        "component": "gate",
+        "message": "Evaluated gate verdict.",
+        "data": {
+            "mergeable": False,
+            "failed_conditions": ["verification"],
+            "flow_control": {
+                "demotion_suggested": True,
+                "demotion_target": "guided",
+            },
+        },
+        "timestamp": "2026-03-10T14:32:36+00:00",
+    }
+    line = fmt.format_plain(event)
+    assert line is not None
+    assert "demote=guided" in line
+
+
 def test_colored_output_contains_ansi() -> None:
     fmt = EventFormatter(color=True)
     event: dict = {
