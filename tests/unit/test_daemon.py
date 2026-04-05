@@ -441,6 +441,60 @@ def test_daemon_poll_and_run_delegates_execution_to_daemon_executor(tmp_path: Pa
     mocked.assert_called_once()
 
 
+def test_daemon_executor_dispatches_mission_issue_to_mission_executor() -> None:
+    from spec_orch.services.daemon_executor import DaemonExecutor
+
+    executor = DaemonExecutor()
+    host = MagicMock()
+    host._detect_mission.return_value = "mission-1"
+    raw_issue = {"id": "uuid-1", "identifier": "SPC-1"}
+
+    with (
+        patch.object(executor._mission_executor, "execute", return_value=None) as mocked_mission,
+        patch.object(
+            executor._single_issue_executor, "execute", return_value=None
+        ) as mocked_single,
+    ):
+        executor.dispatch(
+            host=host,
+            issue_id="SPC-1",
+            raw_issue=raw_issue,
+            client=MagicMock(),
+            controller=MagicMock(),
+            is_hotfix=False,
+        )
+
+    mocked_mission.assert_called_once()
+    mocked_single.assert_not_called()
+
+
+def test_daemon_executor_dispatches_single_issue_to_single_executor() -> None:
+    from spec_orch.services.daemon_executor import DaemonExecutor
+
+    executor = DaemonExecutor()
+    host = MagicMock()
+    host._detect_mission.return_value = None
+    raw_issue = {"id": "uuid-1", "identifier": "SPC-1"}
+
+    with (
+        patch.object(executor._mission_executor, "execute", return_value=None) as mocked_mission,
+        patch.object(
+            executor._single_issue_executor, "execute", return_value=None
+        ) as mocked_single,
+    ):
+        executor.dispatch(
+            host=host,
+            issue_id="SPC-1",
+            raw_issue=raw_issue,
+            client=MagicMock(),
+            controller=MagicMock(),
+            is_hotfix=True,
+        )
+
+    mocked_single.assert_called_once()
+    mocked_mission.assert_not_called()
+
+
 def test_daemon_poll_and_run_releases_non_terminal(tmp_path: Path) -> None:
     """Non-terminal states should release the lock so the next poll re-advances."""
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})

@@ -10,13 +10,15 @@ import time
 from pathlib import Path
 from typing import Any, cast
 
-from spec_orch.domain.models import TERMINAL_STATES, Issue, IssueContext, RunResult, RunState
+from spec_orch.domain.models import Issue, IssueContext, RunResult, RunState
 from spec_orch.domain.protocols import PlannerAdapter
 from spec_orch.services.adapter_factory import create_builder, create_reviewer
 from spec_orch.services.admission_governor import AdmissionGovernor
 from spec_orch.services.conflict_resolver import ConflictResolver
 from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.daemon_executor import DaemonExecutor
+from spec_orch.services.daemon_mission_executor import DaemonMissionExecutor
+from spec_orch.services.daemon_single_issue_executor import DaemonSingleIssueExecutor
 from spec_orch.services.daemon_state_store import DaemonStateStore
 from spec_orch.services.event_bus import Event, EventTopic
 from spec_orch.services.github_pr_service import GitHubPRService
@@ -162,6 +164,8 @@ class SpecOrchDaemon:
             max_concurrent=self.config.max_concurrent,
         )
         self._daemon_executor = DaemonExecutor()
+        self._single_issue_executor = DaemonSingleIssueExecutor()
+        self._mission_executor = DaemonMissionExecutor()
 
         from spec_orch.services.event_bus import get_event_bus
 
@@ -665,54 +669,14 @@ class SpecOrchDaemon:
         is_hotfix: bool = False,
     ) -> None:
         """Execute a single issue through the standard pipeline."""
-        from spec_orch.domain.models import FlowType
-
-        linear_uid = raw_issue.get("id", "")
-        flow_type = FlowType.HOTFIX if is_hotfix else None
-        label = "hotfix" if is_hotfix else "single issue"
-        print(f"[daemon] processing {issue_id} ({label} pipeline)")
-        self._in_progress.add(issue_id)
-        self._save_state()
-        self._event_bus.emit_issue_state(issue_id, "building")
-        try:
-            result = controller.advance_to_completion(issue_id, flow_type=flow_type)
-            state = result.state
-            mergeable = result.gate.mergeable
-            blocked = ",".join(result.gate.failed_conditions) or "none"
-            print(
-                f"[daemon] {issue_id}: state={state.value} mergeable={mergeable} blocked={blocked}"
-            )
-            if state in TERMINAL_STATES or state == RunState.GATE_EVALUATED:
-                self._event_bus.emit_issue_state(issue_id, "completed", mergeable=mergeable)
-                mission_id = self._find_mission_for_issue(issue_id)
-                if mission_id:
-                    self._lifecycle_manager.mark_issue_done(mission_id, issue_id)
-
-                self._notify(issue_id, mergeable)
-                pr_created = self._auto_create_pr(issue_id, result)
-
-                gate_policy = self._load_gate_policy_for("hotfix" if is_hotfix else "daemon")
-                auto_merged = pr_created and gate_policy.auto_merge and mergeable
-
-                if pr_created and linear_uid:
-                    try:
-                        target_state = "Done" if auto_merged else "In Review"
-                        client.update_issue_state(linear_uid, target_state)
-                        print(f"[daemon] {issue_id} → {target_state}")
-                    except Exception as exc:
-                        print(f"[daemon] state update failed: {exc}")
-                self._write_back_result(raw_issue, result)
-                self._processed.add(issue_id)
-                self._in_progress.discard(issue_id)
-                self._retry_counts.pop(issue_id, None)
-            else:
-                self._in_progress.discard(issue_id)
-                self._release(issue_id)
-        except Exception as exc:
-            print(f"[daemon] {issue_id} failed: {exc}")
-            self._in_progress.discard(issue_id)
-            self._record_failure(issue_id, str(exc), client, linear_uid)
-            self._release(issue_id)
+        self._single_issue_executor.execute(
+            host=self,
+            issue_id=issue_id,
+            raw_issue=raw_issue,
+            client=client,
+            controller=controller,
+            is_hotfix=is_hotfix,
+        )
 
     def _execute_mission(
         self,
@@ -722,90 +686,13 @@ class SpecOrchDaemon:
         client: LinearClient,
     ) -> None:
         """Execute a mission-level plan with parallel wave execution."""
-        from spec_orch.services.parallel_run_controller import ParallelRunController
-
-        linear_uid = raw_issue.get("id", "")
-        print(f"[daemon] processing {issue_id} (mission: {mission_id})")
-        self._event_bus.emit_issue_state(issue_id, "building")
-
-        try:
-            self._sync_linear_mirror_for_mission(
-                client=client,
-                raw_issue=raw_issue,
-                mission_id=mission_id,
-            )
-            try:
-                plan = ParallelRunController.load_plan(mission_id, self.repo_root)
-            except Exception as exc:
-                plan = None
-                print(f"[daemon] {issue_id}: wave preview unavailable: {exc}")
-
-            if plan is not None:
-                for wave in plan.waves:
-                    if linear_uid:
-                        try:
-                            wave_msg = (
-                                f"🔄 Wave {wave.wave_number}: "
-                                f"{len(wave.work_packets)} packets — {wave.description}"
-                            )
-                            client.add_comment(linear_uid, wave_msg)
-                        except Exception as exc:
-                            print(f"[daemon] wave comment failed: {exc}")
-
-            execution_result = self._get_mission_execution_service().execute_mission(
-                mission_id=mission_id,
-                initial_round=0,
-                plan=plan,
-            )
-            summary = execution_result.summary_markdown
-            succeeded = execution_result.completed
-
-            if execution_result.paused:
-                self._event_bus.emit_issue_state(issue_id, "paused", mergeable=False)
-                print(f"[daemon] {issue_id}: mission paused for human input")
-                if linear_uid:
-                    try:
-                        client.add_comment(
-                            linear_uid,
-                            "Mission execution paused. Review the latest "
-                            "`round_decision.json` and `supervisor_review.md` before resuming.",
-                        )
-                    except Exception as exc:
-                        print(f"[daemon] pause comment failed: {exc}")
-                return
-
-            if linear_uid:
-                try:
-                    client.add_comment(linear_uid, summary)
-                except Exception as exc:
-                    print(f"[daemon] summary comment failed: {exc}")
-
-            if succeeded:
-                self._event_bus.emit_issue_state(issue_id, "completed", mergeable=True)
-                print(f"[daemon] {issue_id}: mission succeeded")
-                if linear_uid:
-                    try:
-                        client.update_issue_state(linear_uid, "In Review")
-                    except Exception as exc:
-                        print(f"[daemon] state update failed: {exc}")
-                self._processed.add(issue_id)
-            else:
-                self._event_bus.emit_issue_state(issue_id, "completed", mergeable=False)
-                print(f"[daemon] {issue_id}: mission failed")
-                if linear_uid:
-                    try:
-                        client.update_issue_state(linear_uid, "Ready")
-                        print(f"[daemon] {issue_id} → Ready (for retry)")
-                    except Exception as exc:
-                        print(f"[daemon] state reset failed: {exc}")
-                self._release(issue_id)
-
-        except FileNotFoundError as exc:
-            print(f"[daemon] {issue_id}: plan not found: {exc}")
-            self._release(issue_id)
-        except Exception as exc:
-            print(f"[daemon] {issue_id}: mission execution failed: {exc}")
-            self._release(issue_id)
+        self._mission_executor.execute(
+            host=self,
+            issue_id=issue_id,
+            mission_id=mission_id,
+            raw_issue=raw_issue,
+            client=client,
+        )
 
     def _sync_linear_mirror_for_mission(
         self,
