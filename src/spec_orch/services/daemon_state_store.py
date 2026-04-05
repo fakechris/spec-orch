@@ -76,6 +76,15 @@ class DaemonStateStore:
                 updated_at   REAL NOT NULL DEFAULT 0
             )"""
         )
+        db.execute(
+            """CREATE TABLE IF NOT EXISTS execution_intents (
+                issue_id      TEXT PRIMARY KEY,
+                raw_issue     TEXT NOT NULL,
+                is_hotfix     INTEGER NOT NULL DEFAULT 0,
+                enqueued_at   REAL NOT NULL DEFAULT 0,
+                updated_at    REAL NOT NULL DEFAULT 0
+            )"""
+        )
         db.commit()
         return db
 
@@ -145,6 +154,12 @@ class DaemonStateStore:
                 "SELECT mark FROM reaction_marks ORDER BY mark"
             ).fetchall()
         ]
+        queued_execution = [
+            str(issue_id)
+            for (issue_id,) in self._db.execute(
+                "SELECT issue_id FROM execution_intents ORDER BY enqueued_at, issue_id"
+            ).fetchall()
+        ]
         last_poll_row = self._db.execute(
             "SELECT value FROM daemon_meta WHERE key = 'last_poll'"
         ).fetchone()
@@ -157,6 +172,7 @@ class DaemonStateStore:
             and not retry_counts
             and not pr_commits
             and not reaction_marks
+            and not queued_execution
             and not last_poll
         ):
             return {}
@@ -169,6 +185,7 @@ class DaemonStateStore:
             "dead_letter": sorted(dead_letter),
             "in_progress": sorted(in_progress),
             "reaction_marks": reaction_marks,
+            "queued_execution": queued_execution,
             "last_poll": last_poll,
         }
 
@@ -330,4 +347,56 @@ class DaemonStateStore:
             self._db.execute(
                 "DELETE FROM daemon_locks WHERE lock_name = ? AND owner = ?",
                 (lock_name, owner),
+            )
+
+    def enqueue_execution_intent(
+        self,
+        *,
+        issue_id: str,
+        raw_issue: dict[str, Any],
+        is_hotfix: bool,
+        enqueued_at: float | None = None,
+    ) -> None:
+        current = time.time() if enqueued_at is None else float(enqueued_at)
+        with self._db:
+            self._db.execute(
+                """INSERT OR REPLACE INTO execution_intents(
+                       issue_id, raw_issue, is_hotfix, enqueued_at, updated_at
+                   ) VALUES (?, ?, ?, ?, ?)""",
+                (
+                    issue_id,
+                    json.dumps(raw_issue, sort_keys=True),
+                    1 if is_hotfix else 0,
+                    current,
+                    current,
+                ),
+            )
+
+    def list_execution_intents(self) -> list[dict[str, Any]]:
+        rows = self._db.execute(
+            """SELECT issue_id, raw_issue, is_hotfix, enqueued_at
+               FROM execution_intents
+               ORDER BY enqueued_at, issue_id"""
+        ).fetchall()
+        intents: list[dict[str, Any]] = []
+        for issue_id, raw_issue, is_hotfix, enqueued_at in rows:
+            try:
+                payload = json.loads(str(raw_issue))
+            except json.JSONDecodeError:
+                payload = {}
+            intents.append(
+                {
+                    "issue_id": str(issue_id),
+                    "raw_issue": payload if isinstance(payload, dict) else {},
+                    "is_hotfix": bool(int(is_hotfix or 0)),
+                    "enqueued_at": float(enqueued_at or 0),
+                }
+            )
+        return intents
+
+    def delete_execution_intent(self, issue_id: str) -> None:
+        with self._db:
+            self._db.execute(
+                "DELETE FROM execution_intents WHERE issue_id = ?",
+                (issue_id,),
             )

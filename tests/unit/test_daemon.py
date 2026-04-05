@@ -425,7 +425,7 @@ def test_daemon_poll_and_run_processes_new_issue(tmp_path: Path) -> None:
     daemon._write_back.post_run_summary.assert_called_once()
 
 
-def test_daemon_poll_and_run_delegates_execution_to_daemon_executor(tmp_path: Path) -> None:
+def test_daemon_poll_and_enqueue_records_execution_intent(tmp_path: Path) -> None:
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
 
@@ -436,9 +436,34 @@ def test_daemon_poll_and_run_delegates_execution_to_daemon_executor(tmp_path: Pa
 
     _init_checker(daemon)
     with patch.object(daemon._daemon_executor, "dispatch", return_value=None) as mocked:
-        daemon._poll_and_run(mock_client, mock_controller)
+        daemon._poll_and_enqueue(mock_client, mock_controller)
+
+    mocked.assert_not_called()
+    intents = daemon._state_store.list_execution_intents()
+    assert len(intents) == 1
+    assert intents[0]["issue_id"] == "SPC-11"
+    assert intents[0]["raw_issue"]["id"] == "uuid-11"
+
+
+def test_daemon_drain_execution_queue_delegates_execution_to_daemon_executor(
+    tmp_path: Path,
+) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon._state_store.enqueue_execution_intent(
+        issue_id="SPC-11",
+        raw_issue={"id": "uuid-11", "identifier": "SPC-11", "description": _COMPLETE_DESC},
+        is_hotfix=False,
+    )
+
+    mock_client = MagicMock()
+    mock_controller = MagicMock()
+
+    with patch.object(daemon._daemon_executor, "dispatch", return_value=None) as mocked:
+        daemon._drain_execution_queue(mock_client, mock_controller)
 
     mocked.assert_called_once()
+    assert daemon._state_store.list_execution_intents() == []
 
 
 def test_daemon_executor_dispatches_mission_issue_to_mission_executor() -> None:

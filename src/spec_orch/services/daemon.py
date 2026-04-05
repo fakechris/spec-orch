@@ -561,6 +561,10 @@ class SpecOrchDaemon:
         return self._lifecycle_manager.inject_btw(issue_id, message, channel)
 
     def _poll_and_run(self, client: LinearClient, controller: RunController) -> None:
+        self._poll_and_enqueue(client, controller)
+        self._drain_execution_queue(client, controller)
+
+    def _poll_and_enqueue(self, client: LinearClient, controller: RunController) -> None:
         try:
             issues = client.list_issues(
                 team_key=self.config.team_key,
@@ -617,14 +621,42 @@ class SpecOrchDaemon:
                 except Exception as exc:
                     print(f"[daemon] state→InProgress failed: {exc}")
 
+            self._enqueue_execution_intent(
+                issue_id=issue_id,
+                raw_issue=raw_issue,
+                is_hotfix=is_hotfix,
+            )
+
+    def _enqueue_execution_intent(
+        self,
+        *,
+        issue_id: str,
+        raw_issue: dict[str, Any],
+        is_hotfix: bool,
+    ) -> None:
+        self._state_store.enqueue_execution_intent(
+            issue_id=issue_id,
+            raw_issue=raw_issue,
+            is_hotfix=is_hotfix,
+        )
+
+    def _drain_execution_queue(self, client: LinearClient, controller: RunController) -> None:
+        for intent in self._state_store.list_execution_intents():
+            issue_id = str(intent.get("issue_id", "")).strip()
+            raw_issue = intent.get("raw_issue")
+            if not issue_id or not isinstance(raw_issue, dict):
+                if issue_id:
+                    self._state_store.delete_execution_intent(issue_id)
+                continue
             self._daemon_executor.dispatch(
                 host=self,
                 issue_id=issue_id,
                 raw_issue=raw_issue,
                 client=client,
                 controller=controller,
-                is_hotfix=is_hotfix,
+                is_hotfix=bool(intent.get("is_hotfix", False)),
             )
+            self._state_store.delete_execution_intent(issue_id)
 
     @staticmethod
     def _sanitize_id(raw_id: str) -> str:

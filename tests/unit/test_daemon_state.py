@@ -56,6 +56,26 @@ def test_state_handles_corrupt_json(tmp_path: Path) -> None:
     assert daemon._processed == set()
 
 
+def test_execution_intent_queue_round_trip(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    daemon._state_store.enqueue_execution_intent(
+        issue_id="SPC-QUEUE",
+        raw_issue={"id": "uuid-queue", "identifier": "SPC-QUEUE"},
+        is_hotfix=True,
+    )
+
+    intents = daemon._state_store.list_execution_intents()
+    assert len(intents) == 1
+    assert intents[0]["issue_id"] == "SPC-QUEUE"
+    assert intents[0]["raw_issue"]["id"] == "uuid-queue"
+    assert intents[0]["is_hotfix"] is True
+
+    daemon._state_store.delete_execution_intent("SPC-QUEUE")
+    assert daemon._state_store.list_execution_intents() == []
+
+
 # ── Phase 14 tests: Daemon resilience ────────────────────────────────
 
 
