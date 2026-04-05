@@ -2704,6 +2704,47 @@ def test_run_acceptance_evaluation_delegates_to_acceptance_pipeline(tmp_path: Pa
     mocked.assert_called_once()
 
 
+def test_dispatch_wave_delegates_to_wave_dispatcher(tmp_path: Path) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=MagicMock(),
+        context_assembler=None,
+    )
+    packet = WorkPacket(packet_id="pkt-1", title="Task 1", builder_prompt="Do task 1")
+    wave = Wave(wave_number=0, description="Wave 0", work_packets=[packet])
+    expected = [
+        (
+            packet,
+            BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=tmp_path / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            ),
+        )
+    ]
+
+    with patch.object(orchestrator._wave_dispatcher, "run", return_value=expected) as mocked:
+        result = orchestrator._dispatch_wave(
+            mission_id="mission-1",
+            round_id=1,
+            wave=wave,
+            round_history=[],
+            chain_id="chain-1",
+            chain_root=tmp_path / "runtime_chain",
+            round_span_id="round-01",
+        )
+
+    assert result is expected
+    mocked.assert_called_once()
+
+
 def test_build_fresh_acpx_post_run_campaign_substitutes_interaction_plan_keys(
     tmp_path: Path,
 ) -> None:
