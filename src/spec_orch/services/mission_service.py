@@ -179,6 +179,7 @@ class MissionService:
         mission.approved_at = datetime.now(UTC).isoformat()
         mission_dir = self.specs_dir / mission_id
         self._write_meta(mission_dir, mission)
+        self._sync_lifecycle_phase(mission_id, MissionStatus.APPROVED)
         return mission
 
     def get_mission(self, mission_id: str) -> Mission:
@@ -189,17 +190,23 @@ class MissionService:
         data = json.loads(meta_path.read_text())
         if "status" in data and isinstance(data["status"], str):
             data["status"] = _coerce_mission_status(data["status"])
-        return Mission(**data)
+        mission = Mission(**data)
+        return self._apply_lifecycle_projection(mission)
 
     def list_missions(self) -> list[Mission]:
         if not self.specs_dir.exists():
             return []
         missions = []
+        projected_statuses = self._projected_statuses()
         for meta_path in sorted(self.specs_dir.glob(f"*/{_MISSION_META}")):
             data = json.loads(meta_path.read_text())
             if "status" in data and isinstance(data["status"], str):
                 data["status"] = _coerce_mission_status(data["status"])
-            missions.append(Mission(**data))
+            mission = Mission(**data)
+            projected = projected_statuses.get(mission.mission_id)
+            if projected is not None:
+                mission.status = projected
+            missions.append(mission)
         return missions
 
     def update_status(self, mission_id: str, status: MissionStatus) -> Mission:
@@ -209,7 +216,43 @@ class MissionService:
             mission.completed_at = datetime.now(UTC).isoformat()
         mission_dir = self.specs_dir / mission_id
         self._write_meta(mission_dir, mission)
+        self._sync_lifecycle_phase(mission_id, status)
+        return self._apply_lifecycle_projection(mission)
+
+    def _apply_lifecycle_projection(self, mission: Mission) -> Mission:
+        projected = self._projected_statuses().get(mission.mission_id)
+        if projected is not None:
+            mission.status = projected
         return mission
+
+    def _projected_statuses(self) -> dict[str, MissionStatus]:
+        try:
+            from spec_orch.services.lifecycle_manager import (
+                MissionLifecycleManager,
+                project_mission_status,
+            )
+
+            manager = MissionLifecycleManager(self.repo_root)
+            return {
+                mission_id: project_mission_status(state.phase)
+                for mission_id, state in manager.all_states().items()
+            }
+        except Exception:
+            return {}
+
+    def _sync_lifecycle_phase(self, mission_id: str, status: MissionStatus) -> None:
+        try:
+            from spec_orch.services.lifecycle_manager import MissionLifecycleManager
+
+            manager = MissionLifecycleManager(self.repo_root)
+            if status == MissionStatus.APPROVED:
+                manager.begin_tracking(mission_id)
+            elif status == MissionStatus.COMPLETED:
+                manager.mark_completed(mission_id)
+            elif status == MissionStatus.FAILED:
+                manager.mark_failed(mission_id, "mission_status_sync")
+        except Exception:
+            logger.debug("Mission lifecycle sync skipped for %s", mission_id, exc_info=True)
 
     @staticmethod
     def _write_meta(mission_dir: Path, mission: Mission) -> None:

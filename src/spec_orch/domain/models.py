@@ -92,6 +92,7 @@ class MissionStatus(StrEnum):
     DRAFTING = "drafting"
     APPROVED = "approved"
     IN_PROGRESS = "in_progress"
+    FAILED = "failed"
     COMPLETED = "completed"
     ARCHIVED = "archived"
 
