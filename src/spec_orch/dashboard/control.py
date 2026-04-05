@@ -118,6 +118,7 @@ def _read_run_summary(run_dir: Path) -> dict[str, Any] | None:
             "state": gate.get("state", "unknown"),
             "mergeable": gate.get("mergeable", False),
             "failed_conditions": gate.get("failed_conditions", []),
+            "flow_control": gate.get("flow_control", {}),
             "builder": normalized.outcome.build or {},
         }
 
@@ -312,6 +313,7 @@ def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
                         "state": gate.get("state", "unknown"),
                         "mergeable": gate.get("mergeable", False),
                         "failed_conditions": gate.get("failed_conditions", []),
+                        "flow_control": gate.get("flow_control", {}),
                         "builder_adapter": builder.get("adapter", "")
                         if isinstance(builder, dict)
                         else "",
@@ -340,6 +342,7 @@ def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
                         "state": cdata.get("state", "unknown"),
                         "mergeable": cdata.get("mergeable", False),
                         "failed_conditions": cdata.get("failed_conditions", []),
+                        "flow_control": cdata.get("flow_control", {}),
                         "builder": report_data.get("builder", {}),
                     }
                 elif report.exists():
@@ -353,6 +356,7 @@ def _gather_run_history(repo_root: Path) -> list[dict[str, Any]]:
                         "state": data.get("state", "unknown"),
                         "mergeable": data.get("mergeable", False),
                         "failed_conditions": data.get("failed_conditions", []),
+                        "flow_control": data.get("flow_control", {}),
                         "builder_adapter": data.get("builder", {}).get("adapter", ""),
                         "builder_succeeded": data.get("builder", {}).get("succeeded", False),
                     }
