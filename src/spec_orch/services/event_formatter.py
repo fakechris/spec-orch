@@ -203,12 +203,27 @@ class EventFormatter:
         if etype == "gate_evaluated":
             mergeable = data.get("mergeable", False)
             failed = data.get("failed_conditions", [])
+            flow = data.get("flow_control", {})
             if mergeable:
                 tag = _c(_GREEN + _BOLD, "GATE".ljust(_TAG_WIDTH), color=color)
+                success_details: list[str] = []
+                if isinstance(flow, dict) and flow.get("promotion_required"):
+                    success_details.append(f"promote={flow.get('promotion_target') or 'required'}")
+                if success_details:
+                    return f"{ts} {tag} MERGEABLE ({', '.join(success_details)})"
                 return f"{ts} {tag} MERGEABLE"
             tag = _c(_RED + _BOLD, "GATE".ljust(_TAG_WIDTH), color=color)
             blocked = ", ".join(failed) if failed else "unknown"
-            return f"{ts} {tag} BLOCKED ({blocked})"
+            blocked_details: list[str] = []
+            if isinstance(flow, dict):
+                if flow.get("retry_recommended"):
+                    blocked_details.append("retry")
+                if flow.get("escalation_required"):
+                    blocked_details.append("escalate")
+                if flow.get("backtrack_reason"):
+                    blocked_details.append(f"backtrack={flow.get('backtrack_reason')}")
+            suffix = f"; {', '.join(blocked_details)}" if blocked_details else ""
+            return f"{ts} {tag} BLOCKED ({blocked}{suffix})"
 
         if etype == "review_initialized":
             tag = _c(_BLUE, "REVIEW".ljust(_TAG_WIDTH), color=color)

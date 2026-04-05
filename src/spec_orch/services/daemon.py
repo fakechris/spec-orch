@@ -815,6 +815,7 @@ class SpecOrchDaemon:
                             )
 
             title = f"[SpecOrch] {issue_id}: {result.issue.title}"
+            flow = result.gate.flow_control
             body_lines = [
                 f"## SpecOrch: {issue_id}",
                 "",
@@ -822,6 +823,16 @@ class SpecOrchDaemon:
             ]
             if result.gate.failed_conditions:
                 body_lines.append(f"**Blocked**: {', '.join(result.gate.failed_conditions)}")
+            if flow.retry_recommended:
+                body_lines.append("**Retry recommended**: yes")
+            if flow.escalation_required:
+                body_lines.append("**Escalation required**: yes")
+            if flow.promotion_required:
+                body_lines.append(f"**Promotion signal**: {flow.promotion_target or 'required'}")
+            if flow.demotion_suggested:
+                body_lines.append(f"**Demotion signal**: {flow.demotion_target or 'suggested'}")
+            if flow.backtrack_reason:
+                body_lines.append(f"**Backtrack reason**: {flow.backtrack_reason}")
             body_lines.extend(["", f"Closes {issue_id}"])
 
             pr_url = gh_svc.create_pr(

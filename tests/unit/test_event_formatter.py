@@ -164,13 +164,21 @@ def test_format_orchestrator_gate_mergeable() -> None:
         "event_type": "gate_evaluated",
         "component": "gate",
         "message": "Evaluated gate verdict.",
-        "data": {"mergeable": True, "failed_conditions": []},
+        "data": {
+            "mergeable": True,
+            "failed_conditions": [],
+            "flow_control": {
+                "promotion_required": True,
+                "promotion_target": "standard",
+            },
+        },
         "timestamp": "2026-03-10T14:32:36+00:00",
     }
     line = fmt.format_plain(event)
     assert line is not None
     assert "GATE" in line
     assert "MERGEABLE" in line
+    assert "promote=standard" in line
 
 
 def test_format_orchestrator_gate_blocked() -> None:
@@ -179,7 +187,14 @@ def test_format_orchestrator_gate_blocked() -> None:
         "event_type": "gate_evaluated",
         "component": "gate",
         "message": "Evaluated gate verdict.",
-        "data": {"mergeable": False, "failed_conditions": ["verification", "review"]},
+        "data": {
+            "mergeable": False,
+            "failed_conditions": ["verification", "review"],
+            "flow_control": {
+                "retry_recommended": True,
+                "backtrack_reason": "recoverable",
+            },
+        },
         "timestamp": "2026-03-10T14:32:36+00:00",
     }
     line = fmt.format_plain(event)
@@ -187,6 +202,8 @@ def test_format_orchestrator_gate_blocked() -> None:
     assert "GATE" in line
     assert "BLOCKED" in line
     assert "verification" in line
+    assert "retry" in line
+    assert "backtrack=recoverable" in line
 
 
 def test_colored_output_contains_ansi() -> None:

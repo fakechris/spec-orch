@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from spec_orch.domain.models import RunState
+from spec_orch.domain.models import GateFlowControl, RunState
 from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
 from spec_orch.services.readiness_checker import ReadinessChecker
 
@@ -658,6 +658,10 @@ def test_daemon_auto_create_pr(tmp_path: Path) -> None:
     mock_gate = MagicMock()
     mock_gate.mergeable = True
     mock_gate.failed_conditions = []
+    mock_gate.flow_control = GateFlowControl(
+        promotion_required=True,
+        promotion_target="standard",
+    )
     mock_result = MagicMock()
     mock_result.state = RunState.GATE_EVALUATED
     mock_result.gate = mock_gate
@@ -672,3 +676,6 @@ def test_daemon_auto_create_pr(tmp_path: Path) -> None:
         mock_gh.create_pr.return_value = "https://github.com/pr/99"
         daemon._auto_create_pr("SPC-20", mock_result)
         mock_gh.create_pr.assert_called_once()
+        body = mock_gh.create_pr.call_args.kwargs["body"]
+        assert "Promotion signal" in body
+        assert "standard" in body
