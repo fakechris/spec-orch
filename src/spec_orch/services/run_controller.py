@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
@@ -48,17 +49,18 @@ from spec_orch.runtime_core.compaction.runner import (
 )
 from spec_orch.services.activity_logger import ActivityLogger
 from spec_orch.services.artifact_service import ArtifactService
-from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
 from spec_orch.services.context_assembler import ContextAssembler
 from spec_orch.services.deviation_service import (
     detect_deviations,
     overwrite_deviations,
 )
-from spec_orch.services.fixture_issue_source import FixtureIssueSource
 from spec_orch.services.gate_service import GateService
 from spec_orch.services.node_context_registry import get_node_context_spec
-from spec_orch.services.review_adapter import LocalReviewAdapter
 from spec_orch.services.run_artifact_service import RunArtifactService
+from spec_orch.services.run_controller_adapters import (
+    RunControllerAdapters,
+    resolve_run_controller_adapters,
+)
 from spec_orch.services.run_event_logger import RunEventLogger
 from spec_orch.services.run_progress import RunProgressSnapshot
 from spec_orch.services.run_report_writer import RunReportWriter
@@ -143,11 +145,35 @@ def record_flow_transition(event: FlowTransitionEvent) -> None:
         )
 
 
+@dataclass(frozen=True)
+class RunControllerConfig:
+    codex_executable: str = "codex"
+    pi_executable: str = "pi"
+    live_stream: IO[str] | None = None
+    require_spec_approval: bool = True
+
+
+@dataclass(frozen=True)
+class RunControllerDependencies:
+    artifact_service: ArtifactService | None = None
+    gate_service: GateService | None = None
+    run_artifact_service: RunArtifactService | None = None
+    telemetry_service: TelemetryService | None = None
+    verification_service: VerificationService | None = None
+    workspace_service: WorkspaceService | None = None
+    context_assembler: ContextAssembler | None = None
+    report_writer: RunReportWriter | None = None
+    event_logger: RunEventLogger | None = None
+
+
 class RunController:
     def __init__(
         self,
         *,
         repo_root: Path,
+        config: RunControllerConfig | None = None,
+        dependencies: RunControllerDependencies | None = None,
+        adapters: RunControllerAdapters | None = None,
         codex_executable: str = "codex",
         pi_executable: str = "pi",
         builder_adapter: BuilderAdapter | None = None,
@@ -159,34 +185,55 @@ class RunController:
         flow_mapper: FlowMapper | None = None,
         require_spec_approval: bool = True,
     ) -> None:
-        self.repo_root = Path(repo_root)
-        self.artifact_service = ArtifactService()
-        self.builder_adapter: BuilderAdapter = builder_adapter or CodexExecBuilderAdapter(
-            executable=codex_executable
+        controller_config = config or RunControllerConfig(
+            codex_executable=codex_executable,
+            pi_executable=pi_executable,
+            live_stream=live_stream,
+            require_spec_approval=require_spec_approval,
         )
-        self.planner_adapter: PlannerAdapter | None = planner_adapter
-        self.gate_service = GateService()
-        self.review_adapter: ReviewAdapter = review_adapter or LocalReviewAdapter()
-        self.run_artifact_service = RunArtifactService()
-        self.telemetry_service = TelemetryService()
-        self.verification_service = VerificationService()
-        self.workspace_service = WorkspaceService(repo_root=self.repo_root)
-        self.issue_source: IssueSource = issue_source or FixtureIssueSource(
+        controller_dependencies = dependencies or RunControllerDependencies()
+        resolved_adapters = resolve_run_controller_adapters(
+            repo_root=Path(repo_root),
+            codex_executable=controller_config.codex_executable,
+            builder_adapter=builder_adapter,
+            planner_adapter=planner_adapter,
+            review_adapter=review_adapter,
+            issue_source=issue_source,
+            adapters=adapters,
+        )
+        self.repo_root = Path(repo_root)
+        self.config = controller_config
+        self.dependencies = controller_dependencies
+        self.adapters = resolved_adapters
+        self.artifact_service = controller_dependencies.artifact_service or ArtifactService()
+        self.builder_adapter = resolved_adapters.builder_adapter
+        self.planner_adapter = resolved_adapters.planner_adapter
+        self.gate_service = controller_dependencies.gate_service or GateService()
+        self.review_adapter = resolved_adapters.review_adapter
+        self.run_artifact_service = (
+            controller_dependencies.run_artifact_service or RunArtifactService()
+        )
+        self.telemetry_service = controller_dependencies.telemetry_service or TelemetryService()
+        self.verification_service = (
+            controller_dependencies.verification_service or VerificationService()
+        )
+        self.workspace_service = controller_dependencies.workspace_service or WorkspaceService(
             repo_root=self.repo_root
         )
-        self._live_stream = live_stream
+        self.issue_source = resolved_adapters.issue_source
+        self._live_stream = controller_config.live_stream
         self.flow_engine = flow_engine or FlowEngine()
         self.flow_mapper = flow_mapper or FlowMapper()
-        self.context_assembler = ContextAssembler()
+        self.context_assembler = controller_dependencies.context_assembler or ContextAssembler()
         self._flow_router: FlowRouter | None = None
         self._memory_service: Any | None = None
-        self._event_logger = RunEventLogger(
+        self._event_logger = controller_dependencies.event_logger or RunEventLogger(
             telemetry_service=self.telemetry_service,
-            live_stream=live_stream,
+            live_stream=controller_config.live_stream,
         )
-        self._report_writer = RunReportWriter()
+        self._report_writer = controller_dependencies.report_writer or RunReportWriter()
         self._runs_since_compaction = 0
-        self.require_spec_approval = require_spec_approval
+        self.require_spec_approval = controller_config.require_spec_approval
 
     def _get_memory(self) -> Any | None:
         """Lazily obtain the MemoryService singleton."""
