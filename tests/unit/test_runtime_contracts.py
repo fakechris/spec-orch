@@ -58,9 +58,11 @@ def test_build_gate_payloads_use_shared_contract_shape() -> None:
 
     assert verdict_payload["schema"] == "gate_verdict.v1"
     assert verdict_payload["failed_conditions"] == ["verification", "scope"]
+    assert verdict_payload["flow_control"]["backtrack_reason"] == gate.flow_control.backtrack_reason
     assert verdict_payload["scope"]["all_in_scope"] is False
     assert event_payload["schema"] == "gate_event.v1"
     assert event_payload["mergeable"] is False
+    assert event_payload["flow_control"]["promotion_required"] is False
 
 
 def test_build_verification_event_payload_preserves_step_outcome() -> None:

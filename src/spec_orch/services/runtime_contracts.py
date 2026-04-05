@@ -61,6 +61,15 @@ def build_gate_verdict_payload(
         "packet_id": packet_id,
         "mergeable": gate.mergeable and bool(scope.get("all_in_scope", False)),
         "failed_conditions": list(gate.failed_conditions),
+        "flow_control": {
+            "retry_recommended": gate.flow_control.retry_recommended,
+            "escalation_required": gate.flow_control.escalation_required,
+            "promotion_required": gate.flow_control.promotion_required,
+            "promotion_target": gate.flow_control.promotion_target,
+            "demotion_suggested": gate.flow_control.demotion_suggested,
+            "demotion_target": gate.flow_control.demotion_target,
+            "backtrack_reason": gate.flow_control.backtrack_reason,
+        },
         "scope": scope,
     }
 
@@ -85,6 +94,15 @@ def build_gate_event_payload(gate: GateVerdict) -> dict[str, Any]:
         "schema": "gate_event.v1",
         "mergeable": gate.mergeable,
         "failed_conditions": list(gate.failed_conditions),
+        "flow_control": {
+            "retry_recommended": gate.flow_control.retry_recommended,
+            "escalation_required": gate.flow_control.escalation_required,
+            "promotion_required": gate.flow_control.promotion_required,
+            "promotion_target": gate.flow_control.promotion_target,
+            "demotion_suggested": gate.flow_control.demotion_suggested,
+            "demotion_target": gate.flow_control.demotion_target,
+            "backtrack_reason": gate.flow_control.backtrack_reason,
+        },
     }
 
 

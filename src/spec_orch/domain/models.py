@@ -360,6 +360,17 @@ class BuilderEvent:
 
 
 @dataclass(slots=True)
+class GateFlowControl:
+    retry_recommended: bool = False
+    escalation_required: bool = False
+    promotion_required: bool = False
+    promotion_target: str | None = None
+    demotion_suggested: bool = False
+    demotion_target: str | None = None
+    backtrack_reason: str | None = None
+
+
+@dataclass(slots=True)
 class GateVerdict:
     mergeable: bool
     failed_conditions: list[str]
@@ -370,6 +381,17 @@ class GateVerdict:
     demotion_suggested: bool = False
     demotion_target: str | None = None
     backtrack_reason: str | None = None
+    flow_control: GateFlowControl = field(default_factory=GateFlowControl)
+
+    def __post_init__(self) -> None:
+        if self.flow_control == GateFlowControl():
+            self.flow_control = GateFlowControl(
+                promotion_required=self.promotion_required,
+                promotion_target=self.promotion_target,
+                demotion_suggested=self.demotion_suggested,
+                demotion_target=self.demotion_target,
+                backtrack_reason=self.backtrack_reason,
+            )
 
 
 @dataclass(slots=True)
