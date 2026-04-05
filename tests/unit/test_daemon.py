@@ -466,6 +466,34 @@ def test_daemon_drain_execution_queue_delegates_execution_to_daemon_executor(
     assert daemon._state_store.list_execution_intents() == []
 
 
+def test_daemon_drain_execution_queue_processes_one_intent_per_tick(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon._state_store.enqueue_execution_intent(
+        issue_id="SPC-11",
+        raw_issue={"id": "uuid-11", "identifier": "SPC-11", "description": _COMPLETE_DESC},
+        is_hotfix=False,
+        enqueued_at=1,
+    )
+    daemon._state_store.enqueue_execution_intent(
+        issue_id="SPC-12",
+        raw_issue={"id": "uuid-12", "identifier": "SPC-12", "description": _COMPLETE_DESC},
+        is_hotfix=True,
+        enqueued_at=2,
+    )
+
+    mock_client = MagicMock()
+    mock_controller = MagicMock()
+
+    with patch.object(daemon._daemon_executor, "dispatch", return_value=None) as mocked:
+        daemon._drain_execution_queue(mock_client, mock_controller)
+
+    mocked.assert_called_once()
+    queued = daemon._state_store.list_execution_intents()
+    assert len(queued) == 1
+    assert queued[0]["issue_id"] == "SPC-12"
+
+
 def test_daemon_executor_dispatches_mission_issue_to_mission_executor() -> None:
     from spec_orch.services.daemon_executor import DaemonExecutor
 

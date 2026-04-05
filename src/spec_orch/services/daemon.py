@@ -641,22 +641,21 @@ class SpecOrchDaemon:
         )
 
     def _drain_execution_queue(self, client: LinearClient, controller: RunController) -> None:
-        for intent in self._state_store.list_execution_intents():
-            issue_id = str(intent.get("issue_id", "")).strip()
-            raw_issue = intent.get("raw_issue")
-            if not issue_id or not isinstance(raw_issue, dict):
-                if issue_id:
-                    self._state_store.delete_execution_intent(issue_id)
-                continue
-            self._daemon_executor.dispatch(
-                host=self,
-                issue_id=issue_id,
-                raw_issue=raw_issue,
-                client=client,
-                controller=controller,
-                is_hotfix=bool(intent.get("is_hotfix", False)),
-            )
-            self._state_store.delete_execution_intent(issue_id)
+        intent = self._state_store.pop_next_execution_intent()
+        if intent is None:
+            return
+        issue_id = str(intent.get("issue_id", "")).strip()
+        raw_issue = intent.get("raw_issue")
+        if not issue_id or not isinstance(raw_issue, dict):
+            return
+        self._daemon_executor.dispatch(
+            host=self,
+            issue_id=issue_id,
+            raw_issue=raw_issue,
+            client=client,
+            controller=controller,
+            is_hotfix=bool(intent.get("is_hotfix", False)),
+        )
 
     @staticmethod
     def _sanitize_id(raw_id: str) -> str:

@@ -394,6 +394,28 @@ class DaemonStateStore:
             )
         return intents
 
+    def pop_next_execution_intent(self) -> dict[str, Any] | None:
+        row = self._db.execute(
+            """SELECT issue_id, raw_issue, is_hotfix, enqueued_at
+               FROM execution_intents
+               ORDER BY enqueued_at, issue_id
+               LIMIT 1"""
+        ).fetchone()
+        if row is None:
+            return None
+        issue_id, raw_issue, is_hotfix, enqueued_at = row
+        try:
+            payload = json.loads(str(raw_issue))
+        except json.JSONDecodeError:
+            payload = {}
+        self.delete_execution_intent(str(issue_id))
+        return {
+            "issue_id": str(issue_id),
+            "raw_issue": payload if isinstance(payload, dict) else {},
+            "is_hotfix": bool(int(is_hotfix or 0)),
+            "enqueued_at": float(enqueued_at or 0),
+        }
+
     def delete_execution_intent(self, issue_id: str) -> None:
         with self._db:
             self._db.execute(
