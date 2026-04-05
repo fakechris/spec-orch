@@ -2772,6 +2772,43 @@ def test_collect_artifacts_delegates_to_artifact_collector(tmp_path: Path) -> No
     mocked.assert_called_once()
 
 
+def test_review_round_delegates_to_round_review_coordinator(tmp_path: Path) -> None:
+    from spec_orch.domain.models import RoundArtifacts
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=MagicMock(),
+        worker_factory=MagicMock(),
+        context_assembler=MagicMock(),
+    )
+    wave = Wave(wave_number=0, description="Wave 0", work_packets=[])
+    summary = RoundSummary(round_id=1, wave_id=0, status=RoundStatus.REVIEWING)
+    artifacts = RoundArtifacts(round_id=1, mission_id="mission-1")
+    plan = ExecutionPlan(plan_id="plan-1", mission_id="mission-1", waves=[wave])
+    expected = RoundDecision(action=RoundAction.STOP, summary="delegated")
+
+    with patch.object(
+        orchestrator._round_review_coordinator, "review", return_value=expected
+    ) as mocked:
+        result = orchestrator._review_round(
+            mission_id="mission-1",
+            round_id=1,
+            round_dir=tmp_path / "round-01",
+            wave=wave,
+            artifacts=artifacts,
+            plan=plan,
+            round_history=[],
+            summary=summary,
+            chain_root=tmp_path / "runtime_chain",
+            chain_id="chain-1",
+            round_span_id="round-01",
+        )
+
+    assert result is expected
+    mocked.assert_called_once()
+
+
 def test_build_fresh_acpx_post_run_campaign_substitutes_interaction_plan_keys(
     tmp_path: Path,
 ) -> None:

@@ -61,8 +61,8 @@ from spec_orch.services.acceptance_pipeline import AcceptancePipeline
 from spec_orch.services.artifact_collector import ArtifactCollector
 from spec_orch.services.event_bus import Event, EventBus, EventTopic
 from spec_orch.services.io import atomic_write_json
-from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.resource_loader import load_json_resource
+from spec_orch.services.round_review_coordinator import RoundReviewCoordinator
 from spec_orch.services.run_event_logger import RunEventLogger
 from spec_orch.services.telemetry_service import TelemetryService
 from spec_orch.services.wave_dispatcher import WaveDispatcher
@@ -154,6 +154,7 @@ class RoundOrchestrator:
             event_logger=self._event_logger,
         )
         self._artifact_collector = ArtifactCollector(repo_root=self.repo_root)
+        self._round_review_coordinator = RoundReviewCoordinator()
 
     def run_supervised(
         self,
@@ -267,47 +268,19 @@ class RoundOrchestrator:
                 worker_results=worker_results,
                 round_dir=round_dir,
             )
-            supervisor_issue = self._build_supervisor_issue(
+            decision = self._review_round(
                 mission_id=mission_id,
                 round_id=round_id,
-                wave=wave,
-            )
-            self._write_supervisor_task_spec(
                 round_dir=round_dir,
-                mission_id=mission_id,
                 wave=wave,
-            )
-            summary.status = RoundStatus.REVIEWING
-
-            assembled_context = self.context_assembler.assemble(
-                get_node_context_spec("supervisor"),
-                supervisor_issue,
-                round_dir,
-                repo_root=self.repo_root,
-            )
-            context = self._build_supervisor_context(
-                mission_id=mission_id,
-                round_id=round_id,
-                wave=wave,
-                issue=supervisor_issue,
-                assembled_context=assembled_context,
                 artifacts=artifacts,
-            )
-            decision = self._call_runtime_chain_aware(
-                self.supervisor.review_round,
-                round_artifacts=artifacts,
                 plan=plan,
                 round_history=round_history,
-                context=context,
+                summary=summary,
                 chain_root=chain_root,
                 chain_id=chain_id,
-                span_id=f"{round_span_id}:supervisor",
-                parent_span_id=round_span_id,
+                round_span_id=round_span_id,
             )
-            summary.decision = decision
-            summary.status = RoundStatus.DECIDED
-            summary.completed_at = datetime.now(UTC).isoformat()
-            self._persist_round(round_dir, summary)
             round_history.append(summary)
             self._run_acceptance_evaluation(
                 mission_id=mission_id,
@@ -585,6 +558,36 @@ class RoundOrchestrator:
                 handle.close(mission_workspace)
         for session_id in decision.session_ops.spawn:
             self.worker_factory.create(session_id=session_id, workspace=mission_workspace)
+
+    def _review_round(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        round_dir: Path,
+        wave: Wave,
+        artifacts: RoundArtifacts,
+        plan: ExecutionPlan,
+        round_history: list[RoundSummary],
+        summary: RoundSummary,
+        chain_root: Path,
+        chain_id: str,
+        round_span_id: str,
+    ) -> RoundDecision:
+        return self._round_review_coordinator.review(
+            host=self,
+            mission_id=mission_id,
+            round_id=round_id,
+            round_dir=round_dir,
+            wave=wave,
+            artifacts=artifacts,
+            plan=plan,
+            round_history=round_history,
+            summary=summary,
+            chain_root=chain_root,
+            chain_id=chain_id,
+            round_span_id=round_span_id,
+        )
 
     def _emit_round_paused(self, mission_id: str, round_id: int, decision: RoundDecision) -> None:
         if self.event_bus is None:
