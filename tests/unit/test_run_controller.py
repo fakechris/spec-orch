@@ -14,7 +14,17 @@ from spec_orch.domain.models import (
 )
 from spec_orch.runtime_chain.models import ChainPhase
 from spec_orch.runtime_chain.store import read_chain_events, read_chain_status
-from spec_orch.services.run_controller import RunController
+from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
+from spec_orch.services.fixture_issue_source import FixtureIssueSource
+from spec_orch.services.review_adapter import LocalReviewAdapter
+from spec_orch.services.run_controller import (
+    RunController,
+    RunControllerAdapters,
+    RunControllerConfig,
+    RunControllerDependencies,
+)
+from spec_orch.services.telemetry_service import TelemetryService
+from spec_orch.services.workspace_service import WorkspaceService
 
 
 def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
@@ -26,6 +36,12 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
                 "issue_id": "SPC-1",
                 "title": "Build MVP runner",
                 "summary": "Run one local fixture issue through the prototype pipeline.",
+                "verification_commands": {
+                    "lint": ["{python}", "-c", "print('lint ok')"],
+                    "typecheck": ["{python}", "-c", "print('type ok')"],
+                    "test": ["{python}", "-c", "print('test ok')"],
+                    "build": ["{python}", "-c", "print('build ok')"],
+                },
             }
         )
     )
@@ -86,6 +102,69 @@ def test_run_controller_executes_local_fixture_issue(tmp_path: Path) -> None:
         and "verification" not in event["data"]["failed_conditions"]
         for event in events
     )
+
+
+def test_run_controller_accepts_config_object(tmp_path: Path) -> None:
+    live_stream = object()
+    config = RunControllerConfig(
+        codex_executable=str(tmp_path / "custom-codex"),
+        pi_executable="custom-pi",
+        live_stream=live_stream,
+        require_spec_approval=False,
+    )
+
+    controller = RunController(
+        repo_root=tmp_path,
+        config=config,
+    )
+
+    assert controller.config == config
+    assert controller.require_spec_approval is False
+    assert controller._live_stream is live_stream
+    assert controller.builder_adapter.executable == str(tmp_path / "custom-codex")
+
+
+def test_run_controller_accepts_dependency_bundle(tmp_path: Path) -> None:
+    telemetry_service = TelemetryService()
+    workspace_service = WorkspaceService(repo_root=tmp_path)
+    dependencies = RunControllerDependencies(
+        telemetry_service=telemetry_service,
+        workspace_service=workspace_service,
+    )
+
+    controller = RunController(
+        repo_root=tmp_path,
+        dependencies=dependencies,
+    )
+
+    assert controller.dependencies is dependencies
+    assert controller.telemetry_service is telemetry_service
+    assert controller.workspace_service is workspace_service
+    assert controller._event_logger._telemetry is telemetry_service
+
+
+def test_run_controller_accepts_adapter_bundle(tmp_path: Path) -> None:
+    builder_adapter = CodexExecBuilderAdapter(executable=str(tmp_path / "custom-codex"))
+    review_adapter = LocalReviewAdapter()
+    issue_source = FixtureIssueSource(repo_root=tmp_path)
+    adapters = RunControllerAdapters(
+        builder_adapter=builder_adapter,
+        planner_adapter=None,
+        review_adapter=review_adapter,
+        issue_source=issue_source,
+    )
+
+    controller = RunController(
+        repo_root=tmp_path,
+        adapters=adapters,
+    )
+
+    assert controller.adapters.builder_adapter is builder_adapter
+    assert controller.adapters.review_adapter is review_adapter
+    assert controller.adapters.issue_source is issue_source
+    assert controller.builder_adapter is builder_adapter
+    assert controller.review_adapter is review_adapter
+    assert controller.issue_source is issue_source
 
 
 def test_run_controller_keeps_builder_failure_when_executable_is_unavailable(
@@ -1155,6 +1234,12 @@ def _make_fixture(tmp_path: Path, issue_id: str = "SPEC-1") -> Path:
                 "issue_id": issue_id,
                 "title": "Spec approval test",
                 "summary": "Testing spec approval flag.",
+                "verification_commands": {
+                    "lint": ["{python}", "-c", "print('lint ok')"],
+                    "typecheck": ["{python}", "-c", "print('type ok')"],
+                    "test": ["{python}", "-c", "print('test ok')"],
+                    "build": ["{python}", "-c", "print('build ok')"],
+                },
             }
         )
     )

@@ -13,28 +13,14 @@ from pathlib import Path
 from typing import IO, Any, TypeVar
 from uuid import uuid4
 
-from spec_orch.acceptance_core.calibration import (
-    FixtureGraduationStage,
-    append_fixture_graduation_event,
-    build_fixture_graduation_event,
-    dashboard_surface_pack_v1,
-    load_fixture_graduation_events,
-    qualifies_for_fixture_candidate,
-    write_fixture_candidate_seed,
-)
-from spec_orch.acceptance_core.models import (
-    AcceptanceRunMode,
-    build_acceptance_judgments,
-    run_mode_from_legacy_acceptance_mode,
-)
+from spec_orch.acceptance_core.calibration import dashboard_surface_pack_v1
+from spec_orch.acceptance_core.models import AcceptanceRunMode, run_mode_from_legacy_acceptance_mode
 from spec_orch.acceptance_core.routing import (
     AcceptanceRequest,
     AcceptanceRoutingDecision,
     AcceptanceSurfacePackRef,
     build_acceptance_routing_decision,
 )
-from spec_orch.acceptance_runtime.graph_registry import graph_definition_for
-from spec_orch.acceptance_runtime.runner import run_acceptance_graph
 from spec_orch.decision_core.interventions import build_intervention_from_record
 from spec_orch.decision_core.records import build_round_review_decision_record
 from spec_orch.decision_core.review_queue import append_intervention
@@ -45,12 +31,10 @@ from spec_orch.domain.models import (
     AcceptanceReviewResult,
     BuilderResult,
     ExecutionPlan,
-    GateInput,
     Issue,
     IssueContext,
     Mission,
     PlanPatch,
-    ReviewSummary,
     RoundAction,
     RoundArtifacts,
     RoundDecision,
@@ -73,15 +57,15 @@ from spec_orch.runtime_chain.models import (
 )
 from spec_orch.runtime_chain.store import append_chain_event, write_chain_status
 from spec_orch.runtime_core.writers import write_round_supervision_payloads
-from spec_orch.services.acceptance.browser_evidence import collect_playwright_browser_evidence
+from spec_orch.services.acceptance_pipeline import AcceptancePipeline
+from spec_orch.services.artifact_collector import ArtifactCollector
 from spec_orch.services.event_bus import Event, EventBus, EventTopic
-from spec_orch.services.gate_service import GatePolicy, GateService
 from spec_orch.services.io import atomic_write_json
-from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.resource_loader import load_json_resource
+from spec_orch.services.round_review_coordinator import RoundReviewCoordinator
 from spec_orch.services.run_event_logger import RunEventLogger
 from spec_orch.services.telemetry_service import TelemetryService
-from spec_orch.services.verification_service import VerificationService
+from spec_orch.services.wave_dispatcher import WaveDispatcher
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -156,10 +140,21 @@ class RoundOrchestrator:
         self.acceptance_filer = acceptance_filer
         self.event_bus = event_bus
         self.max_rounds = max_rounds
+        self._acceptance_pipeline = AcceptancePipeline(
+            repo_root=self.repo_root,
+            acceptance_evaluator=acceptance_evaluator,
+            acceptance_filer=acceptance_filer,
+        )
         self._event_logger = RunEventLogger(
             telemetry_service=TelemetryService(),
             live_stream=live_stream,
         )
+        self._wave_dispatcher = WaveDispatcher(
+            worker_factory=worker_factory,
+            event_logger=self._event_logger,
+        )
+        self._artifact_collector = ArtifactCollector(repo_root=self.repo_root)
+        self._round_review_coordinator = RoundReviewCoordinator()
 
     def run_supervised(
         self,
@@ -273,47 +268,19 @@ class RoundOrchestrator:
                 worker_results=worker_results,
                 round_dir=round_dir,
             )
-            supervisor_issue = self._build_supervisor_issue(
+            decision = self._review_round(
                 mission_id=mission_id,
                 round_id=round_id,
-                wave=wave,
-            )
-            self._write_supervisor_task_spec(
                 round_dir=round_dir,
-                mission_id=mission_id,
                 wave=wave,
-            )
-            summary.status = RoundStatus.REVIEWING
-
-            assembled_context = self.context_assembler.assemble(
-                get_node_context_spec("supervisor"),
-                supervisor_issue,
-                round_dir,
-                repo_root=self.repo_root,
-            )
-            context = self._build_supervisor_context(
-                mission_id=mission_id,
-                round_id=round_id,
-                wave=wave,
-                issue=supervisor_issue,
-                assembled_context=assembled_context,
                 artifacts=artifacts,
-            )
-            decision = self._call_runtime_chain_aware(
-                self.supervisor.review_round,
-                round_artifacts=artifacts,
                 plan=plan,
                 round_history=round_history,
-                context=context,
+                summary=summary,
                 chain_root=chain_root,
                 chain_id=chain_id,
-                span_id=f"{round_span_id}:supervisor",
-                parent_span_id=round_span_id,
+                round_span_id=round_span_id,
             )
-            summary.decision = decision
-            summary.status = RoundStatus.DECIDED
-            summary.completed_at = datetime.now(UTC).isoformat()
-            self._persist_round(round_dir, summary)
             round_history.append(summary)
             self._run_acceptance_evaluation(
                 mission_id=mission_id,
@@ -397,155 +364,16 @@ class RoundOrchestrator:
         chain_root: Path,
         round_span_id: str,
     ) -> list[tuple[WorkPacket, BuilderResult]]:
-        results: list[tuple[WorkPacket, BuilderResult]] = []
-        last_decision = round_history[-1].decision if round_history else None
-
-        for packet in wave.work_packets:
-            session_id = f"mission-{mission_id}-{packet.packet_id}"
-            workspace = self._packet_workspace(mission_id, packet)
-            workspace.mkdir(parents=True, exist_ok=True)
-            packet_span_id = f"{round_span_id}:packet:{packet.packet_id}"
-            append_chain_event(
-                chain_root,
-                RuntimeChainEvent(
-                    chain_id=chain_id,
-                    span_id=packet_span_id,
-                    parent_span_id=round_span_id,
-                    subject_kind=RuntimeSubjectKind.PACKET,
-                    subject_id=packet.packet_id,
-                    phase=ChainPhase.STARTED,
-                    status_reason="packet_started",
-                    artifact_refs={"workspace": str(workspace)},
-                    updated_at=datetime.now(UTC).isoformat(),
-                ),
-            )
-
-            handle = self.worker_factory.get(session_id)
-            if handle is None:
-                handle = self.worker_factory.create(session_id=session_id, workspace=workspace)
-                prompt = self._build_worker_prompt(
-                    mission_id=mission_id,
-                    packet=packet,
-                    workspace=workspace,
-                    decision=None,
-                )
-            else:
-                prompt = self._build_worker_prompt(
-                    mission_id=mission_id,
-                    packet=packet,
-                    workspace=workspace,
-                    decision=last_decision,
-                )
-
-            run_id = f"mission_{mission_id}_round_{round_id}_{packet.packet_id}"
-            activity_logger = None
-            try:
-                activity_logger = self._event_logger.open_activity_logger(workspace)
-                event_logger = self._event_logger.make_event_logger(
-                    workspace=workspace,
-                    run_id=run_id,
-                    issue_id=packet.packet_id,
-                    activity_logger=activity_logger,
-                )
-
-                self._event_logger.log_and_emit(
-                    activity_logger=activity_logger,
-                    workspace=workspace,
-                    run_id=run_id,
-                    issue_id=packet.packet_id,
-                    component="mission_worker",
-                    event_type="mission_packet_started",
-                    message=f"Started packet {packet.packet_id}",
-                    data={
-                        "mission_id": mission_id,
-                        "round_id": round_id,
-                        "packet_id": packet.packet_id,
-                        "session_id": session_id,
-                    },
-                )
-                try:
-                    result = handle.send(
-                        prompt=prompt,
-                        workspace=workspace,
-                        event_logger=event_logger,
-                        chain_root=chain_root,
-                        chain_id=chain_id,
-                        span_id=f"{packet_span_id}:worker",
-                        parent_span_id=packet_span_id,
-                    )
-                except Exception as exc:
-                    self._event_logger.log_and_emit(
-                        activity_logger=activity_logger,
-                        workspace=workspace,
-                        run_id=run_id,
-                        issue_id=packet.packet_id,
-                        component="mission_worker",
-                        event_type="mission_packet_completed",
-                        severity="error",
-                        message=f"Failed packet {packet.packet_id}: {exc}",
-                        data={
-                            "mission_id": mission_id,
-                            "round_id": round_id,
-                            "packet_id": packet.packet_id,
-                            "succeeded": False,
-                            "error": str(exc),
-                        },
-                    )
-                    append_chain_event(
-                        chain_root,
-                        RuntimeChainEvent(
-                            chain_id=chain_id,
-                            span_id=packet_span_id,
-                            parent_span_id=round_span_id,
-                            subject_kind=RuntimeSubjectKind.PACKET,
-                            subject_id=packet.packet_id,
-                            phase=ChainPhase.FAILED,
-                            status_reason="packet_failed",
-                            artifact_refs={"workspace": str(workspace)},
-                            updated_at=datetime.now(UTC).isoformat(),
-                        ),
-                    )
-                    raise
-                self._event_logger.log_and_emit(
-                    activity_logger=activity_logger,
-                    workspace=workspace,
-                    run_id=run_id,
-                    issue_id=packet.packet_id,
-                    component="mission_worker",
-                    event_type="mission_packet_completed",
-                    severity="info" if result.succeeded else "error",
-                    message=f"Completed packet {packet.packet_id}",
-                    data={
-                        "mission_id": mission_id,
-                        "round_id": round_id,
-                        "packet_id": packet.packet_id,
-                        "succeeded": result.succeeded,
-                        "report_path": str(result.report_path),
-                    },
-                )
-                append_chain_event(
-                    chain_root,
-                    RuntimeChainEvent(
-                        chain_id=chain_id,
-                        span_id=packet_span_id,
-                        parent_span_id=round_span_id,
-                        subject_kind=RuntimeSubjectKind.PACKET,
-                        subject_id=packet.packet_id,
-                        phase=ChainPhase.COMPLETED if result.succeeded else ChainPhase.DEGRADED,
-                        status_reason="packet_completed" if result.succeeded else "packet_degraded",
-                        artifact_refs={
-                            "workspace": str(workspace),
-                            "builder_report": str(result.report_path),
-                        },
-                        updated_at=datetime.now(UTC).isoformat(),
-                    ),
-                )
-            finally:
-                if activity_logger is not None:
-                    activity_logger.close()
-            results.append((packet, result))
-
-        return results
+        return self._wave_dispatcher.run(
+            host=self,
+            mission_id=mission_id,
+            round_id=round_id,
+            wave=wave,
+            round_history=round_history,
+            chain_id=chain_id,
+            chain_root=chain_root,
+            round_span_id=round_span_id,
+        )
 
     def _collect_artifacts(
         self,
@@ -556,106 +384,13 @@ class RoundOrchestrator:
         worker_results: list[tuple[WorkPacket, BuilderResult]],
         round_dir: Path,
     ) -> RoundArtifacts:
-        visual_evaluation = self._run_visual_evaluation(
+        return self._artifact_collector.collect(
+            host=self,
             mission_id=mission_id,
             round_id=round_id,
             wave=wave,
             worker_results=worker_results,
             round_dir=round_dir,
-        )
-        verification_outputs: list[dict[str, Any]] = []
-        gate_verdicts: list[dict[str, Any]] = []
-        manifest_paths: list[str] = []
-        verification_service = VerificationService()
-        gate_service = GateService(
-            policy=GatePolicy(required_conditions={"builder", "verification"})
-        )
-
-        for packet, result in worker_results:
-            workspace = self._packet_workspace(mission_id, packet)
-            if result.report_path.exists():
-                manifest_paths.append(str(result.report_path))
-            for file_path in packet.files_in_scope:
-                scoped_path = workspace / file_path
-                if scoped_path.exists():
-                    manifest_paths.append(str(scoped_path))
-            if not packet.verification_commands:
-                continue
-
-            verification = verification_service.run(
-                issue=Issue(
-                    issue_id=packet.packet_id,
-                    title=packet.title,
-                    summary=packet.title,
-                    verification_commands=dict(packet.verification_commands),
-                    context=IssueContext(),
-                    acceptance_criteria=list(packet.acceptance_criteria),
-                ),
-                workspace=workspace,
-            )
-            verification_outputs.append(
-                {
-                    "packet_id": packet.packet_id,
-                    "producer_role": "verifier",
-                    "workspace": str(workspace),
-                    "all_passed": verification.all_passed,
-                    "step_results": dict(verification.step_results),
-                    "details": {
-                        step: {
-                            "command": detail.command,
-                            "exit_code": detail.exit_code,
-                            "stdout": detail.stdout,
-                            "stderr": detail.stderr,
-                        }
-                        for step, detail in verification.details.items()
-                    },
-                }
-            )
-            scope_proof = self._build_packet_scope_proof(
-                workspace=workspace,
-                packet=packet,
-                report_path=result.report_path,
-            )
-            gate = gate_service.evaluate(
-                GateInput(
-                    builder_succeeded=result.succeeded,
-                    verification=verification,
-                    review=ReviewSummary(verdict="not_applicable"),
-                )
-            )
-            failed_conditions = list(gate.failed_conditions)
-            if not scope_proof["all_in_scope"] and "scope" not in failed_conditions:
-                failed_conditions.append("scope")
-            gate_verdicts.append(
-                {
-                    "packet_id": packet.packet_id,
-                    "mergeable": gate.mergeable and scope_proof["all_in_scope"],
-                    "failed_conditions": failed_conditions,
-                    "scope": scope_proof,
-                }
-            )
-
-        return RoundArtifacts(
-            round_id=round_id,
-            mission_id=mission_id,
-            builder_reports=[
-                {
-                    "packet_id": packet.packet_id,
-                    "succeeded": result.succeeded,
-                    "producer_role": "implementer",
-                    "adapter": result.adapter,
-                    "agent": result.agent,
-                    "report_path": str(result.report_path),
-                }
-                for packet, result in worker_results
-            ],
-            verification_outputs=verification_outputs,
-            gate_verdicts=gate_verdicts,
-            manifest_paths=self._unique_preserve_order(manifest_paths),
-            worker_session_ids=[
-                f"mission-{mission_id}-{packet.packet_id}" for packet, _ in worker_results
-            ],
-            visual_evaluation=visual_evaluation,
         )
 
     def _build_packet_scope_proof(
@@ -665,48 +400,11 @@ class RoundOrchestrator:
         packet: WorkPacket,
         report_path: Path,
     ) -> dict[str, Any]:
-        allowed = [str(path).strip() for path in packet.files_in_scope if str(path).strip()]
-        allowed_set = set(allowed)
-        excluded_paths = {report_path.resolve()}
-        excluded_prefixes = ("telemetry/",)
-        excluded_filenames = {"btw_context.md", "task.spec.md"}
-        realized_files = self._load_realized_files_from_report(
+        return self._artifact_collector.build_packet_scope_proof(
             workspace=workspace,
             packet=packet,
             report_path=report_path,
         )
-        if realized_files is None:
-            realized_files = []
-            for path in workspace.rglob("*"):
-                if not path.is_file():
-                    continue
-                try:
-                    resolved = path.resolve()
-                except OSError:
-                    resolved = path
-                if resolved in excluded_paths:
-                    continue
-                relative_path = path.relative_to(workspace).as_posix()
-                if (
-                    relative_path.startswith(excluded_prefixes)
-                    or relative_path in excluded_filenames
-                    or self._is_transient_verification_support_file(packet, relative_path)
-                ):
-                    continue
-                realized_files.append(relative_path)
-            realized_files = self._unique_preserve_order(realized_files)
-        out_of_scope_files = [
-            path
-            for path in realized_files
-            if path not in allowed_set
-            and not self._is_transient_verification_support_file(packet, path)
-        ]
-        return {
-            "allowed_files": allowed,
-            "realized_files": realized_files,
-            "out_of_scope_files": out_of_scope_files,
-            "all_in_scope": not out_of_scope_files,
-        }
 
     def _load_realized_files_from_report(
         self,
@@ -715,63 +413,18 @@ class RoundOrchestrator:
         packet: WorkPacket,
         report_path: Path,
     ) -> list[str] | None:
-        try:
-            payload = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return None
-        if not isinstance(payload, dict):
-            return None
-        files_changed = payload.get("files_changed")
-        if files_changed is None:
-            return None
-        if not isinstance(files_changed, list):
-            return None
-        realized_files: list[str] = []
-        for raw_path in files_changed:
-            text = str(raw_path).strip()
-            if not text:
-                continue
-            path = Path(text)
-            try:
-                resolved = path.resolve() if path.is_absolute() else (workspace / path).resolve()
-            except OSError:
-                resolved = workspace / path if not path.is_absolute() else path
-            try:
-                relative_path = resolved.relative_to(workspace.resolve()).as_posix()
-            except ValueError:
-                continue
-            if resolved.exists() and resolved.is_dir():
-                continue
-            if self._is_transient_verification_support_file(packet, relative_path):
-                continue
-            realized_files.append(relative_path)
-        return self._unique_preserve_order(realized_files)
+        return self._artifact_collector.load_realized_files_from_report(
+            workspace=workspace,
+            packet=packet,
+            report_path=report_path,
+        )
 
     def _is_transient_verification_support_file(
         self, packet: WorkPacket, relative_path: str
     ) -> bool:
-        verification_language = " ".join(
-            " ".join(command) if isinstance(command, list) else str(command)
-            for command in packet.verification_commands.values()
-        ).lower()
-        if not any(
-            token in verification_language
-            for token in ("lint", "typecheck", "type check", "eslint", "compile", "tsc")
-        ):
-            return False
-        filename = Path(relative_path).name
-        return filename in {
-            "tsconfig.json",
-            "eslint.config.js",
-            "eslint.config.mjs",
-            "eslint.config.cjs",
-            ".eslintrc.js",
-            ".eslintrc.json",
-            "import_smoke.ts",
-            "package.json",
-            "package-lock.json",
-            "pnpm-lock.yaml",
-        }
+        return self._artifact_collector.is_transient_verification_support_file(
+            packet, relative_path
+        )
 
     def _load_history(self, mission_id: str, *, up_to_round: int) -> list[RoundSummary]:
         if up_to_round <= 0:
@@ -905,6 +558,36 @@ class RoundOrchestrator:
                 handle.close(mission_workspace)
         for session_id in decision.session_ops.spawn:
             self.worker_factory.create(session_id=session_id, workspace=mission_workspace)
+
+    def _review_round(
+        self,
+        *,
+        mission_id: str,
+        round_id: int,
+        round_dir: Path,
+        wave: Wave,
+        artifacts: RoundArtifacts,
+        plan: ExecutionPlan,
+        round_history: list[RoundSummary],
+        summary: RoundSummary,
+        chain_root: Path,
+        chain_id: str,
+        round_span_id: str,
+    ) -> RoundDecision:
+        return self._round_review_coordinator.review(
+            host=self,
+            mission_id=mission_id,
+            round_id=round_id,
+            round_dir=round_dir,
+            wave=wave,
+            artifacts=artifacts,
+            plan=plan,
+            round_history=round_history,
+            summary=summary,
+            chain_root=chain_root,
+            chain_id=chain_id,
+            round_span_id=round_span_id,
+        )
 
     def _emit_round_paused(self, mission_id: str, round_id: int, decision: RoundDecision) -> None:
         if self.event_bus is None:
@@ -1098,106 +781,18 @@ class RoundOrchestrator:
         chain_id: str,
         round_span_id: str,
     ) -> AcceptanceReviewResult | None:
-        if self.acceptance_evaluator is None:
-            return None
-        acceptance_artifacts = self._build_acceptance_artifacts(
-            mission_id=mission_id,
-            round_id=round_id,
-            artifacts=artifacts,
-            summary=summary,
-        )
-        campaign = self._build_acceptance_campaign(
-            mission_id=mission_id,
-            artifacts=acceptance_artifacts,
-        )
-        routing_decision = self._build_acceptance_routing_decision(
-            mission_id=mission_id,
-            artifacts=acceptance_artifacts,
-        )
-        browser_evidence = self._collect_acceptance_browser_evidence(
+        return self._acceptance_pipeline.run(
+            host=self,
             mission_id=mission_id,
             round_id=round_id,
             round_dir=round_dir,
-            campaign=campaign,
+            worker_results=worker_results,
+            artifacts=artifacts,
+            summary=summary,
+            chain_root=chain_root,
+            chain_id=chain_id,
+            round_span_id=round_span_id,
         )
-        if browser_evidence is not None:
-            acceptance_artifacts["browser_evidence"] = browser_evidence
-        try:
-            graph_trace = self._run_acceptance_graph_trace(
-                mission_id=mission_id,
-                round_id=round_id,
-                round_dir=round_dir,
-                campaign=campaign,
-                routing_decision=routing_decision,
-                acceptance_artifacts=acceptance_artifacts,
-                chain_root=chain_root,
-                chain_id=chain_id,
-                round_span_id=round_span_id,
-            )
-        except Exception as exc:
-            logger.exception(
-                "Acceptance graph trace failed for %s round %s",
-                mission_id,
-                round_id,
-            )
-            acceptance_artifacts["graph_trace_error"] = str(exc)
-        else:
-            if graph_trace:
-                acceptance_artifacts.update(graph_trace)
-        try:
-            result = self._call_runtime_chain_aware(
-                self.acceptance_evaluator.evaluate_acceptance,
-                mission_id=mission_id,
-                round_id=round_id,
-                round_dir=round_dir,
-                worker_results=worker_results,
-                artifacts=acceptance_artifacts,
-                repo_root=self.repo_root,
-                campaign=campaign,
-                chain_root=chain_root,
-                chain_id=chain_id,
-                span_id=f"{round_span_id}:acceptance-review",
-                parent_span_id=round_span_id,
-            )
-        except Exception:
-            logger.exception("Acceptance evaluation failed for %s round %s", mission_id, round_id)
-            return None
-        if result is None:
-            return None
-        if self.acceptance_filer is not None:
-            try:
-                result = self.acceptance_filer.apply(
-                    result,
-                    mission_id=mission_id,
-                    round_id=round_id,
-                )
-            except Exception as exc:
-                result = self._mark_acceptance_filing_failure(result, str(exc))
-        atomic_write_json(round_dir / "acceptance_review.json", result.to_dict())
-        judgments = build_acceptance_judgments(result)
-        try:
-            from spec_orch.services.memory.service import get_memory_service
-
-            memory = get_memory_service(repo_root=self.repo_root)
-            memory.record_acceptance_judgments(
-                mission_id=mission_id,
-                round_id=round_id,
-                judgments=judgments,
-            )
-            self._record_fixture_candidate_graduations(
-                mission_id=mission_id,
-                source_record_id=f"acceptance:round-{round_id}",
-                judgments=judgments,
-                review=result,
-                memory=memory,
-            )
-        except Exception:
-            logger.warning(
-                "Failed to record acceptance judgments to memory",
-                extra={"mission_id": mission_id, "round_id": round_id},
-                exc_info=True,
-            )
-        return result
 
     def _run_acceptance_graph_trace(
         self,
@@ -1212,74 +807,17 @@ class RoundOrchestrator:
         chain_id: str,
         round_span_id: str,
     ) -> dict[str, Any]:
-        if self.acceptance_evaluator is None:
-            return {}
-        step_invoker = getattr(self.acceptance_evaluator, "invoke_acceptance_graph_step", None)
-        if not callable(step_invoker):
-            return {}
-        try:
-            from spec_orch.services.memory.service import get_memory_service
-
-            memory = get_memory_service(repo_root=self.repo_root)
-        except Exception:
-            memory = None
-        graph = graph_definition_for(routing_decision.graph_profile)
-        observability_root = (
-            self.repo_root
-            / "docs"
-            / "specs"
-            / mission_id
-            / "operator"
-            / "observability"
-            / f"round-{round_id:02d}-acceptance-graph"
-        )
-        trace = run_acceptance_graph(
-            base_dir=round_dir,
-            run_id=f"acceptance-{routing_decision.graph_profile.value}",
-            graph=graph,
+        return self._acceptance_pipeline.run_graph_trace(
             mission_id=mission_id,
             round_id=round_id,
-            goal=campaign.goal,
-            target=f"mission:{mission_id}",
-            evidence=acceptance_artifacts,
-            compare_overlay=routing_decision.compare_overlay,
-            invoke=lambda system_prompt, user_prompt: step_invoker(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-            ),
+            round_dir=round_dir,
+            campaign=campaign,
+            routing_decision=routing_decision,
+            acceptance_artifacts=acceptance_artifacts,
             chain_root=chain_root,
             chain_id=chain_id,
-            span_id=f"{round_span_id}:acceptance-graph",
-            parent_span_id=round_span_id,
-            observability_root=observability_root,
-            memory_service=memory,
+            round_span_id=round_span_id,
         )
-        normalized: dict[str, Any] = {"graph_profile": trace["graph_profile"]}
-        graph_run_path = Path(trace["graph_run"])
-        if graph_run_path.is_absolute():
-            try:
-                normalized["graph_run"] = str(graph_run_path.relative_to(self.repo_root))
-            except ValueError:
-                normalized["graph_run"] = str(graph_run_path)
-        else:
-            normalized["graph_run"] = str(graph_run_path)
-
-        step_artifacts: list[str] = []
-        for item in trace.get("step_artifacts", []):
-            path = Path(item)
-            if path.is_absolute():
-                try:
-                    step_artifacts.append(str(path.relative_to(self.repo_root)))
-                except ValueError:
-                    step_artifacts.append(str(path))
-            else:
-                step_artifacts.append(str(path))
-        normalized["step_artifacts"] = step_artifacts
-        normalized["graph_transitions"] = [
-            str(item) for item in trace.get("graph_transitions", []) if str(item).strip()
-        ]
-        normalized["final_transition"] = str(trace.get("final_transition", "") or "")
-        return normalized
 
     def _record_fixture_candidate_graduations(
         self,
@@ -1290,68 +828,13 @@ class RoundOrchestrator:
         review: AcceptanceReviewResult,
         memory: Any,
     ) -> None:
-        reviewed_findings = memory.get_reviewed_acceptance_findings(top_k=200)
-        existing_events = load_fixture_graduation_events(self.repo_root, mission_id)
-        existing_markers = {
-            str(
-                event.get("dedupe_key") or event.get("finding_id") or event.get("judgment_id") or ""
-            )
-            for event in existing_events
-            if isinstance(event, dict)
-        }
-        for judgment in judgments:
-            candidate = getattr(judgment, "candidate", None)
-            if candidate is None:
-                continue
-            repeat_count = self._fixture_candidate_repeat_count(
-                judgment=judgment,
-                reviewed_findings=reviewed_findings,
-            )
-            if not qualifies_for_fixture_candidate(judgment, repeat_count=repeat_count):
-                continue
-            marker = str(
-                candidate.dedupe_key or candidate.finding_id or judgment.judgment_id or ""
-            ).strip()
-            if marker and marker in existing_markers:
-                continue
-            payload = build_fixture_graduation_event(
-                mission_id=mission_id,
-                judgment=judgment,
-                stage=FixtureGraduationStage.FIXTURE_CANDIDATE,
-                source_record_id=source_record_id,
-                repeat_count=repeat_count,
-                review_artifacts=review.artifacts if isinstance(review.artifacts, dict) else {},
-            )
-            append_fixture_graduation_event(
-                self.repo_root,
-                mission_id=mission_id,
-                judgment_id=str(payload["judgment_id"]),
-                finding_id=str(payload.get("finding_id") or ""),
-                stage=FixtureGraduationStage.FIXTURE_CANDIDATE,
-                summary=str(payload["summary"]),
-                source_record_id=str(payload["source_record_id"]),
-                evidence_refs=list(payload.get("evidence_refs", [])),
-                repeat_count=int(payload.get("repeat_count", 0)),
-                dedupe_key=str(payload.get("dedupe_key") or ""),
-                baseline_ref=str(payload.get("baseline_ref") or ""),
-                graph_profile=str(payload.get("graph_profile") or ""),
-                graph_run=str(payload.get("graph_run") or ""),
-                step_artifacts=list(payload.get("step_artifacts", [])),
-                graph_transitions=list(payload.get("graph_transitions", [])),
-                final_transition=str(payload.get("final_transition") or ""),
-                workflow_tuning_notes=list(payload.get("workflow_tuning_notes", [])),
-                route=str(payload.get("route") or ""),
-                origin_step=str(payload.get("origin_step") or ""),
-                promotion_test=str(payload.get("promotion_test") or ""),
-            )
-            write_fixture_candidate_seed(
-                self.repo_root,
-                mission_id=mission_id,
-                event=payload,
-                review_payload=review.to_dict(),
-            )
-            if marker:
-                existing_markers.add(marker)
+        self._acceptance_pipeline.record_fixture_candidate_graduations(
+            mission_id=mission_id,
+            source_record_id=source_record_id,
+            judgments=judgments,
+            review=review,
+            memory=memory,
+        )
 
     @staticmethod
     def _fixture_candidate_repeat_count(
@@ -1359,27 +842,10 @@ class RoundOrchestrator:
         judgment: Any,
         reviewed_findings: list[dict[str, Any]],
     ) -> int:
-        candidate = getattr(judgment, "candidate", None)
-        if candidate is None:
-            return 0
-        dedupe_key = str(candidate.dedupe_key or "").strip()
-        if dedupe_key:
-            count = sum(1 for item in reviewed_findings if item.get("dedupe_key") == dedupe_key)
-            if count > 1:
-                return count
-        route = str(candidate.route or "").strip()
-        baseline_ref = str(candidate.baseline_ref or "").strip()
-        if route or baseline_ref:
-            count = 0
-            for item in reviewed_findings:
-                if route and item.get("route") != route:
-                    continue
-                if baseline_ref and item.get("baseline_ref") != baseline_ref:
-                    continue
-                count += 1
-            if count:
-                return count
-        return 1
+        return AcceptancePipeline.fixture_candidate_repeat_count(
+            judgment=judgment,
+            reviewed_findings=reviewed_findings,
+        )
 
     def _collect_acceptance_browser_evidence(
         self,
@@ -1389,37 +855,20 @@ class RoundOrchestrator:
         round_dir: Path,
         campaign: AcceptanceCampaign,
     ) -> dict[str, Any] | None:
-        try:
-            return collect_playwright_browser_evidence(
-                mission_id=mission_id,
-                round_id=round_id,
-                round_dir=round_dir,
-                paths=self._acceptance_browser_routes(campaign),
-                interaction_plans=campaign.interaction_plans,
-            )
-        except Exception:
-            logger.exception(
-                "Acceptance browser evidence collection failed for %s round %s",
-                mission_id,
-                round_id,
-            )
-            return None
+        return self._acceptance_pipeline.collect_browser_evidence(
+            host=self,
+            mission_id=mission_id,
+            round_id=round_id,
+            round_dir=round_dir,
+            campaign=campaign,
+        )
 
     @staticmethod
     def _mark_acceptance_filing_failure(
         result: AcceptanceReviewResult,
         error: str,
     ) -> AcceptanceReviewResult:
-        if result.issue_proposals:
-            proposals = [
-                replace(proposal, filing_status="failed", filing_error=error)
-                for proposal in result.issue_proposals
-            ]
-            return replace(result, issue_proposals=proposals)
-        return replace(
-            result,
-            artifacts={**result.artifacts, "filing_error": error},
-        )
+        return AcceptancePipeline.mark_filing_failure(result, error)
 
     def _build_acceptance_artifacts(
         self,

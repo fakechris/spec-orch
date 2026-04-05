@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
@@ -17,33 +16,27 @@ def test_state_persistence_round_trip(tmp_path: Path) -> None:
     daemon._triaged.add("SPC-3")
     daemon._save_state()
 
-    state_path = tmp_path / "locks" / "daemon_state.json"
-    assert state_path.exists()
-    data = json.loads(state_path.read_text())
+    db_path = tmp_path / "locks" / "daemon_state.db"
+    assert db_path.exists()
+    data = SpecOrchDaemon.read_state(tmp_path, str(tmp_path / "locks"))
     assert set(data["processed"]) == {"SPC-1", "SPC-2"}
     assert data["triaged"] == ["SPC-3"]
     assert "last_poll" in data
 
 
 def test_state_loaded_on_init(tmp_path: Path) -> None:
-    locks_dir = tmp_path / "locks"
-    locks_dir.mkdir()
-    state_file = locks_dir / "daemon_state.json"
-    state_file.write_text(
-        json.dumps(
-            {
-                "processed": ["SPC-A", "SPC-B"],
-                "triaged": ["SPC-C"],
-                "last_poll": "2026-01-01T00:00:00Z",
-            }
-        )
-    )
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon1 = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon1._processed.update({"SPC-A", "SPC-B"})
+    daemon1._triaged.add("SPC-C")
+    daemon1._save_state()
 
+    locks_dir = tmp_path / "locks"
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(locks_dir)}})
-    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
-    assert "SPC-A" in daemon._processed
-    assert "SPC-B" in daemon._processed
-    assert "SPC-C" in daemon._triaged
+    daemon2 = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    assert "SPC-A" in daemon2._processed
+    assert "SPC-B" in daemon2._processed
+    assert "SPC-C" in daemon2._triaged
 
 
 def test_state_empty_on_missing_file(tmp_path: Path) -> None:
@@ -61,6 +54,105 @@ def test_state_handles_corrupt_json(tmp_path: Path) -> None:
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(locks_dir)}})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
     assert daemon._processed == set()
+
+
+def test_execution_intent_queue_round_trip(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    daemon._state_store.enqueue_execution_intent(
+        issue_id="SPC-QUEUE",
+        raw_issue={"id": "uuid-queue", "identifier": "SPC-QUEUE"},
+        is_hotfix=True,
+    )
+
+    intents = daemon._state_store.list_execution_intents()
+    assert len(intents) == 1
+    assert intents[0]["issue_id"] == "SPC-QUEUE"
+    assert intents[0]["raw_issue"]["id"] == "uuid-queue"
+    assert intents[0]["is_hotfix"] is True
+
+    daemon._state_store.delete_execution_intent("SPC-QUEUE")
+    assert daemon._state_store.list_execution_intents() == []
+
+
+def test_issue_claim_rejects_other_owner_until_lease_expires(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    assert daemon._state_store.try_claim_issue(
+        "SPC-CLAIM",
+        owner="daemon-a",
+        lease_seconds=60,
+        now=100.0,
+    )
+    assert not daemon._state_store.try_claim_issue(
+        "SPC-CLAIM",
+        owner="daemon-b",
+        lease_seconds=60,
+        now=101.0,
+    )
+    assert daemon._state_store.try_claim_issue(
+        "SPC-CLAIM",
+        owner="daemon-b",
+        lease_seconds=60,
+        now=161.0,
+    )
+
+
+def test_daemon_lock_rejects_second_owner_until_lease_expires(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    assert daemon._state_store.acquire_daemon_lock(
+        owner="daemon-a",
+        pid=111,
+        lease_seconds=30,
+        now=10.0,
+    )
+    assert not daemon._state_store.acquire_daemon_lock(
+        owner="daemon-b",
+        pid=222,
+        lease_seconds=30,
+        now=20.0,
+    )
+    assert daemon._state_store.acquire_daemon_lock(
+        owner="daemon-b",
+        pid=222,
+        lease_seconds=30,
+        now=41.0,
+    )
+
+
+def test_pop_next_execution_intent_removes_only_popped_issue(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    daemon._state_store.enqueue_execution_intent(
+        issue_id="SPC-1",
+        raw_issue={"id": "uid-1"},
+        is_hotfix=False,
+        enqueued_at=10.0,
+    )
+    daemon._state_store.enqueue_execution_intent(
+        issue_id="SPC-2",
+        raw_issue={"id": "uid-2"},
+        is_hotfix=True,
+        enqueued_at=20.0,
+    )
+
+    popped = daemon._state_store.pop_next_execution_intent()
+
+    assert popped is not None
+    assert popped["issue_id"] == "SPC-1"
+    assert daemon._state_store.list_execution_intents() == [
+        {
+            "issue_id": "SPC-2",
+            "raw_issue": {"id": "uid-2"},
+            "is_hotfix": True,
+            "enqueued_at": 20.0,
+        }
+    ]
 
 
 # ── Phase 14 tests: Daemon resilience ────────────────────────────────
@@ -125,8 +217,7 @@ def test_should_backoff_active(tmp_path: Path) -> None:
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
     daemon._retry_counts["SPC-1"] = 1
-    retry_file = daemon._lockdir / "SPC-1.retry_at"
-    retry_file.write_text(str(time.time() + 3600))
+    daemon._retry_at["SPC-1"] = time.time() + 3600
     assert daemon._should_backoff("SPC-1") is True
 
 
@@ -137,9 +228,25 @@ def test_should_backoff_expired(tmp_path: Path) -> None:
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
     daemon._retry_counts["SPC-1"] = 1
-    retry_file = daemon._lockdir / "SPC-1.retry_at"
-    retry_file.write_text(str(time.time() - 10))
+    daemon._retry_at["SPC-1"] = time.time() - 10
     assert daemon._should_backoff("SPC-1") is False
+
+
+def test_process_lock_prevents_second_daemon_instance(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon1 = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon2 = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    daemon1._acquire_process_lock()
+    try:
+        try:
+            daemon2._acquire_process_lock()
+        except RuntimeError as exc:
+            assert "already holds the process lock" in str(exc)
+        else:
+            raise AssertionError("expected process lock acquisition to fail")
+    finally:
+        daemon1._release_process_lock()
 
 
 def test_record_failure_increments_count(tmp_path: Path) -> None:

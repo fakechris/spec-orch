@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 
 from spec_orch.cli import app
 from spec_orch.domain.models import Mission, MissionStatus
+from spec_orch.services.lifecycle_manager import MissionLifecycleManager, MissionPhase
 from spec_orch.services.mission_service import MissionService
 
 
@@ -60,6 +61,10 @@ def test_approve_mission(tmp_path: Path):
     m = svc.approve_mission("test-1")
     assert m.status == MissionStatus.APPROVED
     assert m.approved_at is not None
+    mgr = MissionLifecycleManager(tmp_path)
+    state = mgr.get_state("test-1")
+    assert state is not None
+    assert state.phase == MissionPhase.APPROVED
 
 
 def test_get_mission(tmp_path: Path):
@@ -125,6 +130,36 @@ def test_update_status_completed(tmp_path: Path):
     m = svc.update_status("test-1", MissionStatus.COMPLETED)
     assert m.status == MissionStatus.COMPLETED
     assert m.completed_at is not None
+    mgr = MissionLifecycleManager(tmp_path)
+    state = mgr.get_state("test-1")
+    assert state is not None
+    assert state.phase == MissionPhase.COMPLETED
+
+
+def test_get_mission_projects_lifecycle_phase_to_status(tmp_path: Path) -> None:
+    svc = MissionService(repo_root=tmp_path)
+    svc.create_mission("Projected", mission_id="projected-1")
+    mgr = MissionLifecycleManager(tmp_path)
+    mgr.begin_tracking("projected-1")
+    mgr.plan_complete("projected-1")
+    mgr.promotion_complete("projected-1", ["SPC-1"])
+
+    mission = svc.get_mission("projected-1")
+
+    assert mission.status == MissionStatus.IN_PROGRESS
+
+
+def test_list_missions_projects_failed_lifecycle_status(tmp_path: Path) -> None:
+    svc = MissionService(repo_root=tmp_path)
+    svc.create_mission("Projected", mission_id="projected-failed")
+    mgr = MissionLifecycleManager(tmp_path)
+    mgr.begin_tracking("projected-failed")
+    mgr.mark_failed("projected-failed", "boom")
+
+    missions = svc.list_missions()
+    mission = next(m for m in missions if m.mission_id == "projected-failed")
+
+    assert mission.status == MissionStatus.FAILED
 
 
 def test_mission_cli_create(tmp_path: Path):

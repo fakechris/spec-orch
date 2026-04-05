@@ -290,3 +290,24 @@ def test_execute_mission_failure_does_not_mark_processed(tmp_path: Path) -> None
 
     assert "SPC-51" not in daemon._processed
     client.update_issue_state.assert_called_once_with("uid-51", "Ready")
+
+
+def test_execute_mission_missing_plan_resets_linear_state_and_emits_failed_completion(
+    tmp_path: Path,
+) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon._event_bus = MagicMock()
+    daemon._release = MagicMock()
+    daemon._mission_execution_service = MagicMock()
+    daemon._mission_execution_service.execute_mission.side_effect = FileNotFoundError(
+        "plan.json missing"
+    )
+    client = MagicMock()
+
+    daemon._execute_mission("SPC-52", "SPC-52", {"id": "uid-52"}, client)
+
+    daemon._event_bus.emit_issue_state.assert_any_call("SPC-52", "building")
+    daemon._event_bus.emit_issue_state.assert_any_call("SPC-52", "completed", mergeable=False)
+    client.update_issue_state.assert_called_once_with("uid-52", "Ready")
+    daemon._release.assert_called_once_with("SPC-52")

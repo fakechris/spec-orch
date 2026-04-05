@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from spec_orch.domain.models import (
     BuilderResult,
+    GateFlowControl,
     GateVerdict,
     Issue,
     ReviewSummary,
@@ -52,6 +53,26 @@ def test_build_pr_body_includes_key_sections(tmp_path: Path) -> None:
     assert "Must pass lint" in body
     assert "# Explain" in body
     assert "Closes SPC-50" in body
+
+
+def test_build_pr_body_includes_flow_control_section(tmp_path: Path) -> None:
+    svc = GitHubPRService()
+    result = _make_run_result(tmp_path)
+    result.gate = GateVerdict(
+        mergeable=False,
+        failed_conditions=["review"],
+        flow_control=GateFlowControl(
+            promotion_required=True,
+            promotion_target="standard",
+            backtrack_reason="recoverable",
+        ),
+    )
+
+    body = svc._build_pr_body(result)
+
+    assert "### Flow Control" in body
+    assert "Promotion signal: standard" in body
+    assert "Backtrack reason: recoverable" in body
 
 
 def test_set_gate_status_calls_gh_api(tmp_path: Path) -> None:

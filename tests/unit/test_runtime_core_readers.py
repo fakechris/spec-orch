@@ -64,6 +64,10 @@ def test_read_issue_execution_attempt_preserves_gate_state(tmp_path: Path) -> No
             "verdict": "pass",
             "mergeable": True,
             "failed_conditions": [],
+            "flow_control": {
+                "promotion_required": True,
+                "promotion_target": "standard",
+            },
         },
     )
 
@@ -75,4 +79,8 @@ def test_read_issue_execution_attempt_preserves_gate_state(tmp_path: Path) -> No
         "verdict": "pass",
         "mergeable": True,
         "failed_conditions": [],
+        "flow_control": {
+            "promotion_required": True,
+            "promotion_target": "standard",
+        },
     }

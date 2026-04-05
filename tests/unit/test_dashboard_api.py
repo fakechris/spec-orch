@@ -4338,7 +4338,15 @@ class TestDashboardAPI:
                 owner_kind=ExecutionOwnerKind.RUN_CONTROLLER,
                 status=ExecutionStatus.SUCCEEDED,
                 build={"adapter": "codex", "succeeded": True},
-                gate={"mergeable": True, "state": "merged", "failed_conditions": []},
+                gate={
+                    "mergeable": True,
+                    "state": "merged",
+                    "failed_conditions": [],
+                    "flow_control": {
+                        "promotion_required": True,
+                        "promotion_target": "standard",
+                    },
+                },
                 artifacts={},
             ),
         )
@@ -4353,6 +4361,15 @@ class TestDashboardAPI:
         runs = r.json()
         assert any(
             item["issue_id"] == "SON-R2" and item["builder_adapter"] == "codex" for item in runs
+        )
+        assert any(
+            item["issue_id"] == "SON-R2"
+            and item["flow_control"]
+            == {
+                "promotion_required": True,
+                "promotion_target": "standard",
+            }
+            for item in runs
         )
 
     def test_events_endpoint(self, client):

@@ -693,7 +693,7 @@ def test_run_supervised_persists_acceptance_review_and_files_issue(tmp_path: Pat
 def test_run_supervised_passes_browser_evidence_to_acceptance_evaluator(
     tmp_path: Path, monkeypatch
 ) -> None:
-    import spec_orch.services.round_orchestrator as round_orchestrator_module
+    import spec_orch.services.acceptance_pipeline as acceptance_pipeline_module
     from spec_orch.domain.models import AcceptanceMode
     from spec_orch.services.round_orchestrator import RoundOrchestrator
     from spec_orch.services.workers.in_memory_worker_handle_factory import (
@@ -757,7 +757,7 @@ def test_run_supervised_passes_browser_evidence_to_acceptance_evaluator(
     monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_URL", "http://127.0.0.1:4173")
     monkeypatch.setenv("SPEC_ORCH_VISUAL_EVAL_PATHS", "/,/settings")
     monkeypatch.setattr(
-        round_orchestrator_module,
+        acceptance_pipeline_module,
         "collect_playwright_browser_evidence",
         lambda **kwargs: {
             "tested_routes": ["/", "/settings"],
@@ -2660,6 +2660,153 @@ def test_build_acceptance_artifacts_normalizes_nested_launch_state(tmp_path: Pat
     assert payload["fresh_execution"]["launch"]["runner"]["status"] == "running"
     assert payload["fresh_execution"]["launch"]["state"]["phase"] == "executing"
     assert payload["fresh_execution"]["launch"]["state"]["mission_id"] == mission.mission_id
+
+
+def test_run_acceptance_evaluation_delegates_to_acceptance_pipeline(tmp_path: Path) -> None:
+    from spec_orch.domain.models import RoundArtifacts, RoundSummary
+    from spec_orch.services.mission_service import MissionService
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    mission = MissionService(tmp_path).create_mission("Mission 1", mission_id="mission-1")
+    round_dir = tmp_path / "docs" / "specs" / mission.mission_id / "rounds" / "round-01"
+    round_dir.mkdir(parents=True, exist_ok=True)
+    chain_root = tmp_path / "docs" / "specs" / mission.mission_id / "operator" / "runtime_chain"
+    chain_root.mkdir(parents=True, exist_ok=True)
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=None,
+        context_assembler=None,
+        acceptance_evaluator=MagicMock(),
+    )
+    expected = AcceptanceReviewResult(
+        status="pass",
+        summary="delegated",
+        confidence=0.8,
+        evaluator="stub",
+    )
+
+    with patch.object(orchestrator._acceptance_pipeline, "run", return_value=expected) as mocked:
+        result = orchestrator._run_acceptance_evaluation(
+            mission_id=mission.mission_id,
+            round_id=1,
+            round_dir=round_dir,
+            worker_results=[],
+            artifacts=RoundArtifacts(round_id=1, mission_id=mission.mission_id),
+            summary=RoundSummary(round_id=1, wave_id=0, status=RoundStatus.REVIEWING),
+            chain_root=chain_root,
+            chain_id="chain-1",
+            round_span_id="round-01",
+        )
+
+    assert result is expected
+    mocked.assert_called_once()
+
+
+def test_dispatch_wave_delegates_to_wave_dispatcher(tmp_path: Path) -> None:
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=MagicMock(),
+        context_assembler=None,
+    )
+    packet = WorkPacket(packet_id="pkt-1", title="Task 1", builder_prompt="Do task 1")
+    wave = Wave(wave_number=0, description="Wave 0", work_packets=[packet])
+    expected = [
+        (
+            packet,
+            BuilderResult(
+                succeeded=True,
+                command=["stub"],
+                stdout="ok",
+                stderr="",
+                report_path=tmp_path / "builder_report.json",
+                adapter="stub",
+                agent="stub",
+            ),
+        )
+    ]
+
+    with patch.object(orchestrator._wave_dispatcher, "run", return_value=expected) as mocked:
+        result = orchestrator._dispatch_wave(
+            mission_id="mission-1",
+            round_id=1,
+            wave=wave,
+            round_history=[],
+            chain_id="chain-1",
+            chain_root=tmp_path / "runtime_chain",
+            round_span_id="round-01",
+        )
+
+    assert result is expected
+    mocked.assert_called_once()
+
+
+def test_collect_artifacts_delegates_to_artifact_collector(tmp_path: Path) -> None:
+    from spec_orch.domain.models import RoundArtifacts
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=None,
+        worker_factory=MagicMock(),
+        context_assembler=None,
+    )
+    packet = WorkPacket(packet_id="pkt-1", title="Task 1", builder_prompt="Do task 1")
+    wave = Wave(wave_number=0, description="Wave 0", work_packets=[packet])
+    expected = RoundArtifacts(round_id=1, mission_id="mission-1")
+
+    with patch.object(orchestrator._artifact_collector, "collect", return_value=expected) as mocked:
+        result = orchestrator._collect_artifacts(
+            mission_id="mission-1",
+            round_id=1,
+            wave=wave,
+            worker_results=[],
+            round_dir=tmp_path / "round-01",
+        )
+
+    assert result is expected
+    mocked.assert_called_once()
+
+
+def test_review_round_delegates_to_round_review_coordinator(tmp_path: Path) -> None:
+    from spec_orch.domain.models import RoundArtifacts
+    from spec_orch.services.round_orchestrator import RoundOrchestrator
+
+    orchestrator = RoundOrchestrator(
+        repo_root=tmp_path,
+        supervisor=MagicMock(),
+        worker_factory=MagicMock(),
+        context_assembler=MagicMock(),
+    )
+    wave = Wave(wave_number=0, description="Wave 0", work_packets=[])
+    summary = RoundSummary(round_id=1, wave_id=0, status=RoundStatus.REVIEWING)
+    artifacts = RoundArtifacts(round_id=1, mission_id="mission-1")
+    plan = ExecutionPlan(plan_id="plan-1", mission_id="mission-1", waves=[wave])
+    expected = RoundDecision(action=RoundAction.STOP, summary="delegated")
+
+    with patch.object(
+        orchestrator._round_review_coordinator, "review", return_value=expected
+    ) as mocked:
+        result = orchestrator._review_round(
+            mission_id="mission-1",
+            round_id=1,
+            round_dir=tmp_path / "round-01",
+            wave=wave,
+            artifacts=artifacts,
+            plan=plan,
+            round_history=[],
+            summary=summary,
+            chain_root=tmp_path / "runtime_chain",
+            chain_id="chain-1",
+            round_span_id="round-01",
+        )
+
+    assert result is expected
+    mocked.assert_called_once()
 
 
 def test_build_fresh_acpx_post_run_campaign_substitutes_interaction_plan_keys(

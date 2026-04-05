@@ -92,6 +92,7 @@ class MissionStatus(StrEnum):
     DRAFTING = "drafting"
     APPROVED = "approved"
     IN_PROGRESS = "in_progress"
+    FAILED = "failed"
     COMPLETED = "completed"
     ARCHIVED = "archived"
 
@@ -200,14 +201,26 @@ class VerificationSummary:
     build_passed: bool = False
     details: dict[str, VerificationDetail] = field(default_factory=dict)
     step_results: dict[str, bool] = field(default_factory=dict)
+    step_outcomes: dict[str, str] = field(default_factory=dict)
 
     _LEGACY_FIELDS = ("lint", "typecheck", "test", "build")
 
     def set_step_passed(self, step: str, passed: bool) -> None:
         """Record the result for a verification step (works for any name)."""
-        self.step_results[step] = passed
+        self.set_step_outcome(step, "pass" if passed else "fail")
+
+    def set_step_outcome(self, step: str, outcome: str) -> None:
+        """Record the outcome for a verification step.
+
+        Valid outcomes are ``pass``, ``fail``, and ``skipped``.
+        """
+        normalized = outcome.strip().lower()
+        if normalized not in {"pass", "fail", "skipped"}:
+            normalized = "fail"
+        self.step_outcomes[step] = normalized
+        self.step_results[step] = normalized == "pass"
         if step in self._LEGACY_FIELDS:
-            setattr(self, f"{step}_passed", passed)
+            setattr(self, f"{step}_passed", normalized == "pass")
 
     def get_step_passed(self, step: str) -> bool:
         """Get the result for a verification step by name."""
@@ -217,15 +230,27 @@ class VerificationSummary:
             return getattr(self, f"{step}_passed", False)
         return False
 
+    def get_step_outcome(self, step: str) -> str:
+        if step in self.step_outcomes:
+            return self.step_outcomes[step]
+        if step in self.step_results:
+            return "pass" if self.step_results[step] else "fail"
+        if step in self._LEGACY_FIELDS:
+            return "pass" if getattr(self, f"{step}_passed", False) else "fail"
+        return "fail"
+
+    @property
+    def has_skipped(self) -> bool:
+        steps = self.details.keys() or self.step_outcomes.keys()
+        return any(self.get_step_outcome(step) == "skipped" for step in steps)
+
     @property
     def all_passed(self) -> bool:
-        """Only count steps that were actually configured (have a detail entry
-        with a non-empty command).  Unconfigured steps are treated as N/A
-        rather than as failures."""
-        for step, detail in self.details.items():
-            if detail.command and not self.get_step_passed(step):
-                return False
-        return True
+        """Return True only when at least one step ran and every step passed."""
+        steps = list(self.details.keys()) or list(self.step_outcomes.keys())
+        if steps:
+            return all(self.get_step_outcome(step) == "pass" for step in steps)
+        return all(getattr(self, f"{step}_passed", False) for step in self._LEGACY_FIELDS)
 
 
 @dataclass(slots=True)
@@ -335,6 +360,17 @@ class BuilderEvent:
 
 
 @dataclass(slots=True)
+class GateFlowControl:
+    retry_recommended: bool = False
+    escalation_required: bool = False
+    promotion_required: bool = False
+    promotion_target: str | None = None
+    demotion_suggested: bool = False
+    demotion_target: str | None = None
+    backtrack_reason: str | None = None
+
+
+@dataclass(slots=True)
 class GateVerdict:
     mergeable: bool
     failed_conditions: list[str]
@@ -345,6 +381,23 @@ class GateVerdict:
     demotion_suggested: bool = False
     demotion_target: str | None = None
     backtrack_reason: str | None = None
+    flow_control: GateFlowControl = field(default_factory=GateFlowControl)
+
+    def __post_init__(self) -> None:
+        if self.flow_control == GateFlowControl():
+            self.flow_control = GateFlowControl(
+                promotion_required=self.promotion_required,
+                promotion_target=self.promotion_target,
+                demotion_suggested=self.demotion_suggested,
+                demotion_target=self.demotion_target,
+                backtrack_reason=self.backtrack_reason,
+            )
+        else:
+            self.promotion_required = self.flow_control.promotion_required
+            self.promotion_target = self.flow_control.promotion_target
+            self.demotion_suggested = self.flow_control.demotion_suggested
+            self.demotion_target = self.flow_control.demotion_target
+            self.backtrack_reason = self.flow_control.backtrack_reason
 
 
 @dataclass(slots=True)

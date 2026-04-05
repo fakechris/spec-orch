@@ -4,18 +4,23 @@ import json as _json
 import os
 import re
 import signal
+import sqlite3
 import subprocess as _subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Any, cast
 
-from spec_orch.domain.models import TERMINAL_STATES, Issue, IssueContext, RunResult, RunState
+from spec_orch.domain.models import Issue, IssueContext, RunResult, RunState
 from spec_orch.domain.protocols import PlannerAdapter
 from spec_orch.services.adapter_factory import create_builder, create_reviewer
 from spec_orch.services.admission_governor import AdmissionGovernor
 from spec_orch.services.conflict_resolver import ConflictResolver
 from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.daemon_executor import DaemonExecutor
+from spec_orch.services.daemon_mission_executor import DaemonMissionExecutor
+from spec_orch.services.daemon_single_issue_executor import DaemonSingleIssueExecutor
+from spec_orch.services.daemon_state_store import DaemonStateStore
 from spec_orch.services.event_bus import Event, EventTopic
 from spec_orch.services.github_pr_service import GitHubPRService
 from spec_orch.services.io import atomic_write_json
@@ -119,6 +124,8 @@ class DaemonConfig:
 
 class SpecOrchDaemon:
     STATE_FILE = "daemon_state.json"
+    PROCESS_LOCK_LEASE_SECONDS = 120
+    ISSUE_CLAIM_LEASE_SECONDS = 300
 
     def __init__(
         self,
@@ -135,6 +142,7 @@ class SpecOrchDaemon:
         self._context_assembler = ContextAssembler()
         self._lockdir = repo_root / config.lockfile_dir
         self._lockdir.mkdir(parents=True, exist_ok=True)
+        self._state_store = DaemonStateStore(self._lockdir)
         self._state_path = self._lockdir / self.STATE_FILE
         saved = self._load_state()
         self._processed: set[str] = set(saved.get("processed", []))
@@ -142,14 +150,23 @@ class SpecOrchDaemon:
         self._last_poll: str = saved.get("last_poll", "")
         self._pr_commits: dict[str, str] = dict(saved.get("pr_commits", {}))
         self._retry_counts: dict[str, int] = dict(saved.get("retry_counts", {}))
+        self._retry_at: dict[str, float] = {
+            str(key): float(value)
+            for key, value in dict(saved.get("retry_at", {})).items()
+            if str(key).strip()
+        }
         self._dead_letter: set[str] = set(saved.get("dead_letter", []))
         self._in_progress: set[str] = set(saved.get("in_progress", []))
         self._reaction_marks: set[str] = set(saved.get("reaction_marks", []))
+        self._process_lock_owner = f"{os.getpid()}:{id(self)}"
         self._reaction_engine = ReactionEngine(repo_root)
         self._admission_governor = AdmissionGovernor(
             repo_root,
             max_concurrent=self.config.max_concurrent,
         )
+        self._daemon_executor = DaemonExecutor()
+        self._single_issue_executor = DaemonSingleIssueExecutor()
+        self._mission_executor = DaemonMissionExecutor()
 
         from spec_orch.services.event_bus import get_event_bus
 
@@ -197,28 +214,55 @@ class SpecOrchDaemon:
         return self._mission_execution_service
 
     def _load_state(self) -> dict[str, Any]:
-        if self._state_path.exists():
-            try:
-                return cast(dict[str, Any], _json.loads(self._state_path.read_text()))
-            except (_json.JSONDecodeError, OSError) as exc:
-                print(f"[daemon] failed to load state: {exc}")
+        try:
+            return self._state_store.load_snapshot()
+        except Exception as exc:
+            print(f"[daemon] failed to load state: {exc}")
+            if self._state_path.exists():
+                try:
+                    return cast(dict[str, Any], _json.loads(self._state_path.read_text()))
+                except (_json.JSONDecodeError, OSError) as legacy_exc:
+                    print(f"[daemon] failed to load legacy state: {legacy_exc}")
         return {}
 
     def _save_state(self) -> None:
+        self._last_poll = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         data = {
             "processed": sorted(self._processed),
             "triaged": sorted(self._triaged),
             "pr_commits": self._pr_commits,
             "retry_counts": self._retry_counts,
+            "retry_at": self._retry_at,
             "dead_letter": sorted(self._dead_letter),
             "in_progress": sorted(self._in_progress),
             "reaction_marks": sorted(self._reaction_marks),
-            "last_poll": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "last_poll": self._last_poll,
         }
         try:
-            atomic_write_json(self._state_path, data)
+            self._state_store.save_snapshot(data)
         except OSError as exc:
             print(f"[daemon] failed to save state: {exc}")
+        except Exception as exc:
+            print(f"[daemon] failed to save sqlite state: {exc}")
+
+    def _acquire_process_lock(self) -> None:
+        acquired = self._state_store.acquire_daemon_lock(
+            owner=self._process_lock_owner,
+            pid=os.getpid(),
+            lease_seconds=self.PROCESS_LOCK_LEASE_SECONDS,
+        )
+        if not acquired:
+            raise RuntimeError("another spec-orch daemon instance already holds the process lock")
+
+    def _renew_process_lock(self) -> None:
+        self._state_store.renew_daemon_lock(
+            owner=self._process_lock_owner,
+            pid=os.getpid(),
+            lease_seconds=self.PROCESS_LOCK_LEASE_SECONDS,
+        )
+
+    def _release_process_lock(self) -> None:
+        self._state_store.release_daemon_lock(owner=self._process_lock_owner)
 
     def run(self) -> None:
         signal.signal(signal.SIGINT, self._handle_signal)
@@ -266,6 +310,7 @@ class SpecOrchDaemon:
             print(f"[daemon] dead letter queue: {sorted(self._dead_letter)}")
 
         self._consecutive_loop_errors = 0
+        self._acquire_process_lock()
         self._write_heartbeat(status="starting")
         self.resume_in_progress(controller)
 
@@ -277,6 +322,7 @@ class SpecOrchDaemon:
                     self._check_review_updates(client)
                     self._poll_and_run(client, controller)
                     self._save_state()
+                    self._renew_process_lock()
                     self._write_heartbeat(status="healthy")
                     self._consecutive_loop_errors = 0
                 except Exception as exc:
@@ -297,6 +343,7 @@ class SpecOrchDaemon:
                 self._sleep(self.config.poll_interval_seconds)
         finally:
             self._save_state()
+            self._release_process_lock()
             self._write_heartbeat(status="stopped")
             client.close()
             print("[daemon] stopped")
@@ -515,6 +562,10 @@ class SpecOrchDaemon:
         return self._lifecycle_manager.inject_btw(issue_id, message, channel)
 
     def _poll_and_run(self, client: LinearClient, controller: RunController) -> None:
+        self._poll_and_enqueue(client, controller)
+        self._drain_execution_queue(client, controller)
+
+    def _poll_and_enqueue(self, client: LinearClient, controller: RunController) -> None:
         try:
             issues = client.list_issues(
                 team_key=self.config.team_key,
@@ -532,6 +583,9 @@ class SpecOrchDaemon:
             issues,
             key=lambda i: 0 if self._is_hotfix(i) else 1,
         )
+        projected_in_progress = len(self._in_progress) + len(
+            self._state_store.list_execution_intents()
+        )
         for raw_issue in sorted_issues:
             issue_id = raw_issue.get("identifier", "")
             linear_uid = raw_issue.get("id", "")
@@ -547,7 +601,7 @@ class SpecOrchDaemon:
             is_hotfix = self._is_hotfix(raw_issue)
             admission_decision = self._admission_governor.evaluate_issue(
                 issue_id,
-                in_progress_count=len(self._in_progress),
+                in_progress_count=projected_in_progress,
                 is_hotfix=is_hotfix,
                 recorded_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             )
@@ -555,7 +609,10 @@ class SpecOrchDaemon:
             if admission_decision["decision"] != "admit":
                 continue
 
-            self._claim(issue_id)
+            try:
+                self._claim(issue_id)
+            except RuntimeError:
+                continue
 
             if not is_hotfix and not self._triage_issue(client, raw_issue, controller):
                 self._release(issue_id)
@@ -568,22 +625,42 @@ class SpecOrchDaemon:
                 except Exception as exc:
                     print(f"[daemon] state→InProgress failed: {exc}")
 
-            mission_id = self._detect_mission(issue_id, raw_issue)
-            if mission_id:
-                self._execute_mission(
-                    issue_id,
-                    mission_id,
-                    raw_issue,
-                    client,
-                )
-            else:
-                self._execute_single(
-                    issue_id,
-                    raw_issue,
-                    client,
-                    controller,
-                    is_hotfix=is_hotfix,
-                )
+            self._enqueue_execution_intent(
+                issue_id=issue_id,
+                raw_issue=raw_issue,
+                is_hotfix=is_hotfix,
+            )
+            projected_in_progress += 1
+
+    def _enqueue_execution_intent(
+        self,
+        *,
+        issue_id: str,
+        raw_issue: dict[str, Any],
+        is_hotfix: bool,
+    ) -> None:
+        self._state_store.enqueue_execution_intent(
+            issue_id=issue_id,
+            raw_issue=raw_issue,
+            is_hotfix=is_hotfix,
+        )
+
+    def _drain_execution_queue(self, client: LinearClient, controller: RunController) -> None:
+        intent = self._state_store.pop_next_execution_intent()
+        if intent is None:
+            return
+        issue_id = str(intent.get("issue_id", "")).strip()
+        raw_issue = intent.get("raw_issue")
+        if not issue_id or not isinstance(raw_issue, dict):
+            return
+        self._daemon_executor.dispatch(
+            host=self,
+            issue_id=issue_id,
+            raw_issue=raw_issue,
+            client=client,
+            controller=controller,
+            is_hotfix=bool(intent.get("is_hotfix", False)),
+        )
 
     @staticmethod
     def _sanitize_id(raw_id: str) -> str:
@@ -628,54 +705,14 @@ class SpecOrchDaemon:
         is_hotfix: bool = False,
     ) -> None:
         """Execute a single issue through the standard pipeline."""
-        from spec_orch.domain.models import FlowType
-
-        linear_uid = raw_issue.get("id", "")
-        flow_type = FlowType.HOTFIX if is_hotfix else None
-        label = "hotfix" if is_hotfix else "single issue"
-        print(f"[daemon] processing {issue_id} ({label} pipeline)")
-        self._in_progress.add(issue_id)
-        self._save_state()
-        self._event_bus.emit_issue_state(issue_id, "building")
-        try:
-            result = controller.advance_to_completion(issue_id, flow_type=flow_type)
-            state = result.state
-            mergeable = result.gate.mergeable
-            blocked = ",".join(result.gate.failed_conditions) or "none"
-            print(
-                f"[daemon] {issue_id}: state={state.value} mergeable={mergeable} blocked={blocked}"
-            )
-            if state in TERMINAL_STATES or state == RunState.GATE_EVALUATED:
-                self._event_bus.emit_issue_state(issue_id, "completed", mergeable=mergeable)
-                mission_id = self._find_mission_for_issue(issue_id)
-                if mission_id:
-                    self._lifecycle_manager.mark_issue_done(mission_id, issue_id)
-
-                self._notify(issue_id, mergeable)
-                pr_created = self._auto_create_pr(issue_id, result)
-
-                gate_policy = self._load_gate_policy_for("hotfix" if is_hotfix else "daemon")
-                auto_merged = pr_created and gate_policy.auto_merge and mergeable
-
-                if pr_created and linear_uid:
-                    try:
-                        target_state = "Done" if auto_merged else "In Review"
-                        client.update_issue_state(linear_uid, target_state)
-                        print(f"[daemon] {issue_id} → {target_state}")
-                    except Exception as exc:
-                        print(f"[daemon] state update failed: {exc}")
-                self._write_back_result(raw_issue, result)
-                self._processed.add(issue_id)
-                self._in_progress.discard(issue_id)
-                self._retry_counts.pop(issue_id, None)
-            else:
-                self._in_progress.discard(issue_id)
-                self._release(issue_id)
-        except Exception as exc:
-            print(f"[daemon] {issue_id} failed: {exc}")
-            self._in_progress.discard(issue_id)
-            self._record_failure(issue_id, str(exc), client, linear_uid)
-            self._release(issue_id)
+        self._single_issue_executor.execute(
+            host=self,
+            issue_id=issue_id,
+            raw_issue=raw_issue,
+            client=client,
+            controller=controller,
+            is_hotfix=is_hotfix,
+        )
 
     def _execute_mission(
         self,
@@ -685,90 +722,13 @@ class SpecOrchDaemon:
         client: LinearClient,
     ) -> None:
         """Execute a mission-level plan with parallel wave execution."""
-        from spec_orch.services.parallel_run_controller import ParallelRunController
-
-        linear_uid = raw_issue.get("id", "")
-        print(f"[daemon] processing {issue_id} (mission: {mission_id})")
-        self._event_bus.emit_issue_state(issue_id, "building")
-
-        try:
-            self._sync_linear_mirror_for_mission(
-                client=client,
-                raw_issue=raw_issue,
-                mission_id=mission_id,
-            )
-            try:
-                plan = ParallelRunController.load_plan(mission_id, self.repo_root)
-            except Exception as exc:
-                plan = None
-                print(f"[daemon] {issue_id}: wave preview unavailable: {exc}")
-
-            if plan is not None:
-                for wave in plan.waves:
-                    if linear_uid:
-                        try:
-                            wave_msg = (
-                                f"🔄 Wave {wave.wave_number}: "
-                                f"{len(wave.work_packets)} packets — {wave.description}"
-                            )
-                            client.add_comment(linear_uid, wave_msg)
-                        except Exception as exc:
-                            print(f"[daemon] wave comment failed: {exc}")
-
-            execution_result = self._get_mission_execution_service().execute_mission(
-                mission_id=mission_id,
-                initial_round=0,
-                plan=plan,
-            )
-            summary = execution_result.summary_markdown
-            succeeded = execution_result.completed
-
-            if execution_result.paused:
-                self._event_bus.emit_issue_state(issue_id, "paused", mergeable=False)
-                print(f"[daemon] {issue_id}: mission paused for human input")
-                if linear_uid:
-                    try:
-                        client.add_comment(
-                            linear_uid,
-                            "Mission execution paused. Review the latest "
-                            "`round_decision.json` and `supervisor_review.md` before resuming.",
-                        )
-                    except Exception as exc:
-                        print(f"[daemon] pause comment failed: {exc}")
-                return
-
-            if linear_uid:
-                try:
-                    client.add_comment(linear_uid, summary)
-                except Exception as exc:
-                    print(f"[daemon] summary comment failed: {exc}")
-
-            if succeeded:
-                self._event_bus.emit_issue_state(issue_id, "completed", mergeable=True)
-                print(f"[daemon] {issue_id}: mission succeeded")
-                if linear_uid:
-                    try:
-                        client.update_issue_state(linear_uid, "In Review")
-                    except Exception as exc:
-                        print(f"[daemon] state update failed: {exc}")
-                self._processed.add(issue_id)
-            else:
-                self._event_bus.emit_issue_state(issue_id, "completed", mergeable=False)
-                print(f"[daemon] {issue_id}: mission failed")
-                if linear_uid:
-                    try:
-                        client.update_issue_state(linear_uid, "Ready")
-                        print(f"[daemon] {issue_id} → Ready (for retry)")
-                    except Exception as exc:
-                        print(f"[daemon] state reset failed: {exc}")
-                self._release(issue_id)
-
-        except FileNotFoundError as exc:
-            print(f"[daemon] {issue_id}: plan not found: {exc}")
-            self._release(issue_id)
-        except Exception as exc:
-            print(f"[daemon] {issue_id}: mission execution failed: {exc}")
-            self._release(issue_id)
+        self._mission_executor.execute(
+            host=self,
+            issue_id=issue_id,
+            mission_id=mission_id,
+            raw_issue=raw_issue,
+            client=client,
+        )
 
     def _sync_linear_mirror_for_mission(
         self,
@@ -860,6 +820,7 @@ class SpecOrchDaemon:
                             )
 
             title = f"[SpecOrch] {issue_id}: {result.issue.title}"
+            flow = result.gate.flow_control
             body_lines = [
                 f"## SpecOrch: {issue_id}",
                 "",
@@ -867,6 +828,16 @@ class SpecOrchDaemon:
             ]
             if result.gate.failed_conditions:
                 body_lines.append(f"**Blocked**: {', '.join(result.gate.failed_conditions)}")
+            if flow.retry_recommended:
+                body_lines.append("**Retry recommended**: yes")
+            if flow.escalation_required:
+                body_lines.append("**Escalation required**: yes")
+            if flow.promotion_required:
+                body_lines.append(f"**Promotion signal**: {flow.promotion_target or 'required'}")
+            if flow.demotion_suggested:
+                body_lines.append(f"**Demotion signal**: {flow.demotion_target or 'suggested'}")
+            if flow.backtrack_reason:
+                body_lines.append(f"**Backtrack reason**: {flow.backtrack_reason}")
             body_lines.extend(["", f"Closes {issue_id}"])
 
             pr_url = gh_svc.create_pr(
@@ -1295,15 +1266,19 @@ class SpecOrchDaemon:
         return False
 
     def _is_locked(self, issue_id: str) -> bool:
-        return (self._lockdir / f"{issue_id}.lock").exists()
+        return self._state_store.issue_is_claimed(issue_id)
 
     def _claim(self, issue_id: str) -> None:
-        lockfile = self._lockdir / f"{issue_id}.lock"
-        lockfile.write_text(str(time.time()))
+        claimed = self._state_store.try_claim_issue(
+            issue_id,
+            owner=self._process_lock_owner,
+            lease_seconds=self.ISSUE_CLAIM_LEASE_SECONDS,
+        )
+        if not claimed:
+            raise RuntimeError(f"issue already claimed: {issue_id}")
 
     def _release(self, issue_id: str) -> None:
-        lockfile = self._lockdir / f"{issue_id}.lock"
-        lockfile.unlink(missing_ok=True)
+        self._state_store.release_issue_claim(issue_id)
 
     def _sleep(self, seconds: int) -> None:
         for _ in range(seconds):
@@ -1384,8 +1359,7 @@ class SpecOrchDaemon:
         self._dead_letter.discard(issue_id)
         self._processed.discard(issue_id)
         self._retry_counts.pop(issue_id, None)
-        retry_file = self._lockdir / f"{issue_id}.retry_at"
-        retry_file.unlink(missing_ok=True)
+        self._retry_at.pop(issue_id, None)
         self._release(issue_id)
         self._save_state()
         print(f"[daemon] {issue_id} removed from dead letter queue for retry")
@@ -1396,8 +1370,7 @@ class SpecOrchDaemon:
         count = len(self._dead_letter)
         for issue_id in list(self._dead_letter):
             self._release(issue_id)
-            retry_file = self._lockdir / f"{issue_id}.retry_at"
-            retry_file.unlink(missing_ok=True)
+            self._retry_at.pop(issue_id, None)
         self._dead_letter.clear()
         self._save_state()
         return count
@@ -1425,13 +1398,26 @@ class SpecOrchDaemon:
     @classmethod
     def read_state(cls, repo_root: Path, lockfile_dir: str = ".spec_orch_locks/") -> dict[str, Any]:
         """Read the daemon state file (static — can be called without a running daemon)."""
-        state_path = repo_root / lockfile_dir / cls.STATE_FILE
-        if not state_path.exists():
-            return {}
         try:
-            data = _json.loads(state_path.read_text())
-            return data if isinstance(data, dict) else {}
-        except (_json.JSONDecodeError, OSError):
+            lockdir = repo_root / lockfile_dir
+            db_path = lockdir / DaemonStateStore.DB_NAME
+            if db_path.exists():
+                conn = sqlite3.connect(str(db_path), check_same_thread=False)
+                try:
+                    store = DaemonStateStore.__new__(DaemonStateStore)
+                    store._lockdir = lockdir
+                    store._db_path = db_path
+                    store._db = conn
+                    return store.load_snapshot()
+                finally:
+                    conn.close()
+            legacy_path = lockdir / DaemonStateStore.LEGACY_STATE_FILE
+            if legacy_path.exists():
+                data = _json.loads(legacy_path.read_text())
+                if isinstance(data, dict):
+                    return data
+            return {}
+        except Exception:
             return {}
 
     def _handle_signal(self, signum: int, _frame: Any) -> None:
@@ -1474,14 +1460,10 @@ class SpecOrchDaemon:
         count = self._retry_counts.get(issue_id, 0)
         if count == 0:
             return False
-        lockfile = self._lockdir / f"{issue_id}.retry_at"
-        if not lockfile.exists():
+        retry_at = self._retry_at.get(issue_id)
+        if retry_at is None:
             return False
-        try:
-            retry_at = float(lockfile.read_text().strip())
-            return time.time() < retry_at
-        except (ValueError, OSError):
-            return False
+        return time.time() < retry_at
 
     def _record_failure(
         self,
@@ -1507,6 +1489,7 @@ class SpecOrchDaemon:
             )
             self._dead_letter.add(issue_id)
             self._retry_counts.pop(issue_id, None)
+            self._retry_at.pop(issue_id, None)
             if linear_uid:
                 try:
                     client.add_comment(
@@ -1523,8 +1506,7 @@ class SpecOrchDaemon:
         else:
             delay = self.config.retry_base_delay * (2 ** (count - 1))
             retry_at = time.time() + delay
-            retry_file = self._lockdir / f"{issue_id}.retry_at"
-            retry_file.write_text(str(retry_at))
+            self._retry_at[issue_id] = retry_at
             print(
                 f"[daemon] {issue_id}: attempt {count}/{self.config.max_retries}, retry in {delay}s"
             )

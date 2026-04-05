@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from spec_orch.domain.models import RunState
+from spec_orch.domain.models import GateFlowControl, RunState
 from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
 from spec_orch.services.readiness_checker import ReadinessChecker
 
@@ -425,6 +425,148 @@ def test_daemon_poll_and_run_processes_new_issue(tmp_path: Path) -> None:
     daemon._write_back.post_run_summary.assert_called_once()
 
 
+def test_daemon_poll_and_enqueue_records_execution_intent(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    mock_client = MagicMock()
+    raw_issue = {"id": "uuid-11", "identifier": "SPC-11", "description": _COMPLETE_DESC}
+    mock_client.list_issues.return_value = [raw_issue]
+    mock_controller = MagicMock()
+
+    _init_checker(daemon)
+    with patch.object(daemon._daemon_executor, "dispatch", return_value=None) as mocked:
+        daemon._poll_and_enqueue(mock_client, mock_controller)
+
+    mocked.assert_not_called()
+    intents = daemon._state_store.list_execution_intents()
+    assert len(intents) == 1
+    assert intents[0]["issue_id"] == "SPC-11"
+    assert intents[0]["raw_issue"]["id"] == "uuid-11"
+
+
+def test_daemon_poll_and_enqueue_reserves_capacity_within_same_tick(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks"), "max_concurrent": 1}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    mock_client = MagicMock()
+    mock_client.list_issues.return_value = [
+        {"id": "uuid-11", "identifier": "SPC-11", "description": _COMPLETE_DESC},
+        {"id": "uuid-12", "identifier": "SPC-12", "description": _COMPLETE_DESC},
+    ]
+    mock_controller = MagicMock()
+
+    _init_checker(daemon)
+    with patch.object(daemon, "_triage_issue", return_value=True):
+        daemon._poll_and_enqueue(mock_client, mock_controller)
+
+    intents = daemon._state_store.list_execution_intents()
+    assert [intent["issue_id"] for intent in intents] == ["SPC-11"]
+
+
+def test_daemon_drain_execution_queue_delegates_execution_to_daemon_executor(
+    tmp_path: Path,
+) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon._state_store.enqueue_execution_intent(
+        issue_id="SPC-11",
+        raw_issue={"id": "uuid-11", "identifier": "SPC-11", "description": _COMPLETE_DESC},
+        is_hotfix=False,
+    )
+
+    mock_client = MagicMock()
+    mock_controller = MagicMock()
+
+    with patch.object(daemon._daemon_executor, "dispatch", return_value=None) as mocked:
+        daemon._drain_execution_queue(mock_client, mock_controller)
+
+    mocked.assert_called_once()
+    assert daemon._state_store.list_execution_intents() == []
+
+
+def test_daemon_drain_execution_queue_processes_one_intent_per_tick(tmp_path: Path) -> None:
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+    daemon._state_store.enqueue_execution_intent(
+        issue_id="SPC-11",
+        raw_issue={"id": "uuid-11", "identifier": "SPC-11", "description": _COMPLETE_DESC},
+        is_hotfix=False,
+        enqueued_at=1,
+    )
+    daemon._state_store.enqueue_execution_intent(
+        issue_id="SPC-12",
+        raw_issue={"id": "uuid-12", "identifier": "SPC-12", "description": _COMPLETE_DESC},
+        is_hotfix=True,
+        enqueued_at=2,
+    )
+
+    mock_client = MagicMock()
+    mock_controller = MagicMock()
+
+    with patch.object(daemon._daemon_executor, "dispatch", return_value=None) as mocked:
+        daemon._drain_execution_queue(mock_client, mock_controller)
+
+    mocked.assert_called_once()
+    queued = daemon._state_store.list_execution_intents()
+    assert len(queued) == 1
+    assert queued[0]["issue_id"] == "SPC-12"
+
+
+def test_daemon_executor_dispatches_mission_issue_to_mission_executor() -> None:
+    from spec_orch.services.daemon_executor import DaemonExecutor
+
+    executor = DaemonExecutor()
+    host = MagicMock()
+    host._detect_mission.return_value = "mission-1"
+    raw_issue = {"id": "uuid-1", "identifier": "SPC-1"}
+
+    with (
+        patch.object(executor._mission_executor, "execute", return_value=None) as mocked_mission,
+        patch.object(
+            executor._single_issue_executor, "execute", return_value=None
+        ) as mocked_single,
+    ):
+        executor.dispatch(
+            host=host,
+            issue_id="SPC-1",
+            raw_issue=raw_issue,
+            client=MagicMock(),
+            controller=MagicMock(),
+            is_hotfix=False,
+        )
+
+    mocked_mission.assert_called_once()
+    mocked_single.assert_not_called()
+
+
+def test_daemon_executor_dispatches_single_issue_to_single_executor() -> None:
+    from spec_orch.services.daemon_executor import DaemonExecutor
+
+    executor = DaemonExecutor()
+    host = MagicMock()
+    host._detect_mission.return_value = None
+    raw_issue = {"id": "uuid-1", "identifier": "SPC-1"}
+
+    with (
+        patch.object(executor._mission_executor, "execute", return_value=None) as mocked_mission,
+        patch.object(
+            executor._single_issue_executor, "execute", return_value=None
+        ) as mocked_single,
+    ):
+        executor.dispatch(
+            host=host,
+            issue_id="SPC-1",
+            raw_issue=raw_issue,
+            client=MagicMock(),
+            controller=MagicMock(),
+            is_hotfix=True,
+        )
+
+    mocked_single.assert_called_once()
+    mocked_mission.assert_not_called()
+
+
 def test_daemon_poll_and_run_releases_non_terminal(tmp_path: Path) -> None:
     """Non-terminal states should release the lock so the next poll re-advances."""
     cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
@@ -535,6 +677,10 @@ def test_daemon_auto_create_pr(tmp_path: Path) -> None:
     mock_gate = MagicMock()
     mock_gate.mergeable = True
     mock_gate.failed_conditions = []
+    mock_gate.flow_control = GateFlowControl(
+        promotion_required=True,
+        promotion_target="standard",
+    )
     mock_result = MagicMock()
     mock_result.state = RunState.GATE_EVALUATED
     mock_result.gate = mock_gate
@@ -549,3 +695,6 @@ def test_daemon_auto_create_pr(tmp_path: Path) -> None:
         mock_gh.create_pr.return_value = "https://github.com/pr/99"
         daemon._auto_create_pr("SPC-20", mock_result)
         mock_gh.create_pr.assert_called_once()
+        body = mock_gh.create_pr.call_args.kwargs["body"]
+        assert "Promotion signal" in body
+        assert "standard" in body

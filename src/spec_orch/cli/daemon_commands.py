@@ -6,7 +6,6 @@ from pathlib import Path
 import typer
 
 from spec_orch.cli import app
-from spec_orch.services.io import atomic_write_json
 
 daemon_app = typer.Typer(help="Daemon process management commands.")
 app.add_typer(daemon_app, name="daemon")
@@ -102,7 +101,7 @@ def daemon_status(
         raise typer.Exit(1) from None
 
     config_status = "ok"
-    from spec_orch.services.daemon import DaemonConfig
+    from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
 
     try:
         cfg = DaemonConfig.from_toml(config)
@@ -117,15 +116,7 @@ def daemon_status(
         config_status = f"invalid ({exc})"
         lockfile_dir = ".spec_orch_locks/"
 
-    state_data: dict[str, object] | None = None
-    state_error: str | None = None
-    state_path = repo_root.resolve() / lockfile_dir / "daemon_state.json"
-    if state_path.exists():
-        try:
-            state_data = json.loads(state_path.read_text())
-        except (json.JSONDecodeError, OSError) as exc:
-            state_data = None
-            state_error = f"corrupt state file ({exc})"
+    state_data = SpecOrchDaemon.read_state(repo_root.resolve(), lockfile_dir=lockfile_dir)
 
     def _safe_len(val: object) -> int:
         return len(val) if isinstance(val, (list, tuple)) else 0
@@ -137,9 +128,7 @@ def daemon_status(
             "running": info["running"],
             "config": config_status,
         }
-        if state_error:
-            output["state_error"] = state_error
-        elif state_data is not None:
+        if state_data:
             output["last_poll"] = state_data.get("last_poll", "unknown")
             output["processed_count"] = _safe_len(state_data.get("processed"))
             output["triaged_count"] = _safe_len(state_data.get("triaged"))
@@ -151,9 +140,7 @@ def daemon_status(
     typer.echo(f"Running:   {info['running']}")
     if config_status != "ok":
         typer.echo(f"Config:    {config_status}")
-    if state_error:
-        typer.echo(f"State:     {state_error}")
-    elif state_data is not None:
+    if state_data:
         typer.echo(f"Last poll: {state_data.get('last_poll', 'unknown')}")
         typer.echo(f"Processed: {_safe_len(state_data.get('processed'))} issues")
         typer.echo(f"Triaged:   {_safe_len(state_data.get('triaged'))} issues")
@@ -246,13 +233,19 @@ def daemon_dlq_retry(
     processed = set(state.get("processed", []))
     processed.discard(issue_id)
     state["processed"] = sorted(processed)
-    state_path = repo_root.resolve() / lockfile_dir / "daemon_state.json"
+    from spec_orch.services.daemon import DaemonConfig, SpecOrchDaemon
+
     try:
-        atomic_write_json(state_path, state)
-        typer.echo(f"{issue_id} removed from DLQ. Will be retried on next daemon poll.")
+        cfg = DaemonConfig.from_toml(config)
+        daemon = SpecOrchDaemon(config=cfg, repo_root=repo_root.resolve())
+        if daemon.retry_dead_letter(issue_id):
+            typer.echo(f"{issue_id} removed from DLQ. Will be retried on next daemon poll.")
+            return
     except OSError as exc:
         typer.echo(f"Failed to update state: {exc}")
         raise typer.Exit(1) from None
+    typer.echo(f"Failed to update state for {issue_id}.")
+    raise typer.Exit(1)
 
 
 @daemon_app.command("install")

@@ -94,6 +94,7 @@ class EvidenceContext:
     """Evidence context: verifier-facing transcript and acceptance artifacts."""
 
     reviewed_acceptance_findings: list[dict[str, Any]] = field(default_factory=list)
+    lazy_handles: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -101,6 +102,7 @@ class ArchiveLineageContext:
     """Archive lineage context: persisted release/archive history."""
 
     recent_evolution_journal: list[dict[str, Any]] = field(default_factory=list)
+    lazy_handles: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -112,6 +114,7 @@ class PromotedLearningContext:
     active_feedback_learnings: list[dict[str, Any]] = field(default_factory=list)
     reviewed_decision_failures: list[dict[str, Any]] = field(default_factory=list)
     reviewed_decision_recipes: list[dict[str, Any]] = field(default_factory=list)
+    lazy_handles: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -127,6 +130,7 @@ class ContextBundle:
     evidence: EvidenceContext = field(default_factory=EvidenceContext)
     archive_lineage: ArchiveLineageContext = field(default_factory=ArchiveLineageContext)
     promoted_learning: PromotedLearningContext = field(default_factory=PromotedLearningContext)
+    truncation_metadata: list[dict[str, Any]] = field(default_factory=list)
 
     def context_layer_contracts(self) -> dict[str, dict[str, Any]]:
         return {

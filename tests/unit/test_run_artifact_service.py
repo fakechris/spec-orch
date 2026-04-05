@@ -111,3 +111,45 @@ def test_write_from_run_delegates_normalized_issue_payloads(
     assert isinstance(delegated["live"], dict)
     assert isinstance(delegated["conclusion"], dict)
     assert isinstance(delegated["manifest"], dict)
+
+
+def test_write_from_run_projects_flow_control_into_live_and_conclusion(tmp_path: Path) -> None:
+    workspace = tmp_path / "run-3"
+    workspace.mkdir()
+    report_path = workspace / "report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "state": "gate_evaluated",
+                "mergeable": True,
+                "failed_conditions": [],
+                "flow_control": {
+                    "retry_recommended": False,
+                    "escalation_required": False,
+                    "promotion_required": True,
+                    "promotion_target": "standard",
+                    "demotion_suggested": False,
+                    "demotion_target": None,
+                    "backtrack_reason": "recoverable",
+                },
+                "builder": {"adapter": "codex_exec", "succeeded": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    RunArtifactService().write_from_run(
+        workspace=workspace,
+        run_id="run-3",
+        issue_id="SON-3",
+        report_path=report_path,
+        explain_path=None,
+    )
+
+    live = json.loads((workspace / "run_artifact" / "live.json").read_text(encoding="utf-8"))
+    conclusion = json.loads(
+        (workspace / "run_artifact" / "conclusion.json").read_text(encoding="utf-8")
+    )
+
+    assert live["flow_control"]["promotion_required"] is True
+    assert conclusion["flow_control"]["promotion_target"] == "standard"

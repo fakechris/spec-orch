@@ -256,6 +256,7 @@ def read_issue_execution_attempt(workspace: Path) -> ExecutionAttempt | None:
             "verdict": data.get("verdict"),
             "mergeable": data.get("mergeable"),
             "failed_conditions": data.get("failed_conditions", []),
+            "flow_control": data.get("flow_control", {}),
         },
         artifacts=read_issue_artifacts(workspace),
     )

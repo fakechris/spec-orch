@@ -185,6 +185,15 @@ class RunReportWriter:
                 "title": issue.title,
                 "mergeable": gate.mergeable,
                 "failed_conditions": gate.failed_conditions,
+                "flow_control": {
+                    "retry_recommended": gate.flow_control.retry_recommended,
+                    "escalation_required": gate.flow_control.escalation_required,
+                    "promotion_required": gate.flow_control.promotion_required,
+                    "promotion_target": gate.flow_control.promotion_target,
+                    "demotion_suggested": gate.flow_control.demotion_suggested,
+                    "demotion_target": gate.flow_control.demotion_target,
+                    "backtrack_reason": gate.flow_control.backtrack_reason,
+                },
                 "builder": {
                     "succeeded": builder.succeeded,
                     "skipped": builder.skipped,

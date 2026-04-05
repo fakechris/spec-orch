@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from spec_orch.domain.models import GateInput, ReviewSummary, VerificationSummary
+from spec_orch.domain.models import (
+    GateFlowControl,
+    GateInput,
+    GateVerdict,
+    ReviewSummary,
+    VerificationSummary,
+)
 from spec_orch.services.gate_service import GatePolicy, GateService
 
 
@@ -100,6 +106,8 @@ def test_promotion_required_when_hotfix_has_code_changes() -> None:
     result = svc.evaluate(GateInput(claimed_flow="hotfix", diff_stats={".py": 1}))
     assert result.promotion_required is True
     assert result.promotion_target == "standard"
+    assert result.flow_control.promotion_required is True
+    assert result.flow_control.promotion_target == "standard"
 
 
 def test_no_promotion_when_standard_doc_only() -> None:
@@ -176,6 +184,44 @@ def test_backtrack_recoverable_on_builder_failure() -> None:
     result = svc.evaluate(GateInput(builder_succeeded=False))
     assert result.mergeable is False
     assert result.backtrack_reason == "recoverable"
+    assert result.flow_control.backtrack_reason == "recoverable"
+
+
+def test_gate_verdict_exposes_flow_control_separately_from_mergeability() -> None:
+    svc = GateService(policy=GatePolicy(required_conditions={"builder"}))
+
+    result = svc.evaluate(
+        GateInput(
+            builder_succeeded=True,
+            claimed_flow="hotfix",
+            diff_stats={".py": 1},
+        )
+    )
+
+    assert result.mergeable is True
+    assert result.failed_conditions == []
+    assert result.flow_control.promotion_required is True
+    assert result.flow_control.retry_recommended is False
+
+
+def test_gate_verdict_syncs_top_level_fields_from_explicit_flow_control() -> None:
+    verdict = GateVerdict(
+        mergeable=False,
+        failed_conditions=["verification"],
+        flow_control=GateFlowControl(
+            promotion_required=True,
+            promotion_target="standard",
+            demotion_suggested=True,
+            demotion_target="guided",
+            backtrack_reason="recoverable",
+        ),
+    )
+
+    assert verdict.promotion_required is True
+    assert verdict.promotion_target == "standard"
+    assert verdict.demotion_suggested is True
+    assert verdict.demotion_target == "guided"
+    assert verdict.backtrack_reason == "recoverable"
 
 
 def test_backtrack_needs_redesign_on_spec_failure() -> None:

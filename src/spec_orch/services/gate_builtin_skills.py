@@ -75,9 +75,24 @@ class VerificationSkill(_BuiltinSkill):
 
     def run(self, gate_input: GateInput) -> CheckResult:
         passed = gate_input.verification.all_passed
+        reason = ""
+        if not passed:
+            steps = (
+                gate_input.verification.details.keys()
+                or gate_input.verification.step_outcomes.keys()
+            )
+            has_failed = any(
+                gate_input.verification.get_step_outcome(step) == "fail" for step in steps
+            )
+            if has_failed:
+                reason = "verification failed"
+            elif gate_input.verification.has_skipped:
+                reason = "verification skipped"
+            else:
+                reason = "verification failed"
         return CheckResult(
             passed=passed,
-            reason="" if passed else "verification failed",
+            reason=reason,
             condition_id=self._id,
         )
 
