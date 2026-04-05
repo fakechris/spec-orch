@@ -392,6 +392,12 @@ class GateVerdict:
                 demotion_target=self.demotion_target,
                 backtrack_reason=self.backtrack_reason,
             )
+        else:
+            self.promotion_required = self.flow_control.promotion_required
+            self.promotion_target = self.flow_control.promotion_target
+            self.demotion_suggested = self.flow_control.demotion_suggested
+            self.demotion_target = self.flow_control.demotion_target
+            self.backtrack_reason = self.flow_control.backtrack_reason
 
 
 @dataclass(slots=True)

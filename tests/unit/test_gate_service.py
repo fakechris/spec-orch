@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from spec_orch.domain.models import GateInput, ReviewSummary, VerificationSummary
+from spec_orch.domain.models import (
+    GateFlowControl,
+    GateInput,
+    GateVerdict,
+    ReviewSummary,
+    VerificationSummary,
+)
 from spec_orch.services.gate_service import GatePolicy, GateService
 
 
@@ -196,6 +202,26 @@ def test_gate_verdict_exposes_flow_control_separately_from_mergeability() -> Non
     assert result.failed_conditions == []
     assert result.flow_control.promotion_required is True
     assert result.flow_control.retry_recommended is False
+
+
+def test_gate_verdict_syncs_top_level_fields_from_explicit_flow_control() -> None:
+    verdict = GateVerdict(
+        mergeable=False,
+        failed_conditions=["verification"],
+        flow_control=GateFlowControl(
+            promotion_required=True,
+            promotion_target="standard",
+            demotion_suggested=True,
+            demotion_target="guided",
+            backtrack_reason="recoverable",
+        ),
+    )
+
+    assert verdict.promotion_required is True
+    assert verdict.promotion_target == "standard"
+    assert verdict.demotion_suggested is True
+    assert verdict.demotion_target == "guided"
+    assert verdict.backtrack_reason == "recoverable"
 
 
 def test_backtrack_needs_redesign_on_spec_failure() -> None:
