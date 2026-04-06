@@ -535,6 +535,7 @@ class SpecOrchDaemon:
             event_bus=self._event_bus,
             max_rounds=self.config.supervisor_max_rounds,
             live_stream=sys.stderr if self._live_mission_workers else None,
+            gate_policy=self._load_gate_policy(),
         )
 
     def _tick_missions(self) -> None:

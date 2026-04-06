@@ -26,8 +26,15 @@ from spec_orch.services.verification_service import VerificationService
 class ArtifactCollector:
     """Collects post-wave builder, verification, gate, and manifest artifacts."""
 
-    def __init__(self, *, repo_root: Path) -> None:
+    def __init__(self, *, repo_root: Path, gate_policy: GatePolicy | None = None) -> None:
         self.repo_root = Path(repo_root)
+        if gate_policy is not None:
+            self._gate_policy = gate_policy
+        else:
+            policy_path = self.repo_root / "gate.policy.yaml"
+            self._gate_policy = (
+                GatePolicy.from_yaml(policy_path) if policy_path.exists() else GatePolicy.default()
+            )
 
     def collect(
         self,
@@ -50,9 +57,7 @@ class ArtifactCollector:
         gate_verdicts: list[dict[str, Any]] = []
         manifest_paths: list[str] = []
         verification_service = VerificationService()
-        gate_service = GateService(
-            policy=GatePolicy(required_conditions={"builder", "verification"})
-        )
+        gate_service = GateService(policy=self._gate_policy)
 
         for packet, result in worker_results:
             workspace = host._packet_workspace(mission_id, packet)
