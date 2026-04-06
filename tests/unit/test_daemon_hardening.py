@@ -44,6 +44,8 @@ def _make_daemon(tmp_path: Path) -> SpecOrchDaemon:
         d._reaction_marks = set()
         d._process_lock_owner = f"test:{id(d)}"
         d._consecutive_loop_errors = 0
+        d._executor_pool = None  # not needed for hardening tests
+        d._execution_futures: dict[str, object] = {}
 
         from spec_orch.services.event_bus import get_event_bus
 

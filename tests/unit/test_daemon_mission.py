@@ -165,6 +165,7 @@ def test_poll_routes_to_mission_when_plan_exists(tmp_path: Path) -> None:
         MockPRC.load_plan.return_value = MagicMock(waves=[])
 
         daemon._poll_and_run(mock_client, mock_controller)
+        daemon._executor_pool.shutdown(wait=True)
 
     mock_controller.advance_to_completion.assert_not_called()
     assert "SPC-40" in daemon._processed

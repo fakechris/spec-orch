@@ -7,7 +7,9 @@ import signal
 import sqlite3
 import subprocess as _subprocess
 import sys
+import threading
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, cast
 
@@ -167,6 +169,11 @@ class SpecOrchDaemon:
         self._daemon_executor = DaemonExecutor()
         self._single_issue_executor = DaemonSingleIssueExecutor()
         self._mission_executor = DaemonMissionExecutor()
+        self._executor_pool = ThreadPoolExecutor(
+            max_workers=max(1, self.config.max_concurrent),
+            thread_name_prefix="daemon-exec",
+        )
+        self._execution_futures: dict[str, Future[None]] = {}
 
         from spec_orch.services.event_bus import get_event_bus
 
@@ -227,15 +234,17 @@ class SpecOrchDaemon:
 
     def _save_state(self) -> None:
         self._last_poll = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        # Copy mutable collections to avoid RuntimeError from concurrent
+        # modification by executor threads (GIL protects the copy itself).
         data = {
-            "processed": sorted(self._processed),
-            "triaged": sorted(self._triaged),
-            "pr_commits": self._pr_commits,
-            "retry_counts": self._retry_counts,
-            "retry_at": self._retry_at,
-            "dead_letter": sorted(self._dead_letter),
-            "in_progress": sorted(self._in_progress),
-            "reaction_marks": sorted(self._reaction_marks),
+            "processed": sorted(set(self._processed)),
+            "triaged": sorted(set(self._triaged)),
+            "pr_commits": dict(self._pr_commits),
+            "retry_counts": dict(self._retry_counts),
+            "retry_at": dict(self._retry_at),
+            "dead_letter": sorted(set(self._dead_letter)),
+            "in_progress": sorted(set(self._in_progress)),
+            "reaction_marks": sorted(set(self._reaction_marks)),
             "last_poll": self._last_poll,
         }
         try:
@@ -317,6 +326,7 @@ class SpecOrchDaemon:
         try:
             while self._running:
                 try:
+                    self._reap_completed_futures()
                     self._tick_missions()
                     self._check_clarification_replies(client)
                     self._check_review_updates(client)
@@ -342,6 +352,8 @@ class SpecOrchDaemon:
                         break
                 self._sleep(self.config.poll_interval_seconds)
         finally:
+            self._executor_pool.shutdown(wait=True)
+            self._reap_completed_futures()
             self._save_state()
             self._release_process_lock()
             self._write_heartbeat(status="stopped")
@@ -646,21 +658,51 @@ class SpecOrchDaemon:
         )
 
     def _drain_execution_queue(self, client: LinearClient, controller: RunController) -> None:
-        intent = self._state_store.pop_next_execution_intent()
-        if intent is None:
-            return
-        issue_id = str(intent.get("issue_id", "")).strip()
-        raw_issue = intent.get("raw_issue")
-        if not issue_id or not isinstance(raw_issue, dict):
-            return
-        self._daemon_executor.dispatch(
-            host=self,
-            issue_id=issue_id,
-            raw_issue=raw_issue,
-            client=client,
-            controller=controller,
-            is_hotfix=bool(intent.get("is_hotfix", False)),
-        )
+        """Pop all admitted intents and submit to the thread pool.
+
+        Admission was already checked at enqueue time, so we drain everything
+        queued.  The pool's ``max_workers`` naturally caps real concurrency.
+        We add the issue to ``_in_progress`` *before* submitting so the
+        admission governor sees the correct count on the next tick.
+        """
+        while True:
+            intent = self._state_store.pop_next_execution_intent()
+            if intent is None:
+                break
+            issue_id = str(intent.get("issue_id", "")).strip()
+            raw_issue = intent.get("raw_issue")
+            if not issue_id or not isinstance(raw_issue, dict):
+                continue
+            # Mark in-progress on main thread so admission counts stay correct.
+            self._in_progress.add(issue_id)
+            future = self._executor_pool.submit(
+                self._daemon_executor.dispatch,
+                host=self,
+                issue_id=issue_id,
+                raw_issue=raw_issue,
+                client=client,
+                controller=controller,
+                is_hotfix=bool(intent.get("is_hotfix", False)),
+            )
+            self._execution_futures[issue_id] = future
+
+    def _reap_completed_futures(self) -> None:
+        """Harvest finished execution futures and log any unhandled errors."""
+        done_ids = [
+            issue_id
+            for issue_id, fut in self._execution_futures.items()
+            if fut.done()
+        ]
+        for issue_id in done_ids:
+            fut = self._execution_futures.pop(issue_id)
+            exc = fut.exception()
+            if exc is not None:
+                print(f"[daemon] executor future for {issue_id} raised: {exc}")
+                self._emit_error_event(
+                    "daemon.executor_future_error",
+                    str(exc),
+                    issue_id=issue_id,
+                )
 
     @staticmethod
     def _sanitize_id(raw_id: str) -> str:

@@ -419,6 +419,8 @@ def test_daemon_poll_and_run_processes_new_issue(tmp_path: Path) -> None:
 
     _init_checker(daemon)
     daemon._poll_and_run(mock_client, mock_controller)
+    # Drain submits to a thread pool; wait for it to finish.
+    daemon._executor_pool.shutdown(wait=True)
 
     mock_controller.advance_to_completion.assert_called_once_with("SPC-11", flow_type=None)
     assert "SPC-11" in daemon._processed
@@ -480,13 +482,20 @@ def test_daemon_drain_execution_queue_delegates_execution_to_daemon_executor(
 
     with patch.object(daemon._daemon_executor, "dispatch", return_value=None) as mocked:
         daemon._drain_execution_queue(mock_client, mock_controller)
+        # Wait for the pool to finish
+        daemon._executor_pool.shutdown(wait=True)
 
     mocked.assert_called_once()
     assert daemon._state_store.list_execution_intents() == []
+    # Issue should be tracked as in-progress
+    assert "SPC-11" in daemon._in_progress
+    # Future should be tracked
+    assert "SPC-11" in daemon._execution_futures
 
 
-def test_daemon_drain_execution_queue_processes_one_intent_per_tick(tmp_path: Path) -> None:
-    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+def test_daemon_drain_execution_queue_drains_all_admitted_intents(tmp_path: Path) -> None:
+    """Async drain pops ALL queued intents (admission was checked at enqueue)."""
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks"), "max_concurrent": 2}})
     daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
     daemon._state_store.enqueue_execution_intent(
         issue_id="SPC-11",
@@ -506,11 +515,54 @@ def test_daemon_drain_execution_queue_processes_one_intent_per_tick(tmp_path: Pa
 
     with patch.object(daemon._daemon_executor, "dispatch", return_value=None) as mocked:
         daemon._drain_execution_queue(mock_client, mock_controller)
+        daemon._executor_pool.shutdown(wait=True)
 
-    mocked.assert_called_once()
-    queued = daemon._state_store.list_execution_intents()
-    assert len(queued) == 1
-    assert queued[0]["issue_id"] == "SPC-12"
+    assert mocked.call_count == 2
+    assert daemon._state_store.list_execution_intents() == []
+    assert "SPC-11" in daemon._in_progress
+    assert "SPC-12" in daemon._in_progress
+
+
+def test_daemon_reap_completed_futures(tmp_path: Path) -> None:
+    """Reaping harvests done futures and removes them from tracking."""
+    from concurrent.futures import Future
+
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    done_future: Future[None] = Future()
+    done_future.set_result(None)
+    daemon._execution_futures["SPC-11"] = done_future
+
+    pending_future: Future[None] = Future()
+    daemon._execution_futures["SPC-12"] = pending_future
+
+    daemon._reap_completed_futures()
+
+    assert "SPC-11" not in daemon._execution_futures
+    assert "SPC-12" in daemon._execution_futures
+    # Clean up pending future
+    pending_future.cancel()
+
+
+def test_daemon_reap_completed_futures_logs_errors(tmp_path: Path) -> None:
+    """Reaping logs exceptions from failed futures."""
+    from concurrent.futures import Future
+
+    cfg = DaemonConfig({"daemon": {"lockfile_dir": str(tmp_path / "locks")}})
+    daemon = SpecOrchDaemon(config=cfg, repo_root=tmp_path)
+
+    failed_future: Future[None] = Future()
+    failed_future.set_exception(RuntimeError("boom"))
+    daemon._execution_futures["SPC-99"] = failed_future
+
+    daemon._reap_completed_futures()
+
+    assert "SPC-99" not in daemon._execution_futures
+    events = daemon._event_bus.query_history(limit=10)
+    error_events = [e for e in events if e.payload.get("kind") == "daemon.executor_future_error"]
+    assert len(error_events) >= 1
+    assert error_events[-1].payload["issue_id"] == "SPC-99"
 
 
 def test_daemon_executor_dispatches_mission_issue_to_mission_executor() -> None:
@@ -590,6 +642,7 @@ def test_daemon_poll_and_run_releases_non_terminal(tmp_path: Path) -> None:
 
     _init_checker(daemon)
     daemon._poll_and_run(mock_client, mock_controller)
+    daemon._executor_pool.shutdown(wait=True)
 
     mock_controller.advance_to_completion.assert_called_once_with("SPC-12", flow_type=None)
     assert "SPC-12" not in daemon._processed
@@ -618,6 +671,7 @@ def test_daemon_poll_and_run_marks_gate_evaluated_as_processed(tmp_path: Path) -
 
     _init_checker(daemon)
     daemon._poll_and_run(mock_client, mock_controller)
+    daemon._executor_pool.shutdown(wait=True)
 
     mock_controller.advance_to_completion.assert_called_once_with("SPC-13", flow_type=None)
     assert "SPC-13" in daemon._processed
