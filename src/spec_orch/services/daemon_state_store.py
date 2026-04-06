@@ -224,13 +224,22 @@ class DaemonStateStore:
         )
 
         with self._db:
-            self._db.execute("DELETE FROM issue_runtime_state")
-            for issue_id in sorted(all_issue_ids):
+            # UPSERT each issue instead of DELETE-all + re-INSERT.
+            for issue_id in all_issue_ids:
                 self._db.execute(
                     """INSERT INTO issue_runtime_state (
                            issue_id, processed, triaged, in_progress, dead_letter,
                            retry_count, retry_at, pr_commit, updated_at
-                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(issue_id) DO UPDATE SET
+                           processed   = excluded.processed,
+                           triaged     = excluded.triaged,
+                           in_progress = excluded.in_progress,
+                           dead_letter = excluded.dead_letter,
+                           retry_count = excluded.retry_count,
+                           retry_at    = excluded.retry_at,
+                           pr_commit   = excluded.pr_commit,
+                           updated_at  = excluded.updated_at""",
                     (
                         issue_id,
                         1 if issue_id in processed else 0,
@@ -243,12 +252,32 @@ class DaemonStateStore:
                         now,
                     ),
                 )
-            self._db.execute("DELETE FROM reaction_marks")
-            for mark in sorted(reaction_marks):
+            # Prune rows for issues no longer referenced.
+            if all_issue_ids:
+                placeholders = ",".join("?" for _ in all_issue_ids)
                 self._db.execute(
-                    "INSERT INTO reaction_marks(mark, created_at) VALUES (?, ?)",
+                    f"DELETE FROM issue_runtime_state WHERE issue_id NOT IN ({placeholders})",
+                    tuple(all_issue_ids),
+                )
+            else:
+                self._db.execute("DELETE FROM issue_runtime_state")
+
+            # UPSERT reaction marks + prune stale ones.
+            for mark in reaction_marks:
+                self._db.execute(
+                    """INSERT INTO reaction_marks(mark, created_at) VALUES (?, ?)
+                       ON CONFLICT(mark) DO NOTHING""",
                     (mark, now),
                 )
+            if reaction_marks:
+                placeholders = ",".join("?" for _ in reaction_marks)
+                self._db.execute(
+                    f"DELETE FROM reaction_marks WHERE mark NOT IN ({placeholders})",
+                    tuple(reaction_marks),
+                )
+            else:
+                self._db.execute("DELETE FROM reaction_marks")
+
             self._db.execute(
                 "INSERT OR REPLACE INTO daemon_meta(key, value) VALUES ('last_poll', ?)",
                 (str(snapshot.get("last_poll", "") or ""),),
