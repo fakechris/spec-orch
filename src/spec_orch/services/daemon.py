@@ -183,18 +183,19 @@ class SpecOrchDaemon:
 
         from spec_orch.services.lifecycle_manager import MissionLifecycleManager
 
+        from spec_orch.services.memory.service import get_memory_service
+
+        self._memory_service = get_memory_service(repo_root=repo_root)
+        self._memory_service.subscribe_to_event_bus()
+
         self._lifecycle_manager = MissionLifecycleManager(
             repo_root=repo_root,
             event_bus=self._event_bus,
             round_orchestrator=self._round_orchestrator,
             mission_execution_service=self._get_mission_execution_service(),
             codex_bin=self.config.codex_executable,
+            memory_service=self._memory_service,
         )
-
-        from spec_orch.services.memory.service import get_memory_service
-
-        self._memory_service = get_memory_service(repo_root=repo_root)
-        self._memory_service.subscribe_to_event_bus()
 
     HEARTBEAT_FILE = "daemon_heartbeat.json"
 
