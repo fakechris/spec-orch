@@ -7,17 +7,17 @@ from typing import Any
 from unittest.mock import MagicMock
 
 from spec_orch.domain.protocols import LifecycleEvolver
-from spec_orch.services.flow_policy_evolver import (
+from spec_orch.services.evolution.flow_policy_evolver import (
     FlowPolicyEvolver,
     FlowPolicyEvolveResult,
     FlowPolicySuggestion,
 )
-from spec_orch.services.gate_policy_evolver import (
+from spec_orch.services.evolution.gate_policy_evolver import (
     GatePolicyEvolver,
     GatePolicyEvolveResult,
     GatePolicySuggestion,
 )
-from spec_orch.services.intent_evolver import ClassifierVariant, IntentEvolver
+from spec_orch.services.evolution.intent_evolver import ClassifierVariant, IntentEvolver
 from spec_orch.services.memory.service import MemoryService, reset_memory_service
 from spec_orch.services.memory.types import MemoryEntry, MemoryLayer, MemoryQuery
 
