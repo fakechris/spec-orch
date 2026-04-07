@@ -455,3 +455,236 @@ class DaemonStateStore:
                 "DELETE FROM execution_intents WHERE issue_id = ?",
                 (issue_id,),
             )
+
+    # ---- Per-issue transactional state changes ----
+
+    def _ensure_issue_row(self, issue_id: str, *, now: float | None = None) -> None:
+        """Insert a row for *issue_id* if it doesn't exist yet."""
+        current = time.time() if now is None else now
+        self._db.execute(
+            """INSERT OR IGNORE INTO issue_runtime_state
+               (issue_id, updated_at) VALUES (?, ?)""",
+            (issue_id, current),
+        )
+
+    def mark_in_progress(self, issue_id: str) -> None:
+        """Atomically mark an issue as in-progress."""
+        now = time.time()
+        with self._db:
+            self._ensure_issue_row(issue_id, now=now)
+            self._db.execute(
+                """UPDATE issue_runtime_state
+                   SET in_progress = 1, updated_at = ?
+                   WHERE issue_id = ?""",
+                (now, issue_id),
+            )
+
+    def mark_processed(self, issue_id: str) -> None:
+        """Atomically mark an issue as processed (and clear in_progress)."""
+        now = time.time()
+        with self._db:
+            self._ensure_issue_row(issue_id, now=now)
+            self._db.execute(
+                """UPDATE issue_runtime_state
+                   SET processed = 1, in_progress = 0, updated_at = ?
+                   WHERE issue_id = ?""",
+                (now, issue_id),
+            )
+
+    def mark_triaged(self, issue_id: str) -> None:
+        """Atomically mark an issue as triaged."""
+        now = time.time()
+        with self._db:
+            self._ensure_issue_row(issue_id, now=now)
+            self._db.execute(
+                """UPDATE issue_runtime_state
+                   SET triaged = 1, updated_at = ?
+                   WHERE issue_id = ?""",
+                (now, issue_id),
+            )
+
+    def clear_triaged(self, issue_id: str) -> None:
+        """Atomically clear the triaged flag for an issue."""
+        now = time.time()
+        with self._db:
+            self._db.execute(
+                """UPDATE issue_runtime_state
+                   SET triaged = 0, updated_at = ?
+                   WHERE issue_id = ?""",
+                (now, issue_id),
+            )
+
+    def clear_in_progress(self, issue_id: str) -> None:
+        """Atomically clear the in_progress flag for an issue."""
+        now = time.time()
+        with self._db:
+            self._db.execute(
+                """UPDATE issue_runtime_state
+                   SET in_progress = 0, updated_at = ?
+                   WHERE issue_id = ?""",
+                (now, issue_id),
+            )
+
+    def mark_dead_letter(self, issue_id: str) -> None:
+        """Atomically move an issue to the dead-letter queue."""
+        now = time.time()
+        with self._db:
+            self._ensure_issue_row(issue_id, now=now)
+            self._db.execute(
+                """UPDATE issue_runtime_state
+                   SET dead_letter = 1, in_progress = 0,
+                       retry_count = 0, retry_at = NULL, updated_at = ?
+                   WHERE issue_id = ?""",
+                (now, issue_id),
+            )
+
+    def clear_dead_letter(self, issue_id: str) -> None:
+        """Atomically remove an issue from the dead-letter queue."""
+        now = time.time()
+        with self._db:
+            self._db.execute(
+                """UPDATE issue_runtime_state
+                   SET dead_letter = 0, processed = 0,
+                       retry_count = 0, retry_at = NULL, updated_at = ?
+                   WHERE issue_id = ?""",
+                (now, issue_id),
+            )
+
+    def clear_all_dead_letter(self) -> int:
+        """Atomically clear all dead-letter entries. Returns count removed."""
+        with self._db:
+            row = self._db.execute(
+                "SELECT COUNT(*) FROM issue_runtime_state WHERE dead_letter = 1"
+            ).fetchone()
+            count = int(row[0]) if row else 0
+            self._db.execute(
+                """UPDATE issue_runtime_state
+                   SET dead_letter = 0, processed = 0,
+                       retry_count = 0, retry_at = NULL, updated_at = ?
+                   WHERE dead_letter = 1""",
+                (time.time(),),
+            )
+        return count
+
+    def increment_retry(self, issue_id: str, *, max_retries: int, base_delay: int) -> str:
+        """Atomically increment retry count. Returns 'retry' or 'dead_letter'."""
+        now = time.time()
+        with self._db:
+            self._ensure_issue_row(issue_id, now=now)
+            row = self._db.execute(
+                "SELECT retry_count FROM issue_runtime_state WHERE issue_id = ?",
+                (issue_id,),
+            ).fetchone()
+            count = (int(row[0]) if row else 0) + 1
+            if count >= max_retries:
+                self._db.execute(
+                    """UPDATE issue_runtime_state
+                       SET dead_letter = 1, in_progress = 0,
+                           retry_count = 0, retry_at = NULL, updated_at = ?
+                       WHERE issue_id = ?""",
+                    (now, issue_id),
+                )
+                return "dead_letter"
+            delay = base_delay * (2 ** (count - 1))
+            retry_at = now + delay
+            self._db.execute(
+                """UPDATE issue_runtime_state
+                   SET retry_count = ?, retry_at = ?, updated_at = ?
+                   WHERE issue_id = ?""",
+                (count, retry_at, now, issue_id),
+            )
+        return "retry"
+
+    def set_pr_commit(self, issue_id: str, commit_sha: str) -> None:
+        """Atomically record the PR commit SHA for an issue."""
+        now = time.time()
+        with self._db:
+            self._ensure_issue_row(issue_id, now=now)
+            self._db.execute(
+                """UPDATE issue_runtime_state
+                   SET pr_commit = ?, updated_at = ?
+                   WHERE issue_id = ?""",
+                (commit_sha, now, issue_id),
+            )
+
+    def add_reaction_mark(self, mark: str) -> None:
+        """Atomically add a reaction mark."""
+        with self._db:
+            self._db.execute(
+                """INSERT OR IGNORE INTO reaction_marks(mark, created_at)
+                   VALUES (?, ?)""",
+                (mark, time.time()),
+            )
+
+    def get_issue_state(self, issue_id: str) -> dict[str, Any] | None:
+        """Return the full state row for a single issue, or None."""
+        row = self._db.execute(
+            """SELECT processed, triaged, in_progress, dead_letter,
+                      retry_count, retry_at, pr_commit
+               FROM issue_runtime_state WHERE issue_id = ?""",
+            (issue_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "processed": bool(row[0]),
+            "triaged": bool(row[1]),
+            "in_progress": bool(row[2]),
+            "dead_letter": bool(row[3]),
+            "retry_count": int(row[4]),
+            "retry_at": float(row[5]) if row[5] is not None else None,
+            "pr_commit": str(row[6] or ""),
+        }
+
+    def is_processed(self, issue_id: str) -> bool:
+        """Check if an issue has been processed."""
+        row = self._db.execute(
+            "SELECT processed FROM issue_runtime_state WHERE issue_id = ?",
+            (issue_id,),
+        ).fetchone()
+        return bool(row and row[0])
+
+    def is_in_progress(self, issue_id: str) -> bool:
+        """Check if an issue is currently in progress."""
+        row = self._db.execute(
+            "SELECT in_progress FROM issue_runtime_state WHERE issue_id = ?",
+            (issue_id,),
+        ).fetchone()
+        return bool(row and row[0])
+
+    def is_dead_letter(self, issue_id: str) -> bool:
+        """Check if an issue is in the dead-letter queue."""
+        row = self._db.execute(
+            "SELECT dead_letter FROM issue_runtime_state WHERE issue_id = ?",
+            (issue_id,),
+        ).fetchone()
+        return bool(row and row[0])
+
+    def should_backoff(self, issue_id: str) -> bool:
+        """Check if an issue is in retry backoff (retry_at > now)."""
+        row = self._db.execute(
+            "SELECT retry_at FROM issue_runtime_state WHERE issue_id = ?",
+            (issue_id,),
+        ).fetchone()
+        if row is None or row[0] is None:
+            return False
+        return float(row[0]) > time.time()
+
+    def list_in_progress(self) -> list[str]:
+        """Return all issue IDs currently marked as in_progress."""
+        rows = self._db.execute(
+            "SELECT issue_id FROM issue_runtime_state WHERE in_progress = 1"
+        ).fetchall()
+        return [str(row[0]) for row in rows]
+
+    def list_dead_letter(self) -> list[str]:
+        """Return all issue IDs in the dead-letter queue."""
+        rows = self._db.execute(
+            "SELECT issue_id FROM issue_runtime_state WHERE dead_letter = 1 ORDER BY issue_id"
+        ).fetchall()
+        return [str(row[0]) for row in rows]
+
+    def has_reaction_mark(self, mark: str) -> bool:
+        """Check if a reaction mark exists."""
+        row = self._db.execute("SELECT 1 FROM reaction_marks WHERE mark = ?", (mark,)).fetchone()
+        return row is not None
