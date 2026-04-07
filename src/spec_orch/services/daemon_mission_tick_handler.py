@@ -48,9 +48,9 @@ class DaemonMissionTickHandler:
         """Return the mission_id that owns *issue_id*, if any."""
         for mid, state in self._lifecycle_manager.all_states().items():
             if issue_id in state.issue_ids and issue_id not in state.completed_issues:
-                return mid
+                return str(mid)
         return None
 
     def handle_btw(self, issue_id: str, message: str, channel: str) -> bool:
         """Inject /btw context into a running issue via the lifecycle manager."""
-        return self._lifecycle_manager.inject_btw(issue_id, message, channel)
+        return bool(self._lifecycle_manager.inject_btw(issue_id, message, channel))

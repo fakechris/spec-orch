@@ -275,7 +275,7 @@ class SpecOrchDaemon:
     @property
     def _processed(self) -> set[str]:
         ss = self.__dict__.get("_shared_state")
-        return ss.processed if ss is not None else self.__dict__.get("_processed_fallback", set())
+        return ss.processed if ss is not None else self.__dict__.get("_processed_fallback", set())  # type: ignore[no-any-return]
 
     @_processed.setter
     def _processed(self, value: set[str]) -> None:
@@ -288,7 +288,7 @@ class SpecOrchDaemon:
     @property
     def _triaged(self) -> set[str]:
         ss = self.__dict__.get("_shared_state")
-        return ss.triaged if ss is not None else self.__dict__.get("_triaged_fallback", set())
+        return ss.triaged if ss is not None else self.__dict__.get("_triaged_fallback", set())  # type: ignore[no-any-return]
 
     @_triaged.setter
     def _triaged(self, value: set[str]) -> None:
@@ -301,7 +301,7 @@ class SpecOrchDaemon:
     @property
     def _pr_commits(self) -> dict[str, str]:
         ss = self.__dict__.get("_shared_state")
-        return ss.pr_commits if ss is not None else self.__dict__.get("_pr_commits_fallback", {})
+        return ss.pr_commits if ss is not None else self.__dict__.get("_pr_commits_fallback", {})  # type: ignore[no-any-return]
 
     @_pr_commits.setter
     def _pr_commits(self, value: dict[str, str]) -> None:
@@ -315,8 +315,8 @@ class SpecOrchDaemon:
     def _retry_counts(self) -> dict[str, int]:
         ss = self.__dict__.get("_shared_state")
         if ss is not None:
-            return ss.retry_counts
-        return self.__dict__.get("_retry_counts_fallback", {})
+            return ss.retry_counts  # type: ignore[no-any-return]
+        return self.__dict__.get("_retry_counts_fallback", {})  # type: ignore[no-any-return]
 
     @_retry_counts.setter
     def _retry_counts(self, value: dict[str, int]) -> None:
@@ -329,7 +329,7 @@ class SpecOrchDaemon:
     @property
     def _retry_at(self) -> dict[str, float]:
         ss = self.__dict__.get("_shared_state")
-        return ss.retry_at if ss is not None else self.__dict__.get("_retry_at_fallback", {})
+        return ss.retry_at if ss is not None else self.__dict__.get("_retry_at_fallback", {})  # type: ignore[no-any-return]
 
     @_retry_at.setter
     def _retry_at(self, value: dict[str, float]) -> None:
@@ -343,8 +343,8 @@ class SpecOrchDaemon:
     def _dead_letter(self) -> set[str]:
         ss = self.__dict__.get("_shared_state")
         if ss is not None:
-            return ss.dead_letter
-        return self.__dict__.get("_dead_letter_fallback", set())
+            return ss.dead_letter  # type: ignore[no-any-return]
+        return self.__dict__.get("_dead_letter_fallback", set())  # type: ignore[no-any-return]
 
     @_dead_letter.setter
     def _dead_letter(self, value: set[str]) -> None:
@@ -358,8 +358,8 @@ class SpecOrchDaemon:
     def _in_progress(self) -> set[str]:
         ss = self.__dict__.get("_shared_state")
         if ss is not None:
-            return ss.in_progress
-        return self.__dict__.get("_in_progress_fallback", set())
+            return ss.in_progress  # type: ignore[no-any-return]
+        return self.__dict__.get("_in_progress_fallback", set())  # type: ignore[no-any-return]
 
     @_in_progress.setter
     def _in_progress(self, value: set[str]) -> None:
@@ -373,8 +373,8 @@ class SpecOrchDaemon:
     def _reaction_marks(self) -> set[str]:
         ss = self.__dict__.get("_shared_state")
         if ss is not None:
-            return ss.reaction_marks
-        return self.__dict__.get("_reaction_marks_fallback", set())
+            return ss.reaction_marks  # type: ignore[no-any-return]
+        return self.__dict__.get("_reaction_marks_fallback", set())  # type: ignore[no-any-return]
 
     @_reaction_marks.setter
     def _reaction_marks(self, value: set[str]) -> None:
@@ -766,8 +766,8 @@ class SpecOrchDaemon:
     def _execution_futures(self) -> dict[str, Future[None]]:  # type: ignore[override]
         dispatcher = self.__dict__.get("_issue_dispatcher")
         if dispatcher is not None:
-            return dispatcher._execution_futures
-        return self.__dict__.get("__execution_futures_fallback", {})
+            return dispatcher._execution_futures  # type: ignore[no-any-return]
+        return self.__dict__.get("__execution_futures_fallback", {})  # type: ignore[no-any-return]
 
     @_execution_futures.setter
     def _execution_futures(self, value: dict[str, Future[None]]) -> None:
@@ -1136,7 +1136,7 @@ class SpecOrchDaemon:
     def _is_locked(self, issue_id: str) -> bool:
         dispatcher = self.__dict__.get("_issue_dispatcher")
         if dispatcher is not None:
-            return dispatcher._is_locked(issue_id)
+            return bool(dispatcher._is_locked(issue_id))
         return self._state_store.issue_is_claimed(issue_id)
 
     def _claim(self, issue_id: str) -> None:

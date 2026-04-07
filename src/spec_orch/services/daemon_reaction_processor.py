@@ -52,7 +52,7 @@ class DaemonReactionProcessor:
         if self._host is not None:
             engine = getattr(self._host, "_reaction_engine", None)
             if engine is not None:
-                return engine
+                return engine  # type: ignore[no-any-return]
         return self.__reaction_engine
 
     @_reaction_engine.setter
