@@ -21,7 +21,10 @@ from spec_orch.services.conflict_resolver import ConflictResolver
 from spec_orch.services.context.context_assembler import ContextAssembler
 from spec_orch.services.context.node_context_registry import get_node_context_spec
 from spec_orch.services.daemon_executor import DaemonExecutor
+from spec_orch.services.daemon_issue_dispatcher import DaemonIssueDispatcher
 from spec_orch.services.daemon_mission_executor import DaemonMissionExecutor
+from spec_orch.services.daemon_mission_tick_handler import DaemonMissionTickHandler
+from spec_orch.services.daemon_reaction_processor import DaemonReactionProcessor
 from spec_orch.services.daemon_single_issue_executor import DaemonSingleIssueExecutor
 from spec_orch.services.daemon_state_store import DaemonStateStore
 from spec_orch.services.event_bus import Event, EventTopic
@@ -35,12 +38,51 @@ from spec_orch.services.mission_execution_service import MissionExecutionService
 from spec_orch.services.reaction_engine import (
     ReactionDecision,
     ReactionEngine,
-    interpolate_template,
 )
 from spec_orch.services.run_controller import RunController
 
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _PR_ISSUE_ID_RE = re.compile(r"\[SpecOrch\]\s+([A-Za-z0-9_-]+):")
+
+
+class _DaemonSharedState:
+    """Mutable state shared between the daemon and its collaborators.
+
+    Using a dedicated container avoids stale references when tests replace
+    attributes like ``daemon._triaged = new_set``.
+    """
+
+    __slots__ = (
+        "processed",
+        "triaged",
+        "pr_commits",
+        "retry_counts",
+        "retry_at",
+        "dead_letter",
+        "in_progress",
+        "reaction_marks",
+    )
+
+    def __init__(
+        self,
+        *,
+        processed: set[str],
+        triaged: set[str],
+        pr_commits: dict[str, str],
+        retry_counts: dict[str, int],
+        retry_at: dict[str, float],
+        dead_letter: set[str],
+        in_progress: set[str],
+        reaction_marks: set[str],
+    ) -> None:
+        self.processed = processed
+        self.triaged = triaged
+        self.pr_commits = pr_commits
+        self.retry_counts = retry_counts
+        self.retry_at = retry_at
+        self.dead_letter = dead_letter
+        self.in_progress = in_progress
+        self.reaction_marks = reaction_marks
 
 
 class DaemonConfig:
@@ -147,19 +189,21 @@ class SpecOrchDaemon:
         self._state_store = DaemonStateStore(self._lockdir)
         self._state_path = self._lockdir / self.STATE_FILE
         saved = self._load_state()
-        self._processed: set[str] = set(saved.get("processed", []))
-        self._triaged: set[str] = set(saved.get("triaged", []))
+        self._shared_state = _DaemonSharedState(
+            processed=set(saved.get("processed", [])),
+            triaged=set(saved.get("triaged", [])),
+            pr_commits=dict(saved.get("pr_commits", {})),
+            retry_counts=dict(saved.get("retry_counts", {})),
+            retry_at={
+                str(key): float(value)
+                for key, value in dict(saved.get("retry_at", {})).items()
+                if str(key).strip()
+            },
+            dead_letter=set(saved.get("dead_letter", [])),
+            in_progress=set(saved.get("in_progress", [])),
+            reaction_marks=set(saved.get("reaction_marks", [])),
+        )
         self._last_poll: str = saved.get("last_poll", "")
-        self._pr_commits: dict[str, str] = dict(saved.get("pr_commits", {}))
-        self._retry_counts: dict[str, int] = dict(saved.get("retry_counts", {}))
-        self._retry_at: dict[str, float] = {
-            str(key): float(value)
-            for key, value in dict(saved.get("retry_at", {})).items()
-            if str(key).strip()
-        }
-        self._dead_letter: set[str] = set(saved.get("dead_letter", []))
-        self._in_progress: set[str] = set(saved.get("in_progress", []))
-        self._reaction_marks: set[str] = set(saved.get("reaction_marks", []))
         self._state_lock = threading.Lock()
         self._process_lock_owner = f"{os.getpid()}:{id(self)}"
         self._reaction_engine = ReactionEngine(repo_root)
@@ -174,8 +218,6 @@ class SpecOrchDaemon:
             max_workers=max(1, self.config.max_concurrent),
             thread_name_prefix="daemon-exec",
         )
-        self._execution_futures: dict[str, Future[None]] = {}
-
         from spec_orch.services.event_bus import get_event_bus
 
         self._event_bus = get_event_bus()
@@ -196,6 +238,151 @@ class SpecOrchDaemon:
             codex_bin=self.config.codex_executable,
             memory_service=self._memory_service,
         )
+
+        # -- Collaborators (decomposed from monolithic daemon) --
+        self._issue_dispatcher = DaemonIssueDispatcher(
+            config=config,
+            state_store=self._state_store,
+            admission_governor=self._admission_governor,
+            daemon_executor=self._daemon_executor,
+            executor_pool=self._executor_pool,
+            state_lock=self._state_lock,
+            shared_state=self._shared_state,
+            host=self,
+            process_lock_owner=self._process_lock_owner,
+        )
+
+        self._reaction_processor = DaemonReactionProcessor(
+            config=config,
+            repo_root=repo_root,
+            reaction_engine=self._reaction_engine,
+            event_bus=self._event_bus,
+            state_lock=self._state_lock,
+            shared_state=self._shared_state,
+            host=self,
+        )
+
+        self._mission_tick_handler = DaemonMissionTickHandler(
+            repo_root=repo_root,
+            lifecycle_manager=self._lifecycle_manager,
+        )
+
+    # -- Properties delegating to _shared_state for test compatibility --
+    # Tests that use ``__new__`` bypass __init__ and set these directly on the
+    # instance dict.  The property getters fall back to ``__dict__`` so that
+    # both normal construction and test shortcuts work.
+
+    @property
+    def _processed(self) -> set[str]:
+        ss = self.__dict__.get("_shared_state")
+        return ss.processed if ss is not None else self.__dict__.get("_processed_fallback", set())  # type: ignore[no-any-return]
+
+    @_processed.setter
+    def _processed(self, value: set[str]) -> None:
+        ss = self.__dict__.get("_shared_state")
+        if ss is not None:
+            ss.processed = value
+        else:
+            self.__dict__["_processed_fallback"] = value
+
+    @property
+    def _triaged(self) -> set[str]:
+        ss = self.__dict__.get("_shared_state")
+        return ss.triaged if ss is not None else self.__dict__.get("_triaged_fallback", set())  # type: ignore[no-any-return]
+
+    @_triaged.setter
+    def _triaged(self, value: set[str]) -> None:
+        ss = self.__dict__.get("_shared_state")
+        if ss is not None:
+            ss.triaged = value
+        else:
+            self.__dict__["_triaged_fallback"] = value
+
+    @property
+    def _pr_commits(self) -> dict[str, str]:
+        ss = self.__dict__.get("_shared_state")
+        return ss.pr_commits if ss is not None else self.__dict__.get("_pr_commits_fallback", {})  # type: ignore[no-any-return]
+
+    @_pr_commits.setter
+    def _pr_commits(self, value: dict[str, str]) -> None:
+        ss = self.__dict__.get("_shared_state")
+        if ss is not None:
+            ss.pr_commits = value
+        else:
+            self.__dict__["_pr_commits_fallback"] = value
+
+    @property
+    def _retry_counts(self) -> dict[str, int]:
+        ss = self.__dict__.get("_shared_state")
+        if ss is not None:
+            return ss.retry_counts  # type: ignore[no-any-return]
+        return self.__dict__.get("_retry_counts_fallback", {})  # type: ignore[no-any-return]
+
+    @_retry_counts.setter
+    def _retry_counts(self, value: dict[str, int]) -> None:
+        ss = self.__dict__.get("_shared_state")
+        if ss is not None:
+            ss.retry_counts = value
+        else:
+            self.__dict__["_retry_counts_fallback"] = value
+
+    @property
+    def _retry_at(self) -> dict[str, float]:
+        ss = self.__dict__.get("_shared_state")
+        return ss.retry_at if ss is not None else self.__dict__.get("_retry_at_fallback", {})  # type: ignore[no-any-return]
+
+    @_retry_at.setter
+    def _retry_at(self, value: dict[str, float]) -> None:
+        ss = self.__dict__.get("_shared_state")
+        if ss is not None:
+            ss.retry_at = value
+        else:
+            self.__dict__["_retry_at_fallback"] = value
+
+    @property
+    def _dead_letter(self) -> set[str]:
+        ss = self.__dict__.get("_shared_state")
+        if ss is not None:
+            return ss.dead_letter  # type: ignore[no-any-return]
+        return self.__dict__.get("_dead_letter_fallback", set())  # type: ignore[no-any-return]
+
+    @_dead_letter.setter
+    def _dead_letter(self, value: set[str]) -> None:
+        ss = self.__dict__.get("_shared_state")
+        if ss is not None:
+            ss.dead_letter = value
+        else:
+            self.__dict__["_dead_letter_fallback"] = value
+
+    @property
+    def _in_progress(self) -> set[str]:
+        ss = self.__dict__.get("_shared_state")
+        if ss is not None:
+            return ss.in_progress  # type: ignore[no-any-return]
+        return self.__dict__.get("_in_progress_fallback", set())  # type: ignore[no-any-return]
+
+    @_in_progress.setter
+    def _in_progress(self, value: set[str]) -> None:
+        ss = self.__dict__.get("_shared_state")
+        if ss is not None:
+            ss.in_progress = value
+        else:
+            self.__dict__["_in_progress_fallback"] = value
+
+    @property
+    def _reaction_marks(self) -> set[str]:
+        ss = self.__dict__.get("_shared_state")
+        if ss is not None:
+            return ss.reaction_marks  # type: ignore[no-any-return]
+        return self.__dict__.get("_reaction_marks_fallback", set())  # type: ignore[no-any-return]
+
+    @_reaction_marks.setter
+    def _reaction_marks(self, value: set[str]) -> None:
+        ss = self.__dict__.get("_shared_state")
+        if ss is not None:
+            ss.reaction_marks = value
+        else:
+            self.__dict__["_reaction_marks_fallback"] = value
 
     HEARTBEAT_FILE = "daemon_heartbeat.json"
 
@@ -540,110 +727,21 @@ class SpecOrchDaemon:
 
     def _tick_missions(self) -> None:
         """Advance mission lifecycles on each daemon tick."""
-        try:
-            from spec_orch.services.mission_service import MissionService
-
-            ms = MissionService(self.repo_root)
-            missions = ms.list_missions()
-        except Exception as exc:
-            print(f"[daemon] mission tick error: {exc}")
-            return
-
-        for mission in missions:
-            if mission.status.value not in ("approved", "in_progress"):
-                continue
-
-            state = self._lifecycle_manager.get_state(mission.mission_id)
-            if state is None:
-                print(f"[daemon] tracking mission {mission.mission_id}")
-                self._lifecycle_manager.begin_tracking(mission.mission_id)
-
-            try:
-                self._lifecycle_manager.auto_advance(mission.mission_id)
-            except Exception as exc:
-                print(f"[daemon] mission {mission.mission_id} advance error: {exc}")
+        self._mission_tick_handler.tick()
 
     def _find_mission_for_issue(self, issue_id: str) -> str | None:
         """Return the mission_id that owns *issue_id*, if any."""
-        for mid, state in self._lifecycle_manager.all_states().items():
-            if issue_id in state.issue_ids and issue_id not in state.completed_issues:
-                return mid
-        return None
+        return self._mission_tick_handler.find_mission_for_issue(issue_id)
 
     def handle_btw(self, issue_id: str, message: str, channel: str) -> bool:
         """Inject /btw context into a running issue via the lifecycle manager."""
-        return self._lifecycle_manager.inject_btw(issue_id, message, channel)
+        return self._mission_tick_handler.handle_btw(issue_id, message, channel)
 
     def _poll_and_run(self, client: LinearClient, controller: RunController) -> None:
-        self._poll_and_enqueue(client, controller)
-        self._drain_execution_queue(client, controller)
+        self._issue_dispatcher.poll_and_dispatch(client, controller)
 
     def _poll_and_enqueue(self, client: LinearClient, controller: RunController) -> None:
-        try:
-            issues = client.list_issues(
-                team_key=self.config.team_key,
-                assigned_to_me=self.config.issue_filter == "assigned_to_me",
-                filter_state=self.config.consume_state,
-                filter_labels=self.config.require_labels or None,
-                exclude_labels=self.config.exclude_labels or None,
-                exclude_parents=self.config.skip_parents,
-            )
-        except Exception as exc:
-            print(f"[daemon] poll error: {exc}")
-            return
-
-        sorted_issues = sorted(
-            issues,
-            key=lambda i: 0 if self._is_hotfix(i) else 1,
-        )
-        projected_in_progress = len(self._in_progress) + len(
-            self._state_store.list_execution_intents()
-        )
-        for raw_issue in sorted_issues:
-            issue_id = raw_issue.get("identifier", "")
-            linear_uid = raw_issue.get("id", "")
-            if not issue_id or issue_id in self._processed:
-                continue
-            if issue_id in self._dead_letter:
-                continue
-            if self._is_locked(issue_id):
-                continue
-            if self._should_backoff(issue_id):
-                continue
-
-            is_hotfix = self._is_hotfix(raw_issue)
-            admission_decision = self._admission_governor.evaluate_issue(
-                issue_id,
-                in_progress_count=projected_in_progress,
-                is_hotfix=is_hotfix,
-                recorded_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            )
-            self._admission_governor.record_decision(admission_decision)
-            if admission_decision["decision"] != "admit":
-                continue
-
-            try:
-                self._claim(issue_id)
-            except RuntimeError:
-                continue
-
-            if not is_hotfix and not self._triage_issue(client, raw_issue, controller):
-                self._release(issue_id)
-                continue
-
-            # Ready → In Progress
-            if linear_uid:
-                try:
-                    client.update_issue_state(linear_uid, "In Progress")
-                except Exception as exc:
-                    print(f"[daemon] state→InProgress failed: {exc}")
-
-            self._enqueue_execution_intent(
-                issue_id=issue_id,
-                raw_issue=raw_issue,
-                is_hotfix=is_hotfix,
-            )
-            projected_in_progress += 1
+        self._issue_dispatcher._poll_and_enqueue(client, controller)
 
     def _enqueue_execution_intent(
         self,
@@ -652,68 +750,32 @@ class SpecOrchDaemon:
         raw_issue: dict[str, Any],
         is_hotfix: bool,
     ) -> None:
-        self._state_store.enqueue_execution_intent(
+        self._issue_dispatcher._enqueue_execution_intent(
             issue_id=issue_id,
             raw_issue=raw_issue,
             is_hotfix=is_hotfix,
         )
 
     def _drain_execution_queue(self, client: LinearClient, controller: RunController) -> None:
-        """Pop all admitted intents and submit to the thread pool.
-
-        Admission was already checked at enqueue time, so we drain everything
-        queued.  The pool's ``max_workers`` naturally caps real concurrency.
-        We add the issue to ``_in_progress`` *before* submitting so the
-        admission governor sees the correct count on the next tick.
-        """
-        while True:
-            intent = self._state_store.pop_next_execution_intent()
-            if intent is None:
-                break
-            issue_id = str(intent.get("issue_id", "")).strip()
-            raw_issue = intent.get("raw_issue")
-            if not issue_id or not isinstance(raw_issue, dict):
-                continue
-            # Mark in-progress on main thread so admission counts stay correct.
-            with self._state_lock:
-                self._in_progress.add(issue_id)
-            try:
-                future = self._executor_pool.submit(
-                    self._daemon_executor.dispatch,
-                    host=self,
-                    issue_id=issue_id,
-                    raw_issue=raw_issue,
-                    client=client,
-                    controller=controller,
-                    is_hotfix=bool(intent.get("is_hotfix", False)),
-                )
-                self._execution_futures[issue_id] = future
-            except Exception as exc:
-                print(f"[daemon] submit failed for {issue_id}: {exc}")
-                with self._state_lock:
-                    self._in_progress.discard(issue_id)
-                self._emit_error_event(
-                    "daemon.submit_failed",
-                    str(exc),
-                    issue_id=issue_id,
-                )
+        self._issue_dispatcher._drain_execution_queue(client, controller)
 
     def _reap_completed_futures(self) -> None:
-        """Harvest finished execution futures and log any unhandled errors."""
-        done_ids = [issue_id for issue_id, fut in self._execution_futures.items() if fut.done()]
-        for issue_id in done_ids:
-            fut = self._execution_futures.pop(issue_id)
-            exc = fut.exception()
-            # Always unwind the in-progress reservation so the issue can be retried.
-            with self._state_lock:
-                self._in_progress.discard(issue_id)
-            if exc is not None:
-                print(f"[daemon] executor future for {issue_id} raised: {exc}")
-                self._emit_error_event(
-                    "daemon.executor_future_error",
-                    str(exc),
-                    issue_id=issue_id,
-                )
+        self._issue_dispatcher.reap_completed_futures()
+
+    @property
+    def _execution_futures(self) -> dict[str, Future[None]]:  # type: ignore[override]
+        dispatcher = self.__dict__.get("_issue_dispatcher")
+        if dispatcher is not None:
+            return dispatcher._execution_futures  # type: ignore[no-any-return]
+        return self.__dict__.get("__execution_futures_fallback", {})  # type: ignore[no-any-return]
+
+    @_execution_futures.setter
+    def _execution_futures(self, value: dict[str, Future[None]]) -> None:
+        dispatcher = self.__dict__.get("_issue_dispatcher")
+        if dispatcher is not None:
+            dispatcher._execution_futures = value
+        else:
+            self.__dict__["__execution_futures_fallback"] = value
 
     @staticmethod
     def _sanitize_id(raw_id: str) -> str:
@@ -1006,120 +1068,18 @@ class SpecOrchDaemon:
         )
 
     def _check_clarification_replies(self, client: LinearClient) -> None:
-        """Check for user replies on issues waiting for clarification.
-
-        When a user replies, remove the needs-clarification label so the
-        issue re-enters the Ready candidate pool on the next poll.
-        """
-        try:
-            waiting = client.list_issues(
-                team_key=self.config.team_key,
-                filter_state=self.config.consume_state,
-                filter_labels=["needs-clarification"],
-                exclude_parents=self.config.skip_parents,
-            )
-        except Exception as exc:
-            print(f"[daemon] clarification check error: {exc}")
-            return
-
-        for raw_issue in waiting:
-            issue_id = raw_issue.get("identifier", "")
-            linear_uid = raw_issue.get("id", "")
-            if not linear_uid:
-                continue
-
-            try:
-                comments = client.list_comments(linear_uid)
-            except Exception as exc:
-                print(f"[daemon] {issue_id}: failed to list comments: {exc}")
-                continue
-
-            bot_comment_idx = -1
-            for idx, c in enumerate(comments):
-                body = c.get("body", "")
-                if "SpecOrch: Clarification Needed" in body:
-                    bot_comment_idx = idx
-
-            if bot_comment_idx < 0:
-                continue
-
-            has_reply = any(
-                c.get("body", "") and "SpecOrch: Clarification Needed" not in c.get("body", "")
-                for c in comments[bot_comment_idx + 1 :]
-            )
-
-            if has_reply:
-                print(f"[daemon] {issue_id}: user replied, re-entering pool")
-                try:
-                    client.remove_label(linear_uid, "needs-clarification")
-                except Exception as exc:
-                    print(f"[daemon] {issue_id}: remove label failed: {exc}")
-                self._triaged.discard(issue_id)
+        self._reaction_processor.check_clarification_replies(client)
 
     def _check_review_updates(self, client: LinearClient) -> None:
-        """Poll In Review PRs for new commits pushed after review fixes.
+        self._reaction_processor.check_review_updates(client)
 
-        When a PR has a new HEAD commit compared to the stored hash,
-        the issue is moved from _processed back to the Ready pool so
-        the daemon re-evaluates verification + gate on the next cycle.
-        """
-        if not self._pr_commits:
-            return
-
-        try:
-            gh = GitHubPRService()
-            open_prs = gh.list_open_prs(self.repo_root, base=self.config.base_branch)
-        except Exception as exc:
-            print(f"[daemon] review-update check error: {exc}")
-            return
-
-        pr_meta_by_issue: dict[str, dict[str, Any]] = {}
-        for pr in open_prs:
-            sha = pr.get("headRefOid", "")
-            title = pr.get("title", "")
-            pr_number = pr.get("number")
-            if sha and title:
-                match = _PR_ISSUE_ID_RE.search(title)
-                if match:
-                    pr_meta_by_issue[match.group(1)] = {"sha": sha, "number": pr_number}
-
-        for issue_id in list(self._pr_commits):
-            if issue_id not in self._processed:
-                continue
-
-            stored_sha = self._pr_commits[issue_id]
-            current = pr_meta_by_issue.get(issue_id)
-            current_sha = current.get("sha") if current else None
-
-            if current_sha is None:
-                continue
-
-            if current_sha != stored_sha:
-                print(
-                    f"[daemon] {issue_id}: new commit detected "
-                    f"({stored_sha[:8]} → {current_sha[:8]}), "
-                    "re-entering review loop"
-                )
-                self._processed.discard(issue_id)
-                self._pr_commits[issue_id] = current_sha
-
-                try:
-                    issues = client.list_issues(
-                        team_key=self.config.team_key,
-                        filter_state="In Review",
-                    )
-                    for raw in issues:
-                        if raw.get("identifier") == issue_id:
-                            client.update_issue_state(
-                                raw["id"],
-                                self.config.consume_state,
-                            )
-                            print(f"[daemon] {issue_id} → {self.config.consume_state}")
-                            break
-                except Exception as exc:
-                    print(f"[daemon] {issue_id}: state reset failed: {exc}")
-
-        self._run_reactions(client, gh, pr_meta_by_issue)
+    def _run_reactions(
+        self,
+        client: LinearClient,
+        gh: GitHubPRService,
+        pr_meta_by_issue: dict[str, dict[str, Any]],
+    ) -> None:
+        self._reaction_processor._run_reactions(client, gh, pr_meta_by_issue)
 
     def _reaction_template_context(
         self,
@@ -1129,71 +1089,15 @@ class SpecOrchDaemon:
         sha: str,
         signal: dict[str, Any],
     ) -> dict[str, Any]:
-        return {
-            "issue_id": issue_id,
-            "pr_number": pr_number,
-            "sha": sha,
-            "consume_state": self.config.consume_state,
-            "review_decision": str(signal.get("review_decision", "") or ""),
-            "merge_state": str(signal.get("merge_state", "") or ""),
-            "checks_passed": signal.get("checks_passed", False),
-            "checks_failed": signal.get("checks_failed", False),
-            "mergeable": signal.get("mergeable", False),
-        }
+        return self._reaction_processor._reaction_template_context(
+            issue_id=issue_id,
+            pr_number=pr_number,
+            sha=sha,
+            signal=signal,
+        )
 
     def _append_reaction_trace(self, record: dict[str, Any]) -> None:
-        """Append JSONL trace for replay / evaluation (P2-D)."""
-        trace_path = self.repo_root / ".spec_orch" / "reactions_trace.jsonl"
-        try:
-            trace_path.parent.mkdir(parents=True, exist_ok=True)
-            with trace_path.open("a", encoding="utf-8") as fh:
-                fh.write(_json.dumps(record, ensure_ascii=False) + "\n")
-        except OSError as exc:
-            print(f"[daemon] reaction trace write failed: {exc}")
-        try:
-            self._event_bus.publish(
-                Event(
-                    topic=EventTopic.SYSTEM,
-                    payload={"kind": "reaction.executed", **record},
-                )
-            )
-        except Exception as exc:
-            print(f"[daemon] reaction event publish failed: {exc}")
-
-    def _run_reactions(
-        self,
-        client: LinearClient,
-        gh: GitHubPRService,
-        pr_meta_by_issue: dict[str, dict[str, Any]],
-    ) -> None:
-        for issue_id, meta in pr_meta_by_issue.items():
-            pr_number = meta.get("number")
-            if not isinstance(pr_number, int):
-                continue
-            signal = gh.get_pr_signal(self.repo_root, pr_number)
-            if not signal:
-                continue
-            tpl_ctx = self._reaction_template_context(
-                issue_id=issue_id,
-                pr_number=pr_number,
-                sha=str(meta.get("sha", "")),
-                signal=signal,
-            )
-            decisions = self._reaction_engine.evaluate(signal)
-            for decision in decisions:
-                mark = f"{issue_id}:{meta.get('sha', '')}:{decision.rule_name}:{decision.action}"
-                if mark in self._reaction_marks:
-                    continue
-                consumed = self._apply_reaction_decision(
-                    client,
-                    gh,
-                    issue_id=issue_id,
-                    pr_number=pr_number,
-                    decision=decision,
-                    tpl_ctx=tpl_ctx,
-                )
-                if consumed:
-                    self._reaction_marks.add(mark)
+        self._reaction_processor._append_reaction_trace(record)
 
     def _apply_reaction_decision(
         self,
@@ -1205,78 +1109,20 @@ class SpecOrchDaemon:
         decision: ReactionDecision,
         tpl_ctx: dict[str, Any],
     ) -> bool:
-        """Execute one reaction; return True if the mark should be consumed."""
-        base_record: dict[str, Any] = {
-            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "issue_id": issue_id,
-            "pr_number": pr_number,
-            "rule_name": decision.rule_name,
-            "action": decision.action,
-            "reason": decision.reason,
-        }
-
-        if decision.action == "noop":
-            rec = {**base_record, "result": "noop"}
-            self._append_reaction_trace(rec)
-            return True
-
-        if decision.action == "auto_merge":
-            method = str(decision.params.get("merge_method", "squash")).strip() or "squash"
-            merged = gh.merge_pr(
-                self.repo_root,
-                pr_number=pr_number,
-                method=method,
-            )
-            rec = {
-                **base_record,
-                "result": "merged" if merged else "merge_failed",
-                "merge_method": method,
-            }
-            self._append_reaction_trace(rec)
-            if merged:
-                self._mark_issue_done_if_in_review(client, issue_id)
-                print(f"[daemon] reaction auto-merge applied for {issue_id}")
-            return merged
-
-        if decision.action == "requeue_ready":
-            ok = self._requeue_issue_to_consume_state(client, issue_id)
-            rec = {**base_record, "result": "requeued" if ok else "requeue_failed"}
-            self._append_reaction_trace(rec)
-            if ok:
-                print(f"[daemon] reaction requeue → {self.config.consume_state} for {issue_id}")
-            return ok
-
-        if decision.action in {"comment_ci_failed", "comment_changes_requested"}:
-            ok = self._comment_reaction(client, issue_id, decision, tpl_ctx)
-            rec = {**base_record, "result": "commented" if ok else "comment_failed"}
-            self._append_reaction_trace(rec)
-            return ok
-
-        rec = {**base_record, "result": "unknown_action"}
-        self._append_reaction_trace(rec)
-        return False
+        return self._reaction_processor._apply_reaction_decision(
+            client,
+            gh,
+            issue_id=issue_id,
+            pr_number=pr_number,
+            decision=decision,
+            tpl_ctx=tpl_ctx,
+        )
 
     def _requeue_issue_to_consume_state(self, client: LinearClient, issue_id: str) -> bool:
-        """Move an In Review issue back to consume_state (re-enter main loop)."""
-        try:
-            issues = client.list_issues(team_key=self.config.team_key, filter_state="In Review")
-            for raw in issues:
-                if raw.get("identifier") == issue_id and raw.get("id"):
-                    client.update_issue_state(raw["id"], self.config.consume_state)
-                    return True
-        except Exception as exc:
-            print(f"[daemon] {issue_id}: requeue reaction failed: {exc}")
-        return False
+        return self._reaction_processor._requeue_issue_to_consume_state(client, issue_id)
 
     def _mark_issue_done_if_in_review(self, client: LinearClient, issue_id: str) -> None:
-        try:
-            issues = client.list_issues(team_key=self.config.team_key, filter_state="In Review")
-            for raw in issues:
-                if raw.get("identifier") == issue_id and raw.get("id"):
-                    client.update_issue_state(raw["id"], "Done")
-                    break
-        except Exception as exc:
-            print(f"[daemon] {issue_id}: failed to set Done after auto-merge: {exc}")
+        self._reaction_processor._mark_issue_done_if_in_review(client, issue_id)
 
     def _comment_reaction(
         self,
@@ -1285,43 +1131,19 @@ class SpecOrchDaemon:
         decision: ReactionDecision,
         tpl_ctx: dict[str, Any],
     ) -> bool:
-        """Post a Linear comment from rule params or built-in defaults."""
-        action = decision.action
-        params = decision.params
-        template_key = "comment_template"
-        if action == "comment_ci_failed":
-            default_body = (
-                "## SpecOrch Reaction: CI failed\n\n"
-                "Detected failed checks on the PR. Please push a fix commit; "
-                "daemon will re-enter the review loop automatically."
-            )
-        else:
-            default_body = (
-                "## SpecOrch Reaction: Changes requested\n\n"
-                "Detected `CHANGES_REQUESTED` review state. Please address feedback "
-                "and push updates; daemon will pick up new commits."
-            )
-        raw_tpl = params.get(template_key)
-        if isinstance(raw_tpl, str) and raw_tpl.strip():
-            body = interpolate_template(raw_tpl, tpl_ctx)
-        else:
-            body = default_body
-
-        try:
-            issues = client.list_issues(team_key=self.config.team_key, filter_state="In Review")
-            for raw in issues:
-                if raw.get("identifier") != issue_id or not raw.get("id"):
-                    continue
-                client.add_comment(raw["id"], body)
-                return True
-        except Exception as exc:
-            print(f"[daemon] {issue_id}: reaction comment failed: {exc}")
-        return False
+        return self._reaction_processor._comment_reaction(client, issue_id, decision, tpl_ctx)
 
     def _is_locked(self, issue_id: str) -> bool:
+        dispatcher = self.__dict__.get("_issue_dispatcher")
+        if dispatcher is not None:
+            return bool(dispatcher._is_locked(issue_id))
         return self._state_store.issue_is_claimed(issue_id)
 
     def _claim(self, issue_id: str) -> None:
+        dispatcher = self.__dict__.get("_issue_dispatcher")
+        if dispatcher is not None:
+            dispatcher._claim(issue_id)
+            return
         claimed = self._state_store.try_claim_issue(
             issue_id,
             owner=self._process_lock_owner,
@@ -1331,6 +1153,10 @@ class SpecOrchDaemon:
             raise RuntimeError(f"issue already claimed: {issue_id}")
 
     def _release(self, issue_id: str) -> None:
+        dispatcher = self.__dict__.get("_issue_dispatcher")
+        if dispatcher is not None:
+            dispatcher._release(issue_id)
+            return
         self._state_store.release_issue_claim(issue_id)
 
     def _sleep(self, seconds: int) -> None:
@@ -1507,20 +1333,12 @@ class SpecOrchDaemon:
                 print(f"[daemon] state update failed: {exc}")
 
     def _is_hotfix(self, raw_issue: dict[str, Any]) -> bool:
-        """Check if an issue has hotfix labels — skip triage if so."""
-        labels = raw_issue.get("labels", {}).get("nodes", [])
-        issue_labels = {lbl.get("name", "").lower() for lbl in labels}
-        return bool(issue_labels & {h.lower() for h in self.config.hotfix_labels})
+        """Check if an issue has hotfix labels -- skip triage if so."""
+        return self._issue_dispatcher._is_hotfix(raw_issue)
 
     def _should_backoff(self, issue_id: str) -> bool:
         """Check if the issue is in a retry backoff period."""
-        count = self._retry_counts.get(issue_id, 0)
-        if count == 0:
-            return False
-        retry_at = self._retry_at.get(issue_id)
-        if retry_at is None:
-            return False
-        return time.time() < retry_at
+        return self._issue_dispatcher._should_backoff(issue_id)
 
     def _record_failure(
         self,
