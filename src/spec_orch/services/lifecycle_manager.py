@@ -6,7 +6,6 @@ planning, promotion, execution, retrospective, and evolution.
 
 from __future__ import annotations
 
-import enum
 import json
 import logging
 from dataclasses import asdict, dataclass, field
@@ -14,7 +13,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from spec_orch.domain.models import Issue, IssueContext, MissionStatus
+from spec_orch.domain.models import (
+    Issue,
+    IssueContext,
+    MissionPhase,
+    MissionStatus,  # noqa: F401 — re-exported for mission_service lazy import
+    project_mission_status,  # noqa: F401 — re-exported for mission_service lazy import
+)
 from spec_orch.services.context.context_assembler import ContextAssembler
 from spec_orch.services.context.node_context_registry import get_node_context_spec
 from spec_orch.services.event_bus import EventBus, get_event_bus
@@ -23,45 +28,6 @@ from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 from spec_orch.services.mission_execution_service import MissionExecutionService
 
 logger = logging.getLogger(__name__)
-
-
-class MissionPhase(enum.StrEnum):
-    APPROVED = "approved"
-    PLANNING = "planning"
-    PLANNED = "planned"
-    PROMOTING = "promoting"
-    EXECUTING = "executing"
-    ALL_DONE = "all_done"
-    RETROSPECTING = "retrospecting"
-    EVOLVING = "evolving"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
-def project_mission_status(phase: MissionPhase | str | None) -> MissionStatus:
-    """Project the canonical lifecycle phase onto the external mission status view."""
-    if phase is None:
-        return MissionStatus.DRAFTING
-    normalized = str(phase).strip().lower()
-    if normalized in {
-        MissionPhase.APPROVED.value,
-        MissionPhase.PLANNING.value,
-        MissionPhase.PLANNED.value,
-        MissionPhase.PROMOTING.value,
-    }:
-        return MissionStatus.APPROVED
-    if normalized in {
-        MissionPhase.EXECUTING.value,
-        MissionPhase.ALL_DONE.value,
-        MissionPhase.RETROSPECTING.value,
-        MissionPhase.EVOLVING.value,
-    }:
-        return MissionStatus.IN_PROGRESS
-    if normalized == MissionPhase.COMPLETED.value:
-        return MissionStatus.COMPLETED
-    if normalized == MissionPhase.FAILED.value:
-        return MissionStatus.FAILED
-    return MissionStatus.DRAFTING
 
 
 @dataclass
