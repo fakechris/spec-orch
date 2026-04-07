@@ -111,9 +111,28 @@ class RuntimeChainStatus:
         )
 
 
+def build_chain_lineage_ref(
+    chain_id: str,
+    mission_span_id: str,
+    round_span_id: str,
+) -> dict[str, str]:
+    """Build a ``mission_chain_ref`` dict for cross-chain lineage.
+
+    The returned dict is intended to be stored inside
+    ``RuntimeChainEvent.session_refs`` so that an issue-level chain event
+    can be traced back to the mission/round that spawned it.
+    """
+    return {
+        "mission_chain_id": chain_id,
+        "mission_span_id": mission_span_id,
+        "round_span_id": round_span_id,
+    }
+
+
 __all__ = [
     "ChainPhase",
     "RuntimeChainEvent",
     "RuntimeChainStatus",
     "RuntimeSubjectKind",
+    "build_chain_lineage_ref",
 ]

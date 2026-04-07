@@ -340,12 +340,16 @@ class RunController:
         phase: ChainPhase,
         status_reason: str,
         artifact_refs: dict[str, Any] | None = None,
+        mission_chain_ref: dict[str, str] | None = None,
     ) -> None:
         chain_root = self._issue_chain_root(workspace)
         issue_span_id = self._issue_span_id(run_id)
         span_id = self._issue_span_id(run_id, phase_name)
         updated_at = datetime.now(UTC).isoformat()
         refs = dict(artifact_refs or {})
+        session_refs: dict[str, Any] = {}
+        if mission_chain_ref is not None:
+            session_refs["mission_chain_ref"] = mission_chain_ref
         append_chain_event(
             chain_root,
             RuntimeChainEvent(
@@ -356,6 +360,7 @@ class RunController:
                 subject_id=issue_id,
                 phase=phase,
                 status_reason=status_reason,
+                session_refs=session_refs,
                 artifact_refs=refs,
                 updated_at=updated_at,
             ),
@@ -369,6 +374,7 @@ class RunController:
                 subject_id=issue_id,
                 phase=phase,
                 status_reason=status_reason,
+                session_refs=session_refs,
                 artifact_refs=refs,
                 updated_at=updated_at,
             ),
@@ -392,7 +398,12 @@ class RunController:
         except (TypeError, ValueError):
             return False
 
-    def run_issue(self, issue_id: str, flow_type: FlowType | None = None) -> RunResult:
+    def run_issue(
+        self,
+        issue_id: str,
+        flow_type: FlowType | None = None,
+        mission_chain_ref: dict[str, str] | None = None,
+    ) -> RunResult:
         """Run an issue through the execution pipeline driven by FlowEngine graph.
 
         Walks the graph steps in order, skipping pre-execution steps and
@@ -415,6 +426,7 @@ class RunController:
             phase=ChainPhase.STARTED,
             status_reason="issue_run_started",
             artifact_refs={"workspace": str(workspace)},
+            mission_chain_ref=mission_chain_ref,
         )
 
         prev_snap = RunProgressSnapshot.load(workspace)

@@ -207,6 +207,7 @@ class RoundOrchestrator:
                     chain_id=chain_id,
                     chain_root=chain_root,
                     round_span_id=round_span_id,
+                    mission_span_id=mission_span_id,
                 )
             except Exception as exc:
                 summary.status = RoundStatus.FAILED
@@ -318,6 +319,7 @@ class RoundOrchestrator:
         chain_id: str,
         chain_root: Path,
         round_span_id: str,
+        mission_span_id: str,
     ) -> list[tuple[WorkPacket, BuilderResult]]:
         return self._wave_dispatcher.run(
             host=self,
@@ -328,6 +330,7 @@ class RoundOrchestrator:
             chain_id=chain_id,
             chain_root=chain_root,
             round_span_id=round_span_id,
+            mission_span_id=mission_span_id,
         )
 
     def _collect_artifacts(

@@ -5,7 +5,12 @@ from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.models import BuilderResult, RoundSummary, Wave, WorkPacket
-from spec_orch.runtime_chain.models import ChainPhase, RuntimeChainEvent, RuntimeSubjectKind
+from spec_orch.runtime_chain.models import (
+    ChainPhase,
+    RuntimeChainEvent,
+    RuntimeSubjectKind,
+    build_chain_lineage_ref,
+)
 from spec_orch.runtime_chain.store import append_chain_event
 
 
@@ -32,15 +37,26 @@ class WaveDispatcher:
         chain_id: str,
         chain_root: Path,
         round_span_id: str,
+        mission_span_id: str | None = None,
     ) -> list[tuple[WorkPacket, BuilderResult]]:
         results: list[tuple[WorkPacket, BuilderResult]] = []
         last_decision = round_history[-1].decision if round_history else None
+        lineage_ref: dict[str, str] | None = None
+        if mission_span_id is not None:
+            lineage_ref = build_chain_lineage_ref(
+                chain_id=chain_id,
+                mission_span_id=mission_span_id,
+                round_span_id=round_span_id,
+            )
 
         for packet in wave.work_packets:
             session_id = f"mission-{mission_id}-{packet.packet_id}"
             workspace = host._packet_workspace(mission_id, packet)
             workspace.mkdir(parents=True, exist_ok=True)
             packet_span_id = f"{round_span_id}:packet:{packet.packet_id}"
+            packet_session_refs: dict[str, Any] = {}
+            if lineage_ref is not None:
+                packet_session_refs["mission_chain_ref"] = lineage_ref
             append_chain_event(
                 chain_root,
                 RuntimeChainEvent(
@@ -51,6 +67,7 @@ class WaveDispatcher:
                     subject_id=packet.packet_id,
                     phase=ChainPhase.STARTED,
                     status_reason="packet_started",
+                    session_refs=packet_session_refs,
                     artifact_refs={"workspace": str(workspace)},
                     updated_at=datetime.now(UTC).isoformat(),
                 ),
