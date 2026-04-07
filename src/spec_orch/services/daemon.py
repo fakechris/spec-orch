@@ -7,7 +7,6 @@ import signal
 import sqlite3
 import subprocess as _subprocess
 import sys
-import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
@@ -182,7 +181,6 @@ class SpecOrchDaemon:
         self._mission_execution_service: MissionExecutionService | None = None
 
         from spec_orch.services.lifecycle_manager import MissionLifecycleManager
-
         from spec_orch.services.memory.service import get_memory_service
 
         self._memory_service = get_memory_service(repo_root=repo_root)
