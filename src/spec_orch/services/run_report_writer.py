@@ -19,6 +19,7 @@ from spec_orch.domain.models import (
     VerificationSummary,
 )
 from spec_orch.runtime_core.paths import normalized_issue_live_path, normalized_issue_manifest_path
+from spec_orch.services.artifact_schemas import validate_run_report
 from spec_orch.services.io import atomic_write_json
 
 logger = logging.getLogger(__name__)
@@ -48,9 +49,11 @@ class RunReportWriter:
                     merged[key] = report_data[key]
             if "run_id" not in merged and "run_id" in report_data:
                 merged["run_id"] = report_data["run_id"]
+            validate_run_report(merged)
             return merged
 
         if report_data:
+            validate_run_report(report_data)
             return report_data
 
         raise FileNotFoundError(f"persisted run payload not found under {workspace}")

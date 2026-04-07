@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from spec_orch.runtime_core.writers import write_issue_execution_payloads
+from spec_orch.services.artifact_schemas import (
+    validate_conclusion,
+    validate_live_snapshot,
+    validate_manifest,
+)
 from spec_orch.services.io import atomic_write_json
+
+logger = logging.getLogger(__name__)
 
 
 class RunArtifactService:
@@ -56,6 +64,12 @@ class RunArtifactService:
             events_count=len(events),
             artifact_dir=artifact_dir,
         )
+
+        # Validate artifacts before writing (warn-only, never block)
+        validate_live_snapshot(live)
+        validate_conclusion(conclusion)
+        validate_manifest(manifest)
+
         written = write_issue_execution_payloads(
             workspace,
             live=live,
