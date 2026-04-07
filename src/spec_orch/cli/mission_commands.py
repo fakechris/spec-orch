@@ -69,7 +69,7 @@ def plan_mission(
 
     hints_ctx: str | None = None
     try:
-        from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
+        from spec_orch.services.evolution.plan_strategy_evolver import PlanStrategyEvolver
 
         strategy_evolver = PlanStrategyEvolver(Path(repo_root))
         hints_ctx = strategy_evolver.format_hints_for_prompt() or None

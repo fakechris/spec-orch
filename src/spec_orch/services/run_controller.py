@@ -49,13 +49,13 @@ from spec_orch.runtime_core.compaction.runner import (
 )
 from spec_orch.services.activity_logger import ActivityLogger
 from spec_orch.services.artifact_service import ArtifactService
-from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.context.context_assembler import ContextAssembler
+from spec_orch.services.context.node_context_registry import get_node_context_spec
 from spec_orch.services.deviation_service import (
     detect_deviations,
     overwrite_deviations,
 )
 from spec_orch.services.gate_service import GateService
-from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.run_artifact_service import RunArtifactService
 from spec_orch.services.run_controller_adapters import (
     RunControllerAdapters,
@@ -1711,7 +1711,7 @@ class RunController:
                 exc_info=True,
             )
             return
-        from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
+        from spec_orch.services.evolution.evolution_trigger import EvolutionConfig, EvolutionTrigger
 
         config = EvolutionConfig.from_toml(toml_data)
         if not config.enabled:
@@ -1881,7 +1881,7 @@ class RunController:
         builder.metadata["run_id"] = run_id
         if not builder.report_path.is_absolute():
             builder.report_path = builder.report_path.resolve()
-        from spec_orch.services.codex_exec_builder_adapter import (
+        from spec_orch.services.builders.codex_exec_builder_adapter import (
             _write_report as write_builder_report,
         )
 

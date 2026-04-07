@@ -368,7 +368,7 @@ class TestMixedEvents:
 
 
 class TestRun:
-    @patch("spec_orch.services.acpx_builder_adapter.AcpxWorkerHandle.send")
+    @patch("spec_orch.services.builders.acpx_builder_adapter.AcpxWorkerHandle.send")
     def test_run_success(self, mock_send: MagicMock, tmp_path: Path) -> None:
         report_path = tmp_path / "builder_report.json"
         report_path.write_text(
@@ -394,7 +394,7 @@ class TestRun:
         assert (tmp_path / "builder_report.json").exists()
         assert '"adapter": "acpx"' in report_path.read_text(encoding="utf-8")
 
-    @patch("spec_orch.services.acpx_builder_adapter.AcpxWorkerHandle.send")
+    @patch("spec_orch.services.builders.acpx_builder_adapter.AcpxWorkerHandle.send")
     def test_run_failure(self, mock_send: MagicMock, tmp_path: Path) -> None:
         report_path = tmp_path / "builder_report.json"
         report_path.write_text(
@@ -421,7 +421,7 @@ class TestRun:
 
 class TestAdapterFactory:
     def test_create_acpx_builder(self, tmp_path: Path) -> None:
-        from spec_orch.services.adapter_factory import create_builder
+        from spec_orch.services.builders.adapter_factory import create_builder
 
         toml = {
             "builder": {
@@ -438,7 +438,7 @@ class TestAdapterFactory:
         assert builder.absolute_timeout_seconds == 900.0
 
     def test_create_acpx_shortcut_codex(self, tmp_path: Path) -> None:
-        from spec_orch.services.adapter_factory import create_builder
+        from spec_orch.services.builders.adapter_factory import create_builder
 
         toml = {"builder": {"adapter": "acpx_codex"}}
         builder = create_builder(tmp_path, toml_override=toml)
@@ -446,7 +446,7 @@ class TestAdapterFactory:
         assert builder.agent == "codex"
 
     def test_create_acpx_shortcut_claude(self, tmp_path: Path) -> None:
-        from spec_orch.services.adapter_factory import create_builder
+        from spec_orch.services.builders.adapter_factory import create_builder
 
         toml = {"builder": {"adapter": "acpx_claude", "model": "sonnet"}}
         builder = create_builder(tmp_path, toml_override=toml)
@@ -456,7 +456,7 @@ class TestAdapterFactory:
 
     def test_acpx_shortcut_agent_override(self, tmp_path: Path) -> None:
         """Explicit agent= overrides the shortcut suffix."""
-        from spec_orch.services.adapter_factory import create_builder
+        from spec_orch.services.builders.adapter_factory import create_builder
 
         toml = {"builder": {"adapter": "acpx_codex", "agent": "gemini"}}
         builder = create_builder(tmp_path, toml_override=toml)
@@ -465,7 +465,7 @@ class TestAdapterFactory:
 
 
 class TestSessionManagement:
-    @patch("spec_orch.services.acpx_builder_adapter.subprocess.run")
+    @patch("spec_orch.services.builders.acpx_builder_adapter.subprocess.run")
     def test_ensure_session(self, mock_run: MagicMock) -> None:
         mock_run.return_value.returncode = 0
         mock_run.return_value.stderr = ""
@@ -476,7 +476,7 @@ class TestSessionManagement:
         assert "sessions" in cmd
         assert "ensure" in cmd
 
-    @patch("spec_orch.services.acpx_builder_adapter.subprocess.run")
+    @patch("spec_orch.services.builders.acpx_builder_adapter.subprocess.run")
     def test_ensure_session_gracefully_degrades_on_nonzero_returncode(
         self, mock_run: MagicMock
     ) -> None:
@@ -486,7 +486,7 @@ class TestSessionManagement:
 
         adapter._ensure_session(Path("/fake"))
 
-    @patch("spec_orch.services.acpx_builder_adapter.subprocess.run")
+    @patch("spec_orch.services.builders.acpx_builder_adapter.subprocess.run")
     def test_cancel_session(self, mock_run: MagicMock) -> None:
         mock_run.return_value.returncode = 0
         mock_run.return_value.stderr = ""
@@ -496,7 +496,7 @@ class TestSessionManagement:
         cmd = mock_run.call_args[0][0]
         assert "cancel" in cmd
 
-    @patch("spec_orch.services.acpx_builder_adapter.subprocess.run")
+    @patch("spec_orch.services.builders.acpx_builder_adapter.subprocess.run")
     def test_cancel_session_raises_on_nonzero_returncode(self, mock_run: MagicMock) -> None:
         mock_run.return_value.returncode = 3
         mock_run.return_value.stderr = "session cancel failed"

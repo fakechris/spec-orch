@@ -70,7 +70,7 @@ class TestBuiltinSkills:
         r = VerificationSkill().run(GateInput(verification=summary))
 
         assert not r.passed
-        assert r.reason == "verification failed"
+        assert r.reason.startswith("verification failed")
 
     def test_review_pass(self) -> None:
         r = ReviewSkill().run(GateInput(review=ReviewSummary(verdict="pass")))

@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.models import Issue
-from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
+from spec_orch.services.builders.codex_exec_builder_adapter import CodexExecBuilderAdapter
 
 
 def test_codex_adapter_can_handle() -> None:

@@ -7,6 +7,7 @@ import signal
 import sqlite3
 import subprocess as _subprocess
 import sys
+import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
@@ -14,10 +15,11 @@ from typing import Any, cast
 
 from spec_orch.domain.models import Issue, IssueContext, RunResult, RunState
 from spec_orch.domain.protocols import PlannerAdapter
-from spec_orch.services.adapter_factory import create_builder, create_reviewer
 from spec_orch.services.admission_governor import AdmissionGovernor
+from spec_orch.services.builders.adapter_factory import create_builder, create_reviewer
 from spec_orch.services.conflict_resolver import ConflictResolver
-from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.context.context_assembler import ContextAssembler
+from spec_orch.services.context.node_context_registry import get_node_context_spec
 from spec_orch.services.daemon_executor import DaemonExecutor
 from spec_orch.services.daemon_mission_executor import DaemonMissionExecutor
 from spec_orch.services.daemon_single_issue_executor import DaemonSingleIssueExecutor
@@ -30,7 +32,6 @@ from spec_orch.services.linear_issue_source import LinearIssueSource
 from spec_orch.services.linear_write_back import LinearWriteBackService
 from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 from spec_orch.services.mission_execution_service import MissionExecutionService
-from spec_orch.services.node_context_registry import get_node_context_spec
 from spec_orch.services.reaction_engine import (
     ReactionDecision,
     ReactionEngine,
@@ -159,6 +160,7 @@ class SpecOrchDaemon:
         self._dead_letter: set[str] = set(saved.get("dead_letter", []))
         self._in_progress: set[str] = set(saved.get("in_progress", []))
         self._reaction_marks: set[str] = set(saved.get("reaction_marks", []))
+        self._state_lock = threading.Lock()
         self._process_lock_owner = f"{os.getpid()}:{id(self)}"
         self._reaction_engine = ReactionEngine(repo_root)
         self._admission_governor = AdmissionGovernor(
@@ -233,19 +235,18 @@ class SpecOrchDaemon:
 
     def _save_state(self) -> None:
         self._last_poll = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        # Copy mutable collections to avoid RuntimeError from concurrent
-        # modification by executor threads (GIL protects the copy itself).
-        data = {
-            "processed": sorted(set(self._processed)),
-            "triaged": sorted(set(self._triaged)),
-            "pr_commits": dict(self._pr_commits),
-            "retry_counts": dict(self._retry_counts),
-            "retry_at": dict(self._retry_at),
-            "dead_letter": sorted(set(self._dead_letter)),
-            "in_progress": sorted(set(self._in_progress)),
-            "reaction_marks": sorted(set(self._reaction_marks)),
-            "last_poll": self._last_poll,
-        }
+        with self._state_lock:
+            data = {
+                "processed": sorted(set(self._processed)),
+                "triaged": sorted(set(self._triaged)),
+                "pr_commits": dict(self._pr_commits),
+                "retry_counts": dict(self._retry_counts),
+                "retry_at": dict(self._retry_at),
+                "dead_letter": sorted(set(self._dead_letter)),
+                "in_progress": sorted(set(self._in_progress)),
+                "reaction_marks": sorted(set(self._reaction_marks)),
+                "last_poll": self._last_poll,
+            }
         try:
             self._state_store.save_snapshot(data)
         except OSError as exc:
@@ -674,7 +675,8 @@ class SpecOrchDaemon:
             if not issue_id or not isinstance(raw_issue, dict):
                 continue
             # Mark in-progress on main thread so admission counts stay correct.
-            self._in_progress.add(issue_id)
+            with self._state_lock:
+                self._in_progress.add(issue_id)
             try:
                 future = self._executor_pool.submit(
                     self._daemon_executor.dispatch,
@@ -688,7 +690,8 @@ class SpecOrchDaemon:
                 self._execution_futures[issue_id] = future
             except Exception as exc:
                 print(f"[daemon] submit failed for {issue_id}: {exc}")
-                self._in_progress.discard(issue_id)
+                with self._state_lock:
+                    self._in_progress.discard(issue_id)
                 self._emit_error_event(
                     "daemon.submit_failed",
                     str(exc),
@@ -702,7 +705,8 @@ class SpecOrchDaemon:
             fut = self._execution_futures.pop(issue_id)
             exc = fut.exception()
             # Always unwind the in-progress reservation so the issue can be retried.
-            self._in_progress.discard(issue_id)
+            with self._state_lock:
+                self._in_progress.discard(issue_id)
             if exc is not None:
                 print(f"[daemon] executor future for {issue_id} raised: {exc}")
                 self._emit_error_event(
@@ -1403,12 +1407,13 @@ class SpecOrchDaemon:
 
     def retry_dead_letter(self, issue_id: str) -> bool:
         """Move an issue out of the dead letter queue for retry."""
-        if issue_id not in self._dead_letter:
-            return False
-        self._dead_letter.discard(issue_id)
-        self._processed.discard(issue_id)
-        self._retry_counts.pop(issue_id, None)
-        self._retry_at.pop(issue_id, None)
+        with self._state_lock:
+            if issue_id not in self._dead_letter:
+                return False
+            self._dead_letter.discard(issue_id)
+            self._processed.discard(issue_id)
+            self._retry_counts.pop(issue_id, None)
+            self._retry_at.pop(issue_id, None)
         self._release(issue_id)
         self._save_state()
         print(f"[daemon] {issue_id} removed from dead letter queue for retry")
@@ -1416,11 +1421,14 @@ class SpecOrchDaemon:
 
     def clear_dead_letter(self) -> int:
         """Clear all issues from the dead letter queue. Returns count removed."""
-        count = len(self._dead_letter)
-        for issue_id in list(self._dead_letter):
+        with self._state_lock:
+            count = len(self._dead_letter)
+            ids_to_release = list(self._dead_letter)
+            for issue_id in ids_to_release:
+                self._retry_at.pop(issue_id, None)
+            self._dead_letter.clear()
+        for issue_id in ids_to_release:
             self._release(issue_id)
-            self._retry_at.pop(issue_id, None)
-        self._dead_letter.clear()
         self._save_state()
         return count
 
@@ -1522,8 +1530,9 @@ class SpecOrchDaemon:
         linear_uid: str,
     ) -> None:
         """Record an issue failure, increment retry counter, move to dead letter if max exceeded."""
-        count = self._retry_counts.get(issue_id, 0) + 1
-        self._retry_counts[issue_id] = count
+        with self._state_lock:
+            count = self._retry_counts.get(issue_id, 0) + 1
+            self._retry_counts[issue_id] = count
         self._emit_error_event(
             "daemon.issue_failed",
             error_msg,
@@ -1536,9 +1545,10 @@ class SpecOrchDaemon:
                 f"[daemon] {issue_id}: max retries ({self.config.max_retries}) "
                 "exceeded → dead letter"
             )
-            self._dead_letter.add(issue_id)
-            self._retry_counts.pop(issue_id, None)
-            self._retry_at.pop(issue_id, None)
+            with self._state_lock:
+                self._dead_letter.add(issue_id)
+                self._retry_counts.pop(issue_id, None)
+                self._retry_at.pop(issue_id, None)
             if linear_uid:
                 try:
                     client.add_comment(
@@ -1555,7 +1565,8 @@ class SpecOrchDaemon:
         else:
             delay = self.config.retry_base_delay * (2 ** (count - 1))
             retry_at = time.time() + delay
-            self._retry_at[issue_id] = retry_at
+            with self._state_lock:
+                self._retry_at[issue_id] = retry_at
             print(
                 f"[daemon] {issue_id}: attempt {count}/{self.config.max_retries}, retry in {delay}s"
             )

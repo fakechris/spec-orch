@@ -37,9 +37,9 @@ from spec_orch.services.conductor.types import (
     InterceptAction,
     InterceptResult,
 )
-from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.context.context_assembler import ContextAssembler
+from spec_orch.services.context.node_context_registry import get_node_context_spec
 from spec_orch.services.io import atomic_write_json
-from spec_orch.services.node_context_registry import get_node_context_spec
 
 logger = logging.getLogger(__name__)
 

@@ -54,7 +54,7 @@ def _gather_evolution_metrics(repo_root: Path) -> dict[str, Any]:
 
 def _load_prompt_variant_metrics(repo_root: Path, metrics: dict[str, Any]) -> None:
     try:
-        from spec_orch.services.prompt_evolver import PromptEvolver
+        from spec_orch.services.evolution.prompt_evolver import PromptEvolver
 
         evolver = PromptEvolver(repo_root)
         history = evolver.load_history()

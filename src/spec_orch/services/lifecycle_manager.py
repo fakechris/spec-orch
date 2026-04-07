@@ -15,12 +15,12 @@ from pathlib import Path
 from typing import Any
 
 from spec_orch.domain.models import Issue, IssueContext, MissionStatus
-from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.context.context_assembler import ContextAssembler
+from spec_orch.services.context.node_context_registry import get_node_context_spec
 from spec_orch.services.event_bus import EventBus, get_event_bus
 from spec_orch.services.io import atomic_write_json
 from spec_orch.services.litellm_profile import resolve_role_litellm_settings
 from spec_orch.services.mission_execution_service import MissionExecutionService
-from spec_orch.services.node_context_registry import get_node_context_spec
 
 logger = logging.getLogger(__name__)
 

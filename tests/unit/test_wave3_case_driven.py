@@ -9,7 +9,11 @@ from spec_orch.domain.models import (
     EvolutionChangeType,
     EvolutionProposal,
 )
-from spec_orch.services.plan_strategy_evolver import HintSet, PlanStrategyEvolver, ScoperHint
+from spec_orch.services.evolution.plan_strategy_evolver import (
+    HintSet,
+    PlanStrategyEvolver,
+    ScoperHint,
+)
 from spec_orch.services.policy_distiller import PolicyDistiller
 
 

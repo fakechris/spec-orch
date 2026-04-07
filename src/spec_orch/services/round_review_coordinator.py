@@ -12,7 +12,7 @@ from spec_orch.domain.models import (
     RoundSummary,
     Wave,
 )
-from spec_orch.services.node_context_registry import get_node_context_spec
+from spec_orch.services.context.node_context_registry import get_node_context_spec
 
 
 class RoundReviewCoordinator:

@@ -14,7 +14,7 @@ from spec_orch.domain.models import (
 )
 from spec_orch.runtime_chain.models import ChainPhase
 from spec_orch.runtime_chain.store import read_chain_events, read_chain_status
-from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
+from spec_orch.services.builders.codex_exec_builder_adapter import CodexExecBuilderAdapter
 from spec_orch.services.fixture_issue_source import FixtureIssueSource
 from spec_orch.services.review_adapter import LocalReviewAdapter
 from spec_orch.services.run_controller import (
@@ -701,7 +701,7 @@ def test_chat_completion_method_exists_on_planner() -> None:
 
 def test_intent_evolver_uses_chat_completion(tmp_path: Path) -> None:
     """SON-125: IntentEvolver calls chat_completion, not invoke."""
-    from spec_orch.services.intent_evolver import IntentEvolver
+    from spec_orch.services.evolution.intent_evolver import IntentEvolver
 
     class FakePlanner:
         called_method: str = ""
@@ -752,7 +752,7 @@ def test_intent_evolver_uses_chat_completion(tmp_path: Path) -> None:
                 for _ in range(15)
             ]
 
-    import spec_orch.services.intent_evolver as ie_mod
+    import spec_orch.services.evolution.intent_evolver as ie_mod
 
     orig_recall = ie_mod.IntentEvolver.recall_intent_logs
 
@@ -811,7 +811,7 @@ def test_node_context_spec_defaults() -> None:
 def test_context_assembler_builds_bundle(tmp_path: Path) -> None:
     """SON-129: ContextAssembler returns a valid ContextBundle."""
     from spec_orch.domain.context import NodeContextSpec
-    from spec_orch.services.context_assembler import ContextAssembler
+    from spec_orch.services.context.context_assembler import ContextAssembler
 
     issue = Issue(
         issue_id="CTX-2",
@@ -916,7 +916,7 @@ def test_llm_review_adapter_collect_extra_context(tmp_path: Path) -> None:
 
 def test_prompt_evolver_collects_failure_samples(tmp_path: Path) -> None:
     """SON-133: PromptEvolver collects failure samples bucketed by task type."""
-    from spec_orch.services.prompt_evolver import PromptEvolver
+    from spec_orch.services.evolution.prompt_evolver import PromptEvolver
 
     runs_dir = tmp_path / ".spec_orch_runs"
     run_dir = runs_dir / "run-fail-01"
@@ -951,7 +951,7 @@ def test_prompt_evolver_collects_failure_samples(tmp_path: Path) -> None:
 
 def test_plan_strategy_evolver_collects_failure_details(tmp_path: Path) -> None:
     """SON-134: PlanStrategyEvolver collects detailed failure samples."""
-    from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
+    from spec_orch.services.evolution.plan_strategy_evolver import PlanStrategyEvolver
 
     runs_dir = tmp_path / ".spec_orch_runs"
     run_dir = runs_dir / "run-plan-fail"
@@ -979,7 +979,7 @@ def test_plan_strategy_evolver_collects_failure_details(tmp_path: Path) -> None:
 
 def test_evolution_config_from_toml() -> None:
     """SON-135: EvolutionConfig parses [evolution] section from TOML data."""
-    from spec_orch.services.evolution_trigger import EvolutionConfig
+    from spec_orch.services.evolution.evolution_trigger import EvolutionConfig
 
     toml_data = {
         "evolution": {
@@ -1000,7 +1000,7 @@ def test_evolution_config_from_toml() -> None:
 
 def test_evolution_trigger_counter(tmp_path: Path) -> None:
     """SON-135: EvolutionTrigger increments counter and triggers at threshold."""
-    from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
+    from spec_orch.services.evolution.evolution_trigger import EvolutionConfig, EvolutionTrigger
 
     cfg = EvolutionConfig(enabled=True, trigger_after_n_runs=3)
     trigger = EvolutionTrigger(repo_root=tmp_path, config=cfg)
@@ -1015,7 +1015,7 @@ def test_evolution_trigger_counter(tmp_path: Path) -> None:
 
 def test_evolution_trigger_disabled(tmp_path: Path) -> None:
     """SON-135: Disabled evolution never triggers."""
-    from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
+    from spec_orch.services.evolution.evolution_trigger import EvolutionConfig, EvolutionTrigger
 
     cfg = EvolutionConfig(enabled=False)
     trigger = EvolutionTrigger(repo_root=tmp_path, config=cfg)
@@ -1158,7 +1158,7 @@ def test_intent_classifier_accepts_context() -> None:
 
 def test_evolution_trigger_loads_manifest(tmp_path: Path) -> None:
     """SON-141: EvolutionTrigger._load_latest_manifest reads artifact manifest."""
-    from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
+    from spec_orch.services.evolution.evolution_trigger import EvolutionConfig, EvolutionTrigger
 
     ws = tmp_path / "workspace"
     ws.mkdir()
@@ -1178,7 +1178,7 @@ def test_evolution_trigger_loads_manifest(tmp_path: Path) -> None:
 
 def test_evolution_trigger_prefers_unified_manifest(tmp_path: Path) -> None:
     """P1: prefer run_artifact/manifest.json over legacy artifact_manifest.json."""
-    from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
+    from spec_orch.services.evolution.evolution_trigger import EvolutionConfig, EvolutionTrigger
 
     ws = tmp_path / "workspace"
     (ws / "run_artifact").mkdir(parents=True)
@@ -1197,7 +1197,7 @@ def test_evolution_trigger_prefers_unified_manifest(tmp_path: Path) -> None:
 
 def test_evolution_trigger_without_manifest(tmp_path: Path) -> None:
     """SON-141: Missing manifest returns empty dict."""
-    from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
+    from spec_orch.services.evolution.evolution_trigger import EvolutionConfig, EvolutionTrigger
 
     cfg = EvolutionConfig(enabled=True)
     trigger = EvolutionTrigger(repo_root=tmp_path, config=cfg, latest_workspace=tmp_path)

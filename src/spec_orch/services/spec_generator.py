@@ -14,7 +14,7 @@ def generate_fixture(
     *,
     repo_root: Path | None = None,
 ) -> dict:
-    from spec_orch.services.adapter_factory import load_verification_commands
+    from spec_orch.services.builders.adapter_factory import load_verification_commands
 
     verify = load_verification_commands(repo_root) if repo_root is not None else {}
 

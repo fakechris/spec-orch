@@ -6,8 +6,8 @@ from spec_orch.contract_core import (
     read_spec_snapshot,
     write_spec_snapshot,
 )
+from spec_orch.contract_core import TaskContract as LegacyTaskContract
 from spec_orch.contract_core.contracts import TaskContract as CanonicalTaskContract
-from spec_orch.domain.task_contract import TaskContract as LegacyTaskContract
 from spec_orch.services.spec_snapshot_service import (
     read_spec_snapshot as legacy_read_spec_snapshot,
 )

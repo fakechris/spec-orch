@@ -252,6 +252,25 @@ class VerificationSummary:
             return all(self.get_step_outcome(step) == "pass" for step in steps)
         return all(getattr(self, f"{step}_passed", False) for step in self._LEGACY_FIELDS)
 
+    @property
+    def all_passed_or_skipped(self) -> bool:
+        """Return True when every step either passed or was explicitly skipped.
+
+        Use this for flows (e.g. hotfix) that tolerate missing verification
+        steps.  Unlike ``all_passed``, a ``skipped`` outcome is not treated
+        as a failure here.
+        """
+        steps = list(self.details.keys()) or list(self.step_outcomes.keys())
+        if steps:
+            return all(self.get_step_outcome(step) in ("pass", "skipped") for step in steps)
+        return all(getattr(self, f"{step}_passed", False) for step in self._LEGACY_FIELDS)
+
+    @property
+    def skipped_steps(self) -> list[str]:
+        """Return the names of verification steps that were skipped."""
+        steps = list(self.details.keys()) or list(self.step_outcomes.keys())
+        return [s for s in steps if self.get_step_outcome(s) == "skipped"]
+
 
 @dataclass(slots=True)
 class BuilderResult:

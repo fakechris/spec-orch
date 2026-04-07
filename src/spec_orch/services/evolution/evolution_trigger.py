@@ -17,12 +17,12 @@ from typing import Any
 
 from spec_orch.domain.models import Issue, IssueContext
 from spec_orch.domain.protocols import LifecycleEvolver
-from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.context.context_assembler import ContextAssembler
+from spec_orch.services.context.node_context_registry import get_node_context_spec
 from spec_orch.services.evolution.evolution_policy import EvolutionPolicy
 from spec_orch.services.evolution.promotion_registry import PromotionRegistry
 from spec_orch.services.evolution.signal_bridge import build_evolution_signal_snapshot
 from spec_orch.services.harness_synthesizer import HarnessSynthesizer, RuleValidator
-from spec_orch.services.node_context_registry import get_node_context_spec
 
 logger = logging.getLogger(__name__)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from spec_orch.services.node_context_registry import (
+from spec_orch.services.context.node_context_registry import (
     NODE_CONTEXT_SPEC_REGISTRY,
     get_node_context_spec,
     validate_node_context_registry,

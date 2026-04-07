@@ -11,7 +11,7 @@ from spec_orch.domain.models import (
     EvolutionValidationMethod,
     Issue,
 )
-from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
+from spec_orch.services.evolution.evolution_trigger import EvolutionConfig, EvolutionTrigger
 
 
 class _DummyPromptEvolver:

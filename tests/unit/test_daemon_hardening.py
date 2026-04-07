@@ -42,6 +42,7 @@ def _make_daemon(tmp_path: Path) -> SpecOrchDaemon:
         d._dead_letter = set()
         d._in_progress = set()
         d._reaction_marks = set()
+        d._state_lock = __import__("threading").Lock()
         d._process_lock_owner = f"test:{id(d)}"
         d._consecutive_loop_errors = 0
         d._executor_pool = None  # not needed for hardening tests

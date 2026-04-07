@@ -4,7 +4,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from spec_orch.domain.protocols import BuilderAdapter, IssueSource, PlannerAdapter, ReviewAdapter
-from spec_orch.services.adapter_factory import create_builder, create_issue_source, create_reviewer
+from spec_orch.services.builders.adapter_factory import (
+    create_builder,
+    create_issue_source,
+    create_reviewer,
+)
 
 
 @dataclass(frozen=True)

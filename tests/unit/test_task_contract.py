@@ -5,12 +5,12 @@ from __future__ import annotations
 import pytest
 import yaml
 
-from spec_orch.domain.models import Issue, IssueContext
-from spec_orch.domain.task_contract import (
+from spec_orch.contract_core.contracts import (
     TaskContract,
     assess_risk_level,
     generate_contract_from_issue,
 )
+from spec_orch.domain.models import Issue, IssueContext
 
 # ── SON-149: Contract schema + validation ────────────────────────────
 

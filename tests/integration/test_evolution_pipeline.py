@@ -9,14 +9,18 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from spec_orch.services.context_assembler import ContextAssembler
-from spec_orch.services.evolution_policy import EvolutionPolicy
-from spec_orch.services.evolution_trigger import EvolutionConfig, EvolutionTrigger
-from spec_orch.services.node_context_registry import (
+from spec_orch.services.context.context_assembler import ContextAssembler
+from spec_orch.services.context.node_context_registry import (
     get_node_context_spec,
     validate_node_context_registry,
 )
-from spec_orch.services.plan_strategy_evolver import HintSet, PlanStrategyEvolver, ScoperHint
+from spec_orch.services.evolution.evolution_policy import EvolutionPolicy
+from spec_orch.services.evolution.evolution_trigger import EvolutionConfig, EvolutionTrigger
+from spec_orch.services.evolution.plan_strategy_evolver import (
+    HintSet,
+    PlanStrategyEvolver,
+    ScoperHint,
+)
 from spec_orch.services.policy_distiller import PolicyDistiller
 
 
