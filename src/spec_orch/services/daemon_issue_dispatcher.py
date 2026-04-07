@@ -35,6 +35,7 @@ class DaemonIssueDispatcher:
         # Host reference for callbacks the executor needs
         host: Any,
         process_lock_owner: str,
+        drain_batch_size: int = 5,
     ) -> None:
         self._config = config
         self._state_store = state_store
@@ -45,6 +46,7 @@ class DaemonIssueDispatcher:
         self._shared = shared_state
         self._host = host
         self._process_lock_owner = process_lock_owner
+        self._drain_batch_size = max(1, drain_batch_size)
         self._execution_futures: dict[str, Future[None]] = {}
 
     # -- public API called from daemon.run() --
@@ -151,9 +153,10 @@ class DaemonIssueDispatcher:
             is_hotfix=is_hotfix,
         )
 
-    def _drain_execution_queue(self, client: LinearClient, controller: RunController) -> None:
-        """Pop all admitted intents and submit to the thread pool."""
-        while True:
+    def _drain_execution_queue(self, client: LinearClient, controller: RunController) -> int:
+        """Pop up to ``drain_batch_size`` intents and submit. Returns count drained."""
+        drained = 0
+        while drained < self._drain_batch_size:
             intent = self._state_store.pop_next_execution_intent()
             if intent is None:
                 break
@@ -174,6 +177,7 @@ class DaemonIssueDispatcher:
                     is_hotfix=bool(intent.get("is_hotfix", False)),
                 )
                 self._execution_futures[issue_id] = future
+                drained += 1
             except Exception as exc:
                 print(f"[daemon] submit failed for {issue_id}: {exc}")
                 with self._state_lock:
@@ -183,6 +187,8 @@ class DaemonIssueDispatcher:
                     str(exc),
                     issue_id=issue_id,
                 )
+                drained += 1
+        return drained
 
     def _is_hotfix(self, raw_issue: dict[str, Any]) -> bool:
         labels = raw_issue.get("labels", {}).get("nodes", [])
