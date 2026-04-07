@@ -688,11 +688,7 @@ class SpecOrchDaemon:
 
     def _reap_completed_futures(self) -> None:
         """Harvest finished execution futures and log any unhandled errors."""
-        done_ids = [
-            issue_id
-            for issue_id, fut in self._execution_futures.items()
-            if fut.done()
-        ]
+        done_ids = [issue_id for issue_id, fut in self._execution_futures.items() if fut.done()]
         for issue_id in done_ids:
             fut = self._execution_futures.pop(issue_id)
             exc = fut.exception()
