@@ -82,7 +82,8 @@ class VerificationSkill(_BuiltinSkill):
         reason = ""
         if not passed:
             failed_steps = [
-                s for s in (v.details.keys() or v.step_outcomes.keys())
+                s
+                for s in (v.details.keys() or v.step_outcomes.keys())
                 if v.get_step_outcome(s) == "fail"
             ]
             skipped = v.skipped_steps

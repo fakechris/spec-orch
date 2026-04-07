@@ -1423,10 +1423,12 @@ class SpecOrchDaemon:
         """Clear all issues from the dead letter queue. Returns count removed."""
         with self._state_lock:
             count = len(self._dead_letter)
-            for issue_id in list(self._dead_letter):
-                self._release(issue_id)
+            ids_to_release = list(self._dead_letter)
+            for issue_id in ids_to_release:
                 self._retry_at.pop(issue_id, None)
             self._dead_letter.clear()
+        for issue_id in ids_to_release:
+            self._release(issue_id)
         self._save_state()
         return count
 

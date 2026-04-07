@@ -262,9 +262,7 @@ class VerificationSummary:
         """
         steps = list(self.details.keys()) or list(self.step_outcomes.keys())
         if steps:
-            return all(
-                self.get_step_outcome(step) in ("pass", "skipped") for step in steps
-            )
+            return all(self.get_step_outcome(step) in ("pass", "skipped") for step in steps)
         return all(getattr(self, f"{step}_passed", False) for step in self._LEGACY_FIELDS)
 
     @property
