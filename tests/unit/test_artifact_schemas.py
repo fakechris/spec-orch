@@ -23,7 +23,6 @@ from spec_orch.services.artifact_schemas import (
 )
 from spec_orch.services.run_artifact_service import RunArtifactService
 
-
 # ---------------------------------------------------------------------------
 # Fixtures: known-good payloads
 # ---------------------------------------------------------------------------
@@ -130,7 +129,6 @@ class TestInvalidData:
             LiveSnapshot.model_validate({"run_id": "run-1"})
 
     def test_conclusion_wrong_type(self) -> None:
-        bad = {**GOOD_CONCLUSION, "mergeable": "not-a-bool"}
         # pydantic v2 coerces strings in some modes; use strict to ensure
         # the model still validates (extra="allow" + lenient coercion)
         # The important thing is the helper returns None for truly broken data.
@@ -251,8 +249,6 @@ class TestArtifactServiceWithValidation:
         )
 
         assert manifest_path.exists()
-        conclusion = json.loads(
-            (workspace / "run_artifact" / "conclusion.json").read_text()
-        )
+        conclusion = json.loads((workspace / "run_artifact" / "conclusion.json").read_text())
         assert conclusion["run_id"] == "run-v"
         assert conclusion["verdict"] == "pass"
