@@ -664,7 +664,7 @@ def run_plan(
 
         pkt_exec: PacketExecutor
         if full_pipeline:
-            from spec_orch.services.adapter_factory import load_verification_commands
+            from spec_orch.services.builders.adapter_factory import load_verification_commands
             from spec_orch.services.packet_executor import FullPipelinePacketExecutor
 
             pkt_exec = FullPipelinePacketExecutor(

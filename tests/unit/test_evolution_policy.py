@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from spec_orch.services.evolution_policy import (
+from spec_orch.services.evolution.evolution_policy import (
     EvolutionPolicy,
     EvolverPolicyRule,
 )

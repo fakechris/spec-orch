@@ -173,7 +173,7 @@ def strategy_status(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
 ) -> None:
     """Show current scoper hints."""
-    from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
+    from spec_orch.services.evolution.plan_strategy_evolver import PlanStrategyEvolver
 
     evolver = PlanStrategyEvolver(repo_root)
     hint_set = evolver.load_hints()
@@ -198,7 +198,7 @@ def strategy_analyze(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
 ) -> None:
     """Use LLM to analyze plan outcomes and generate scoper hints."""
-    from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
+    from spec_orch.services.evolution.plan_strategy_evolver import PlanStrategyEvolver
 
     planner = _build_planner_from_toml(repo_root)
     evolver = PlanStrategyEvolver(repo_root, planner=planner)
@@ -220,7 +220,7 @@ def strategy_inject_preview(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
 ) -> None:
     """Preview the text that would be injected into the scoper prompt."""
-    from spec_orch.services.plan_strategy_evolver import PlanStrategyEvolver
+    from spec_orch.services.evolution.plan_strategy_evolver import PlanStrategyEvolver
 
     evolver = PlanStrategyEvolver(repo_root)
     text = evolver.format_hints_for_prompt()
@@ -337,8 +337,8 @@ def prompt_init(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
 ) -> None:
     """Initialize prompt history with the current builder prompt as v0."""
-    from spec_orch.services.codex_exec_builder_adapter import PREAMBLE
-    from spec_orch.services.prompt_evolver import PromptEvolver
+    from spec_orch.services.builders.codex_exec_builder_adapter import PREAMBLE
+    from spec_orch.services.evolution.prompt_evolver import PromptEvolver
 
     evolver = PromptEvolver(repo_root)
     v0 = evolver.initialize_from_current(PREAMBLE)
@@ -350,7 +350,7 @@ def prompt_status(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
 ) -> None:
     """Show current prompt variant status and history."""
-    from spec_orch.services.prompt_evolver import PromptEvolver
+    from spec_orch.services.evolution.prompt_evolver import PromptEvolver
 
     evolver = PromptEvolver(repo_root)
     history = evolver.load_history()
@@ -371,7 +371,7 @@ def prompt_evolve(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
 ) -> None:
     """Use LLM to propose an improved builder prompt variant."""
-    from spec_orch.services.prompt_evolver import PromptEvolver
+    from spec_orch.services.evolution.prompt_evolver import PromptEvolver
 
     planner = _build_planner_from_toml(repo_root)
     evolver = PromptEvolver(repo_root, planner=planner)
@@ -396,7 +396,7 @@ def prompt_compare(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
 ) -> None:
     """Compare two prompt variants' performance."""
-    from spec_orch.services.prompt_evolver import PromptEvolver
+    from spec_orch.services.evolution.prompt_evolver import PromptEvolver
 
     evolver = PromptEvolver(repo_root)
     result = evolver.compare_variants(variant_a, variant_b)
@@ -421,7 +421,7 @@ def prompt_promote(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
 ) -> None:
     """Promote a prompt variant to active."""
-    from spec_orch.services.prompt_evolver import PromptEvolver
+    from spec_orch.services.evolution.prompt_evolver import PromptEvolver
 
     evolver = PromptEvolver(repo_root)
     if evolver.promote_variant(variant_id):
@@ -436,7 +436,7 @@ def prompt_auto_promote(
     repo_root: Path = typer.Option(Path("."), "--repo-root", "-r"),
 ) -> None:
     """Auto-promote candidate if it outperforms the active variant."""
-    from spec_orch.services.prompt_evolver import PromptEvolver
+    from spec_orch.services.evolution.prompt_evolver import PromptEvolver
 
     evolver = PromptEvolver(repo_root)
     result = evolver.auto_promote_if_ready()
@@ -657,7 +657,7 @@ def evolution_status(
     """Show evolution pipeline status: policy rules, recent activity, and proposals."""
     import tomllib as _tomllib
 
-    from spec_orch.services.evolution_policy import EvolutionPolicy
+    from spec_orch.services.evolution.evolution_policy import EvolutionPolicy
 
     repo = repo_root.resolve()
     toml_path = repo / "spec-orch.toml"

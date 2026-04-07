@@ -18,8 +18,8 @@ from spec_orch.domain.execution_semantics import (
     SubjectKind,
 )
 from spec_orch.domain.models import Issue, IssueContext
-from spec_orch.services.context_assembler import ContextAssembler
-from spec_orch.services.node_context_registry import get_node_context_spec
+from spec_orch.services.context.context_assembler import ContextAssembler
+from spec_orch.services.context.node_context_registry import get_node_context_spec
 
 
 def test_context_assembler_supports_unified_manifest_keys(tmp_path: Path) -> None:

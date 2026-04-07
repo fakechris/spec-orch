@@ -6,7 +6,7 @@ import pytest
 
 from spec_orch.domain.context import ContextBundle, NodeContextSpec, TaskContext
 from spec_orch.domain.models import Issue, IssueContext
-from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.context.context_assembler import ContextAssembler
 
 
 def _issue() -> Issue:

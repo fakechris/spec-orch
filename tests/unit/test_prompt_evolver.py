@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from spec_orch.services.prompt_evolver import PromptEvolver, PromptVariant
+from spec_orch.services.evolution.prompt_evolver import PromptEvolver, PromptVariant
 
 # ------------------------------------------------------------------
 # Initialization and history persistence

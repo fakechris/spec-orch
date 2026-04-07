@@ -310,3 +310,65 @@ def test_demotion_standard_to_hotfix() -> None:
     )
     assert result.demotion_suggested is True
     assert result.demotion_target == "hotfix"
+
+
+# ── Verification skipped step handling ──
+
+
+def test_verification_skipped_step_blocks_gate_by_default() -> None:
+    """Skipped verification steps cause gate failure by default."""
+    policy = GatePolicy(required_conditions={"verification"})
+    svc = GateService(policy=policy)
+
+    v = VerificationSummary()
+    v.set_step_outcome("lint", "pass")
+    v.set_step_outcome("test", "skipped")
+
+    result = svc.evaluate(GateInput(verification=v))
+    assert not result.mergeable
+    assert "verification" in result.failed_conditions
+
+
+def test_verification_skipped_step_allowed_when_configured() -> None:
+    """Skipped verification steps pass gate when allow_skipped is set."""
+    from spec_orch.services.gate_builtin_skills import build_default_registry
+
+    policy = GatePolicy(required_conditions={"verification"})
+    registry = build_default_registry(allow_skipped_verification=True)
+    svc = GateService(policy=policy, registry=registry)
+
+    v = VerificationSummary()
+    v.set_step_outcome("lint", "pass")
+    v.set_step_outcome("test", "skipped")
+
+    result = svc.evaluate(GateInput(verification=v))
+    assert result.mergeable
+
+
+def test_verification_failed_step_blocks_even_with_allow_skipped() -> None:
+    """Failed verification steps always block, even with allow_skipped."""
+    from spec_orch.services.gate_builtin_skills import build_default_registry
+
+    policy = GatePolicy(required_conditions={"verification"})
+    registry = build_default_registry(allow_skipped_verification=True)
+    svc = GateService(policy=policy, registry=registry)
+
+    v = VerificationSummary()
+    v.set_step_outcome("lint", "pass")
+    v.set_step_outcome("test", "fail")
+
+    result = svc.evaluate(GateInput(verification=v))
+    assert not result.mergeable
+
+
+def test_verification_summary_skipped_steps_property() -> None:
+    """VerificationSummary.skipped_steps lists skipped step names."""
+    v = VerificationSummary()
+    v.set_step_outcome("lint", "pass")
+    v.set_step_outcome("typecheck", "skipped")
+    v.set_step_outcome("test", "pass")
+    v.set_step_outcome("build", "skipped")
+
+    assert sorted(v.skipped_steps) == ["build", "typecheck"]
+    assert not v.all_passed
+    assert v.all_passed_or_skipped

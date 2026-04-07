@@ -16,13 +16,13 @@ from typing import Any
 
 from spec_orch.domain.compliance import default_turn_contract_compliance
 from spec_orch.domain.models import Issue, IssueContext, ReviewSummary
-from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.context.context_assembler import ContextAssembler
+from spec_orch.services.context.node_context_registry import get_node_context_spec
 from spec_orch.services.litellm_profile import (
     ResolvedLiteLLMProfile,
     resolve_litellm_api_base,
     resolve_litellm_api_key,
 )
-from spec_orch.services.node_context_registry import get_node_context_spec
 
 logger = logging.getLogger(__name__)
 

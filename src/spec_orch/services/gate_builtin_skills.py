@@ -73,23 +73,27 @@ class VerificationSkill(_BuiltinSkill):
     _id = "verification"
     _description = "All verification checks passed"
 
+    def __init__(self, *, allow_skipped: bool = False) -> None:
+        self._allow_skipped = allow_skipped
+
     def run(self, gate_input: GateInput) -> CheckResult:
-        passed = gate_input.verification.all_passed
+        v = gate_input.verification
+        passed = v.all_passed_or_skipped if self._allow_skipped else v.all_passed
         reason = ""
         if not passed:
-            steps = (
-                gate_input.verification.details.keys()
-                or gate_input.verification.step_outcomes.keys()
-            )
-            has_failed = any(
-                gate_input.verification.get_step_outcome(step) == "fail" for step in steps
-            )
-            if has_failed:
-                reason = "verification failed"
-            elif gate_input.verification.has_skipped:
-                reason = "verification skipped"
+            failed_steps = [
+                s for s in (v.details.keys() or v.step_outcomes.keys())
+                if v.get_step_outcome(s) == "fail"
+            ]
+            skipped = v.skipped_steps
+            if failed_steps:
+                reason = f"verification failed: {', '.join(failed_steps)}"
+            elif skipped:
+                reason = f"verification skipped: {', '.join(skipped)}"
             else:
                 reason = "verification failed"
+        elif v.has_skipped:
+            reason = f"passed (skipped: {', '.join(v.skipped_steps)})"
         return CheckResult(
             passed=passed,
             reason=reason,
@@ -161,20 +165,23 @@ class ComplianceSkill(_BuiltinSkill):
         )
 
 
-def build_default_registry() -> GateSkillRegistry:
+def build_default_registry(
+    *,
+    allow_skipped_verification: bool = False,
+) -> GateSkillRegistry:
     """Create a registry pre-populated with all builtin gate check skills."""
     registry = GateSkillRegistry()
-    for skill_cls in (
-        SpecExistsSkill,
-        SpecApprovedSkill,
-        WithinBoundariesSkill,
-        BuilderSkill,
-        VerificationSkill,
-        ReviewSkill,
-        PreviewSkill,
-        HumanAcceptanceSkill,
-        FindingsSkill,
-        ComplianceSkill,
+    for skill in (
+        SpecExistsSkill(),
+        SpecApprovedSkill(),
+        WithinBoundariesSkill(),
+        BuilderSkill(),
+        VerificationSkill(allow_skipped=allow_skipped_verification),
+        ReviewSkill(),
+        PreviewSkill(),
+        HumanAcceptanceSkill(),
+        FindingsSkill(),
+        ComplianceSkill(),
     ):
-        registry.register_builtin(skill_cls())
+        registry.register_builtin(skill)
     return registry

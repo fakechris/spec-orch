@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from spec_orch.services.plan_strategy_evolver import (
+from spec_orch.services.evolution.plan_strategy_evolver import (
     HintSet,
     PlanStrategyEvolver,
     ScoperHint,

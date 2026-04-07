@@ -302,7 +302,7 @@ def _make_controller(
     auto_approve: bool = False,
     reviewer_override: str | None = None,
 ) -> RunController:
-    from spec_orch.services.adapter_factory import (
+    from spec_orch.services.builders.adapter_factory import (
         create_builder,
         create_issue_source,
         create_reviewer,

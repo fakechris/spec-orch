@@ -6,8 +6,8 @@ from pathlib import Path
 
 from spec_orch.domain.context import CompactRetentionPriority, NodeContextSpec
 from spec_orch.domain.models import Issue
-from spec_orch.services.context_assembler import ContextAssembler, _detect_chars_per_token
-from spec_orch.services.context_ranker import _detect_chars_per_token as cr_detect
+from spec_orch.services.context.context_assembler import ContextAssembler, _detect_chars_per_token
+from spec_orch.services.context.context_ranker import _detect_chars_per_token as cr_detect
 from spec_orch.services.event_bus import Event, EventBus, EventTopic
 from spec_orch.services.run_progress import RunProgressSnapshot
 from spec_orch.services.trace_sampler import TraceSampler
@@ -38,20 +38,20 @@ class TestCJKDetection:
 
 class TestTruncateEdgeCases:
     def test_truncate_tiny_budget_no_negative_slice(self) -> None:
-        from spec_orch.services.context_assembler import _truncate
+        from spec_orch.services.context.context_assembler import _truncate
 
         text = "A" * 10000
         result = _truncate(text, max_tokens=1)
         assert len(result) < 100
 
     def test_truncate_zero_budget(self) -> None:
-        from spec_orch.services.context_assembler import _truncate
+        from spec_orch.services.context.context_assembler import _truncate
 
         result = _truncate("hello world", max_tokens=0)
         assert result == ""
 
     def test_truncate_normal(self) -> None:
-        from spec_orch.services.context_assembler import _truncate
+        from spec_orch.services.context.context_assembler import _truncate
 
         text = "X" * 500
         result = _truncate(text, max_tokens=50)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from spec_orch.domain.context import CompactRetentionPriority, NodeContextSpec
-from spec_orch.services.context_assembler import ContextAssembler
+from spec_orch.services.context.context_assembler import ContextAssembler
 from spec_orch.services.skill_degradation import (
     RoutingDecision,
     SkillBaseline,

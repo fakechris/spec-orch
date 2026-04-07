@@ -25,7 +25,7 @@ from spec_orch.domain.protocols import (
     WorkerHandle,
     WorkerHandleFactory,
 )
-from spec_orch.services.adapter_factory import create_builder, create_reviewer
+from spec_orch.services.builders.adapter_factory import create_builder, create_reviewer
 from spec_orch.services.run_controller_adapters import (
     RunControllerAdapters,
     resolve_run_controller_adapters,
@@ -138,25 +138,25 @@ class TestProtocolConformance:
         assert isinstance(adapter, ReviewAdapter)
 
     def test_codex_is_builder_adapter(self):
-        from spec_orch.services.codex_exec_builder_adapter import CodexExecBuilderAdapter
+        from spec_orch.services.builders.codex_exec_builder_adapter import CodexExecBuilderAdapter
 
         adapter = CodexExecBuilderAdapter()
         assert isinstance(adapter, BuilderAdapter)
 
     def test_opencode_is_builder_adapter(self):
-        from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter
+        from spec_orch.services.builders.opencode_builder_adapter import OpenCodeBuilderAdapter
 
         adapter = OpenCodeBuilderAdapter()
         assert isinstance(adapter, BuilderAdapter)
 
     def test_droid_is_builder_adapter(self):
-        from spec_orch.services.droid_builder_adapter import DroidBuilderAdapter
+        from spec_orch.services.builders.droid_builder_adapter import DroidBuilderAdapter
 
         adapter = DroidBuilderAdapter()
         assert isinstance(adapter, BuilderAdapter)
 
     def test_claude_code_is_builder_adapter(self):
-        from spec_orch.services.claude_code_builder_adapter import ClaudeCodeBuilderAdapter
+        from spec_orch.services.builders.claude_code_builder_adapter import ClaudeCodeBuilderAdapter
 
         adapter = ClaudeCodeBuilderAdapter()
         assert isinstance(adapter, BuilderAdapter)
@@ -277,7 +277,7 @@ class TestAdapterFactory:
 
 class TestOpenCodeBuilderAdapter:
     def test_skip_when_no_prompt(self, tmp_path: Path):
-        from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter
+        from spec_orch.services.builders.opencode_builder_adapter import OpenCodeBuilderAdapter
 
         adapter = OpenCodeBuilderAdapter()
         issue = _make_issue(prompt=None)
@@ -287,7 +287,7 @@ class TestOpenCodeBuilderAdapter:
         assert result.adapter == "opencode"
 
     def test_map_events_step_start(self):
-        from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter
+        from spec_orch.services.builders.opencode_builder_adapter import OpenCodeBuilderAdapter
 
         adapter = OpenCodeBuilderAdapter()
         raw = [{"type": "step_start", "timestamp": "123"}]
@@ -296,7 +296,7 @@ class TestOpenCodeBuilderAdapter:
         assert events[0].kind == "message"
 
     def test_map_events_tool_use_bash(self):
-        from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter
+        from spec_orch.services.builders.opencode_builder_adapter import OpenCodeBuilderAdapter
 
         adapter = OpenCodeBuilderAdapter()
         raw = [
@@ -319,7 +319,7 @@ class TestOpenCodeBuilderAdapter:
         assert "ls -la" in events[0].text
 
     def test_map_events_tool_use_write(self):
-        from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter
+        from spec_orch.services.builders.opencode_builder_adapter import OpenCodeBuilderAdapter
 
         adapter = OpenCodeBuilderAdapter()
         raw = [
@@ -340,7 +340,7 @@ class TestOpenCodeBuilderAdapter:
         assert events[0].file_path == "src/main.py"
 
     def test_map_events_non_completed_tool_use_skipped(self):
-        from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter
+        from spec_orch.services.builders.opencode_builder_adapter import OpenCodeBuilderAdapter
 
         adapter = OpenCodeBuilderAdapter()
         raw = [
@@ -357,7 +357,7 @@ class TestOpenCodeBuilderAdapter:
         assert len(events) == 0
 
     def test_map_events_step_finish(self):
-        from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter
+        from spec_orch.services.builders.opencode_builder_adapter import OpenCodeBuilderAdapter
 
         adapter = OpenCodeBuilderAdapter()
         raw = [
@@ -377,7 +377,7 @@ class TestOpenCodeBuilderAdapter:
         assert events[0].metadata["input_tokens"] == 100
 
     def test_model_passed_to_command(self, tmp_path: Path):
-        from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter
+        from spec_orch.services.builders.opencode_builder_adapter import OpenCodeBuilderAdapter
 
         adapter = OpenCodeBuilderAdapter(model="minimax/MiniMax-M2.5")
         issue = _make_issue(prompt=None)
@@ -385,7 +385,7 @@ class TestOpenCodeBuilderAdapter:
         assert result.skipped is True
 
     def test_collect_artifacts(self, tmp_path: Path):
-        from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter
+        from spec_orch.services.builders.opencode_builder_adapter import OpenCodeBuilderAdapter
 
         adapter = OpenCodeBuilderAdapter()
         (tmp_path / "builder_report.json").write_text("{}")
@@ -402,7 +402,7 @@ class TestOpenCodeBuilderAdapter:
 
 class TestDroidBuilderAdapter:
     def test_skip_when_no_prompt(self, tmp_path: Path):
-        from spec_orch.services.droid_builder_adapter import DroidBuilderAdapter
+        from spec_orch.services.builders.droid_builder_adapter import DroidBuilderAdapter
 
         adapter = DroidBuilderAdapter()
         issue = _make_issue(prompt=None)
@@ -412,7 +412,7 @@ class TestDroidBuilderAdapter:
         assert result.adapter == "droid"
 
     def test_map_events_message(self):
-        from spec_orch.services.droid_builder_adapter import DroidBuilderAdapter
+        from spec_orch.services.builders.droid_builder_adapter import DroidBuilderAdapter
 
         adapter = DroidBuilderAdapter()
         raw = [{"type": "message", "content": "Hello", "timestamp": "123"}]
@@ -421,7 +421,7 @@ class TestDroidBuilderAdapter:
         assert events[0].text == "Hello"
 
     def test_map_events_tool_call(self):
-        from spec_orch.services.droid_builder_adapter import DroidBuilderAdapter
+        from spec_orch.services.builders.droid_builder_adapter import DroidBuilderAdapter
 
         adapter = DroidBuilderAdapter()
         raw = [
@@ -437,7 +437,7 @@ class TestDroidBuilderAdapter:
         assert events[0].kind == "command_end"
 
     def test_map_events_result(self):
-        from spec_orch.services.droid_builder_adapter import DroidBuilderAdapter
+        from spec_orch.services.builders.droid_builder_adapter import DroidBuilderAdapter
 
         adapter = DroidBuilderAdapter()
         raw = [
@@ -459,7 +459,7 @@ class TestDroidBuilderAdapter:
 
 class TestClaudeCodeBuilderAdapter:
     def test_skip_when_no_prompt(self, tmp_path: Path):
-        from spec_orch.services.claude_code_builder_adapter import ClaudeCodeBuilderAdapter
+        from spec_orch.services.builders.claude_code_builder_adapter import ClaudeCodeBuilderAdapter
 
         adapter = ClaudeCodeBuilderAdapter()
         issue = _make_issue(prompt=None)
@@ -469,7 +469,7 @@ class TestClaudeCodeBuilderAdapter:
         assert result.adapter == "claude_code"
 
     def test_map_events_assistant_text(self):
-        from spec_orch.services.claude_code_builder_adapter import ClaudeCodeBuilderAdapter
+        from spec_orch.services.builders.claude_code_builder_adapter import ClaudeCodeBuilderAdapter
 
         adapter = ClaudeCodeBuilderAdapter()
         raw = [
@@ -484,7 +484,7 @@ class TestClaudeCodeBuilderAdapter:
         assert events[0].text == "Working on it"
 
     def test_map_events_assistant_tool_use(self):
-        from spec_orch.services.claude_code_builder_adapter import ClaudeCodeBuilderAdapter
+        from spec_orch.services.builders.claude_code_builder_adapter import ClaudeCodeBuilderAdapter
 
         adapter = ClaudeCodeBuilderAdapter()
         raw = [
@@ -507,7 +507,7 @@ class TestClaudeCodeBuilderAdapter:
         assert "npm test" in events[0].text
 
     def test_map_events_result(self):
-        from spec_orch.services.claude_code_builder_adapter import ClaudeCodeBuilderAdapter
+        from spec_orch.services.builders.claude_code_builder_adapter import ClaudeCodeBuilderAdapter
 
         adapter = ClaudeCodeBuilderAdapter()
         raw = [
@@ -754,11 +754,11 @@ class TestEndToEndConfig:
 
     def test_skip_run_for_all_adapters(self, tmp_path: Path):
         """All adapters handle skip (no prompt) consistently."""
-        from spec_orch.services.claude_code_builder_adapter import (
+        from spec_orch.services.builders.claude_code_builder_adapter import (
             ClaudeCodeBuilderAdapter,
         )
-        from spec_orch.services.droid_builder_adapter import DroidBuilderAdapter
-        from spec_orch.services.opencode_builder_adapter import OpenCodeBuilderAdapter
+        from spec_orch.services.builders.droid_builder_adapter import DroidBuilderAdapter
+        from spec_orch.services.builders.opencode_builder_adapter import OpenCodeBuilderAdapter
 
         issue = _make_issue(prompt=None)
         for adapter_cls in (OpenCodeBuilderAdapter, DroidBuilderAdapter, ClaudeCodeBuilderAdapter):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from spec_orch.services.context_ranker import ContextRanker, RankedSection
+from spec_orch.services.context.context_ranker import ContextRanker, RankedSection
 
 
 def test_all_content_fits() -> None:
