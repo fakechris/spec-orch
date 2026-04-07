@@ -106,6 +106,7 @@ class DaemonBehaviorConfig(BaseModel):
     max_retries: int = 3
     retry_base_delay_seconds: int = 60
     hotfix_labels: list[str] = Field(default_factory=lambda: ["hotfix", "urgent", "P0"])
+    drain_batch_size: int = 5
 
 
 class SpecSectionConfig(BaseModel):

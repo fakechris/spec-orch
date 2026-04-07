@@ -179,6 +179,10 @@ class QdrantIndex:
         }
         if metadata:
             payload["metadata"] = metadata
+            # Promote filterable fields to top-level for FieldCondition pushdown.
+            for filterable_key in ("entity_scope", "entity_id", "relation_type"):
+                if filterable_key in metadata:
+                    payload[filterable_key] = metadata[filterable_key]
 
         self._client.upsert(
             collection_name=self._collection,
@@ -203,12 +207,21 @@ class QdrantIndex:
         *,
         layer: str | None = None,
         tags: list[str] | None = None,
+        entity_scope: str | None = None,
+        entity_id: str | None = None,
+        exclude_relation_types: list[str] | None = None,
         top_k: int = 10,
     ) -> list[VectorHit]:
-        """Semantic search over indexed entries."""
+        """Semantic search over indexed entries.
+
+        Pushes ``entity_scope``, ``entity_id``, and ``exclude_relation_types``
+        as Qdrant FieldConditions so filtering happens server-side instead of
+        in Python post-filter.
+        """
         from qdrant_client.models import (  # type: ignore[import-untyped,import-not-found]
             FieldCondition,
             Filter,
+            MatchAny,
             MatchValue,
         )
 
@@ -216,14 +229,29 @@ class QdrantIndex:
         if not vectors:
             return []
 
-        conditions: list[FieldCondition] = []
+        must: list[FieldCondition] = []
         if layer:
-            conditions.append(FieldCondition(key="layer", match=MatchValue(value=layer)))
+            must.append(FieldCondition(key="layer", match=MatchValue(value=layer)))
         if tags:
             for tag in tags:
-                conditions.append(FieldCondition(key="tags", match=MatchValue(value=tag)))
+                must.append(FieldCondition(key="tags", match=MatchValue(value=tag)))
+        if entity_scope:
+            must.append(FieldCondition(key="entity_scope", match=MatchValue(value=entity_scope)))
+        if entity_id:
+            must.append(FieldCondition(key="entity_id", match=MatchValue(value=entity_id)))
 
-        query_filter = Filter(must=conditions) if conditions else None  # type: ignore[arg-type]
+        must_not: list[FieldCondition] = []
+        if exclude_relation_types:
+            must_not.append(
+                FieldCondition(key="relation_type", match=MatchAny(any=exclude_relation_types))
+            )
+
+        query_filter: Filter | None = None
+        if must or must_not:
+            query_filter = Filter(
+                must=must or None,  # type: ignore[arg-type]
+                must_not=must_not or None,  # type: ignore[arg-type]
+            )
 
         results = self._client.query_points(
             collection_name=self._collection,

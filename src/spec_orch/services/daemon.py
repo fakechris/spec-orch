@@ -162,6 +162,7 @@ class DaemonConfig:
         self.max_retries: int = validated.daemon.max_retries
         self.retry_base_delay: int = validated.daemon.retry_base_delay_seconds
         self.hotfix_labels: list[str] = validated.daemon.hotfix_labels
+        self.drain_batch_size: int = validated.daemon.drain_batch_size
 
         # --- spec ---
         self.require_spec_approval: bool = validated.spec.require_approval
@@ -270,6 +271,7 @@ class SpecOrchDaemon:
             shared_state=self._shared_state,
             host=self,
             process_lock_owner=self._process_lock_owner,
+            drain_batch_size=config.drain_batch_size,
         )
 
         self._reaction_processor = DaemonReactionProcessor(
@@ -776,8 +778,8 @@ class SpecOrchDaemon:
             is_hotfix=is_hotfix,
         )
 
-    def _drain_execution_queue(self, client: LinearClient, controller: RunController) -> None:
-        self._issue_dispatcher._drain_execution_queue(client, controller)
+    def _drain_execution_queue(self, client: LinearClient, controller: RunController) -> int:
+        return self._issue_dispatcher._drain_execution_queue(client, controller)
 
     def _reap_completed_futures(self) -> None:
         self._issue_dispatcher.reap_completed_futures()

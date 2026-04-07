@@ -48,11 +48,28 @@ def read_chain_status(root: Path) -> RuntimeChainStatus | None:
     return RuntimeChainStatus.from_dict(payload)
 
 
+def read_chain_lineage(chain_root: Path) -> dict[str, str] | None:
+    """Read the mission chain lineage ref from the root event of a chain.
+
+    Returns the ``mission_chain_ref`` dict from the first event's
+    ``session_refs`` if present, otherwise ``None``.
+    """
+    events = read_chain_events(chain_root)
+    if not events:
+        return None
+    root_event = events[0]
+    ref = root_event.session_refs.get("mission_chain_ref")
+    if isinstance(ref, dict):
+        return ref
+    return None
+
+
 __all__ = [
     "CHAIN_EVENTS_FILENAME",
     "CHAIN_STATUS_FILENAME",
     "append_chain_event",
     "read_chain_events",
+    "read_chain_lineage",
     "read_chain_status",
     "write_chain_status",
 ]

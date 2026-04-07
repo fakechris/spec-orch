@@ -69,4 +69,5 @@ def test_runtime_chain_model_exports_are_stable() -> None:
         "RuntimeChainEvent",
         "RuntimeChainStatus",
         "RuntimeSubjectKind",
+        "build_chain_lineage_ref",
     ]

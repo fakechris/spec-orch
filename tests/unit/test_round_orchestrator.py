@@ -2739,6 +2739,7 @@ def test_dispatch_wave_delegates_to_wave_dispatcher(tmp_path: Path) -> None:
             chain_id="chain-1",
             chain_root=tmp_path / "runtime_chain",
             round_span_id="round-01",
+            mission_span_id="chain-1:mission",
         )
 
     assert result is expected

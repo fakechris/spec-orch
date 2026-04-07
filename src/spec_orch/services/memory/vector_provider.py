@@ -99,13 +99,19 @@ class VectorEnhancedProvider:
         if query.layer and query.layer not in _INDEXED_LAYERS:
             return self._fs.recall(query)
 
-        fetch_k = query.top_k * 3 if query.filters else query.top_k
+        # Reduce over-fetch now that entity_scope/entity_id/relation_type are
+        # pushed to Qdrant as FieldConditions.  Arbitrary query.filters still
+        # need post-filtering, so keep a 2x multiplier when those are present.
+        fetch_k = query.top_k * 2 if query.filters else query.top_k
 
         try:
             hits = self._qdrant.search(
                 text=query.text,
                 layer=layer_str,
                 tags=query.tags or None,
+                entity_scope=query.entity_scope or None,
+                entity_id=query.entity_id or None,
+                exclude_relation_types=query.exclude_relation_types or None,
                 top_k=fetch_k,
             )
         except Exception:
