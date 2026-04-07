@@ -7,7 +7,7 @@ import json
 import logging
 import os
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any, TypeVar
@@ -49,19 +49,14 @@ from spec_orch.domain.protocols import (
     VisualEvaluatorAdapter,
     WorkerHandleFactory,
 )
-from spec_orch.runtime_chain.models import (
-    ChainPhase,
-    RuntimeChainEvent,
-    RuntimeChainStatus,
-    RuntimeSubjectKind,
-)
-from spec_orch.runtime_chain.store import append_chain_event, write_chain_status
 from spec_orch.runtime_core.writers import write_round_supervision_payloads
 from spec_orch.services.acceptance_pipeline import AcceptancePipeline
 from spec_orch.services.artifact_collector import ArtifactCollector
 from spec_orch.services.event_bus import Event, EventBus, EventTopic
 from spec_orch.services.io import atomic_write_json
+from spec_orch.services.plan_patch_applier import PlanPatchApplier
 from spec_orch.services.resource_loader import load_json_resource
+from spec_orch.services.round_chain_recorder import RoundChainRecorder
 from spec_orch.services.round_review_coordinator import RoundReviewCoordinator
 from spec_orch.services.run_event_logger import RunEventLogger
 from spec_orch.services.telemetry_service import TelemetryService
@@ -158,6 +153,7 @@ class RoundOrchestrator:
             repo_root=self.repo_root, gate_policy=gate_policy
         )
         self._round_review_coordinator = RoundReviewCoordinator()
+        self._plan_patch_applier = PlanPatchApplier()
 
     def run_supervised(
         self,
@@ -166,68 +162,42 @@ class RoundOrchestrator:
         plan: ExecutionPlan,
         initial_round: int = 0,
     ) -> RoundOrchestratorResult:
+        # -- load history and replay patches --
         round_history = self._load_history(mission_id, up_to_round=initial_round)
-        plan = self._replay_plan_patches(plan, round_history)
-        current_wave_idx = self._determine_start_wave(plan, round_history)
+        plan = self._plan_patch_applier.replay_patches(plan, round_history)
+        current_wave_idx = PlanPatchApplier.determine_start_wave(plan, round_history)
         round_id = initial_round
+
+        # -- initialise chain recorder --
         chain_root = self._mission_operator_dir(mission_id) / "runtime_chain"
         chain_id = self._new_chain_id(mission_id)
         mission_span_id = f"{chain_id}:mission"
-        updated_at = datetime.now(UTC).isoformat()
-        append_chain_event(
-            chain_root,
-            RuntimeChainEvent(
-                chain_id=chain_id,
-                span_id=mission_span_id,
-                parent_span_id=None,
-                subject_kind=RuntimeSubjectKind.MISSION,
-                subject_id=mission_id,
-                phase=ChainPhase.STARTED,
-                status_reason="mission_supervision_started",
-                artifact_refs={"mission_root": str(self._mission_dir(mission_id))},
-                updated_at=updated_at,
-            ),
+        chain = RoundChainRecorder(
+            chain_root=chain_root,
+            chain_id=chain_id,
+            mission_span_id=mission_span_id,
         )
-        write_chain_status(
-            chain_root,
-            RuntimeChainStatus(
-                chain_id=chain_id,
-                active_span_id=mission_span_id,
-                subject_kind=RuntimeSubjectKind.MISSION,
-                subject_id=mission_id,
-                phase=ChainPhase.STARTED,
-                status_reason="mission_supervision_started",
-                artifact_refs={"mission_root": str(self._mission_dir(mission_id))},
-                updated_at=updated_at,
-            ),
+        chain.record_mission_started(
+            mission_id=mission_id,
+            mission_root=str(self._mission_dir(mission_id)),
         )
 
+        # -- main round loop --
         while round_id < self.max_rounds and current_wave_idx < len(plan.waves):
             round_id += 1
             wave = plan.waves[current_wave_idx]
             round_dir = self._round_dir(mission_id, round_id)
             round_dir.mkdir(parents=True, exist_ok=True)
-            round_span_id = f"{chain_id}:round:{round_id:02d}"
-            append_chain_event(
-                chain_root,
-                RuntimeChainEvent(
-                    chain_id=chain_id,
-                    span_id=round_span_id,
-                    parent_span_id=mission_span_id,
-                    subject_kind=RuntimeSubjectKind.ROUND,
-                    subject_id=f"round-{round_id:02d}",
-                    phase=ChainPhase.STARTED,
-                    status_reason="round_started",
-                    artifact_refs={"round_dir": str(round_dir)},
-                    updated_at=datetime.now(UTC).isoformat(),
-                ),
-            )
+            round_span_id = chain.round_span_id(round_id)
+            chain.record_round_started(round_id=round_id, round_dir=round_dir)
 
             summary = RoundSummary(
                 round_id=round_id,
                 wave_id=current_wave_idx,
                 status=RoundStatus.EXECUTING,
             )
+
+            # dispatch
             try:
                 worker_results = self._dispatch_wave(
                     mission_id=mission_id,
@@ -243,27 +213,16 @@ class RoundOrchestrator:
                 summary.completed_at = datetime.now(UTC).isoformat()
                 summary.worker_results = [{"error": str(exc), "wave_id": current_wave_idx}]
                 self._persist_round(round_dir, summary)
-                append_chain_event(
-                    chain_root,
-                    RuntimeChainEvent(
-                        chain_id=chain_id,
-                        span_id=round_span_id,
-                        parent_span_id=mission_span_id,
-                        subject_kind=RuntimeSubjectKind.ROUND,
-                        subject_id=f"round-{round_id:02d}",
-                        phase=ChainPhase.FAILED,
-                        status_reason="round_failed",
-                        artifact_refs={"round_dir": str(round_dir)},
-                        updated_at=datetime.now(UTC).isoformat(),
-                    ),
-                )
+                chain.record_round_failed(round_id=round_id, round_dir=round_dir)
                 round_history.append(summary)
                 return RoundOrchestratorResult(completed=False, rounds=round_history)
+
             summary.worker_results = [
                 self._serialize_result(packet, result) for packet, result in worker_results
             ]
             summary.status = RoundStatus.COLLECTING
 
+            # collect
             artifacts = self._collect_artifacts(
                 mission_id=mission_id,
                 round_id=round_id,
@@ -271,6 +230,8 @@ class RoundOrchestrator:
                 worker_results=worker_results,
                 round_dir=round_dir,
             )
+
+            # review
             decision = self._review_round(
                 mission_id=mission_id,
                 round_id=round_id,
@@ -285,6 +246,8 @@ class RoundOrchestrator:
                 round_span_id=round_span_id,
             )
             round_history.append(summary)
+
+            # accept
             self._run_acceptance_evaluation(
                 mission_id=mission_id,
                 round_id=round_id,
@@ -296,23 +259,12 @@ class RoundOrchestrator:
                 chain_id=chain_id,
                 round_span_id=round_span_id,
             )
-            append_chain_event(
-                chain_root,
-                RuntimeChainEvent(
-                    chain_id=chain_id,
-                    span_id=round_span_id,
-                    parent_span_id=mission_span_id,
-                    subject_kind=RuntimeSubjectKind.ROUND,
-                    subject_id=f"round-{round_id:02d}",
-                    phase=ChainPhase.COMPLETED,
-                    status_reason="round_completed",
-                    artifact_refs={"round_dir": str(round_dir)},
-                    updated_at=datetime.now(UTC).isoformat(),
-                ),
-            )
 
+            # record chain + persist
+            chain.record_round_completed(round_id=round_id, round_dir=round_dir)
             self._apply_session_ops(mission_id, decision)
 
+            # advance
             if decision.action is RoundAction.CONTINUE:
                 current_wave_idx += 1
                 if current_wave_idx >= len(plan.waves):
@@ -320,7 +272,7 @@ class RoundOrchestrator:
                 continue
             if decision.action is RoundAction.RETRY:
                 if decision.plan_patch is not None:
-                    plan = self._apply_plan_patch(
+                    plan = self._plan_patch_applier.apply(
                         plan,
                         current_wave_idx=current_wave_idx,
                         patch=decision.plan_patch,
@@ -328,7 +280,7 @@ class RoundOrchestrator:
                 continue
             if decision.action is RoundAction.REPLAN_REMAINING:
                 if decision.plan_patch is not None:
-                    plan = self._apply_plan_patch(
+                    plan = self._plan_patch_applier.apply(
                         plan,
                         current_wave_idx=current_wave_idx,
                         patch=decision.plan_patch,
@@ -456,27 +408,11 @@ class RoundOrchestrator:
         plan: ExecutionPlan,
         round_history: list[RoundSummary],
     ) -> ExecutionPlan:
-        updated_plan = plan
-        for summary in round_history:
-            decision = summary.decision
-            if decision is None or decision.plan_patch is None:
-                continue
-            updated_plan = self._apply_plan_patch(
-                updated_plan,
-                current_wave_idx=summary.wave_id,
-                patch=decision.plan_patch,
-            )
-        return updated_plan
+        return self._plan_patch_applier.replay_patches(plan, round_history)
 
     @staticmethod
     def _determine_start_wave(plan: ExecutionPlan, round_history: list[RoundSummary]) -> int:
-        if not round_history:
-            return 0
-        last_round = round_history[-1]
-        last_action = last_round.decision.action if last_round.decision else None
-        if last_action is RoundAction.CONTINUE:
-            return min(last_round.wave_id + 1, len(plan.waves))
-        return min(last_round.wave_id, max(len(plan.waves) - 1, 0))
+        return PlanPatchApplier.determine_start_wave(plan, round_history)
 
     def _apply_plan_patch(
         self,
@@ -485,65 +421,11 @@ class RoundOrchestrator:
         current_wave_idx: int,
         patch: PlanPatch,
     ) -> ExecutionPlan:
-        updated_waves = list(plan.waves)
-        for wave_idx in range(current_wave_idx, len(updated_waves)):
-            wave = updated_waves[wave_idx]
-            packets: list[WorkPacket] = []
-            for packet in wave.work_packets:
-                if packet.packet_id in patch.removed_packet_ids:
-                    continue
-                patch_data = patch.modified_packets.get(packet.packet_id)
-                if patch_data:
-                    packet = replace(
-                        packet,
-                        title=patch_data.get("title", packet.title),
-                        spec_section=patch_data.get("spec_section", packet.spec_section),
-                        run_class=patch_data.get("run_class", packet.run_class),
-                        files_in_scope=patch_data.get("files_in_scope", packet.files_in_scope),
-                        files_out_of_scope=patch_data.get(
-                            "files_out_of_scope", packet.files_out_of_scope
-                        ),
-                        depends_on=patch_data.get("depends_on", packet.depends_on),
-                        acceptance_criteria=patch_data.get(
-                            "acceptance_criteria", packet.acceptance_criteria
-                        ),
-                        verification_commands=patch_data.get(
-                            "verification_commands", packet.verification_commands
-                        ),
-                        builder_prompt=patch_data.get("builder_prompt", packet.builder_prompt),
-                    )
-                packets.append(packet)
-            updated_waves[wave_idx] = replace(wave, work_packets=packets)
-
-        if patch.added_packets:
-            target_wave_idx = min(current_wave_idx, len(updated_waves) - 1)
-            if target_wave_idx >= 0:
-                target_wave = updated_waves[target_wave_idx]
-                added_packets = [
-                    self._packet_from_patch(packet_data) for packet_data in patch.added_packets
-                ]
-                updated_waves[target_wave_idx] = replace(
-                    target_wave,
-                    work_packets=[*target_wave.work_packets, *added_packets],
-                )
-
-        return replace(plan, waves=updated_waves)
+        return self._plan_patch_applier.apply(plan, current_wave_idx=current_wave_idx, patch=patch)
 
     @staticmethod
     def _packet_from_patch(packet_data: dict[str, Any]) -> WorkPacket:
-        return WorkPacket(
-            packet_id=str(packet_data["packet_id"]),
-            title=packet_data.get("title", str(packet_data["packet_id"])),
-            spec_section=packet_data.get("spec_section", ""),
-            run_class=packet_data.get("run_class", "feature"),
-            files_in_scope=packet_data.get("files_in_scope", []),
-            files_out_of_scope=packet_data.get("files_out_of_scope", []),
-            depends_on=packet_data.get("depends_on", []),
-            acceptance_criteria=packet_data.get("acceptance_criteria", []),
-            verification_commands=packet_data.get("verification_commands", {}),
-            builder_prompt=packet_data.get("builder_prompt", ""),
-            linear_issue_id=packet_data.get("linear_issue_id"),
-        )
+        return PlanPatchApplier.packet_from_patch(packet_data)
 
     def _persist_round(self, round_dir: Path, summary: RoundSummary) -> None:
         write_round_supervision_payloads(
