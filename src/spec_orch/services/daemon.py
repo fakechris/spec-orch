@@ -87,83 +87,103 @@ class _DaemonSharedState:
 
 class DaemonConfig:
     def __init__(self, raw: dict[str, Any]) -> None:
+        from spec_orch.services.config_schema import SpecOrchConfig
+
         self._raw = raw
-        linear = raw.get("linear", {})
-        self.linear_token_env: str = linear.get("token_env", "SPEC_ORCH_LINEAR_TOKEN")
-        self.team_key: str = linear.get("team_key", "SPC")
-        self.poll_interval_seconds: int = linear.get("poll_interval_seconds", 60)
-        self.issue_filter: str = linear.get("issue_filter", "assigned_to_me")
 
-        builder = raw.get("builder", {})
-        self.builder_adapter: str = builder.get("adapter", "codex_exec")
-        self.codex_executable: str = builder.get("executable") or builder.get(
-            "codex_executable", "codex"
+        # Validate through pydantic — coerces types and fills defaults
+        validated = SpecOrchConfig.from_dict(raw)
+
+        # --- linear ---
+        self.linear_token_env: str = validated.linear.token_env
+        self.team_key: str = validated.linear.team_key
+        self.poll_interval_seconds: int = validated.linear.poll_interval_seconds
+        self.issue_filter: str = validated.linear.issue_filter
+
+        # --- builder ---
+        # Preserve legacy fallback: "executable" overrides "codex_executable"
+        self.builder_adapter: str = validated.builder.adapter
+        self.codex_executable: str = (
+            validated.builder.executable or validated.builder.codex_executable
         )
 
-        reviewer = raw.get("reviewer", {})
-        self.reviewer_adapter: str = reviewer.get("adapter", "local")
+        # --- reviewer ---
+        self.reviewer_adapter: str = validated.reviewer.adapter
 
-        planner = raw.get("planner", {})
-        self.planner_model: str | None = planner.get("model")
-        self.planner_api_type: str = planner.get("api_type", "anthropic")
-        self.planner_api_key_env: str | None = planner.get("api_key_env")
-        self.planner_api_base_env: str | None = planner.get("api_base_env")
-        self.planner_token_command: str | None = planner.get("token_command")
+        # --- planner ---
+        self.planner_model: str | None = validated.planner.model
+        self.planner_api_type: str = validated.planner.api_type
+        self.planner_api_key_env: str | None = validated.planner.api_key_env
+        self.planner_api_base_env: str | None = validated.planner.api_base_env
+        self.planner_token_command: str | None = validated.planner.token_command
 
-        supervisor = raw.get("supervisor", {})
-        self.supervisor_adapter: str | None = supervisor.get("adapter")
-        self.supervisor_model: str | None = supervisor.get("model")
-        self.supervisor_api_type: str = supervisor.get("api_type", "anthropic")
-        self.supervisor_api_key_env: str | None = supervisor.get("api_key_env")
-        self.supervisor_api_base_env: str | None = supervisor.get("api_base_env")
-        self.supervisor_max_rounds: int = supervisor.get("max_rounds", 20)
-        visual_evaluator = supervisor.get("visual_evaluator", {})
-        self.supervisor_visual_evaluator_adapter: str | None = visual_evaluator.get("adapter")
+        # --- supervisor ---
+        self.supervisor_adapter: str | None = validated.supervisor.adapter
+        self.supervisor_model: str | None = validated.supervisor.model
+        self.supervisor_api_type: str = validated.supervisor.api_type
+        self.supervisor_api_key_env: str | None = validated.supervisor.api_key_env
+        self.supervisor_api_base_env: str | None = validated.supervisor.api_base_env
+        self.supervisor_max_rounds: int = validated.supervisor.max_rounds
+        self.supervisor_visual_evaluator_adapter: str | None = (
+            validated.supervisor.visual_evaluator.adapter
+        )
         self.supervisor_visual_evaluator_command: list[str] = list(
-            visual_evaluator.get("command", [])
+            validated.supervisor.visual_evaluator.command
         )
-        self.supervisor_visual_evaluator_timeout_seconds: int = visual_evaluator.get(
-            "timeout_seconds", 300
+        self.supervisor_visual_evaluator_timeout_seconds: int = (
+            validated.supervisor.visual_evaluator.timeout_seconds
         )
 
-        acceptance = raw.get("acceptance_evaluator", {})
-        self.acceptance_evaluator_adapter: str | None = acceptance.get("adapter")
-        self.acceptance_evaluator_model: str | None = acceptance.get("model")
-        self.acceptance_evaluator_api_type: str = acceptance.get("api_type", "anthropic")
-        self.acceptance_evaluator_api_key_env: str | None = acceptance.get("api_key_env")
-        self.acceptance_evaluator_api_base_env: str | None = acceptance.get("api_base_env")
-        self.acceptance_auto_file_issues: bool = acceptance.get("auto_file_issues", False)
-        self.acceptance_min_confidence: float = float(acceptance.get("min_confidence", 0.8))
-        self.acceptance_min_severity: str = str(acceptance.get("min_severity", "high"))
-
-        github = raw.get("github", {})
-        self.base_branch: str = github.get("base_branch", "main")
-
-        daemon = raw.get("daemon", {})
-        self.max_concurrent: int = daemon.get("max_concurrent", 1)
-        self.live_mission_workers: bool = daemon.get("live_mission_workers", False)
-        self.lockfile_dir: str = daemon.get("lockfile_dir", ".spec_orch_locks/")
-        self.consume_state: str = daemon.get("consume_state", "Ready")
-        self.require_labels: list[str] = daemon.get("require_labels", [])
-        self.exclude_labels: list[str] = daemon.get(
-            "exclude_labels",
-            ["blocked", "needs-clarification"],
+        # --- acceptance_evaluator ---
+        self.acceptance_evaluator_adapter: str | None = validated.acceptance_evaluator.adapter
+        self.acceptance_evaluator_model: str | None = validated.acceptance_evaluator.model
+        self.acceptance_evaluator_api_type: str = validated.acceptance_evaluator.api_type
+        self.acceptance_evaluator_api_key_env: str | None = (
+            validated.acceptance_evaluator.api_key_env
         )
-        self.skip_parents: bool = daemon.get("skip_parents", True)
-        self.max_retries: int = daemon.get("max_retries", 3)
-        self.retry_base_delay: int = daemon.get("retry_base_delay_seconds", 60)
-        self.hotfix_labels: list[str] = daemon.get("hotfix_labels", ["hotfix", "urgent", "P0"])
+        self.acceptance_evaluator_api_base_env: str | None = (
+            validated.acceptance_evaluator.api_base_env
+        )
+        self.acceptance_auto_file_issues: bool = validated.acceptance_evaluator.auto_file_issues
+        self.acceptance_min_confidence: float = validated.acceptance_evaluator.min_confidence
+        self.acceptance_min_severity: str = validated.acceptance_evaluator.min_severity
 
-        spec = raw.get("spec", {})
-        self.require_spec_approval: bool = spec.get("require_approval", True)
+        # --- github ---
+        self.base_branch: str = validated.github.base_branch
+
+        # --- daemon ---
+        self.max_concurrent: int = validated.daemon.max_concurrent
+        self.live_mission_workers: bool = validated.daemon.live_mission_workers
+        self.lockfile_dir: str = validated.daemon.lockfile_dir
+        self.consume_state: str = validated.daemon.consume_state
+        self.require_labels: list[str] = validated.daemon.require_labels
+        self.exclude_labels: list[str] = validated.daemon.exclude_labels
+        self.skip_parents: bool = validated.daemon.skip_parents
+        self.max_retries: int = validated.daemon.max_retries
+        self.retry_base_delay: int = validated.daemon.retry_base_delay_seconds
+        self.hotfix_labels: list[str] = validated.daemon.hotfix_labels
+
+        # --- spec ---
+        self.require_spec_approval: bool = validated.spec.require_approval
+
+    @classmethod
+    def from_validated(cls, config: Any) -> DaemonConfig:
+        """Build a DaemonConfig from an already-validated SpecOrchConfig.
+
+        Accepts ``SpecOrchConfig`` (or its ``model_dump()`` dict).
+        """
+        from spec_orch.services.config_schema import SpecOrchConfig
+
+        if isinstance(config, SpecOrchConfig):
+            return cls(config.model_dump())
+        return cls(config)
 
     @classmethod
     def from_toml(cls, path: Path) -> DaemonConfig:
-        import tomllib
+        from spec_orch.services.config_schema import SpecOrchConfig
 
-        with open(path, "rb") as f:
-            raw = tomllib.load(f)
-        return cls(raw)
+        validated = SpecOrchConfig.from_toml(path)
+        return cls.from_validated(validated)
 
 
 class SpecOrchDaemon:
