@@ -675,16 +675,25 @@ class SpecOrchDaemon:
                 continue
             # Mark in-progress on main thread so admission counts stay correct.
             self._in_progress.add(issue_id)
-            future = self._executor_pool.submit(
-                self._daemon_executor.dispatch,
-                host=self,
-                issue_id=issue_id,
-                raw_issue=raw_issue,
-                client=client,
-                controller=controller,
-                is_hotfix=bool(intent.get("is_hotfix", False)),
-            )
-            self._execution_futures[issue_id] = future
+            try:
+                future = self._executor_pool.submit(
+                    self._daemon_executor.dispatch,
+                    host=self,
+                    issue_id=issue_id,
+                    raw_issue=raw_issue,
+                    client=client,
+                    controller=controller,
+                    is_hotfix=bool(intent.get("is_hotfix", False)),
+                )
+                self._execution_futures[issue_id] = future
+            except Exception as exc:
+                print(f"[daemon] submit failed for {issue_id}: {exc}")
+                self._in_progress.discard(issue_id)
+                self._emit_error_event(
+                    "daemon.submit_failed",
+                    str(exc),
+                    issue_id=issue_id,
+                )
 
     def _reap_completed_futures(self) -> None:
         """Harvest finished execution futures and log any unhandled errors."""
@@ -692,6 +701,8 @@ class SpecOrchDaemon:
         for issue_id in done_ids:
             fut = self._execution_futures.pop(issue_id)
             exc = fut.exception()
+            # Always unwind the in-progress reservation so the issue can be retried.
+            self._in_progress.discard(issue_id)
             if exc is not None:
                 print(f"[daemon] executor future for {issue_id} raised: {exc}")
                 self._emit_error_event(
