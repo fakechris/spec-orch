@@ -106,6 +106,7 @@ class MissionLifecycleManager:
         round_orchestrator: Any | None = None,
         mission_execution_service: MissionExecutionService | None = None,
         codex_bin: str = "codex",
+        memory_service: Any | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
         self._bus = event_bus or get_event_bus()
@@ -114,7 +115,7 @@ class MissionLifecycleManager:
         self._codex_bin = codex_bin
         self._states: dict[str, MissionState] = {}
         self._context_assembler = ContextAssembler()
-        self._memory: Any | None = None
+        self._memory: Any | None = memory_service
         self._load_state()
 
     def _get_mission_execution_service(self) -> MissionExecutionService:

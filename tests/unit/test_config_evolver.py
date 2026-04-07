@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from spec_orch.services.config_evolver import ConfigEvolver
+from spec_orch.services.evolution.config_evolver import ConfigEvolver
 
 
 def test_load_reports_prefers_unified_artifacts(tmp_path: Path) -> None:

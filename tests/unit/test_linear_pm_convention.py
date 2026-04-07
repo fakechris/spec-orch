@@ -241,6 +241,7 @@ class TestDaemonExecutionQualification:
         mock_controller.advance_to_completion.return_value = mock_result
 
         daemon._poll_and_run(mock_client, mock_controller)
+        daemon._executor_pool.shutdown(wait=True)
 
         mock_client.update_issue_state.assert_any_call("uuid-1", "In Progress")
 
@@ -275,6 +276,7 @@ class TestDaemonExecutionQualification:
             mock_gh.create_pr.return_value = "https://github.com/pr/1"
 
             daemon._poll_and_run(mock_client, mock_controller)
+            daemon._executor_pool.shutdown(wait=True)
 
         mock_client.update_issue_state.assert_any_call("uuid-2", "In Review")
 

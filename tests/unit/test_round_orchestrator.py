@@ -2822,6 +2822,7 @@ def test_build_fresh_acpx_post_run_campaign_substitutes_interaction_plan_keys(
 
 def test_collect_artifacts_records_verification_gate_and_manifest_paths(tmp_path: Path) -> None:
     from spec_orch.domain.models import BuilderResult, Wave, WorkPacket
+    from spec_orch.services.gate_service import GatePolicy
     from spec_orch.services.round_orchestrator import RoundOrchestrator
 
     orchestrator = RoundOrchestrator(
@@ -2829,6 +2830,7 @@ def test_collect_artifacts_records_verification_gate_and_manifest_paths(tmp_path
         supervisor=None,
         worker_factory=None,
         context_assembler=None,
+        gate_policy=GatePolicy(required_conditions={"builder", "verification"}),
     )
     packet = WorkPacket(
         packet_id="pkt-1",
@@ -3014,6 +3016,7 @@ def test_collect_artifacts_ignores_harness_telemetry_for_scope_proof(
     tmp_path: Path,
 ) -> None:
     from spec_orch.domain.models import BuilderResult, Wave, WorkPacket
+    from spec_orch.services.gate_service import GatePolicy
     from spec_orch.services.round_orchestrator import RoundOrchestrator
 
     orchestrator = RoundOrchestrator(
@@ -3021,6 +3024,7 @@ def test_collect_artifacts_ignores_harness_telemetry_for_scope_proof(
         supervisor=None,
         worker_factory=None,
         context_assembler=None,
+        gate_policy=GatePolicy(required_conditions={"builder", "verification"}),
     )
     packet = WorkPacket(
         packet_id="pkt-1",
@@ -3080,6 +3084,7 @@ def test_collect_artifacts_prefers_builder_report_files_changed_for_scope_proof(
     tmp_path: Path,
 ) -> None:
     from spec_orch.domain.models import BuilderResult, Wave, WorkPacket
+    from spec_orch.services.gate_service import GatePolicy
     from spec_orch.services.round_orchestrator import RoundOrchestrator
 
     orchestrator = RoundOrchestrator(
@@ -3087,6 +3092,7 @@ def test_collect_artifacts_prefers_builder_report_files_changed_for_scope_proof(
         supervisor=None,
         worker_factory=None,
         context_assembler=None,
+        gate_policy=GatePolicy(required_conditions={"builder", "verification"}),
     )
     packet = WorkPacket(
         packet_id="pkt-1",

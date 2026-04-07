@@ -164,6 +164,7 @@ class RunControllerDependencies:
     context_assembler: ContextAssembler | None = None
     report_writer: RunReportWriter | None = None
     event_logger: RunEventLogger | None = None
+    memory_service: Any | None = None
 
 
 class RunController:
@@ -226,7 +227,7 @@ class RunController:
         self.flow_mapper = flow_mapper or FlowMapper()
         self.context_assembler = controller_dependencies.context_assembler or ContextAssembler()
         self._flow_router: FlowRouter | None = None
-        self._memory_service: Any | None = None
+        self._memory_service: Any | None = controller_dependencies.memory_service
         self._event_logger = controller_dependencies.event_logger or RunEventLogger(
             telemetry_service=self.telemetry_service,
             live_stream=controller_config.live_stream,

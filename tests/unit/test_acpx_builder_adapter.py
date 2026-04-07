@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from spec_orch.domain.models import BuilderResult, Issue
-from spec_orch.services.acpx_builder_adapter import AcpxBuilderAdapter
+from spec_orch.services.builders.acpx_builder_adapter import AcpxBuilderAdapter
 
 
 def _make_issue(issue_id: str = "TST-1") -> Issue:

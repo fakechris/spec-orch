@@ -130,6 +130,7 @@ class RoundOrchestrator:
         event_bus: EventBus | None = None,
         max_rounds: int = DEFAULT_MAX_ROUNDS,
         live_stream: IO[str] | None = None,
+        gate_policy: Any | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
         self.supervisor = supervisor
@@ -153,7 +154,9 @@ class RoundOrchestrator:
             worker_factory=worker_factory,
             event_logger=self._event_logger,
         )
-        self._artifact_collector = ArtifactCollector(repo_root=self.repo_root)
+        self._artifact_collector = ArtifactCollector(
+            repo_root=self.repo_root, gate_policy=gate_policy
+        )
         self._round_review_coordinator = RoundReviewCoordinator()
 
     def run_supervised(
