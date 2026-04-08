@@ -83,8 +83,8 @@ def execute_with_fallback(
     ``api_base``) into *base_kwargs* and calls *call_fn*.
 
     * **Transient errors** are retried up to *max_retries* times with
-      linear back-off (``retry_backoff_seconds * attempt``).  When
-      retries are exhausted the executor moves to the next profile.
+      exponential back-off (``retry_backoff_seconds * 2 ** attempt``).
+      When retries are exhausted the executor moves to the next profile.
     * **Fatal errors** (auth failures, missing keys, or any type listed
       in *extra_fatal_types*) are raised immediately.
 
@@ -105,10 +105,8 @@ def execute_with_fallback(
 
         kwargs = dict(base_kwargs)
         kwargs["model"] = profile.model
-        if profile.api_key:
-            kwargs["api_key"] = profile.api_key
-        if profile.api_base:
-            kwargs["api_base"] = profile.api_base
+        kwargs["api_key"] = profile.api_key or None
+        kwargs["api_base"] = profile.api_base or None
 
         attempt = 0
         while True:
@@ -121,7 +119,7 @@ def execute_with_fallback(
                 ):
                     attempt += 1
                     if retry_backoff_seconds > 0:
-                        time.sleep(retry_backoff_seconds * attempt)
+                        time.sleep(retry_backoff_seconds * (2**attempt))
                     continue
                 if not is_transient_litellm_error(exc, extra_fatal_types=extra_fatal_types):
                     raise

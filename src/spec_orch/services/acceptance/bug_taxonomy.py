@@ -69,11 +69,11 @@ def classify_finding(finding: AcceptanceFinding) -> BugType:
     otherwise infers from text signals in summary/details.
     """
     # If critique_axis is already a known BugType, use it
-    axis = finding.critique_axis.lower().strip()
+    axis = (finding.critique_axis or "").lower().strip()
     if axis in {bt.value for bt in BugType}:
         return BugType(axis)
 
-    text = f"{finding.summary} {finding.details}".lower()
+    text = f"{finding.summary or ''} {finding.details or ''}".lower()
 
     # Harness signals take priority — these mask real results
     if any(signal in text for signal in _HARNESS_SIGNALS):
@@ -92,11 +92,11 @@ def classify_finding(finding: AcceptanceFinding) -> BugType:
 
 def classify_proposal(proposal: AcceptanceIssueProposal) -> BugType:
     """Classify an issue proposal into a bug type."""
-    axis = proposal.critique_axis.lower().strip()
+    axis = (proposal.critique_axis or "").lower().strip()
     if axis in {bt.value for bt in BugType}:
         return BugType(axis)
 
-    text = f"{proposal.title} {proposal.summary}".lower()
+    text = f"{proposal.title or ''} {proposal.summary or ''}".lower()
 
     if any(signal in text for signal in _HARNESS_SIGNALS):
         return BugType.HARNESS_BUG

@@ -267,8 +267,8 @@ class TestExecuteWithFallback:
                 extra_fatal_types=(HardDeadline,),
             )
 
-    def test_api_key_not_set_when_empty(self):
-        """Profile with empty api_key should not set api_key in kwargs."""
+    def test_api_key_cleared_when_empty(self):
+        """Profile with empty api_key should explicitly set None to prevent credential leak."""
         captured: dict = {}
 
         def spy(**kw):
@@ -281,5 +281,5 @@ class TestExecuteWithFallback:
             base_kwargs={"messages": []},
             role_name="test",
         )
-        assert "api_key" not in captured
-        assert "api_base" not in captured
+        assert captured["api_key"] is None
+        assert captured["api_base"] is None

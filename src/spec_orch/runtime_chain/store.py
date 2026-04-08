@@ -60,7 +60,7 @@ def read_chain_lineage(chain_root: Path) -> dict[str, str] | None:
     root_event = events[0]
     ref = root_event.session_refs.get("mission_chain_ref")
     if isinstance(ref, dict):
-        return ref
+        return {str(k): str(v) for k, v in ref.items()}
     return None
 
 

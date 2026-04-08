@@ -113,6 +113,14 @@ class AcceptanceInteractionStep:
         )
 
 
+def _safe_acceptance_mode(value: Any) -> AcceptanceMode:
+    """Parse an AcceptanceMode, falling back to EXPLORATORY on unknown values."""
+    try:
+        return AcceptanceMode(value)
+    except ValueError:
+        return AcceptanceMode.EXPLORATORY
+
+
 @dataclass
 class AcceptanceCampaign:
     mode: AcceptanceMode
@@ -185,7 +193,7 @@ class AcceptanceCampaign:
             return [str(item) for item in value if isinstance(item, str) and item.strip()]
 
         return cls(
-            mode=AcceptanceMode(data.get("mode", AcceptanceMode.EXPLORATORY.value)),
+            mode=_safe_acceptance_mode(data.get("mode", AcceptanceMode.EXPLORATORY.value)),
             goal=data.get("goal", ""),
             primary_routes=data.get("primary_routes", []),
             related_routes=data.get("related_routes", []),
