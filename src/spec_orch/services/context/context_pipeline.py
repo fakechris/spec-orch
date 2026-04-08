@@ -98,6 +98,8 @@ _EXECUTION_PROVIDERS: dict[str, ProviderPriority] = {
     "review_summary": ProviderPriority.OPTIONAL,
 }
 
+_TRUNCATION_WARNING_THRESHOLD = 0.5  # warn when retained < 50% of original
+
 _LEARNING_PROVIDERS: dict[str, ProviderPriority] = {
     "similar_failure_samples": ProviderPriority.IMPORTANT,
     "matched_skills": ProviderPriority.OPTIONAL,
@@ -211,7 +213,7 @@ class ContextPipeline:
         for meta in bundle.truncation_metadata:
             original = meta.get("original_chars", 0)
             retained = meta.get("retained_chars", 0)
-            if original > 0 and retained < original * 0.5:
+            if original > 0 and retained < original * _TRUNCATION_WARNING_THRESHOLD:
                 field_path = f"{meta.get('context', '?')}.{meta.get('field', '?')}"
                 warnings.append(
                     f"{field_path} truncated to {retained}/{original} chars "

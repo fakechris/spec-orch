@@ -180,6 +180,19 @@ class DaemonReactionProcessor:
         gh: GitHubPRService,
         pr_meta_by_issue: dict[str, dict[str, Any]],
     ) -> None:
+        # Pre-fetch In Review issues once to build a UID lookup, avoiding
+        # N+1 list_issues calls inside individual reaction handlers.
+        linear_uid_map: dict[str, str] = {}
+        try:
+            issues = client.list_issues(team_key=self._config.team_key, filter_state="In Review")
+            for raw in issues:
+                ident = raw.get("identifier", "")
+                uid = raw.get("id", "")
+                if ident and uid:
+                    linear_uid_map[ident] = uid
+        except Exception as exc:
+            print(f"[daemon] pre-fetch In Review issues failed: {exc}")
+
         for issue_id, meta in pr_meta_by_issue.items():
             pr_number = meta.get("number")
             if not isinstance(pr_number, int):
@@ -205,6 +218,7 @@ class DaemonReactionProcessor:
                     pr_number=pr_number,
                     decision=decision,
                     tpl_ctx=tpl_ctx,
+                    linear_uid=linear_uid_map.get(issue_id),
                 )
                 if consumed:
                     self._shared.reaction_marks.add(mark)
@@ -257,6 +271,7 @@ class DaemonReactionProcessor:
         pr_number: int,
         decision: ReactionDecision,
         tpl_ctx: dict[str, Any],
+        linear_uid: str | None = None,
     ) -> bool:
         """Execute one reaction; return True if the mark should be consumed."""
         base_record: dict[str, Any] = {
@@ -300,7 +315,7 @@ class DaemonReactionProcessor:
             return ok
 
         if decision.action in {"comment_ci_failed", "comment_changes_requested"}:
-            ok = self._comment_reaction(client, issue_id, decision, tpl_ctx)
+            ok = self._comment_reaction(client, issue_id, decision, tpl_ctx, linear_uid=linear_uid)
             rec = {**base_record, "result": "commented" if ok else "comment_failed"}
             self._append_reaction_trace(rec)
             return ok
@@ -337,6 +352,8 @@ class DaemonReactionProcessor:
         issue_id: str,
         decision: ReactionDecision,
         tpl_ctx: dict[str, Any],
+        *,
+        linear_uid: str | None = None,
     ) -> bool:
         """Post a Linear comment from rule params or built-in defaults."""
         action = decision.action
@@ -361,6 +378,10 @@ class DaemonReactionProcessor:
             body = default_body
 
         try:
+            # Use pre-resolved linear_uid to avoid an N+1 list_issues call.
+            if linear_uid:
+                client.add_comment(linear_uid, body)
+                return True
             issues = client.list_issues(team_key=self._config.team_key, filter_state="In Review")
             for raw in issues:
                 if raw.get("identifier") != issue_id or not raw.get("id"):

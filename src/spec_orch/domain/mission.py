@@ -262,8 +262,15 @@ class RoundDecision:
                 removed_packet_ids=plan_patch_raw.get("removed_packet_ids", []),
                 reason=plan_patch_raw.get("reason", ""),
             )
+        try:
+            action = RoundAction(data["action"])
+        except ValueError:
+            raise ValueError(
+                f"Unknown RoundAction {data['action']!r}; "
+                f"expected one of {[a.value for a in RoundAction]}"
+            ) from None
         return cls(
-            action=RoundAction(data["action"]),
+            action=action,
             reason_code=data.get("reason_code", ""),
             summary=data.get("summary", ""),
             confidence=data.get("confidence", 0.0),

@@ -553,17 +553,14 @@ class DaemonStateStore:
     def clear_all_dead_letter(self) -> int:
         """Atomically clear all dead-letter entries. Returns count removed."""
         with self._db:
-            row = self._db.execute(
-                "SELECT COUNT(*) FROM issue_runtime_state WHERE dead_letter = 1"
-            ).fetchone()
-            count = int(row[0]) if row else 0
-            self._db.execute(
+            cursor = self._db.execute(
                 """UPDATE issue_runtime_state
                    SET dead_letter = 0, processed = 0,
                        retry_count = 0, retry_at = NULL, updated_at = ?
                    WHERE dead_letter = 1""",
                 (time.time(),),
             )
+            count = cursor.rowcount
         return count
 
     def increment_retry(self, issue_id: str, *, max_retries: int, base_delay: int) -> str:
@@ -585,7 +582,7 @@ class DaemonStateStore:
                     (now, issue_id),
                 )
                 return "dead_letter"
-            delay = base_delay * (2 ** (count - 1))
+            delay = min(base_delay * (2 ** (count - 1)), 3600)
             retry_at = now + delay
             self._db.execute(
                 """UPDATE issue_runtime_state

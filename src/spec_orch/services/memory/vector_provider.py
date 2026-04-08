@@ -100,9 +100,12 @@ class VectorEnhancedProvider:
             return self._fs.recall(query)
 
         # Reduce over-fetch now that entity_scope/entity_id/relation_type are
-        # pushed to Qdrant as FieldConditions.  Arbitrary query.filters still
-        # need post-filtering, so keep a 2x multiplier when those are present.
-        fetch_k = query.top_k * 2 if query.filters else query.top_k
+        # pushed to Qdrant as FieldConditions.  When only arbitrary
+        # query.filters remain for post-filtering, keep a 2x multiplier.
+        # When all common filters are pushed, a modest 1.5x suffices.
+        import math
+
+        fetch_k = query.top_k * 2 if query.filters else math.ceil(query.top_k * 1.5)
 
         try:
             hits = self._qdrant.search(
