@@ -220,6 +220,7 @@ class LiteLLMAcceptanceEvaluator:
             artifacts=artifacts,
             campaign=campaign,
         )
+        final_result = self._reconcile_report_consistency(final_result)
         if final_result.findings and any(
             finding.summary == "Acceptance evaluator call failed."
             for finding in final_result.findings
@@ -974,6 +975,7 @@ class LiteLLMAcceptanceEvaluator:
                     result,
                     status="warn",
                     summary=summary,
+                    confidence=min(result.confidence, 0.75),
                     findings=[finding],
                     issue_proposals=[proposal],
                     recommended_next_step=recommended_next_step,
@@ -1056,10 +1058,34 @@ class LiteLLMAcceptanceEvaluator:
             result,
             status="warn",
             summary=summary,
+            confidence=min(result.confidence, 0.75),
             findings=[finding],
             issue_proposals=[proposal],
             recommended_next_step=recommended_next_step,
         )
+
+    @staticmethod
+    def _reconcile_report_consistency(
+        result: AcceptanceReviewResult,
+    ) -> AcceptanceReviewResult:
+        """Ensure top-level status/summary agree with nested findings."""
+        if not result.findings and not result.issue_proposals:
+            # No findings at all — status should be pass or warn, not fail
+            if result.status == "fail":
+                return replace(
+                    result,
+                    status="warn",
+                    summary=result.summary or "No actionable findings.",
+                )
+            return result
+
+        has_high = any(f.severity in ("high", "critical") for f in result.findings)
+        has_proposals = bool(result.issue_proposals)
+
+        if (has_high or has_proposals) and result.status == "pass":
+            return replace(result, status="warn")
+
+        return result
 
     @staticmethod
     def _split_review_and_json(raw_output: str) -> tuple[str, str]:
